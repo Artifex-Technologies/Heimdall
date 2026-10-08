@@ -1,0 +1,19 @@
+# Build artifacts
+/heimdalld
+/heimdalld.exe
+*.test
+
+# Local config and state -- never commit a real deployment's config or
+# alert log; both can contain the credentials/injections Heimdall exists to
+# catch.
+/config.json
+/*.local.json
+/alerts.jsonl
+/heimdall-data/
+
+# Editor/OS cruft
+.vscode/
+.idea/
+*.swp
+Thumbs.db
+.DS_Store

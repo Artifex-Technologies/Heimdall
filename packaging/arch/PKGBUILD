@@ -1,0 +1,45 @@
+# Maintainer: Matthew Gregory <gregoma@pm.me>
+pkgname=heimdall-git
+pkgver=0.1.0.r0.g0000000
+pkgrel=1
+pkgdesc="Heimdall -- security agent monitoring Sarina for prompt injection, credential leaks, and permission escalation"
+arch=('x86_64')
+url="https://github.com/Artifex-Technologies/Heimdall"
+license=('MIT')
+depends=('glibc')
+makedepends=('go' 'git')
+provides=('heimdall')
+conflicts=('heimdall')
+backup=('etc/heimdall/config.json.example')
+source=("git+https://github.com/Artifex-Technologies/Heimdall.git")
+sha256sums=('SKIP')
+
+pkgver() {
+	cd "$srcdir/Heimdall"
+	printf "0.1.0.r%s.g%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
+}
+
+build() {
+	cd "$srcdir/Heimdall"
+	export CGO_ENABLED=0
+	go build -trimpath -ldflags "-s -w" -o heimdalld ./cmd/heimdalld
+}
+
+check() {
+	cd "$srcdir/Heimdall"
+	go test ./...
+}
+
+package() {
+	cd "$srcdir/Heimdall"
+
+	install -Dm755 heimdalld "$pkgdir/usr/bin/heimdalld"
+	install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+	install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+	install -Dm644 packaging/arch/heimdall.service \
+		"$pkgdir/usr/lib/systemd/system/heimdall.service"
+	install -Dm644 packaging/arch/heimdall.sysusers \
+		"$pkgdir/usr/lib/sysusers.d/heimdall.conf"
+	install -Dm644 packaging/arch/config.json.example \
+		"$pkgdir/etc/heimdall/config.json.example"
+}

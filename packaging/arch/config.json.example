@@ -1,0 +1,38 @@
+{
+  "agent_session_dir": "/home/YOUR_USER/path/to/Sarina/.port_sessions",
+  "poll_interval_seconds": 5,
+  "alert_log_path": "/var/lib/heimdall/alerts.jsonl",
+  "ring_size": 500,
+  "api_addr": "127.0.0.1:8930",
+  "burst_window_seconds": 300,
+  "burst_threshold": 20,
+  "burst_cooldown_seconds": 300,
+
+  "fim_paths": [
+    "/home/YOUR_USER/path/to/Sarina/CLAUDE.md",
+    "/home/YOUR_USER/path/to/Sarina/pyproject.toml",
+    "/home/YOUR_USER/path/to/Sarina/packaging/arch/sarina-service.service"
+  ],
+  "fim_poll_interval_seconds": 30,
+  "fim_state_path": "/var/lib/heimdall/fim-state.json",
+
+  "telemetry_interval_seconds": 30,
+  "resource_mem_threshold_percent": 90,
+  "resource_load_threshold_per_cpu": 1.5,
+
+  "net_ports": [8765, 8899, 44700, 8930],
+  "net_poll_interval_seconds": 15,
+
+  "limbo_event_log": "/home/YOUR_USER/.local/state/limbo/events.jsonl",
+  "limbo_state_path": "/var/lib/heimdall/limbo-offset",
+  "limbo_poll_interval_seconds": 5,
+  "limbo_control_socket": "/run/limbo/control.sock",
+  "limbo_auto_quarantine": true,
+  "limbo_quarantine_delay_seconds": 15,
+  "limbo_backlog_threshold": 4,
+  "sarina_url": "http://127.0.0.1:8899",
+  "sarina_cwd": "/var/lib/heimdall",
+
+  "baseline_min_samples": 20,
+  "baseline_z_threshold": 3.0
+}
