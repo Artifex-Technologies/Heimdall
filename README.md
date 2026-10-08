@@ -199,4 +199,4 @@ before relying on either staying exactly this shape.
 
 ## License
 
-MIT. See [`LICENSE`](LICENSE).
+MPL 2.0. See [`LICENSE`](LICENSE).
