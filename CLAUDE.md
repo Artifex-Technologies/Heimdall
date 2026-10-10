@@ -212,6 +212,16 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-10-10 — Renamed from Chymaera_Sentry; Limbo-facing identifiers renamed
+- Repo moved to Artifex and renamed Heimdall. Heimdall-owned names changed: alert
+  `source` `sentry` -> `heimdall`; quarantine source sent to Limbo `sentry:<detector>`
+  -> `heimdall:<detector>`; env var `SENTRY_SARINA_TOKEN` -> `HEIMDALL_SARINA_TOKEN`;
+  Limbo group `limbo-sentry` -> `limbo-heimdall` (must match Limbo's sysusers file).
+- Unchanged because Sarina owns them: `SENTRY_REVIEW_URL`, `sentry_governance.py`,
+  `consult_sentry`. Sarina still needs its own rename.
+- Existing deployments must rename the group and the token env var.
+— Signed: Heimdall / Claude Sonnet 5.5
+
 ### 2026-10-06 (3) — Quarantine requests are queued by priority, not dropped over the cap
 - The 8-call concurrency cap used to record a trigger as `limbo_quarantine_failed` "NOT
   requested". The owner does not want security responses to slip through, so excess
@@ -292,7 +302,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 - **New `internal/response`**: `Client` (Limbo control socket), `Sarina` advisor,
   `Responder` (an `alert.Sink` wrapper). Config: `limbo_control_socket`,
   `limbo_auto_quarantine` (default on once the socket is set), `sarina_url`,
-  `sarina_cwd`; token via `sarina_token` or `SENTRY_SARINA_TOKEN`. `alert.Alert`
+  `sarina_cwd`; token via `sarina_token` or `HEIMDALL_SARINA_TOKEN`. `alert.Alert`
   gained an additive `fields` map so the guest is known without parsing text.
 - **The safety property is enforced on Limbo's side, not trusted here:** the
   control socket simply has no loosening routes. Verified with real unprivileged

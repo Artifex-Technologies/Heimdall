@@ -216,7 +216,7 @@ func (s *Sarina) once(ctx context.Context, method, path string, in, out any) err
 	raw, _ := io.ReadAll(io.LimitReader(resp.Body, maxReply+1))
 	switch {
 	case resp.StatusCode == 401 || resp.StatusCode == 403:
-		return &SarinaError{CodeAuth, resp.Status, "set sarina_token or SENTRY_SARINA_TOKEN to Sarina's SARINA_SERVICE_TOKEN"}
+		return &SarinaError{CodeAuth, resp.Status, "set sarina_token or HEIMDALL_SARINA_TOKEN to Sarina's SARINA_SERVICE_TOKEN"}
 	case resp.StatusCode == 404 && (method != "POST" || strings.HasSuffix(path, "/chat")):
 		return &SarinaError{CodeEvicted, method + " " + path + ": session not found", "Sarina evicted the session (restart or --max-sessions); Heimdall opens a new one next time"}
 	case resp.StatusCode >= 500:

@@ -107,7 +107,7 @@ func TestOnlyUnsafeRunningGuestAlertsTriggerAndEverythingIsForwarded(t *testing.
 			if (len(lim.quarGuest) == 1) != tc.wantQuar {
 				t.Fatalf("quarantine calls=%v want=%v", lim.quarGuest, tc.wantQuar)
 			}
-			if tc.wantQuar && lim.quarGuest[0] != "lab|sentry:limbo-guest" {
+			if tc.wantQuar && lim.quarGuest[0] != "lab|heimdall:limbo-guest" {
 				t.Fatalf("wrong call: %v", lim.quarGuest)
 			}
 		})
@@ -182,7 +182,7 @@ func TestClientRequestShapeAndErrors(t *testing.T) {
 	defer srv.Close()
 	c := NewClientHTTP(srv.URL, srv.Client())
 
-	res, err := c.Quarantine(context.Background(), "lab", "why", "sentry:limbo-guest", map[string]string{"k": "v"})
+	res, err := c.Quarantine(context.Background(), "lab", "why", "heimdall:limbo-guest", map[string]string{"k": "v"})
 	if err != nil || !res.Created || !res.Applied || res.Record.ID != "q-1" {
 		t.Fatalf("%+v %v", res, err)
 	}

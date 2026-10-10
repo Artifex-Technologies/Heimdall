@@ -223,7 +223,7 @@ func TestSuccessIsLoggedNotAlertedAndKeepsWhoAndWhat(t *testing.T) {
 	r.Wait()
 	mu.Lock()
 	defer mu.Unlock()
-	if gotSource != "sentry:limbo-guest" || gotReason != a.Summary {
+	if gotSource != "heimdall:limbo-guest" || gotReason != a.Summary {
 		t.Fatalf("record would not show who/what: %q %q", gotSource, gotReason)
 	}
 	if len(next.integration()) != 0 {

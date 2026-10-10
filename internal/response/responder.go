@@ -422,7 +422,7 @@ func (r *Responder) quarantine(q *request) {
 	if q.count > 1 {
 		reason = fmt.Sprintf("%s (%d triggers merged: %s)", a.Summary, q.count, strings.Join(q.kinds, ", "))
 	}
-	res, qerr := r.Limbo.Quarantine(ctx, guest, reason, "sentry:"+a.DetectorID, map[string]string{
+	res, qerr := r.Limbo.Quarantine(ctx, guest, reason, "heimdall:"+a.DetectorID, map[string]string{
 		"detector": a.DetectorID, "event_kind": a.EventKind, "alert_time": a.Time.Format(time.RFC3339),
 		"queue_wait": wait.String(), "triggers": strings.Join(q.kinds, ","),
 	})

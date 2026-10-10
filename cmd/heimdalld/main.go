@@ -124,7 +124,7 @@ func cmdRun(args []string) int {
 		if cfg.SarinaURL != "" {
 			token := cfg.SarinaToken
 			if token == "" {
-				token = os.Getenv("SENTRY_SARINA_TOKEN")
+				token = os.Getenv("HEIMDALL_SARINA_TOKEN")
 			}
 			adv, err := response.NewSarina(cfg.SarinaURL, token, cfg.SarinaCwd)
 			if err != nil {

@@ -4,7 +4,7 @@
 #        /etc/systemd/system/heimdall.service.d/limbo.conf
 #   sudo systemctl daemon-reload && sudo systemctl restart heimdall
 #
-# Membership of the limbo-sentry group (created by Limbo's sysusers file, so
+# Membership of the limbo-heimdall group (created by Limbo's sysusers file, so
 # Limbo must be installed first) is the whole access control:
 #   - control.sock: Heimdall may restrict a guest and attach advisories. That
 #     socket has no route to release a guest or give a verdict, so this grants
@@ -16,7 +16,7 @@
 #   "limbo_control_socket": "/run/limbo/control.sock",
 #   "limbo_state_path":     "/var/lib/heimdall/limbo-offset"
 [Service]
-SupplementaryGroups=limbo-sentry
+SupplementaryGroups=limbo-heimdall
 # ProtectSystem=strict (in the main unit) makes the file system read-only for
 # this service; connecting to a unix socket and reading a log still work.
 ReadOnlyPaths=/var/lib/limbo/state

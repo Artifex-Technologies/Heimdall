@@ -79,7 +79,7 @@ A successful quarantine is only logged, as before.
 Each is an integration alert (`detector_id: "integration"`, `fields.guest`,
 `fields.error_code`, `fields.remedy`). A recorded-but-not-enforced hold
 (`Applied: false`) is still only logged ("NOT enforced"). The human-visible
-quarantine record is unchanged: source `sentry:limbo-guest`, reason = the alert
+quarantine record is unchanged: source `heimdall:limbo-guest`, reason = the alert
 summary, evidence = detector, event kind, alert time.
 
 ## Advisory consultation (Sarina service)
@@ -95,7 +95,7 @@ a 3 minute budget and the HTTP client a 150 s timeout.
 | --- | --- | --- | --- | --- |
 | Sarina down / restarting / wrong port | `sarina_unreachable` | quarantine exists, no advisory | connection error on both attempts | start `sarina-service`; check `sarina_url` |
 | Slow model, chat exceeds budget | `sarina_timeout` | no advisory after ~2.5 min | client timeout or context deadline (not retried) | check the model server; Sarina keeps working on it, Heimdall has already `DELETE`d the session |
-| Bad or missing token | `sarina_auth` | no advisory | HTTP 401 or 403 | set `sarina_token` or `SENTRY_SARINA_TOKEN` to Sarina's `SARINA_SERVICE_TOKEN` |
+| Bad or missing token | `sarina_auth` | no advisory | HTTP 401 or 403 | set `sarina_token` or `HEIMDALL_SARINA_TOKEN` to Sarina's `SARINA_SERVICE_TOKEN` |
 | Service ignores `tool_allowlist` (old build) or reports tools != 0 or omits `tools` | `sarina_contract_tools_nonzero` | no advisory; **no evidence was sent** | `tools` missing or not 0 in the create reply | upgrade `sarina-service`; verify with the create command below |
 | Session evicted mid-conversation | `sarina_session_evicted` | no advisory | HTTP 404 on chat | transient (Sarina restart or `--max-sessions`); the next advisory opens a new session. Persistent: raise `--max-sessions` |
 | Sarina internal error | `sarina_server_error` | no advisory | HTTP 5xx; the service's `detail` is quoted in the message | `journalctl -u sarina-service`; the message holds the reason |
@@ -113,10 +113,10 @@ advisory, labelled untrusted by Limbo's side.
 curl -s http://127.0.0.1:8899/healthz                       # {"status":"ok","active_sessions":N}
 # Contract check. Expect {"session_id":"...","tools":0}. Anything else is sarina_contract_tools_nonzero.
 curl -s -X POST http://127.0.0.1:8899/v1/sessions \
-  -H "Authorization: Bearer $SENTRY_SARINA_TOKEN" -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $HEIMDALL_SARINA_TOKEN" -H 'Content-Type: application/json' \
   -d '{"cwd":"/var/lib/heimdall","tool_allowlist":[]}'
 # 401 or 403 = sarina_auth. Clean up the test session:
-curl -s -X DELETE http://127.0.0.1:8899/v1/sessions/<session_id> -H "Authorization: Bearer $SENTRY_SARINA_TOKEN"
+curl -s -X DELETE http://127.0.0.1:8899/v1/sessions/<session_id> -H "Authorization: Bearer $HEIMDALL_SARINA_TOKEN"
 journalctl -u sarina-service -n 50 --no-pager
 journalctl -u heimdall -n 50 --no-pager | grep -i sarina
 ```

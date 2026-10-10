@@ -94,7 +94,7 @@ type Config struct {
 
 	// SarinaURL, when set with a quarantine response, asks the local Sarina
 	// service for an advisory opinion on each new quarantine. Must be a
-	// loopback URL. The token may instead come from SENTRY_SARINA_TOKEN so it
+	// loopback URL. The token may instead come from HEIMDALL_SARINA_TOKEN so it
 	// need not sit in this file. SarinaCwd is a directory that exists for
 	// Sarina's session API; nothing is read from it.
 	SarinaURL   string `json:"sarina_url"`

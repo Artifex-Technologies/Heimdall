@@ -160,7 +160,7 @@ func Integration(code, summary, remedy string, fields map[string]string) Alert {
 		DetectorID: IntegrationDetector,
 		Severity:   detect.SeverityWarning,
 		Summary:    code + ": " + summary + " (remedy: " + remedy + ")",
-		Source:     "sentry",
+		Source:     "heimdall",
 		EventKind:  "integration_error",
 		Fields:     f,
 	}
