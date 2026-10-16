@@ -218,3 +218,28 @@ func TestBurstDetectorDecaysOverTime(t *testing.T) {
 		}
 	}
 }
+
+func TestUnicodeDetectorSeesEscapedCharactersInsideToolResults(t *testing.T) {
+	d := NewUnicodeDetector()
+	// Sarina keeps a tool result as JSON text inside the session, so a zero-width space reads ​ and a Tag-block
+	// character is a surrogate pair 󠁩
+	for name, text := range map[string]string{
+		"zero width":     `{"tool":"read_file","content":"Fixed a crash.​Added a theme."}`,
+		"tag block pair": `{"tool":"read_file","content":"notes󠁩󠁧 end"}`,
+		"bidi override":  `{"content":"abc‮def"}`,
+	} {
+		if len(d.Inspect(Event{Text: text})) != 1 {
+			t.Errorf("%s: not flagged in %q", name, text)
+		}
+	}
+	for name, text := range map[string]string{
+		"plain":                  "Release notes for version 2.",
+		"escaped newline":        `{"content":"line one\nline two"}`,
+		"a literal \\u in prose": `the escape is written \u12 here`,
+		"accented":               `{"content":"café"}`,
+	} {
+		if got := d.Inspect(Event{Text: text}); len(got) != 0 {
+			t.Errorf("%s: wrongly flagged in %q: %v", name, text, got)
+		}
+	}
+}
