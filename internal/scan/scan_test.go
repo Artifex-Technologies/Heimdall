@@ -111,12 +111,19 @@ func TestClamAVWithAStandInProgram(t *testing.T) {
 	dir := t.TempDir()
 	script := filepath.Join(dir, "clamscan")
 	os.WriteFile(script, []byte(`#!/bin/sh
-for last; do :; done
-case "$last" in
-  *bad*) echo "$last: Test.Virus FOUND"; exit 1 ;;
-  *broken*) echo "$last: Can't open file ERROR"; exit 2 ;;
-  *) echo "$last: OK"; exit 0 ;;
-esac
+code=0
+seen=0
+for a; do
+  [ "$a" = "--" ] && seen=1 && continue
+  [ $seen = 1 ] || continue
+  case "$a" in
+    *bad*) echo "$a: Test.Virus FOUND"; [ $code = 0 ] && code=1 ;;
+    *broken*) echo "$a: Can't open file ERROR"; code=2 ;;
+    *missing*) ;;
+    *) echo "$a: OK" ;;
+  esac
+done
+exit $code
 `), 0o755)
 	c := &ClamAV{bin: script}
 	if r, err := c.ScanFile(context.Background(), "/x/fine.txt"); err != nil || r.Infected {
@@ -127,5 +134,10 @@ esac
 	}
 	if _, err := c.ScanFile(context.Background(), "/x/broken.bin"); err == nil {
 		t.Fatal("an unreadable file must be an error, not a clean result")
+	}
+	// one run for several files
+	r := c.ScanBatch(context.Background(), []string{"/x/fine.txt", "/x/bad.exe", "/x/broken.bin", "/x/missing.dat"})
+	if r[0].Infected || r[0].Error != "" || !r[1].Infected || r[1].Signature != "Test.Virus" || r[2].Error == "" || r[3].Error == "" {
+		t.Fatalf("batch: %+v", r)
 	}
 }

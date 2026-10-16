@@ -37,6 +37,11 @@ type Scanner interface {
 	ScanFile(ctx context.Context, path string) (Result, error)
 }
 
+// BatchScanner is an optional extension: scan many files in one go.
+type BatchScanner interface {
+	ScanBatch(ctx context.Context, paths []string) []Result
+}
+
 // ---- ClamAV
 
 // ClamAV runs clamdscan (when the daemon's socket exists) or clamscan.
@@ -46,12 +51,21 @@ type ClamAV struct {
 	args []string
 }
 
-// NewClamAV finds a ClamAV command line tool on PATH.
+// clamdSockets are where clamd listens on Arch and Debian.
+var clamdSockets = []string{"/run/clamav/clamd.ctl", "/run/clamav/clamd.sock", "/var/run/clamav/clamd.ctl"}
+
+// NewClamAV finds a ClamAV command line tool on PATH: clamdscan when the clamd daemon is running (fast: the signatures stay loaded),
+// otherwise clamscan (loads the signatures on every call: it works without a daemon but each run starts slowly).
 func NewClamAV() *ClamAV {
-	for _, name := range []string{"clamdscan", "clamscan"} {
-		if p, err := exec.LookPath(name); err == nil {
-			return &ClamAV{bin: p}
+	if p, err := exec.LookPath("clamdscan"); err == nil {
+		for _, sock := range clamdSockets {
+			if _, err := os.Stat(sock); err == nil {
+				return &ClamAV{bin: p}
+			}
 		}
+	}
+	if p, err := exec.LookPath("clamscan"); err == nil {
+		return &ClamAV{bin: p}
 	}
 	return &ClamAV{}
 }
@@ -81,6 +95,55 @@ func (c *ClamAV) ScanFile(ctx context.Context, path string) (Result, error) {
 		res.Error = strings.TrimSpace(string(out))
 	}
 	return res, fmt.Errorf("scan: clamav failed on %s: %s", path, res.Error)
+}
+
+// ScanBatch scans several files with ONE ClamAV run (clamscan loads its signature database on every start, several seconds, so one
+// run per file would be far too slow for a folder). Results come back in the order of paths; a file ClamAV did not mention is an error.
+func (c *ClamAV) ScanBatch(ctx context.Context, paths []string) []Result {
+	res := make([]Result, len(paths))
+	for i, p := range paths {
+		res[i] = Result{Path: p, Error: "not reported by ClamAV"}
+	}
+	if !c.Available() || len(paths) == 0 {
+		for i := range res {
+			res[i].Error = "ClamAV is not installed"
+		}
+		return res
+	}
+	index := make(map[string]int, len(paths))
+	for i, p := range paths {
+		index[p] = i
+	}
+	args := append([]string{"--no-summary"}, c.args...)
+	if strings.HasSuffix(c.bin, "clamdscan") {
+		args = append(args, "--fdpass")
+	}
+	args = append(args, "--")
+	args = append(args, paths...)
+	out, _ := exec.CommandContext(ctx, c.bin, args...).CombinedOutput() // exit status 1 just means "found something"
+	sc := bufio.NewScanner(strings.NewReader(string(out)))
+	sc.Buffer(make([]byte, 1<<20), 1<<20)
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		i := strings.LastIndex(line, ": ")
+		if i < 0 {
+			continue
+		}
+		idx, ok := index[line[:i]]
+		if !ok {
+			continue
+		}
+		verdict := line[i+2:]
+		switch {
+		case verdict == "OK":
+			res[idx] = Result{Path: paths[idx]}
+		case strings.HasSuffix(verdict, " FOUND"):
+			res[idx] = Result{Path: paths[idx], Infected: true, Signature: strings.TrimSuffix(verdict, " FOUND")}
+		case strings.HasSuffix(verdict, " ERROR"):
+			res[idx] = Result{Path: paths[idx], Error: line}
+		}
+	}
+	return res
 }
 
 // ParseClamOutput reads clamscan/clamdscan's "path: Signature FOUND" / "path: OK" / "path: reason ERROR" line.
@@ -228,6 +291,24 @@ func Collect(roots []string, o Options) ([]string, error) {
 // is tried again.
 func Run(ctx context.Context, sc Scanner, files []string, st *State) []Result {
 	var out []Result
+	if b, ok := sc.(BatchScanner); ok {
+		const chunk = 200
+		for i := 0; i < len(files) && ctx.Err() == nil; i += chunk {
+			end := i + chunk
+			if end > len(files) {
+				end = len(files)
+			}
+			for _, r := range b.ScanBatch(ctx, files[i:end]) {
+				if r.Error == "" && st != nil {
+					if info, e := os.Stat(r.Path); e == nil {
+						st.record(r.Path, info)
+					}
+				}
+				out = append(out, r)
+			}
+		}
+		return out
+	}
 	for _, f := range files {
 		if ctx.Err() != nil {
 			break

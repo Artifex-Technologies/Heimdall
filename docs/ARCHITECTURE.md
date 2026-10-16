@@ -420,5 +420,6 @@ contents, and it ignores loopback.
   scan of Downloads is a per-user job (a user service or on demand from Settings), and its findings reach the desktop as notifications.
 - **Reports, never moves.** Quarantine, "restore / delete / always allow" are desktop actions (notification buttons exist now).
 - **Exclusions are first-class:** a folder, a file or a glob; the state file skips unchanged files (an infected file is reported once).
-- **Not yet:** the per-user service, a ClamAV install on this machine, scheduled full scans, scanning a package's files after install (pacman hook),
+- **Done 2026-10-16:** ClamAV installed here (signatures update through clamav-freshclam.service); tested with the EICAR test file (found), an exclusion (skipped) and the remembered state (unchanged files skipped); one ClamAV run scans a whole batch (clamscan loads the signatures on every start, about 7 s; the clamd daemon, `systemctl enable --now clamav-daemon`, keeps them loaded and makes it fast but uses about 1-2 GB of memory, so it is off).
+- **Not yet:** the per-user service, scheduled full scans, scanning a package's files after install (pacman hook),
   sending suspicious unknowns to a Limbo guest, and the exclusions list in Settings. See Labyrinth_OS docs/SECURITY_ROADMAP.md.
