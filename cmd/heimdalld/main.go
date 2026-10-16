@@ -25,6 +25,7 @@ import (
 	"github.com/Artifex-Technologies/Heimdall/internal/maintenance"
 	"github.com/Artifex-Technologies/Heimdall/internal/pkgverify"
 	"github.com/Artifex-Technologies/Heimdall/internal/response"
+	"github.com/Artifex-Technologies/Heimdall/internal/scan"
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/agentsource"
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/hostsource"
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/limbosource"
@@ -44,6 +45,8 @@ func main() {
 		os.Exit(cmdRun(os.Args[2:]))
 	case "scan":
 		os.Exit(cmdScan(os.Args[2:]))
+	case "scan-files":
+		os.Exit(cmdScanFiles(os.Args[2:]))
 	case "maintenance":
 		os.Exit(cmdMaintenance(os.Args[2:]))
 	case "version":
@@ -66,6 +69,10 @@ Usage:
   heimdalld maintenance on --for 2h --reason "why" [--config PATH]
                                     Open a maintenance window (root; at most 4h): routine alerts become info while it is open.
   heimdalld maintenance off|status [--config PATH]
+  heimdalld scan-files [--state FILE] [--exclude PATTERN]... [--max-mb N] PATH...
+                                    Scan files for malware with ClamAV (must be installed). Prints one line per finding; exit 1 if
+                                    anything was found, 2 if ClamAV is missing or a file could not be scanned. Runs as the calling
+                                    user; with --state, unchanged files are skipped next time.
   heimdalld version                 Print the version and exit.
 
 See README.md and docs/ARCHITECTURE.md for configuration and design.
@@ -436,5 +443,57 @@ func cmdMaintenance(args []string) int {
 		return 1
 	}
 	fmt.Println(maintenance.Describe(w, true, now))
+	return 0
+}
+
+type listFlag []string
+
+func (l *listFlag) String() string     { return fmt.Sprint(*l) }
+func (l *listFlag) Set(v string) error { *l = append(*l, v); return nil }
+
+func cmdScanFiles(args []string) int {
+	fs := flag.NewFlagSet("scan-files", flag.ContinueOnError)
+	statePath := fs.String("state", "", "remember scanned files here (skips unchanged ones next time)")
+	maxMB := fs.Int64("max-mb", 200, "skip files larger than this many MB (0 = no limit)")
+	var exclude listFlag
+	fs.Var(&exclude, "exclude", "a folder, file or glob that is never scanned (repeatable)")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if fs.NArg() == 0 {
+		fmt.Fprintln(os.Stderr, "heimdalld scan-files: give at least one file or folder")
+		return 2
+	}
+	sc := scan.NewClamAV()
+	if !sc.Available() {
+		fmt.Fprintln(os.Stderr, "heimdalld scan-files: ClamAV is not installed (pacman -S clamav); nothing was scanned")
+		return 2
+	}
+	start := time.Now()
+	st := scan.LoadState(*statePath)
+	files, err := scan.Collect(fs.Args(), scan.Options{Exclude: scan.Excluder{Patterns: exclude}, MaxBytes: *maxMB << 20, State: st})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "heimdalld scan-files:", err)
+		return 2
+	}
+	found, failed := 0, 0
+	for _, r := range scan.Run(context.Background(), sc, files, st) {
+		switch {
+		case r.Infected:
+			found++
+			fmt.Printf("INFECTED %s: %s\n", r.Path, r.Signature)
+		case r.Error != "":
+			failed++
+			fmt.Fprintf(os.Stderr, "could not scan %s: %s\n", r.Path, r.Error)
+		}
+	}
+	_ = st.Save()
+	fmt.Printf("scanned %d files in %s: %d infected, %d could not be scanned\n", len(files), scan.Elapsed(start), found, failed)
+	switch {
+	case found > 0:
+		return 1
+	case failed > 0:
+		return 2
+	}
 	return 0
 }

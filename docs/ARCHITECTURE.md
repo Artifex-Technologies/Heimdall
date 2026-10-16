@@ -410,3 +410,15 @@ contents, and it ignores loopback.
 - Config: `conn_watch` (default true), `conn_poll_interval_seconds` (10), `conn_state_path`, `app_network_policy`.
 - Not covered: UDP (DNS, QUIC), connections that open and close between two polls (10 s), and which domain an address belongs to.
   A packet capture (Wireshark/tcpdump, installed by hand) is the tool for those; Heimdall deliberately does not embed one.
+
+## Malware scanning (groundwork)
+
+`internal/scan` is the engine; `heimdalld scan-files [--state F] [--exclude P]... [--max-mb N] PATH...` runs it by hand. It needs ClamAV
+(`pacman -S clamav`, `freshclam` for signatures); without it the command says so and exits 2. Decisions:
+
+- **Runs as the user whose files it reads.** A home folder is not readable by the `heimdall` system user (and the unit has ProtectHome), so the
+  scan of Downloads is a per-user job (a user service or on demand from Settings), and its findings reach the desktop as notifications.
+- **Reports, never moves.** Quarantine, "restore / delete / always allow" are desktop actions (notification buttons exist now).
+- **Exclusions are first-class:** a folder, a file or a glob; the state file skips unchanged files (an infected file is reported once).
+- **Not yet:** the per-user service, a ClamAV install on this machine, scheduled full scans, scanning a package's files after install (pacman hook),
+  sending suspicious unknowns to a Limbo guest, and the exclusions list in Settings. See Labyrinth_OS docs/SECURITY_ROADMAP.md.
