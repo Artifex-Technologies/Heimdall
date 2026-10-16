@@ -1,6 +1,7 @@
 package detect
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -40,11 +41,11 @@ func TestCredentialDetector(t *testing.T) {
 		{"aws key", "export AWS_KEY=AKIAABCDEFGHIJKLMNOP", true},
 		{"github token", "token: ghp_123456789012345678901234567890123456", true}, // 36 chars after ghp_
 		{"private key", "-----BEGIN RSA PRIVATE KEY-----", true},
-		{"openai style key", "use sk-abcdefghijklmnopqrstuvwxyz123456 for later", true},
-		{"anthropic style key", "sk-ant-api03-abcdefghijklmnopqrstuvwxyz_-0123456789", true},
-		{"github fine-grained", "github_pat_11ABCDEFG0abcdefghijkl_mnopqrstuvwxyz", true},
-		{"jwt", "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijklmnop", true},
-		{"bearer header", "Authorization: Bearer abcdefghijklmnopqrstuvwxyz0123", true},
+		{"openai style key", "use sk-" + strings.Repeat("a", 30) + " for later", true},
+		{"anthropic style key", "sk-ant-api03-" + strings.Repeat("b", 30), true},
+		{"github fine-grained", "github_pat_" + strings.Repeat("c", 30), true},
+		{"jwt", "eyJ" + strings.Repeat("d", 12) + ".eyJ" + strings.Repeat("e", 12) + "." + strings.Repeat("f", 12), true},
+		{"bearer header", "Authorization: Bearer " + strings.Repeat("g", 30), true},
 		{"sk- inside a word", "the task-based approach is described in the risk-assessment-document", false},
 		{"short bearer prose", "the bearer of this letter", false},
 		{"password mention without a value", "the password field on the form is required", false},
