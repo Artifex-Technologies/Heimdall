@@ -101,3 +101,27 @@ func TestBaselineDriftDetectorTracksFieldsIndependently(t *testing.T) {
 		t.Fatalf("expected the finding to carry the offending event, got %+v", got[0])
 	}
 }
+
+func TestBaselineDriftWithFloorsIgnoresSmallAndDownwardOutliers(t *testing.T) {
+	d := NewBaselineDriftDetectorWithFloors(20, 3.0, DefaultBaselineFloors)
+	feed := func(v string) []Finding {
+		return d.Inspect(Event{Kind: "host_telemetry", Fields: map[string]string{"load_per_cpu": v}})
+	}
+	for i := 0; i < 30; i++ {
+		feed("0.03")
+	}
+	if got := feed("0.35"); len(got) != 0 {
+		t.Fatalf("0.35 load is far above this host's normal but not worth an alert: %+v", got)
+	}
+	if got := feed("0.0"); len(got) != 0 {
+		t.Fatalf("a downward outlier is not an alert: %+v", got)
+	}
+	// let the baseline settle low again, then a real spike
+	d = NewBaselineDriftDetectorWithFloors(20, 3.0, DefaultBaselineFloors)
+	for i := 0; i < 30; i++ {
+		feed("0.03")
+	}
+	if got := feed("1.8"); len(got) != 1 {
+		t.Fatalf("a load of 1.8 per CPU is worth an alert: %+v", got)
+	}
+}

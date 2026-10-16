@@ -100,7 +100,7 @@ func newDetectors(cfg config.Config) []detect.Detector {
 		detect.NewResourcePressureDetector(cfg.ResourceMemThresholdPercent, cfg.ResourceLoadThresholdPerCPU),
 		detect.NewNetworkExposureDetector(),
 		detect.NewConnectionDetector(),
-		detect.NewBaselineDriftDetector(cfg.BaselineMinSamples, cfg.BaselineZThreshold),
+		detect.NewBaselineDriftDetectorWithFloors(cfg.BaselineMinSamples, cfg.BaselineZThreshold, detect.DefaultBaselineFloors),
 		detect.NewLimboGuestDetector(),
 	}
 }

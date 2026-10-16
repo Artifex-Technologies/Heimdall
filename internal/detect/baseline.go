@@ -37,6 +37,20 @@ type BaselineDriftDetector struct {
 
 	stats   map[string]*OnlineStats
 	flagged map[string]bool
+
+	// floors, when set, make the detector report only upward outliers at or above a level a person would care about: a machine that idles at
+	// 0.02 load and briefly shows 0.3 is 'statistically unusual' but not worth an alert.
+	floors map[string]float64
+}
+
+// DefaultBaselineFloors are the levels below which an outlier is not reported (memory in percent, load per CPU).
+var DefaultBaselineFloors = map[string]float64{"mem_percent": 70, "load_per_cpu": 0.75}
+
+// NewBaselineDriftDetectorWithFloors is the detector as the daemon runs it: upward outliers only, and only above the floors.
+func NewBaselineDriftDetectorWithFloors(minSamples int, zThreshold float64, floors map[string]float64) *BaselineDriftDetector {
+	d := NewBaselineDriftDetector(minSamples, zThreshold)
+	d.floors = floors
+	return d
 }
 
 // NewBaselineDriftDetector requires minSamples observations of a field
@@ -82,6 +96,9 @@ func (d *BaselineDriftDetector) Inspect(e Event) []Finding {
 		if stats.Count() >= d.minSamples {
 			z := stats.ZScore(val)
 			over := z >= d.zThreshold || z <= -d.zThreshold
+			if d.floors != nil {
+				over = over && z > 0 && val >= d.floors[key]
+			}
 			if over && !d.flagged[key] {
 				findings = append(findings, Finding{
 					DetectorID: d.ID(),
