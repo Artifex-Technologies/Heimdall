@@ -22,6 +22,8 @@ import (
 	"github.com/Artifex-Technologies/Heimdall/internal/detect"
 	"github.com/Artifex-Technologies/Heimdall/internal/engine"
 	"github.com/Artifex-Technologies/Heimdall/internal/governance"
+	"github.com/Artifex-Technologies/Heimdall/internal/maintenance"
+	"github.com/Artifex-Technologies/Heimdall/internal/pkgverify"
 	"github.com/Artifex-Technologies/Heimdall/internal/response"
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/agentsource"
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/hostsource"
@@ -42,6 +44,8 @@ func main() {
 		os.Exit(cmdRun(os.Args[2:]))
 	case "scan":
 		os.Exit(cmdScan(os.Args[2:]))
+	case "maintenance":
+		os.Exit(cmdMaintenance(os.Args[2:]))
 	case "version":
 		fmt.Println("heimdalld " + version)
 	case "-h", "--help", "help":
@@ -59,6 +63,9 @@ func usage() {
 Usage:
   heimdalld run  --config PATH      Run the monitoring daemon in the foreground.
   heimdalld scan --config PATH      Scan once, print findings, exit non-zero on any.
+  heimdalld maintenance on --for 2h --reason "why" [--config PATH]
+                                    Open a maintenance window (root; at most 4h): routine alerts become info while it is open.
+  heimdalld maintenance off|status [--config PATH]
   heimdalld version                 Print the version and exit.
 
 See README.md and docs/ARCHITECTURE.md for configuration and design.
@@ -81,7 +88,8 @@ func newDetectors(cfg config.Config) []detect.Detector {
 		detect.NewUnicodeDetector(),
 		detect.NewEscalationDetector(),
 		detect.NewBurstDetector(cfg.BurstWindow(), cfg.BurstThreshold, cfg.BurstCooldown()),
-		detect.NewFileIntegrityDetector(),
+		detect.NewPackageAwareFileIntegrityDetector(pkgverify.New(cfg.PacmanDB)),
+		detect.NewMaintenanceDetector(),
 		detect.NewResourcePressureDetector(cfg.ResourceMemThresholdPercent, cfg.ResourceLoadThresholdPerCPU),
 		detect.NewNetworkExposureDetector(),
 		detect.NewConnectionDetector(),
@@ -138,9 +146,12 @@ func cmdRun(args []string) int {
 		logger.Printf("Limbo quarantine response enabled (control socket %s, Sarina advisories: %v)", cfg.LimboControlSocket, cfg.SarinaURL != "")
 	}
 	eng := engine.New(engineSink, logger, newDetectors(cfg)...)
+	win := maintenance.NewWatcher(cfg.MaintenancePath)
+	eng.SetMaintenance(win, cfg.MaintenanceSoften)
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	go watchMaintenance(ctx, cfg.MaintenancePath, eng.Handle)
 
 	if cfg.APIAddr != "" {
 		reviewer := governance.NewReviewer(multiSink)
@@ -335,4 +346,95 @@ func cmdScan(args []string) int {
 		return 0
 	}
 	return 1
+}
+
+// watchMaintenance emits an event when a maintenance window opens or closes, so the owner sees it in the alert log.
+func watchMaintenance(ctx context.Context, path string, emit func(detect.Event)) {
+	var prev maintenance.Window
+	open := false
+	t := time.NewTicker(5 * time.Second)
+	defer t.Stop()
+	for {
+		w, found := maintenance.Read(path)
+		now := time.Now()
+		active := found && w.Active(now)
+		if active && (!open || w.Opened != prev.Opened) {
+			emit(detect.Event{Source: "maintenance", Time: now, Kind: "maintenance_opened", Text: w.Reason,
+				Fields: map[string]string{"actor": w.Actor, "reason": w.Reason, "until": w.Until.Format("15:04")}})
+			prev, open = w, true
+		} else if !active && open {
+			emit(detect.Event{Source: "maintenance", Time: now, Kind: "maintenance_closed", Text: prev.Reason,
+				Fields: map[string]string{"actor": prev.Actor, "reason": prev.Reason}})
+			open = false
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
+}
+
+func cmdMaintenance(args []string) int {
+	if len(args) == 0 || (args[0] != "on" && args[0] != "off" && args[0] != "status") {
+		fmt.Fprintln(os.Stderr, `usage: heimdalld maintenance on --for 2h --reason "why" | off | status   [--config PATH]`)
+		return 2
+	}
+	action := args[0]
+	fs := flag.NewFlagSet("maintenance", flag.ContinueOnError)
+	configPath := fs.String("config", "/etc/heimdall/config.json", "config file")
+	dur := fs.Duration("for", 0, "how long (at most 4h)")
+	reason := fs.String("reason", "", "why (required for on)")
+	if err := fs.Parse(args[1:]); err != nil {
+		return 2
+	}
+	cfg, err := config.Load(*configPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "heimdalld:", err)
+		return 2
+	}
+	now := time.Now()
+	if action == "status" {
+		w, found := maintenance.Read(cfg.MaintenancePath)
+		fmt.Println(maintenance.Describe(w, found, now))
+		return 0
+	}
+	// who is asking: the user behind sudo, else the current user
+	actor := os.Getenv("SUDO_USER")
+	if actor == "" {
+		actor = os.Getenv("USER")
+	}
+	if os.Geteuid() != 0 {
+		fmt.Fprintln(os.Stderr, "heimdalld: only root can change the maintenance window (use sudo)")
+		return 1
+	}
+	if len(cfg.MaintenanceActors) > 0 {
+		ok := false
+		for _, a := range cfg.MaintenanceActors {
+			ok = ok || a == actor
+		}
+		if !ok {
+			fmt.Fprintf(os.Stderr, "heimdalld: %q is not in maintenance_actors\n", actor)
+			return 1
+		}
+	}
+	if action == "off" {
+		if err := maintenance.Clear(cfg.MaintenancePath); err != nil {
+			fmt.Fprintln(os.Stderr, "heimdalld:", err)
+			return 1
+		}
+		fmt.Println("maintenance window closed")
+		return 0
+	}
+	w, err := maintenance.Open(actor, *reason, *dur, now)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "heimdalld:", err)
+		return 2
+	}
+	if err := maintenance.Write(cfg.MaintenancePath, w); err != nil {
+		fmt.Fprintln(os.Stderr, "heimdalld:", err)
+		return 1
+	}
+	fmt.Println(maintenance.Describe(w, true, now))
+	return 0
 }

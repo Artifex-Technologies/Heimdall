@@ -231,7 +231,9 @@ func TestSuccessIsLoggedNotAlertedAndKeepsWhoAndWhat(t *testing.T) {
 	}
 }
 
-type captureLimbo struct{ fn func(guest, reason, source string) }
+type captureLimbo struct {
+	fn func(guest, reason, source string)
+}
 
 func (c *captureLimbo) Quarantine(_ context.Context, guest, reason, source string, _ map[string]string) (Result, error) {
 	c.fn(guest, reason, source)

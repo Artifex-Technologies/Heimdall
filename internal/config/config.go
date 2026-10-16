@@ -78,6 +78,14 @@ type Config struct {
 	ConnStatePath           string `json:"conn_state_path"`
 	AppNetworkPolicy        string `json:"app_network_policy"`
 
+	// Maintenance window (internal/maintenance): the file the owner writes (root-owned folder, Heimdall only reads it), who may
+	// open one with `heimdalld maintenance on` (empty = any root user), which detectors are softened to info while one is open,
+	// and where pacman's database is (for telling a package update from an unexplained change).
+	MaintenancePath   string   `json:"maintenance_path"`
+	MaintenanceActors []string `json:"maintenance_actors"`
+	MaintenanceSoften []string `json:"maintenance_soften"`
+	PacmanDB          string   `json:"pacman_db"`
+
 	// LimboEventLog is the path to Limbo's events.jsonl (Limbo's
 	// docs/EVENTS.md). Empty disables the source -- like AgentSessionDir
 	// there is no default to guess, since it depends on which user runs
@@ -140,6 +148,10 @@ func Default() Config {
 		ConnPollIntervalSeconds: 10,
 		ConnStatePath:           "/var/lib/heimdall/connections-state.json",
 		AppNetworkPolicy:        "/etc/labyrinth/app-network.json",
+
+		MaintenancePath:   "/etc/heimdall/maintenance.json",
+		MaintenanceSoften: []string{"file-integrity", "resource-pressure", "baseline-drift", "network-exposure", "connection-watch"},
+		PacmanDB:          "/var/lib/pacman/local",
 
 		LimboPollIntervalSeconds: 5,
 		LimboAutoQuarantine:      true,

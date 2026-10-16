@@ -285,3 +285,44 @@ func TestConnectionDetector(t *testing.T) {
 		t.Error("other event kinds must be ignored")
 	}
 }
+
+type fakeVerifier struct {
+	pkg, sha string
+	owned    bool
+}
+
+func (f fakeVerifier) Expected(string) (string, string, bool) { return f.pkg, f.sha, f.owned }
+
+func TestPackageAwareIntegrity(t *testing.T) {
+	ev := Event{Kind: "file_modified", Fields: map[string]string{"path": "/usr/bin/x", "new_hash": "aaa"}}
+	cases := []struct {
+		name string
+		v    PackageVerifier
+		want Severity
+	}{
+		{"matches the package record", fakeVerifier{"x-1", "aaa", true}, SeverityInfo},
+		{"package owns it but it differs", fakeVerifier{"x-1", "bbb", true}, SeverityCritical},
+		{"no package owns it", fakeVerifier{"", "", false}, SeverityCritical},
+		{"owned but no digest recorded", fakeVerifier{"x-1", "", true}, SeverityCritical},
+	}
+	for _, c := range cases {
+		got := NewPackageAwareFileIntegrityDetector(c.v).Inspect(ev)
+		if len(got) != 1 || got[0].Severity != c.want {
+			t.Errorf("%s: %+v", c.name, got)
+		}
+	}
+	if got := NewFileIntegrityDetector().Inspect(ev); len(got) != 1 || got[0].Severity != SeverityCritical {
+		t.Errorf("plain detector must stay critical: %+v", got)
+	}
+}
+
+func TestMaintenanceDetector(t *testing.T) {
+	d := NewMaintenanceDetector()
+	o := d.Inspect(Event{Kind: "maintenance_opened", Fields: map[string]string{"actor": "claude-agent", "reason": "updates", "until": "10:00"}})
+	if len(o) != 1 || o[0].Severity != SeverityWarning {
+		t.Fatalf("opening must be visible: %+v", o)
+	}
+	if c := d.Inspect(Event{Kind: "maintenance_closed", Fields: map[string]string{}}); len(c) != 1 || c[0].Severity != SeverityInfo {
+		t.Fatalf("%+v", c)
+	}
+}

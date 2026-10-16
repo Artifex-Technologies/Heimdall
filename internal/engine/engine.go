@@ -9,12 +9,32 @@ import (
 
 	"github.com/Artifex-Technologies/Heimdall/internal/alert"
 	"github.com/Artifex-Technologies/Heimdall/internal/detect"
+	"github.com/Artifex-Technologies/Heimdall/internal/maintenance"
 )
 
 type Engine struct {
 	detectors []detect.Detector
 	sink      alert.Sink
 	logger    *log.Logger
+
+	// While a maintenance window is open, findings from these detectors (routine administration noise) are written as
+	// info, with the window's reason in the summary. Content detectors are never in the list.
+	window   WindowSource
+	softened map[string]bool
+}
+
+// WindowSource tells whether a maintenance window is open.
+type WindowSource interface {
+	Active() (maintenance.Window, bool)
+}
+
+// SetMaintenance turns on softening for the named detectors while the window is open.
+func (e *Engine) SetMaintenance(w WindowSource, detectors []string) {
+	e.window = w
+	e.softened = make(map[string]bool, len(detectors))
+	for _, d := range detectors {
+		e.softened[d] = true
+	}
 }
 
 func New(sink alert.Sink, logger *log.Logger, detectors ...detect.Detector) *Engine {
@@ -29,6 +49,12 @@ func New(sink alert.Sink, logger *log.Logger, detectors ...detect.Detector) *Eng
 func (e *Engine) Handle(ev detect.Event) {
 	for _, d := range e.detectors {
 		for _, f := range d.Inspect(ev) {
+			if e.window != nil && e.softened[f.DetectorID] && f.Severity != detect.SeverityInfo {
+				if w, ok := e.window.Active(); ok {
+					f.Severity = detect.SeverityInfo
+					f.Summary = "[maintenance: " + w.Reason + "] " + f.Summary
+				}
+			}
 			a := alert.FromFinding(f)
 			if err := e.sink.Write(a); err != nil && e.logger != nil {
 				e.logger.Printf("heimdalld: alert sink write failed: %v", err)
