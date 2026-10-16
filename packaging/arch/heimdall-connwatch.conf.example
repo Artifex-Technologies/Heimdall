@@ -1,0 +1,12 @@
+# Optional systemd drop-in: let Heimdall see WHICH PROCESS owns each network connection.
+#
+#   sudo install -Dm644 heimdall-connwatch.conf.example \
+#        /etc/systemd/system/heimdall.service.d/connwatch.conf
+#   sudo systemctl daemon-reload && sudo systemctl restart heimdall
+#
+# Without it the connection log still works, but processes of other users show as "unknown".
+# CAP_SYS_PTRACE and CAP_DAC_READ_SEARCH only allow reading /proc/<pid>/fd and /proc/<pid>/cgroup of other users (read-only:
+# it names the owner of a socket). Heimdall never attaches to or signals a process, and NoNewPrivileges stays on.
+[Service]
+AmbientCapabilities=CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
+CapabilityBoundingSet=CAP_SYS_PTRACE CAP_DAC_READ_SEARCH

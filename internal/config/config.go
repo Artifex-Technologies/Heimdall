@@ -69,6 +69,15 @@ type Config struct {
 	NetPorts               []int `json:"net_ports"`
 	NetPollIntervalSeconds int   `json:"net_poll_interval_seconds"`
 
+	// ConnWatch logs which process connects to which remote address (no packet
+	// contents) and alerts on connections that break a rule. ConnStatePath keeps
+	// the destinations already seen, so only a new one is reported;
+	// AppNetworkPolicy is the per-app network policy Settings writes.
+	ConnWatch               bool   `json:"conn_watch"`
+	ConnPollIntervalSeconds int    `json:"conn_poll_interval_seconds"`
+	ConnStatePath           string `json:"conn_state_path"`
+	AppNetworkPolicy        string `json:"app_network_policy"`
+
 	// LimboEventLog is the path to Limbo's events.jsonl (Limbo's
 	// docs/EVENTS.md). Empty disables the source -- like AgentSessionDir
 	// there is no default to guess, since it depends on which user runs
@@ -127,6 +136,11 @@ func Default() Config {
 		NetPorts:               []int{8765, 8899, 44700, 8930},
 		NetPollIntervalSeconds: 15,
 
+		ConnWatch:               true,
+		ConnPollIntervalSeconds: 10,
+		ConnStatePath:           "/var/lib/heimdall/connections-state.json",
+		AppNetworkPolicy:        "/etc/labyrinth/app-network.json",
+
 		LimboPollIntervalSeconds: 5,
 		LimboAutoQuarantine:      true,
 		SarinaCwd:                "/var/lib/heimdall",
@@ -180,6 +194,10 @@ func (c Config) TelemetryInterval() time.Duration {
 
 func (c Config) NetPollInterval() time.Duration {
 	return time.Duration(c.NetPollIntervalSeconds) * time.Second
+}
+
+func (c Config) ConnPollInterval() time.Duration {
+	return time.Duration(c.ConnPollIntervalSeconds) * time.Second
 }
 
 func (c Config) LimboPollInterval() time.Duration {

@@ -39,6 +39,8 @@ type socketEntry struct {
 	RemoteIP   net.IP
 	RemotePort int
 	State      int
+	UID        int
+	Inode      uint64
 }
 
 // ParseProcNetTCP parses /proc/net/tcp or /proc/net/tcp6's text format.
@@ -67,11 +69,16 @@ func ParseProcNetTCP(r io.Reader) ([]socketEntry, error) {
 		if err != nil {
 			continue
 		}
-		entries = append(entries, socketEntry{
+		entry := socketEntry{
 			LocalIP: localIP, LocalPort: localPort,
 			RemoteIP: remoteIP, RemotePort: remotePort,
 			State: int(state),
-		})
+		}
+		if len(fields) > 9 {
+			entry.UID, _ = strconv.Atoi(fields[7])
+			entry.Inode, _ = strconv.ParseUint(fields[9], 10, 64)
+		}
+		entries = append(entries, entry)
 	}
 	return entries, scanner.Err()
 }

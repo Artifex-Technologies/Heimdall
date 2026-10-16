@@ -243,3 +243,37 @@ func TestUnicodeDetectorSeesEscapedCharactersInsideToolResults(t *testing.T) {
 		}
 	}
 }
+
+func TestConnectionDetector(t *testing.T) {
+	d := NewConnectionDetector()
+	ev := func(f map[string]string) Event { return Event{Kind: "new_connection", Fields: f} }
+	base := func(extra map[string]string) map[string]string {
+		m := map[string]string{"process": "firefox", "remote_addr": "5.0.0.10", "remote_port": "443"}
+		for k, v := range extra {
+			m[k] = v
+		}
+		return m
+	}
+	cases := []struct {
+		name  string
+		f     map[string]string
+		want  Severity
+		count int
+	}{
+		{"ordinary new destination", base(nil), SeverityInfo, 1},
+		{"learning is silent", base(map[string]string{"learning": "1"}), "", 0},
+		{"blocked app", base(map[string]string{"blocked": "1", "app": "x"}), SeverityCritical, 1},
+		{"blocked even while learning", base(map[string]string{"blocked": "1", "app": "x", "learning": "1"}), SeverityCritical, 1},
+		{"ecosystem program", base(map[string]string{"process": "sarina"}), SeverityCritical, 1},
+		{"ollama", base(map[string]string{"process": "ollama"}), SeverityWarning, 1},
+	}
+	for _, c := range cases {
+		got := d.Inspect(ev(c.f))
+		if len(got) != c.count || (c.count == 1 && got[0].Severity != c.want) {
+			t.Errorf("%s: got %+v", c.name, got)
+		}
+	}
+	if len(d.Inspect(Event{Kind: "message"})) != 0 {
+		t.Error("other event kinds must be ignored")
+	}
+}

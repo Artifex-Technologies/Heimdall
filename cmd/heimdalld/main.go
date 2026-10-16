@@ -84,6 +84,7 @@ func newDetectors(cfg config.Config) []detect.Detector {
 		detect.NewFileIntegrityDetector(),
 		detect.NewResourcePressureDetector(cfg.ResourceMemThresholdPercent, cfg.ResourceLoadThresholdPerCPU),
 		detect.NewNetworkExposureDetector(),
+		detect.NewConnectionDetector(),
 		detect.NewBaselineDriftDetector(cfg.BaselineMinSamples, cfg.BaselineZThreshold),
 		detect.NewLimboGuestDetector(),
 	}
@@ -173,6 +174,16 @@ func cmdRun(args []string) int {
 		go ports.Run(ctx, cfg.NetPollInterval(),
 			func(err error) { logger.Printf("network exposure watch unavailable, disabling: %v", err) },
 			func(err error) { logger.Printf("network exposure poll error: %v", err) },
+			eng.Handle,
+		)
+	}
+
+	if cfg.ConnWatch {
+		logger.Printf("logging connections per process (poll every %s)", cfg.ConnPollInterval())
+		cw := netsource.NewConnWatcher(cfg.ConnStatePath, cfg.AppNetworkPolicy)
+		go cw.Run(ctx, cfg.ConnPollInterval(),
+			func(err error) { logger.Printf("connection watch unavailable, disabling: %v", err) },
+			func(err error) { logger.Printf("connection watch error: %v", err) },
 			eng.Handle,
 		)
 	}

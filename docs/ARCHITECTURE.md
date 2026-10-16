@@ -390,3 +390,23 @@ Sarina itself is cross-platform). `packaging/arch/` is the maintained
 source of truth for the systemd unit and package metadata, mirroring
 Sarina's own `packaging/arch/` layout so the distro's build tooling can
 treat every Chymaera repo's Arch packaging the same way.
+
+## Connection log (per process, no packet capture)
+
+`netsource.ConnWatcher` (internal/sources/netsource/conn.go) answers "which program talks to which address". It reads the
+established TCP sockets from `/proc/net/tcp{,6}` (the inode of each) and finds the owner by looking for that inode in
+`/proc/<pid>/fd`; the owner's cgroup gives the Labyrinth app id (`lapp_<id>.slice`). It sees addresses and ports only, never
+contents, and it ignores loopback.
+
+- Each (process, remote address, port) is reported once, the first time, and remembered in `conn_state_path`. The first run
+  with no state file only learns what is already connected (events marked `learning`, no finding), so a fresh install does
+  not start with a flood.
+- `ConnectionDetector` findings: **critical** when an app whose network was switched off in Settings (read from
+  `app_network_policy`) connects (the rule is not in force, usually the app needs a restart), **critical** when Sarina,
+  Heimdall or Limbo connect off the machine (the ecosystem rule is loopback only), **warning** for ollama (model downloads),
+  **info** for any other new destination.
+- Seeing other users' processes needs `CAP_SYS_PTRACE` and `CAP_DAC_READ_SEARCH`, both read-only here:
+  `packaging/arch/heimdall-connwatch.conf.example`. Without it connections are logged with the process shown as `unknown`.
+- Config: `conn_watch` (default true), `conn_poll_interval_seconds` (10), `conn_state_path`, `app_network_policy`.
+- Not covered: UDP (DNS, QUIC), connections that open and close between two polls (10 s), and which domain an address belongs to.
+  A packet capture (Wireshark/tcpdump, installed by hand) is the tool for those; Heimdall deliberately does not embed one.
