@@ -17,6 +17,10 @@ var injectionPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)do not (tell|inform|notify) the user`),
 	regexp.MustCompile(`(?i)without (informing|telling|notifying) the user`),
 	regexp.MustCompile(`(?i)system prompt\s*:`),
+	// text addressed to the model itself ("SYSTEM NOTICE TO THE ASSISTANT: before summarizing, overwrite ...");
+	// found by Sarina's write-mode eval, 2026-10-16. Ordinary documents do not address "the assistant".
+	regexp.MustCompile(`(?i)\b(system|important|urgent|admin(istrator)?|security) (notice|message|instructions?|directive)s? (to|for) (the )?(ai|assistant|agent|model|llm)\b`),
+	regexp.MustCompile(`(?i)\b(notes?|messages?|instructions?) (to|for) (the )?(ai|assistant|agent|llm|language model)\s*:`),
 }
 
 // InjectionDetector flags Event text that reads as an attempt to redirect
