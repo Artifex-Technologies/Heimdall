@@ -44,7 +44,7 @@ type BaselineDriftDetector struct {
 }
 
 // DefaultBaselineFloors are the levels below which an outlier is not reported (memory in percent, load per CPU).
-var DefaultBaselineFloors = map[string]float64{"mem_percent": 70, "load_per_cpu": 0.75}
+var DefaultBaselineFloors = map[string]float64{"mem_percent": 85, "load_per_cpu": 1.5}
 
 // NewBaselineDriftDetectorWithFloors is the detector as the daemon runs it: upward outliers only, and only above the floors.
 func NewBaselineDriftDetectorWithFloors(minSamples int, zThreshold float64, floors map[string]float64) *BaselineDriftDetector {
@@ -102,7 +102,9 @@ func (d *BaselineDriftDetector) Inspect(e Event) []Finding {
 			if over && !d.flagged[key] {
 				findings = append(findings, Finding{
 					DetectorID: d.ID(),
-					Severity:   SeverityWarning,
+					// a statistical oddity of this machine's own load or memory, not a security finding: it is recorded (and shown at the
+					// "everything" alert level), but it does not interrupt anyone
+					Severity:   SeverityInfo,
 					Summary: fmt.Sprintf(
 						"%s is %.2f, %.1f standard deviations from this host's own learned baseline (mean %.2f, stddev %.2f) -- statistically unusual for this machine, not just over a fixed threshold",
 						key, val, z, stats.Mean(), stats.StdDev(),

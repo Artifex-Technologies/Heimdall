@@ -53,7 +53,7 @@ func TestBaselineDriftDetectorFlagsAndClearsAnOutlier(t *testing.T) {
 	if len(first) != 1 {
 		t.Fatalf("expected exactly one finding on the first outlier, got %+v", first)
 	}
-	if first[0].DetectorID != "baseline-drift" || first[0].Severity != SeverityWarning {
+	if first[0].DetectorID != "baseline-drift" || first[0].Severity != SeverityInfo {
 		t.Fatalf("unexpected finding shape: %+v", first[0])
 	}
 
