@@ -103,6 +103,22 @@ off otherwise. Heimdall never changes the firewall: it suggests the command.
 
 IP data: [IPinfo](https://ipinfo.io) Lite (CC BY-SA 4.0) or [DB-IP](https://db-ip.com) Lite (CC BY 4.0).
 
+### Every finding is checked once more (verdicts)
+
+Before a finding becomes an alert, `internal/verify` checks it separately from the
+detector that raised it and tries to disprove it. The alert's fields then carry
+`verdict` and `verdict_reason`:
+
+- `confirmed`: the check found what makes it real (a completed connection; a value with a
+  real secret's shape and randomness)
+- `needs_validation`: possibly real, with the open fact named (a forgeable address; text in
+  the person's own message rather than a tool result)
+- `rejected`: disproved (a documentation example key such as AWS's `AKIAIOSFODNN7EXAMPLE`,
+  a placeholder). The alert is kept, drops to info and says why.
+
+A verdict never raises a severity. Idea from cloudflare/security-audit-skill's validation
+phase (the checker is never the finder); no code taken.
+
 ### Phase 4 — governance (first slice: memory writes)
 
 `POST /v1/review` runs Heimdall's own copy of the `injection-phrase`,

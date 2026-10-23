@@ -212,6 +212,12 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-10-23 (2) — Verdicts on findings
+- `internal/verify`, applied in `engine.Handle` before maintenance softening: alerts gain `verdict`
+  (`confirmed` / `needs_validation` / `rejected`) and `verdict_reason` fields for credential-shape, inbound,
+  injection-phrase and invisible-unicode. Rejected findings become info with the reason prefixed; nothing is dropped.
+- `detect.CredentialMatches` exported for the verifier. For Sarina: read `verdict` before advising on an alert.
+
 ### 2026-10-23 — Where an address belongs (offline), and who knocks from outside
 - `internal/ipintel`: a dependency-free reader of the MaxMind DB format (from the spec; idea from ipinfo/cli, no code
   taken) plus a resolver over several files. `connection-watch` events now carry `remote_country_code`, `remote_asn`,

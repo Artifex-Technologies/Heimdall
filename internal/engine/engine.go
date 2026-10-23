@@ -10,6 +10,7 @@ import (
 	"github.com/Artifex-Technologies/Heimdall/internal/alert"
 	"github.com/Artifex-Technologies/Heimdall/internal/detect"
 	"github.com/Artifex-Technologies/Heimdall/internal/maintenance"
+	"github.com/Artifex-Technologies/Heimdall/internal/verify"
 )
 
 type Engine struct {
@@ -49,6 +50,7 @@ func New(sink alert.Sink, logger *log.Logger, detectors ...detect.Detector) *Eng
 func (e *Engine) Handle(ev detect.Event) {
 	for _, d := range e.detectors {
 		for _, f := range d.Inspect(ev) {
+			f = verify.Apply(f)
 			if e.window != nil && e.softened[f.DetectorID] && f.Severity != detect.SeverityInfo {
 				if w, ok := e.window.Active(); ok {
 					f.Severity = detect.SeverityInfo

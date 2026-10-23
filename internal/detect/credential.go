@@ -36,6 +36,15 @@ func NewCredentialDetector() *CredentialDetector { return &CredentialDetector{} 
 
 func (d *CredentialDetector) ID() string { return "credential-shape" }
 
+// CredentialMatches returns every piece of text that has a credential's shape (for a verifier that checks each one).
+func CredentialMatches(text string) []string {
+	var out []string
+	for _, pattern := range credentialPatterns {
+		out = append(out, pattern.FindAllString(text, 20)...)
+	}
+	return out
+}
+
 func (d *CredentialDetector) Inspect(e Event) []Finding {
 	for _, pattern := range credentialPatterns {
 		if pattern.MatchString(e.Text) {
