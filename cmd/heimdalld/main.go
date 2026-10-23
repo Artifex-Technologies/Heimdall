@@ -13,6 +13,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -118,6 +119,7 @@ func newDetectors(cfg config.Config) []detect.Detector {
 		detect.NewInboundDetector(),
 		detect.NewPackageVulnerabilityDetector(),
 		detect.NewWifiDetector(),
+		detect.NewLANDetector(),
 		detect.NewBaselineDriftDetectorWithFloors(cfg.BaselineMinSamples, cfg.BaselineZThreshold, detect.DefaultBaselineFloors),
 		detect.NewLimboGuestDetector(),
 	}
@@ -249,6 +251,12 @@ func cmdRun(args []string) int {
 	if cfg.WifiResults != "" {
 		ww := &wifisource.Watcher{Path: cfg.WifiResults, OffsetPath: cfg.WifiResults + ".offset"}
 		go ww.Run(ctx, 10*time.Second, func(err error) { logger.Printf("wifi results: %v", err) }, eng.Handle)
+		// while on an untrusted Wi-Fi network, its router is watched for impersonation (reads the kernel's tables only)
+		rw := netsource.NewRouterWatcher(filepath.Join(filepath.Dir(cfg.WifiResults), "current.json"))
+		go rw.Run(ctx, 10*time.Second, eng.Handle)
+	}
+	if cfg.ListenWatch {
+		go netsource.NewListenWatcher().Run(ctx, 15*time.Second, eng.Handle)
 	}
 
 	if cfg.Firewall {

@@ -17,6 +17,8 @@ and, network name and verdict only, to /run/heimdall-wifi/last.json (the desktop
 import hashlib
 import ipaddress
 import json
+import select
+import struct
 import os
 import re
 import secrets
@@ -33,7 +35,17 @@ ENV = {"PATH": "/usr/bin:/bin", "LANG": "C"}
 
 # Well-known names and the network (autonomous system) their addresses must belong to, wherever in the world one asks.
 PINNED = [("www.google.com", "AS15169"), ("github.com", "AS36459"), ("www.wikipedia.org", "AS14907"), ("www.cloudflare.com", "AS13335")]
+GUARD_STATE = "/run/labyrinth-wifi-guard/state.json"
+TRUSTED = "/etc/labyrinth/wifi-trusted.json"
 TLS_HOSTS = ["www.google.com", "github.com", "www.wikipedia.org", "www.cloudflare.com"]
+
+
+def load_json(path, default):
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return default
 
 
 def run(argv, timeout=15):
@@ -242,20 +254,101 @@ def check_http(r, state):
         r.add("plain web pages", "bad", "plain web pages are changed on the way (" + ", ".join(changed) + "): the network injects or replaces content")
 
 
-def check_neighbourhood(r, dev, me):
-    time.sleep(3)
-    gw, _ = gateway()
-    seen = [n for n in neighbours(dev) if n.get("dst") != gw and n.get("state") and set(n["state"]) & {"REACHABLE", "STALE", "DELAY"}]
-    fw = run(["systemctl", "is-active", "ufw"]).strip()
-    if fw != "active":
-        r.add("firewall", "bad", "the firewall is off: on this network other devices could reach this computer's services")
+def own_addresses():
+    out = set()
+    try:
+        for i in json.loads(run(["ip", "-j", "addr"]) or "[]"):
+            for a in i.get("addr_info", []):
+                out.add(a.get("local", ""))
+    except ValueError:
+        pass
+    return out
+
+
+def listen_for_devices(seconds=8):
+    """Passive: other devices' own announcements on the local network (mDNS, the "Bonjour" of phones, printers and laptops, and UPnP).
+    Nothing is sent. Hearing them means devices on this network are not kept apart, so they can see this computer too."""
+    socks = []
+    for group, port in (("224.0.0.251", 5353), ("239.255.255.250", 1900)):
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            try:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
+            except OSError:
+                pass
+            s.bind(("", port))
+            s.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, struct.pack("4s4s", socket.inet_aton(group), socket.inet_aton("0.0.0.0")))
+            s.setblocking(False)
+            socks.append(s)
+        except OSError:
+            continue
+    if not socks:
+        return None
+    mine, heard = own_addresses(), set()
+    end = time.time() + seconds
+    while time.time() < end:
+        ready, _, _ = select.select(socks, [], [], max(0.0, end - time.time()))
+        for s in ready:
+            try:
+                _, (src, _) = s.recvfrom(9000)
+            except OSError:
+                continue
+            if src not in mine and not src.startswith("127."):
+                heard.add(src)
+    for s in socks:
+        s.close()
+    return heard
+
+
+def listening_services():
+    """This computer's services that listen for connections from the network (not only from itself)."""
+    out = []
+    for line in run(["ss", "-tulnH"]).splitlines():
+        f = line.split()
+        if len(f) < 5:
+            continue
+        proto, local = f[0], f[4]
+        host, _, port = local.rpartition(":")
+        host = host.strip("[]").split("%")[0]
+        try:
+            if ipaddress.ip_address(host).is_loopback:
+                continue
+        except ValueError:
+            if host not in ("*", ""):
+                continue
+        if proto == "udp" and port in ("68", "546", "5353", "1900"):
+            continue  # the address request (DHCP) and local discovery
+        out.append("%s/%s" % (proto, port))
+    return sorted(set(out))
+
+
+def check_neighbourhood(r, dev, me, untrusted):
+    heard = listen_for_devices()
+    if heard is None:
+        r.add("isolation", "skip", "could not listen for other devices")
+    elif heard:
+        status = "warn" if untrusted else "ok"
+        r.add("isolation", status, "%d other device(s) heard on this network, so devices are not kept apart and they can see this computer too%s"
+              % (len(heard), " (it does not announce itself here, and the firewall blocks connections in)" if untrusted else ""))
     else:
-        r.add("firewall", "ok", "the firewall is on: other devices cannot connect in")
-    if me and security_class(me["security"]) == "open" and seen:
-        r.add("isolation", "warn", "%d other device(s) on this network are visible to this computer, so devices are not kept apart; the firewall blocks them from connecting in" % len(seen))
+        r.add("isolation", "ok", "no other device heard in 8 seconds: the network may keep devices apart (or they are quiet)")
+    fw = run(["systemctl", "is-active", "ufw"]).strip()
+    svc = listening_services()
+    if fw != "active":
+        r.add("firewall", "bad", "the firewall is off" + (": these services can be reached from this network: " + ", ".join(svc[:6]) if svc else ""))
+    elif svc:
+        r.add("ports", "ok", "the firewall is on; services listening beyond this computer, blocked unless a rule allows them: " + ", ".join(svc[:6]))
+    else:
+        r.add("firewall", "ok", "the firewall is on and nothing on this computer listens for connections from the network")
 
 
 def main():
+    uuid = ""
+    if "--uuid" in sys.argv:
+        uuid = re.sub(r"[^a-f0-9-]", "", sys.argv[sys.argv.index("--uuid") + 1] if len(sys.argv) > sys.argv.index("--uuid") + 1 else "")
+    trusted = bool(uuid) and uuid in load_json(TRUSTED, {})
+    guard = load_json(GUARD_STATE, {})
     r = Report()
     os.makedirs(STATE, exist_ok=True)
     known_path = os.path.join(STATE, "routers.json")
@@ -274,13 +367,21 @@ def main():
     elif state in ("none", "limited"):
         r.add("internet", "skip", "no internet yet (%s): online checks skipped" % state)
     dev = check_gateway(r, me, known)
-    if state not in ("none", "limited"):  # "unknown": NetworkManager does not test connectivity here; the checks themselves will tell
+    if guard.get("locked"):
+        r.add("online checks", "skip", "untrusted network: all traffic is held for the VPN, so DNS, HTTPS and web pages are checked only through it")
+    elif state not in ("none", "limited"):  # "unknown": NetworkManager does not test connectivity here; the checks themselves will tell
         check_dns(r)
         check_tls(r)
         check_http(r, state)
-    check_neighbourhood(r, dev, me)
+    check_neighbourhood(r, dev, me, not trusted)
     res = {"time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "ssid": me["ssid"], "bssid": me["bssid"], "security": me["security"],
-           "connectivity": state, "verdict": r.verdict(), "checks": r.checks}
+           "connectivity": state, "trusted": trusted, "verdict": r.verdict(), "checks": r.checks}
+    # what Heimdall's router watch follows while on this network (untrusted networks only)
+    gw, gdev = gateway()
+    gmac = next((n.get("lladdr", "").upper() for n in neighbours(gdev or "") if n.get("dst") == gw), "") if gw else ""
+    with open(os.path.join(STATE, "current.json.tmp"), "w") as f:
+        json.dump({"time": res["time"], "ssid": me["ssid"], "uuid": uuid, "iface": gdev, "gateway": gw, "gateway_mac": gmac, "trusted": trusted}, f)
+    os.replace(os.path.join(STATE, "current.json.tmp"), os.path.join(STATE, "current.json"))
     with open(known_path + ".tmp", "w") as f:
         json.dump(known, f)
     os.replace(known_path + ".tmp", known_path)

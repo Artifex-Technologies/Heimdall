@@ -93,6 +93,8 @@ type Config struct {
 
 	// WifiResults is where heimdall-wifi-check writes its verdict on each Wi-Fi network joined; each becomes an alert.
 	WifiResults string `json:"wifi_results"`
+	// ListenWatch alerts when a program starts listening for connections from the network (not loopback).
+	ListenWatch bool `json:"listen_watch"`
 
 	// Firewall watches the journal for packets ufw blocked and failed SSH logins, and alerts when one address adds up
 	// (internal/detect/inbound.go). Needs the systemd-journal group (packaging/arch/heimdall-firewall.conf.example);
@@ -178,6 +180,7 @@ func Default() Config {
 		PackageAuditIntervalHours:   6,
 		PackageAuditStatePath:       "/var/lib/heimdall/package-audit.json",
 		WifiResults:                 "/var/lib/heimdall/wifi/results.jsonl",
+		ListenWatch:                 true,
 		Firewall:                    true,
 		FirewallPollIntervalSeconds: 15,
 		FirewallCursorPath:          "/var/lib/heimdall/firewall.cursor",
