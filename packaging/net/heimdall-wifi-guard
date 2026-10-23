@@ -1,0 +1,408 @@
+#!/usr/bin/env python3
+"""heimdall-wifi-guard: trusted and untrusted Wi-Fi networks, and the VPN with a kill switch.
+
+A network is trusted when you said so while on it (sudo heimdall-wifi-guard trust): its NetworkManager profile and the hardware
+address of its router are remembered together, so a stranger's network with the same name is not trusted. Every other network is
+untrusted, and there:
+  - before the connection comes up, nothing may leave this computer except the address request (DHCP) and the VPN's own traffic
+    (a small nftables table of its own, beside ufw; removed when you leave the network);
+  - once up, the VPN connects; if it cannot, or drops later, the Wi-Fi is disconnected (no traffic ever goes out unprotected);
+  - this computer does not announce itself: Avahi is stopped while there, the profile stops sending the computer's name and uses a
+    random hardware address per network from the next connection on.
+With no VPN set up yet, untrusted networks are only made quiet (no lockdown, nothing dropped) and you are told.
+
+  heimdall-wifi-guard status                    what is trusted, whether the VPN is set up, what is in force now
+  heimdall-wifi-guard trust                     trust the Wi-Fi network you are on now (root)
+  heimdall-wifi-guard untrust NAME              stop trusting it (root)
+  heimdall-wifi-guard vpn-import FILE.conf      set up the VPN from a WireGuard file (from your Proton VPN account) (root)
+  heimdall-wifi-guard vpn-remove                remove it (root)
+  heimdall-wifi-guard sign-in                   on a network with a sign-in page: open it for 5 minutes, then the VPN (root)
+NetworkManager's dispatcher calls the rest (pre-up, up, down, vpn-down).
+"""
+import ipaddress
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+
+CONF = os.environ.get("HEIMDALL_WIFI_GUARD_CONF", "/etc/heimdall/wifi-guard.json")
+TRUSTED = os.environ.get("HEIMDALL_WIFI_TRUSTED", "/etc/heimdall/wifi-trusted.json")
+RUN = "/run/heimdall-wifi-guard"
+TABLE = "heimdall_wifi_guard"
+VPN_NAME = "Heimdall VPN"
+ENV = {"PATH": "/usr/bin:/bin", "LANG": "C"}
+
+
+def sh(argv, timeout=30, check=False):
+    p = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, env=ENV)
+    if check and p.returncode != 0:
+        raise RuntimeError("%s: %s" % (" ".join(argv[:3]), (p.stderr or p.stdout).strip()))
+    return p
+
+
+def load(path, default):
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return default
+
+
+def save(path, data, mode=0o644):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path + ".tmp", "w") as f:
+        json.dump(data, f, indent=1)
+    os.chmod(path + ".tmp", mode)
+    os.replace(path + ".tmp", path)
+
+
+def note(event, ssid, message):
+    """For the desktop notification (heimdall-wifi-notify watches this file)."""
+    os.makedirs(RUN, exist_ok=True)
+    os.chmod(RUN, 0o755)
+    save(os.path.join(RUN, "last.json"), {"time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "event": event, "ssid": ssid, "message": message})
+
+
+def root():
+    if os.geteuid() != 0:
+        sys.exit("this needs root: sudo heimdall-wifi-guard " + " ".join(sys.argv[1:]))
+
+
+def active_wifi():
+    """(iface, uuid, ssid) of the active Wi-Fi connection, or Nones."""
+    out = sh(["nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device"]).stdout
+    for line in out.splitlines():
+        f = re.split(r"(?<!\\):", line)
+        if len(f) >= 4 and f[1] == "wifi" and f[2] == "connected":
+            iface = f[0]
+            uuid = sh(["nmcli", "-g", "GENERAL.CON-UUID", "device", "show", iface]).stdout.strip()
+            ssid = sh(["nmcli", "-g", "802-11-wireless.ssid", "connection", "show", uuid]).stdout.strip()
+            return iface, uuid, ssid
+    return None, None, None
+
+
+def router_mac(iface):
+    try:
+        routes = json.loads(sh(["ip", "-j", "route", "show", "default", "dev", iface]).stdout or "[]")
+        gw = next((r["gateway"] for r in routes if r.get("gateway")), None)
+        if not gw:
+            return ""
+        for _ in range(5):
+            neigh = json.loads(sh(["ip", "-j", "neigh", "show", gw, "dev", iface]).stdout or "[]")
+            mac = next((n.get("lladdr", "") for n in neigh if n.get("lladdr")), "")
+            if mac:
+                return mac.upper()
+            sh(["ping", "-c", "1", "-W", "1", gw])  # the router itself, to learn its hardware address
+        return ""
+    except (ValueError, OSError):
+        return ""
+
+
+def is_wifi(iface):
+    return os.path.isdir("/sys/class/net/%s/wireless" % iface)
+
+
+def is_trusted(uuid, mac=None):
+    t = load(TRUSTED, {}).get(uuid)
+    if not t:
+        return False
+    return mac is None or not mac or mac in t.get("routers", [])
+
+
+# ---- the lockdown (outgoing traffic only; incoming stays with ufw)
+
+def ruleset(vpn):
+    allow = []
+    for ep in vpn.get("endpoints", []):
+        ip, port = ep["ip"], int(ep["port"])
+        fam = "ip6" if ipaddress.ip_address(ip).version == 6 else "ip"
+        allow.append("    %s daddr %s udp dport %d accept" % (fam, ip, port))
+    iface = re.sub(r"[^A-Za-z0-9_.-]", "", vpn.get("iface", "")) or "wg-heimdall"
+    return "\n".join([
+        "table inet %s {" % TABLE,
+        "  chain output {",
+        "    type filter hook output priority 0; policy drop;",
+        '    oifname "lo" accept',
+        '    oifname "%s" accept' % iface,
+        "    udp dport { 67, 547 } accept",
+        "    icmpv6 type { nd-router-solicit, nd-neighbor-solicit, nd-neighbor-advert, mld2-listener-report } accept",
+        *allow,
+        "  }",
+        "}",
+    ]) + "\n"
+
+
+def set_state(**kw):
+    os.makedirs(RUN, exist_ok=True)
+    os.chmod(RUN, 0o755)
+    save(os.path.join(RUN, "state.json"), dict(load(os.path.join(RUN, "state.json"), {}), **kw))
+
+
+def lock(vpn):
+    sh(["nft", "delete", "table", "inet", TABLE])
+    p = subprocess.run(["nft", "-f", "-"], input=ruleset(vpn), capture_output=True, text=True, env=ENV)
+    if p.returncode != 0:
+        raise RuntimeError("the lockdown could not be set: " + p.stderr.strip())
+    set_state(locked=True)  # Heimdall's Wi-Fi check reads this: its online tests are held too
+
+
+def unlock():
+    sh(["nft", "delete", "table", "inet", TABLE])
+    set_state(locked=False)
+
+
+def locked():
+    return sh(["nft", "list", "table", "inet", TABLE]).returncode == 0
+
+
+# ---- quiet on untrusted networks
+
+def quiet(uuid, on):
+    state = load(os.path.join(RUN, "state.json"), {})
+    if on:
+        if sh(["systemctl", "is-active", "avahi-daemon.service"]).stdout.strip() == "active":
+            state["avahi_was_on"] = True
+            sh(["systemctl", "stop", "avahi-daemon.socket", "avahi-daemon.service"])
+        # from the next connection on: no computer name in address requests, a random hardware address of its own for this network
+        sh(["nmcli", "connection", "modify", uuid, "ipv4.dhcp-send-hostname", "no", "ipv6.dhcp-send-hostname", "no",
+            "802-11-wireless.cloned-mac-address", "stable"])
+    elif state.pop("avahi_was_on", False):
+        sh(["systemctl", "start", "avahi-daemon.socket", "avahi-daemon.service"])
+    set_state(**{k: v for k, v in state.items()})
+    if not on:
+        set_state(avahi_was_on=False)
+
+
+# ---- events from NetworkManager's dispatcher
+
+def pre_up(iface, uuid):
+    vpn = load(CONF, {}).get("vpn")
+    if not is_wifi(iface):
+        return
+    if is_trusted(uuid):
+        unlock()
+        return
+    if vpn:
+        lock(vpn)  # before any traffic: only DHCP and the VPN may leave
+
+
+def up(iface, uuid):
+    if not is_wifi(iface):
+        return
+    ssid = sh(["nmcli", "-g", "802-11-wireless.ssid", "connection", "show", uuid]).stdout.strip()
+    mac = router_mac(iface)
+    if is_trusted(uuid, mac):
+        unlock()
+        quiet(uuid, False)
+        set_state(wifi=uuid, iface=iface, trusted=True)
+        return
+    if is_trusted(uuid):  # the profile is trusted but its router is not the one remembered: treat it as a stranger
+        note("router-changed", ssid, "This network has the name of a trusted one, but its router is different: treating it as untrusted.")
+    quiet(uuid, True)
+    vpn = load(CONF, {}).get("vpn")
+    set_state(wifi=uuid, iface=iface, trusted=False)
+    if not vpn:
+        note("no-vpn", ssid, "Untrusted network: this computer is not announcing itself, but there is no VPN set up to protect traffic (heimdall-wifi-guard vpn-import).")
+        return
+    if not locked():
+        lock(vpn)
+    if sh(["nmcli", "connection", "up", vpn["uuid"]], timeout=45).returncode == 0:
+        note("vpn-up", ssid, "Untrusted network: all traffic goes through the VPN.")
+        return
+    sh(["nmcli", "device", "disconnect", iface])
+    note("dropped", ssid, "The VPN could not connect, so the Wi-Fi was disconnected (nothing went out unprotected). On a network with a sign-in page: sudo heimdall-wifi-guard sign-in.")
+
+
+def down(iface, uuid):
+    st = load(os.path.join(RUN, "state.json"), {})
+    vpn = load(CONF, {}).get("vpn")
+    if vpn and uuid == vpn.get("uuid"):
+        # the VPN went down: if the untrusted Wi-Fi is still up, it goes too
+        if st.get("wifi") and not st.get("trusted") and st.get("iface") and not os.path.exists(os.path.join(RUN, "signing-in")):
+            ssid = sh(["nmcli", "-g", "802-11-wireless.ssid", "connection", "show", st["wifi"]]).stdout.strip()
+            sh(["nmcli", "device", "disconnect", st["iface"]])
+            note("dropped", ssid, "The VPN dropped, so the Wi-Fi was disconnected (nothing goes out unprotected).")
+        return
+    if not is_wifi(iface) and uuid != st.get("wifi"):
+        return
+    if vpn:
+        sh(["nmcli", "connection", "down", vpn["uuid"]])
+    unlock()
+    quiet(uuid, False)
+    set_state(wifi=None, iface=None, trusted=None)
+
+
+# ---- commands
+
+def cmd_trust():
+    root()
+    iface, uuid, ssid = active_wifi()
+    if not uuid:
+        sys.exit("not connected to Wi-Fi")
+    mac = router_mac(iface)
+    if not mac:
+        sys.exit("the router's hardware address could not be read; try again in a moment")
+    t = load(TRUSTED, {})
+    e = t.setdefault(uuid, {"ssid": ssid, "routers": []})
+    e["ssid"] = ssid
+    if mac not in e["routers"]:
+        e["routers"].append(mac)
+    save(TRUSTED, t)
+    # at home the computer may use its own hardware address and name (routers show it, and reservations keep working)
+    sh(["nmcli", "connection", "modify", uuid, "802-11-wireless.cloned-mac-address", "permanent", "ipv4.dhcp-send-hostname", "yes", "ipv6.dhcp-send-hostname", "yes"])
+    unlock()
+    quiet(uuid, False)
+    print("trusted: %s (router %s)" % (ssid, mac))
+
+
+def cmd_untrust(name):
+    root()
+    t = load(TRUSTED, {})
+    gone = [u for u, e in t.items() if name in (u, e.get("ssid"))]
+    for u in gone:
+        del t[u]
+    save(TRUSTED, t)
+    print("no longer trusted: %d network(s)" % len(gone) if gone else "no trusted network by that name")
+
+
+def parse_wg(text):
+    endpoints, addrs = [], []
+    for line in text.splitlines():
+        m = re.match(r"\s*Endpoint\s*=\s*(\S+)", line, re.I)
+        if m:
+            host, _, port = m.group(1).rpartition(":")
+            host = host.strip("[]")
+            try:
+                ips = [str(ipaddress.ip_address(host))]
+            except ValueError:
+                import socket
+                ips = sorted({a[4][0] for a in socket.getaddrinfo(host, int(port), proto=socket.IPPROTO_UDP)})
+            endpoints += [{"ip": ip, "port": int(port)} for ip in ips]
+    return endpoints
+
+
+def cmd_vpn_import(path):
+    root()
+    with open(path) as f:
+        text = f.read()
+    endpoints = parse_wg(text)
+    if not endpoints:
+        sys.exit("no Endpoint in %s: is it a WireGuard configuration?" % path)
+    conf = load(CONF, {})
+    if conf.get("vpn"):
+        sh(["nmcli", "connection", "delete", conf["vpn"]["uuid"]])
+    iface = "wg-heimdall"
+    tmp = "/run/%s.conf" % iface  # NetworkManager names the connection after the file
+    with open(tmp, "w") as f:
+        f.write(text)
+    os.chmod(tmp, 0o600)
+    try:
+        out = sh(["nmcli", "connection", "import", "type", "wireguard", "file", tmp], check=True).stdout
+    finally:
+        os.remove(tmp)
+    m = re.search(r"\(([0-9a-f-]{36})\)", out)
+    if not m:
+        sys.exit("NetworkManager did not say which connection it made: " + out)
+    uuid = m.group(1)
+    sh(["nmcli", "connection", "modify", uuid, "connection.id", VPN_NAME, "connection.autoconnect", "no"], check=True)
+    conf["vpn"] = {"uuid": uuid, "iface": iface, "endpoints": endpoints}
+    save(CONF, conf)
+    print("VPN set up (%d endpoint(s)). It turns on by itself on untrusted Wi-Fi; if it fails there, the Wi-Fi is disconnected." % len(endpoints))
+
+
+def cmd_vpn_remove():
+    root()
+    conf = load(CONF, {})
+    if conf.get("vpn"):
+        sh(["nmcli", "connection", "delete", conf["vpn"]["uuid"]])
+        del conf["vpn"]
+        save(CONF, conf)
+    unlock()
+    print("VPN removed; untrusted networks are now only kept quiet")
+
+
+def cmd_sign_in():
+    root()
+    iface, uuid, ssid = active_wifi()
+    vpn = load(CONF, {}).get("vpn")
+    if not uuid or not vpn:
+        sys.exit("nothing to do: not on Wi-Fi, or no VPN set up")
+    open(os.path.join(RUN, "signing-in"), "w").close()
+    try:
+        unlock()
+        print("The network is open for up to 5 minutes: sign in on its page now (the browser opens it, or try http://neverssl.com).")
+        deadline = time.time() + 300
+        while time.time() < deadline:
+            if sh(["nmcli", "-t", "-f", "CONNECTIVITY", "general"]).stdout.strip() == "full":
+                break
+            time.sleep(3)
+        lock(vpn)
+        if sh(["nmcli", "connection", "up", vpn["uuid"]], timeout=45).returncode == 0:
+            print("Signed in; all traffic now goes through the VPN.")
+            note("vpn-up", ssid, "Signed in; all traffic goes through the VPN.")
+        else:
+            sh(["nmcli", "device", "disconnect", iface])
+            note("dropped", ssid, "The VPN could not connect after signing in, so the Wi-Fi was disconnected.")
+            print("The VPN could not connect, so the Wi-Fi was disconnected.")
+    finally:
+        try:
+            os.remove(os.path.join(RUN, "signing-in"))
+        except OSError:
+            pass
+
+
+def cmd_status():
+    t = load(TRUSTED, {})
+    vpn = load(CONF, {}).get("vpn")
+    print("trusted networks:" if t else "trusted networks: none")
+    for u, e in t.items():
+        print("  %s (router %s)" % (e.get("ssid"), ", ".join(e.get("routers", []))))
+    print("VPN: " + ("set up, %d endpoint(s)" % len(vpn["endpoints"]) if vpn else "not set up (heimdall-wifi-guard vpn-import FILE.conf)"))
+    iface, uuid, ssid = active_wifi()
+    if uuid:
+        print("now on: %s, %s" % (ssid, "trusted" if is_trusted(uuid) else "untrusted"))
+    if os.geteuid() == 0:
+        print("lockdown: " + ("on" if locked() else "off"))
+
+
+def main(a):
+    if len(a) < 2:
+        print(__doc__)
+        return 2
+    c = a[1]
+    if c in ("pre-up", "up", "down") and len(a) >= 4:
+        root()
+        {"pre-up": pre_up, "up": up, "down": down}[c](a[2], a[3])
+    elif c == "status":
+        cmd_status()
+    elif c == "trust":
+        cmd_trust()
+    elif c == "untrust" and len(a) > 2:
+        cmd_untrust(a[2])
+    elif c == "vpn-import" and len(a) > 2:
+        cmd_vpn_import(a[2])
+    elif c == "vpn-remove":
+        cmd_vpn_remove()
+    elif c == "sign-in":
+        cmd_sign_in()
+    elif c == "ruleset-check":  # print and check the lockdown rules for a VPN file, without applying them (root)
+        root()
+        vpn = {"endpoints": parse_wg(open(a[2]).read()) if len(a) > 2 else [{"ip": "203.0.113.5", "port": 51820}], "iface": "wg-heimdall"}
+        rs = ruleset(vpn)
+        print(rs)
+        p = subprocess.run(["nft", "-c", "-f", "-"], input=rs, capture_output=True, text=True, env=ENV)
+        print("nft check: " + ("ok" if p.returncode == 0 else p.stderr.strip()))
+        return p.returncode
+    else:
+        print(__doc__)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main(sys.argv))
+    except RuntimeError as e:
+        sys.exit("heimdall-wifi-guard: %s" % e)

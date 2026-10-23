@@ -1,0 +1,9 @@
+[Unit]
+Description=Show Heimdall's verdict on a Wi-Fi network when it is checked
+
+[Path]
+PathChanged=/run/heimdall-wifi/last.json
+PathChanged=/run/heimdall-wifi-guard/last.json
+
+[Install]
+WantedBy=default.target

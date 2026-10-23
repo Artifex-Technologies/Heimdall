@@ -1,0 +1,2 @@
+# Domains the DNS block list must never block (one per line; names under them are allowed too).
+# Add one with: sudo heimdall-dns-blocklist allow example.com

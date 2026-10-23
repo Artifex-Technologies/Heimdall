@@ -1,0 +1,150 @@
+#!/bin/bash
+# heimdall-dns-blocklist: block known malware, phishing, scam and botnet domains for every program on this computer.
+#
+# How: NetworkManager runs a small local DNS cache (dnsmasq). This keeps a list of bad domains in that cache, so a lookup of one
+# (and of every name under it) fails at once, before any connection is made: a hacked website that tries to send the browser to a
+# malware or phishing page simply does not resolve. Nothing about the sites you visit leaves this computer; the lists are downloaded.
+#
+#   heimdall-dns-blocklist update     fetch the lists and build the block file (daily, by heimdall-dns-blocklist.timer)
+#   heimdall-dns-blocklist apply      make the DNS cache load it, and undo it if names stop resolving (root)
+#   heimdall-dns-blocklist allow DOMAIN    never block DOMAIN (and names under it), then apply (root)
+#   heimdall-dns-blocklist status     what is blocked, from which lists, and when they were fetched
+#   heimdall-dns-blocklist test DOMAIN     is DOMAIN blocked?
+#
+# Lists (free): HaGeZi's Threat Intelligence Feeds, mini (github.com/hagezi/dns-blocklists, GPL-3.0) and the URLhaus malware
+# filter (malware-filter.gitlab.io, from abuse.ch URLhaus data, CC0). A downloaded list is never used as configuration: only lines
+# that are plain domain names are kept, and this script writes the dnsmasq lines itself (a hostile list cannot add directives).
+set -euo pipefail
+umask 022
+
+dir=${HEIMDALL_DNS_DIR:-/var/lib/heimdall-dns}
+allow=${HEIMDALL_DNS_ALLOW:-/etc/heimdall/dns-allow.txt}
+conf=$dir/blocklist.conf
+min_entries=${HEIMDALL_DNS_MIN:-20000} # a list that suddenly shrinks this far is an error page, not a list: the last good file stays
+
+lists=(
+  "hagezi-tif-mini https://raw.githubusercontent.com/hagezi/dns-blocklists/main/wildcard/tif.mini-onlydomains.txt"
+  "urlhaus-filter https://malware-filter.gitlab.io/malware-filter/urlhaus-filter-hosts-online.txt"
+)
+
+domains() { # file -> plain domain names, one per line (hosts lines and comments understood; anything else dropped)
+  sed -E 's/#.*//; s/^[[:space:]]*(0\.0\.0\.0|127\.0\.0\.1|::)[[:space:]]+//; s/[[:space:]]+$//' "$1" |
+    tr 'A-Z' 'a-z' |
+    grep -E '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*\.[a-z][a-z0-9-]{0,61}[a-z0-9]$' |
+    grep -vE '^(localhost|localhost\.localdomain|local|broadcasthost)$' || true
+}
+
+allowed() { # the allow list, cleaned the same way
+  [[ -r $allow ]] && domains "$allow" | sort -u || true
+}
+
+update() {
+  mkdir -p "$dir"
+  tmp=$(mktemp -d "$dir/.update.XXXXXX")
+  trap 'rm -rf "${tmp:-/nonexistent}"' EXIT
+  local got=0 name url
+  for entry in "${lists[@]}"; do
+    name=${entry%% *}; url=${entry#* }
+    if [[ -n ${HEIMDALL_DNS_TEST_SOURCES:-} ]]; then # tests: the lists come from files, never the network
+      cp "$HEIMDALL_DNS_TEST_SOURCES/$name.raw" "$tmp/$name.raw" 2>/dev/null && domains "$tmp/$name.raw" >"$tmp/$name.txt" && cp "$tmp/$name.txt" "$dir/$name.txt" && got=1
+      continue
+    fi
+    if [[ ${HEIMDALL_DNS_SKIP_FETCH:-0} != 1 ]] && curl -fsSL --proto '=https' --tlsv1.2 --max-time 300 --max-filesize 100000000 -o "$tmp/$name.raw" "$url"; then
+      domains "$tmp/$name.raw" >"$tmp/$name.txt"
+      echo "$name: $(wc -l <"$tmp/$name.txt") domains"
+      cp "$tmp/$name.txt" "$dir/$name.txt"
+      got=1
+    else
+      [[ ${HEIMDALL_DNS_SKIP_FETCH:-0} == 1 ]] || echo "$name: not fetched; using the last copy" >&2
+      [[ -f $dir/$name.txt ]] && cp "$dir/$name.txt" "$tmp/$name.txt"
+    fi
+  done
+  cat "$tmp"/*.txt 2>/dev/null | sort -u >"$tmp/all"
+  allowed >"$tmp/allow"
+  # drop allowed names and everything under them
+  if [[ -s $tmp/allow ]]; then
+    awk 'NR==FNR { a[$0]=1; next } { d=$0; keep=1; while (d != "") { if (d in a) { keep=0; break } i=index(d, "."); if (!i) break; d=substr(d, i+1) } if (keep) print $0 }' \
+      "$tmp/allow" "$tmp/all" >"$tmp/all2" && mv "$tmp/all2" "$tmp/all"
+  fi
+  local n; n=$(wc -l <"$tmp/all")
+  if (( n < min_entries )); then
+    echo "only $n domains: something went wrong; the last good block file stays" >&2
+    exit 1
+  fi
+  {
+    echo "# Written by heimdall-dns-blocklist on $(date -u +%Y-%m-%dT%H:%MZ): $n blocked domains (and the names under them)."
+    echo "# Do not edit: add domains to $allow instead, then run: sudo heimdall-dns-blocklist allow DOMAIN"
+    sed 's#.*#local=/&/#' "$tmp/all"
+    # an allowed name under a blocked one still resolves normally
+    sed 's#.*#server=/&/\##' "$tmp/allow"
+  } >"$tmp/blocklist.conf"
+  mv -f "$tmp/blocklist.conf" "$conf"
+  date -u +%Y-%m-%dT%H:%MZ >"$dir/updated"
+  echo "$n domains blocked"
+}
+
+works() { # do ordinary names resolve?
+  local d
+  for d in archlinux.org wikipedia.org; do
+    getent ahosts "$d" >/dev/null 2>&1 && return 0
+  done
+  return 1
+}
+
+apply() {
+  [[ $(id -u) == 0 ]] || { echo "apply needs root (sudo)" >&2; exit 1; }
+  [[ -f /usr/lib/NetworkManager/conf.d/heimdall-dns.conf || -f /etc/NetworkManager/conf.d/heimdall-dns.conf ]] || { echo "the DNS cache is not switched on (no heimdall-dns.conf in NetworkManager/conf.d)" >&2; exit 1; }
+  local before=0
+  works && before=1
+  nmcli general reload conf,dns-full # re-read the settings (the first time this switches the DNS cache on) and restart the cache
+  local i
+  for i in 1 2 3 4 5 6 7 8 9 10; do
+    works && { echo "DNS cache reloaded with the block list; names resolve"; return 0; }
+    sleep 1
+  done
+  if (( before )); then
+    # it worked before and not now: the new block file is the suspect; go back to an empty one so the computer stays online
+    echo "names stopped resolving after the reload: the block list is set aside (moved to $conf.broken)" >&2
+    mv -f "$conf" "$conf.broken"
+    : >"$conf"
+    nmcli general reload dns-full
+    exit 1
+  fi
+  echo "names did not resolve before or after the reload (offline?); left as it is" >&2
+}
+
+case ${1:-} in
+  update) update ;;
+  apply) apply ;;
+  allow)
+    [[ $(id -u) == 0 ]] || { echo "allow needs root (sudo)" >&2; exit 1; }
+    d=$(printf '%s\n' "${2:-}" | tr 'A-Z' 'a-z')
+    [[ -n $(printf '%s\n' "$d" | domains /dev/stdin) ]] || { echo "not a domain name: ${2:-}" >&2; exit 2; }
+    install -Dm644 /dev/null "$allow.new"; { [[ -f $allow ]] && cat "$allow"; echo "$d"; } | sort -u >"$allow.new" && mv "$allow.new" "$allow"
+    HEIMDALL_DNS_SKIP_FETCH=1 update >/dev/null || true
+    apply
+    echo "$d is allowed"
+    ;;
+  status)
+    if [[ -f $conf ]]; then
+      echo "blocked domains: $(grep -c '^local=' "$conf" || true) (updated $(cat "$dir/updated" 2>/dev/null || echo never))"
+      for f in "$dir"/*.txt; do [[ -f $f ]] && echo "  $(basename "$f" .txt): $(wc -l <"$f")"; done
+    else
+      echo "no block list yet"
+    fi
+    echo "allowed by you: $(allowed | wc -l) ($allow)"
+    [[ -f /usr/lib/NetworkManager/conf.d/heimdall-dns.conf || -f /etc/NetworkManager/conf.d/heimdall-dns.conf ]] && echo "DNS cache: on" || echo "DNS cache: off"
+    ;;
+  test)
+    d=$(printf '%s' "${2:-}" | tr 'A-Z' 'a-z')
+    hit=""
+    x=$d
+    while [[ -n $x ]]; do
+      grep -qxF "local=/$x/" "$conf" 2>/dev/null && { hit=$x; break; }
+      [[ $x == *.* ]] || break
+      x=${x#*.}
+    done
+    if [[ -n $hit ]]; then echo "$d is blocked (listed: $hit)"; else echo "$d is not blocked"; fi
+    ;;
+  *) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 2 ;;
+esac

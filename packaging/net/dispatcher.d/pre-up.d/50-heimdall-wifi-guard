@@ -1,0 +1,6 @@
+#!/bin/sh
+# Before a connection carries traffic: on an untrusted Wi-Fi network with a VPN set up, hold all outgoing traffic except the VPN's.
+# Synchronous on purpose (NetworkManager waits for it), and quick.
+uuid=$(printf '%s' "${CONNECTION_UUID:-}" | tr -cd 'a-f0-9-')
+[ -n "$uuid" ] && [ -n "$1" ] || exit 0
+exec /usr/bin/heimdall-wifi-guard pre-up "$1" "$uuid"

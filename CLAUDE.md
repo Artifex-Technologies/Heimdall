@@ -212,6 +212,15 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-10-23 (5) — One home for the network protection; one file list
+- Moved here from Labyrinth_OS (renamed): heimdall-dns-blocklist (was labyrinth-dns-blocklist), heimdall-wifi-guard,
+  heimdall-wifi-notify, their units, NetworkManager confs and dispatcher hooks (packaging/net/), tests (packaging/tests/).
+  Paths: /etc/heimdall/{dns-allow.txt,wifi-trusted.json,wifi-guard.json}, /var/lib/heimdall-dns, /run/heimdall-wifi-guard,
+  nft table heimdall_wifi_guard, VPN connection "Heimdall VPN" on interface wg-heimdall.
+- packaging/install.sh DESTDIR is the only file list: every PKGBUILD (packaging/arch, Labyrinth's and Niflheim's heimdall-git)
+  calls it. A pacman hook (heimdall-install.hook -> heimdall-enable-defaults) switches the service, timers and notifications
+  on at first install only. Tests: python3 -m unittest discover packaging/tests.
+
 ### 2026-10-23 (4) — Wi-Fi safety check
 - `packaging/arch/heimdall-wifi-check` (Python, run per connection by `heimdall-wifi-check@.service` from the NetworkManager
   dispatcher `90-heimdall-wifi`) writes `/var/lib/heimdall/wifi/results.jsonl`; `internal/sources/wifisource` +

@@ -1,0 +1,3 @@
+# the block file always exists (empty until the first download), so the DNS cache can always start
+d /var/lib/heimdall-dns 0755 root root -
+f /var/lib/heimdall-dns/blocklist.conf 0644 root root -

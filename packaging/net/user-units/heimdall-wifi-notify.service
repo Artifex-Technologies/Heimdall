@@ -1,0 +1,6 @@
+[Unit]
+Description=Show Heimdall's verdict on the Wi-Fi network just joined
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/heimdall-wifi-notify

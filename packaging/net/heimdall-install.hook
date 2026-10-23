@@ -1,0 +1,9 @@
+[Trigger]
+Operation = Install
+Type = Path
+Target = usr/bin/heimdalld
+
+[Action]
+Description = Switching on Heimdall, its daily updates and its notifications (first install only)...
+When = PostTransaction
+Exec = /usr/bin/heimdall-enable-defaults

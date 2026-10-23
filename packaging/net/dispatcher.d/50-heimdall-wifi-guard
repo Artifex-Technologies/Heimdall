@@ -1,0 +1,11 @@
+#!/bin/sh
+# Wi-Fi up: trusted or not, the VPN on untrusted networks (dropping the Wi-Fi if it fails). Down: undo, or (the VPN went down)
+# drop the untrusted Wi-Fi. The work runs as its own job so NetworkManager is not kept waiting.
+uuid=$(printf '%s' "${CONNECTION_UUID:-}" | tr -cd 'a-f0-9-')
+iface=$(printf '%s' "$1" | tr -cd 'A-Za-z0-9_.-')
+[ -n "$uuid" ] && [ -n "$iface" ] || exit 0
+case "$2" in
+  up|down) exec systemd-run --quiet --no-block --collect --unit="heimdall-wifi-guard-$2-$(date +%s%N)" \
+             /usr/bin/heimdall-wifi-guard "$2" "$iface" "$uuid" ;;
+esac
+exit 0

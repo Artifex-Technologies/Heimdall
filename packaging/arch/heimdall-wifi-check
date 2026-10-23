@@ -35,8 +35,8 @@ ENV = {"PATH": "/usr/bin:/bin", "LANG": "C"}
 
 # Well-known names and the network (autonomous system) their addresses must belong to, wherever in the world one asks.
 PINNED = [("www.google.com", "AS15169"), ("github.com", "AS36459"), ("www.wikipedia.org", "AS14907"), ("www.cloudflare.com", "AS13335")]
-GUARD_STATE = "/run/labyrinth-wifi-guard/state.json"
-TRUSTED = "/etc/labyrinth/wifi-trusted.json"
+GUARD_STATE = "/run/heimdall-wifi-guard/state.json"
+TRUSTED = "/etc/heimdall/wifi-trusted.json"
 TLS_HOSTS = ["www.google.com", "github.com", "www.wikipedia.org", "www.cloudflare.com"]
 
 

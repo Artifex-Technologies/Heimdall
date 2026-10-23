@@ -1,0 +1,20 @@
+[Unit]
+Description=Heimdall: update the DNS block list (malware, phishing and scam domains)
+Wants=network-online.target
+After=network-online.target NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/heimdall-dns-blocklist update
+# the reload needs NetworkManager; it is checked and undone if names stop resolving
+ExecStartPost=+/usr/bin/heimdall-dns-blocklist apply
+Nice=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ReadWritePaths=/var/lib/heimdall-dns
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+SystemCallFilter=@system-service

@@ -6,12 +6,11 @@ pkgdesc="Heimdall -- security agent monitoring Sarina for prompt injection, cred
 arch=('x86_64')
 url="https://github.com/Artifex-Technologies/Heimdall"
 license=('MPL2')
-depends=('glibc' 'curl' 'gzip' 'python' 'iproute2')
-optdepends=('networkmanager: the Wi-Fi safety check')
+depends=('glibc' 'curl' 'gzip' 'python' 'iproute2' 'networkmanager' 'dnsmasq' 'nftables')
 makedepends=('go' 'git')
 provides=('heimdall')
 conflicts=('heimdall')
-backup=('etc/heimdall/config.json.example')
+backup=('etc/heimdall/dns-allow.txt' 'etc/NetworkManager/dnsmasq.d/heimdall-blocklist.conf')
 source=("git+https://github.com/Artifex-Technologies/Heimdall.git")
 sha256sums=('SKIP')
 
@@ -33,21 +32,5 @@ check() {
 
 package() {
 	cd "$srcdir/Heimdall"
-
-	install -Dm755 heimdalld "$pkgdir/usr/bin/heimdalld"
-	install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
-	install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
-	install -Dm644 packaging/arch/heimdall.service \
-		"$pkgdir/usr/lib/systemd/system/heimdall.service"
-	install -Dm644 packaging/arch/heimdall.sysusers \
-		"$pkgdir/usr/lib/sysusers.d/heimdall.conf"
-	install -Dm644 packaging/arch/config.json.example \
-		"$pkgdir/etc/heimdall/config.json.example"
-	install -Dm755 packaging/arch/heimdall-intel-update "$pkgdir/usr/bin/heimdall-intel-update"
-	install -Dm644 packaging/arch/heimdall-intel-update.service "$pkgdir/usr/lib/systemd/system/heimdall-intel-update.service"
-	install -Dm644 packaging/arch/heimdall-intel-update.timer "$pkgdir/usr/lib/systemd/system/heimdall-intel-update.timer"
-	install -Dm755 packaging/arch/heimdall-wifi-check "$pkgdir/usr/bin/heimdall-wifi-check"
-	install -Dm644 packaging/arch/heimdall-wifi-check@.service "$pkgdir/usr/lib/systemd/system/heimdall-wifi-check@.service"
-	install -Dm755 packaging/arch/90-heimdall-wifi "$pkgdir/usr/lib/NetworkManager/dispatcher.d/90-heimdall-wifi"
-	install -Dm644 packaging/arch/heimdall-firewall.conf.example "$pkgdir/usr/share/doc/$pkgname/heimdall-firewall.conf.example"
+	./packaging/install.sh "$pkgdir"
 }

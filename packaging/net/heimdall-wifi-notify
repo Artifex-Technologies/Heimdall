@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+"""heimdall-wifi-notify: show Heimdall's verdict on the Wi-Fi network just joined (from /run/heimdall-wifi/last.json, written by
+heimdall-wifi-check). Unsafe and needs-care networks always get a notification; a safe one only the first time it is checked."""
+import hashlib
+import json
+import os
+import subprocess
+
+PUB = "/run/heimdall-wifi/last.json"
+GUARD = "/run/heimdall-wifi-guard/last.json"
+SEEN = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "heimdall", "wifi-notified.json")
+
+
+def guard(seen):
+    """The Wi-Fi guard's events: the VPN came on, or the Wi-Fi was dropped because the VPN could not protect it."""
+    try:
+        with open(GUARD) as f:
+            g = json.load(f)
+    except (OSError, ValueError):
+        return
+    if seen.get("guard") == g.get("time"):
+        return
+    seen["guard"] = g.get("time")
+    ssid = "".join(c for c in str(g.get("ssid", "")) if c.isprintable())[:64] or "Wi-Fi"
+    msg = str(g.get("message", ""))[:300]
+    ev = g.get("event")
+    if ev == "dropped":
+        subprocess.run(["notify-send", "-a", "Heimdall", "-u", "critical", "-i", "network-wireless-disconnected", "Disconnected from " + ssid, msg], timeout=10)
+    elif ev in ("vpn-up", "no-vpn", "router-changed"):
+        subprocess.run(["notify-send", "-a", "Heimdall", "-u", "normal", "-i", "network-vpn", ssid, msg], timeout=10)
+
+
+def main():
+    try:
+        with open(SEEN) as f:
+            seen = json.load(f)
+    except (OSError, ValueError):
+        seen = {}
+    guard(seen)
+    os.makedirs(os.path.dirname(SEEN), exist_ok=True)
+    with open(SEEN, "w") as f:
+        json.dump(seen, f)
+    try:
+        with open(PUB) as f:
+            r = json.load(f)
+    except (OSError, ValueError):
+        return
+    try:
+        with open(SEEN) as f:
+            seen = json.load(f)
+    except (OSError, ValueError):
+        seen = {}
+    if seen.get("last") == r.get("time"):
+        return  # already shown
+    ssid = "".join(c for c in str(r.get("ssid", "")) if c.isprintable())[:64] or "this network"
+    key = hashlib.sha256(ssid.encode()).hexdigest()[:16]
+    verdict = r.get("verdict")
+    reasons = [str(x) for x in r.get("reasons", [])][:3]
+    args = None
+    if verdict == "unsafe":
+        args = ["-u", "critical", "-i", "network-wireless-disconnected", "Wi-Fi is not safe: " + ssid,
+                " ".join(reasons) + "\nDisconnect, or turn on a VPN before you do anything else."]
+    elif verdict == "caution":
+        args = ["-u", "normal", "-i", "network-wireless", "Be careful on " + ssid, " ".join(reasons) + "\nA VPN is a good idea here."]
+    elif verdict == "safe" and not seen.get(key):
+        args = ["-u", "low", "-i", "network-wireless", "Wi-Fi checked: " + ssid, "Heimdall found nothing wrong with this network."]
+    if args:
+        subprocess.run(["notify-send", "-a", "Heimdall"] + args, timeout=10)
+    seen[key], seen["last"] = verdict, r.get("time")
+    os.makedirs(os.path.dirname(SEEN), exist_ok=True)
+    with open(SEEN, "w") as f:
+        json.dump(seen, f)
+
+
+if __name__ == "__main__":
+    main()

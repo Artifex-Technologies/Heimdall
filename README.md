@@ -218,6 +218,10 @@ exception — a sibling process's behavior may depend on its response:
 
 ## Arch Linux packaging
 
+`packaging/install.sh DESTDIR` installs everything (the daemon, the updaters, the Wi-Fi check and guard, the DNS block list,
+their units and NetworkManager hooks); every package recipe calls it, so the list of files is kept in one place. On a fresh
+install a pacman hook switches on the service, its timers and the Wi-Fi notifications (never again on upgrades).
+
 `packaging/arch/` mirrors Sarina's own `packaging/arch/` layout: a
 `PKGBUILD` (builds via `go build`, no CGO), a systemd unit (sandboxed —
 `ProtectSystem=strict`, `ProtectHome=read-only` since Heimdall only ever
