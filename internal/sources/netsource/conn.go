@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Artifex-Technologies/Heimdall/internal/detect"
+	"github.com/Artifex-Technologies/Heimdall/internal/ipintel"
 )
 
 // ConnWatcher records which process holds each established TCP connection to a
@@ -33,6 +34,8 @@ type ConnWatcher struct {
 	known      map[string]bool
 	loaded     bool
 	learning   bool
+	// Origins, when set, names the country and network of each new destination (offline; see internal/ipintel).
+	Origins *ipintel.Resolver
 }
 
 func NewConnWatcher(statePath, policyPath string) *ConnWatcher {
@@ -215,6 +218,15 @@ func (w *ConnWatcher) Poll() ([]detect.Event, error) {
 			"remote_port": strconv.Itoa(e.RemotePort),
 			"local_port":  strconv.Itoa(e.LocalPort),
 		}
+		text := fmt.Sprintf("%s (pid %d) connected to %s:%d", proc, o.pid, e.RemoteIP, e.RemotePort)
+		if w.Origins != nil {
+			og := w.Origins.Lookup(e.RemoteIP)
+			for k, v := range og.Fields("remote_") {
+				f[k] = v
+			}
+			f["remote_origin"] = og.String()
+			text += " (" + og.String() + ")"
+		}
 		if w.learning {
 			f["learning"] = "1"
 		}
@@ -223,7 +235,7 @@ func (w *ConnWatcher) Poll() ([]detect.Event, error) {
 		}
 		events = append(events, detect.Event{
 			Source: "host-network", Time: now, Kind: "new_connection",
-			Text:   fmt.Sprintf("%s (pid %d) connected to %s:%d", proc, o.pid, e.RemoteIP, e.RemotePort),
+			Text:   text,
 			Fields: f,
 		})
 	}

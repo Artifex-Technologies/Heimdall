@@ -1,0 +1,9 @@
+# Optional systemd drop-in: let Heimdall read the system journal, to see packets the firewall blocked and failed SSH logins
+# (internal/sources/fwsource). Read-only: the systemd-journal group can read the journal, not change it.
+#
+#   sudo install -Dm644 heimdall-firewall.conf.example /etc/systemd/system/heimdall.service.d/firewall.conf
+#   sudo systemctl daemon-reload && sudo systemctl restart heimdall
+#
+# Without it the firewall watch turns itself off with one log line; everything else works as before.
+[Service]
+SupplementaryGroups=systemd-journal

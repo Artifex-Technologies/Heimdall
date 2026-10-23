@@ -6,7 +6,7 @@ pkgdesc="Heimdall -- security agent monitoring Sarina for prompt injection, cred
 arch=('x86_64')
 url="https://github.com/Artifex-Technologies/Heimdall"
 license=('MPL2')
-depends=('glibc')
+depends=('glibc' 'curl' 'gzip')
 makedepends=('go' 'git')
 provides=('heimdall')
 conflicts=('heimdall')
@@ -42,4 +42,8 @@ package() {
 		"$pkgdir/usr/lib/sysusers.d/heimdall.conf"
 	install -Dm644 packaging/arch/config.json.example \
 		"$pkgdir/etc/heimdall/config.json.example"
+	install -Dm755 packaging/arch/heimdall-ipdb-update "$pkgdir/usr/bin/heimdall-ipdb-update"
+	install -Dm644 packaging/arch/heimdall-ipdb-update.service "$pkgdir/usr/lib/systemd/system/heimdall-ipdb-update.service"
+	install -Dm644 packaging/arch/heimdall-ipdb-update.timer "$pkgdir/usr/lib/systemd/system/heimdall-ipdb-update.timer"
+	install -Dm644 packaging/arch/heimdall-firewall.conf.example "$pkgdir/usr/share/doc/$pkgname/heimdall-firewall.conf.example"
 }

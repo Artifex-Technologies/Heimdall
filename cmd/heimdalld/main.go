@@ -22,11 +22,13 @@ import (
 	"github.com/Artifex-Technologies/Heimdall/internal/detect"
 	"github.com/Artifex-Technologies/Heimdall/internal/engine"
 	"github.com/Artifex-Technologies/Heimdall/internal/governance"
+	"github.com/Artifex-Technologies/Heimdall/internal/ipintel"
 	"github.com/Artifex-Technologies/Heimdall/internal/maintenance"
 	"github.com/Artifex-Technologies/Heimdall/internal/pkgverify"
 	"github.com/Artifex-Technologies/Heimdall/internal/response"
 	"github.com/Artifex-Technologies/Heimdall/internal/scan"
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/agentsource"
+	"github.com/Artifex-Technologies/Heimdall/internal/sources/fwsource"
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/hostsource"
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/limbosource"
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/netsource"
@@ -49,6 +51,10 @@ func main() {
 		os.Exit(cmdScanFiles(os.Args[2:]))
 	case "maintenance":
 		os.Exit(cmdMaintenance(os.Args[2:]))
+	case "origin":
+		os.Exit(cmdOrigin(os.Args[2:]))
+	case "ipdb-check":
+		os.Exit(cmdIPDBCheck(os.Args[2:]))
 	case "version":
 		fmt.Println("heimdalld " + version)
 	case "-h", "--help", "help":
@@ -69,6 +75,9 @@ Usage:
   heimdalld maintenance on --for 2h --reason "why" [--config PATH]
                                     Open a maintenance window (root; at most 4h): routine alerts become info while it is open.
   heimdalld maintenance off|status [--config PATH]
+  heimdalld origin [--config PATH] IP...
+                                    Where addresses belong (country, network), from the offline IP database.
+  heimdalld ipdb-check FILE...      Check downloaded IP database files (heimdall-ipdb-update runs this before using one).
   heimdalld scan-files [--state FILE] [--exclude PATTERN]... [--max-mb N] PATH...
                                     Scan files for malware with ClamAV (must be installed). Prints one line per finding; exit 1 if
                                     anything was found, 2 if ClamAV is missing or a file could not be scanned. Runs as the calling
@@ -100,6 +109,7 @@ func newDetectors(cfg config.Config) []detect.Detector {
 		detect.NewResourcePressureDetector(cfg.ResourceMemThresholdPercent, cfg.ResourceLoadThresholdPerCPU),
 		detect.NewNetworkExposureDetector(),
 		detect.NewConnectionDetector(),
+		detect.NewInboundDetector(),
 		detect.NewBaselineDriftDetectorWithFloors(cfg.BaselineMinSamples, cfg.BaselineZThreshold, detect.DefaultBaselineFloors),
 		detect.NewLimboGuestDetector(),
 	}
@@ -196,12 +206,30 @@ func cmdRun(args []string) int {
 		)
 	}
 
+	origins := ipintel.NewResolver(cfg.IPDatabases...)
+	if origins.Available() {
+		logger.Printf("naming where remote addresses belong from the offline IP database")
+	} else {
+		logger.Printf("no IP database yet: remote addresses show no origin (heimdalld ipdb-update fetches one)")
+	}
+
 	if cfg.ConnWatch {
 		logger.Printf("logging connections per process (poll every %s)", cfg.ConnPollInterval())
 		cw := netsource.NewConnWatcher(cfg.ConnStatePath, cfg.AppNetworkPolicy)
+		cw.Origins = origins
 		go cw.Run(ctx, cfg.ConnPollInterval(),
 			func(err error) { logger.Printf("connection watch unavailable, disabling: %v", err) },
 			func(err error) { logger.Printf("connection watch error: %v", err) },
+			eng.Handle,
+		)
+	}
+
+	if cfg.Firewall {
+		logger.Printf("watching the firewall and SSH logins in the journal (poll every %s)", cfg.FirewallPollInterval())
+		fw := fwsource.NewWatcher(cfg.FirewallCursorPath, origins)
+		go fw.Run(ctx, cfg.FirewallPollInterval(),
+			func(err error) { logger.Printf("firewall watch unavailable, disabling: %v", err) },
+			func(err error) { logger.Printf("firewall watch error: %v", err) },
 			eng.Handle,
 		)
 	}

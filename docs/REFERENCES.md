@@ -119,3 +119,9 @@ binary allow/deny detectors.
 discrete reads into a fixed-shape representation a small model scores,
 not genomics itself. Recorded here too since it's the other genomics
 reference the user flagged as pattern-recognition-only.
+
+**ipinfo/cli (Apache-2.0), for where an attack comes from.** The owner's reference for naming the
+source of an attack so an address can be blocked. Taken as an idea only: the CLI queries
+IPinfo's servers, which would send every address Heimdall sees off the machine. What is kept is
+the offline half: IPinfo (and DB-IP) publish free databases in the MaxMind DB format, which
+`internal/ipintel` reads directly. `grepip`-style extraction became `fwsource`'s journal parsing.

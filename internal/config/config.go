@@ -78,6 +78,18 @@ type Config struct {
 	ConnStatePath           string `json:"conn_state_path"`
 	AppNetworkPolicy        string `json:"app_network_policy"`
 
+	// IPDatabases are offline IP database files (MaxMind DB format: IPinfo Lite, DB-IP Lite) that name the country and
+	// network of a remote address in alerts; the first that knows an address answers. Missing files are fine (the origin is
+	// then "unknown"). Nothing is looked up online. `heimdalld ipdb-update` refreshes them.
+	IPDatabases []string `json:"ip_databases"`
+
+	// Firewall watches the journal for packets ufw blocked and failed SSH logins, and alerts when one address adds up
+	// (internal/detect/inbound.go). Needs the systemd-journal group (packaging/arch/heimdall-firewall.conf.example);
+	// without it the source turns itself off with one log line. FirewallCursorPath remembers where reading stopped.
+	Firewall                    bool   `json:"firewall"`
+	FirewallPollIntervalSeconds int    `json:"firewall_poll_interval_seconds"`
+	FirewallCursorPath          string `json:"firewall_cursor_path"`
+
 	// Maintenance window (internal/maintenance): the file the owner writes (root-owned folder, Heimdall only reads it), who may
 	// open one with `heimdalld maintenance on` (empty = any root user), which detectors are softened to info while one is open,
 	// and where pacman's database is (for telling a package update from an unexplained change).
@@ -149,6 +161,11 @@ func Default() Config {
 		ConnStatePath:           "/var/lib/heimdall/connections-state.json",
 		AppNetworkPolicy:        "/etc/labyrinth/app-network.json",
 
+		IPDatabases:                 []string{"/var/lib/heimdall/ipdb/ipinfo_lite.mmdb", "/var/lib/heimdall/ipdb/dbip-country-lite.mmdb", "/var/lib/heimdall/ipdb/dbip-asn-lite.mmdb"},
+		Firewall:                    true,
+		FirewallPollIntervalSeconds: 15,
+		FirewallCursorPath:          "/var/lib/heimdall/firewall.cursor",
+
 		MaintenancePath:   "/etc/heimdall/maintenance.json",
 		MaintenanceSoften: []string{"file-integrity", "resource-pressure", "baseline-drift", "network-exposure", "connection-watch"},
 		PacmanDB:          "/var/lib/pacman/local",
@@ -206,6 +223,13 @@ func (c Config) TelemetryInterval() time.Duration {
 
 func (c Config) NetPollInterval() time.Duration {
 	return time.Duration(c.NetPollIntervalSeconds) * time.Second
+}
+
+func (c Config) FirewallPollInterval() time.Duration {
+	if c.FirewallPollIntervalSeconds <= 0 {
+		return 15 * time.Second
+	}
+	return time.Duration(c.FirewallPollIntervalSeconds) * time.Second
 }
 
 func (c Config) ConnPollInterval() time.Duration {

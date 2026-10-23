@@ -1,0 +1,21 @@
+[Unit]
+Description=Heimdall -- fetch the offline IP databases (where an address belongs)
+Documentation=https://github.com/Artifex-Technologies/Heimdall
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=heimdall
+Group=heimdall
+ExecStart=/usr/bin/heimdall-ipdb-update
+StateDirectory=heimdall
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ReadWritePaths=/var/lib/heimdall
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+CapabilityBoundingSet=
+SystemCallFilter=@system-service

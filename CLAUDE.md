@@ -212,6 +212,18 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-10-23 — Where an address belongs (offline), and who knocks from outside
+- `internal/ipintel`: a dependency-free reader of the MaxMind DB format (from the spec; idea from ipinfo/cli, no code
+  taken) plus a resolver over several files. `connection-watch` events now carry `remote_country_code`, `remote_asn`,
+  `remote_as_name`, `remote_origin` (and `remote_scope` for private/CGNAT/link-local), and its summaries name the origin.
+- `internal/sources/fwsource` + `detect.InboundDetector` (`inbound`): ufw blocks and failed SSH logins from the journal,
+  alerting per address. Only failed logins (completed handshakes) get a suggested `ufw insert 1 deny from ...`; blocked
+  packets are marked `spoofable=1`. Heimdall never runs the command.
+- New config: `ip_databases`, `firewall`, `firewall_poll_interval_seconds`, `firewall_cursor_path`. New commands:
+  `heimdalld origin`, `heimdalld ipdb-check`. Packaging: `heimdall-ipdb-update` (+ monthly timer; it, not heimdalld,
+  downloads, so heimdalld still never connects off the machine) and `heimdall-firewall.conf.example`.
+- For Sarina: alert fields above are stable names she may read; `origin` is a short sentence.
+
 ### 2026-10-10 — Renamed from Chymaera_Sentry; Limbo-facing identifiers renamed
 - Repo moved to Artifex and renamed Heimdall. Heimdall-owned names changed: alert
   `source` `sentry` -> `heimdall`; quarantine source sent to Limbo `sentry:<detector>`

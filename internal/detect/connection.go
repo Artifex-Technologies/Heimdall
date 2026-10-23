@@ -27,6 +27,9 @@ func (d *ConnectionDetector) Inspect(e Event) []Finding {
 	}
 	f := e.Fields
 	dest := fmt.Sprintf("%s:%s", f["remote_addr"], f["remote_port"])
+	if o := f["remote_origin"]; o != "" && f["remote_scope"] == "public" {
+		dest += " (" + o + ")"
+	}
 	sev := SeverityInfo
 	summary := fmt.Sprintf("%s connected to %s (new destination for it)", f["process"], dest)
 	switch {

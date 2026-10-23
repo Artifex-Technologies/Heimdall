@@ -83,6 +83,26 @@ Reads `/proc/net/tcp{,6}` connection state — the same source `ss`/`netstat`
 read from — not packet capture. Runs by default on a supported platform,
 same self-disabling behavior as telemetry.
 
+### Where an address belongs, and who knocks from outside
+
+| Detector | Catches |
+| --- | --- |
+| `inbound` | Failed SSH logins from one address (5 in 10 min: a real address, the alert carries the `ufw` command to block it), a port scan (10 ports in 10 min: the firewall already stopped it, and the address may be forged, so no block is suggested), or one address the firewall blocked 20 times (info) |
+
+Every remote address in an alert (`connection-watch` and `inbound`) is named with its
+country and network (autonomous system), read from an **offline** IP database on this
+computer (`internal/ipintel`, a small reader of the MaxMind DB format written from its
+specification). No address is ever looked up online. `heimdall-ipdb-update` (monthly
+timer) downloads the free IPinfo Lite database when `/etc/heimdall/ipinfo-token` holds
+a token, otherwise DB-IP Lite, and `heimdalld ipdb-check` validates each file before it
+replaces the one in use. `heimdalld origin IP...` answers by hand.
+
+The firewall watch reads the journal (packets ufw blocked, failed SSH logins); it needs
+the `systemd-journal` group (`heimdall-firewall.conf.example` drop-in) and turns itself
+off otherwise. Heimdall never changes the firewall: it suggests the command.
+
+IP data: [IPinfo](https://ipinfo.io) Lite (CC BY-SA 4.0) or [DB-IP](https://db-ip.com) Lite (CC BY 4.0).
+
 ### Phase 4 — governance (first slice: memory writes)
 
 `POST /v1/review` runs Heimdall's own copy of the `injection-phrase`,

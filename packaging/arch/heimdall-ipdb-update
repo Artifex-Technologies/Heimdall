@@ -1,0 +1,57 @@
+#!/bin/bash
+# heimdall-ipdb-update: fetch the offline IP databases Heimdall uses to say where an address belongs (country and network).
+#
+# Only database files are downloaded; no address Heimdall has seen is ever sent anywhere. heimdalld itself never connects off the
+# machine (its own rule), so this separate script does the download, and `heimdalld ipdb-check` validates each file before it
+# replaces the one in use (a broken or tampered download is thrown away and the old file stays).
+#
+# Sources, both free:
+#   - IPinfo Lite (country + network in one file), when a token is in /etc/heimdall/ipinfo-token (a free account at ipinfo.io).
+#     Data: IPinfo, CC BY-SA 4.0.
+#   - otherwise DB-IP Lite (country file + network file, no account). Data: DB-IP.com, CC BY 4.0.
+# Run monthly by heimdall-ipdb-update.timer, as the heimdall user.
+set -euo pipefail
+umask 027
+
+dir=${HEIMDALL_IPDB_DIR:-/var/lib/heimdall/ipdb}
+mkdir -p "$dir"
+tmp=$(mktemp -d "$dir/.update.XXXXXX")
+trap 'rm -rf "$tmp"' EXIT
+
+fetch() { # url out.gz-or-file
+  curl -fsSL --proto '=https' --tlsv1.2 --max-time 300 --max-filesize 200000000 -o "$2" "$1"
+}
+
+install_checked() { # downloaded-file final-name
+  if heimdalld ipdb-check "$1"; then
+    mv -f "$1" "$dir/$2"
+  else
+    echo "heimdall-ipdb-update: $2 failed the check; the old file stays" >&2
+    return 1
+  fi
+}
+
+ok=0
+token_file=${HEIMDALL_IPINFO_TOKEN_FILE:-/etc/heimdall/ipinfo-token}
+if [[ -r $token_file ]] && token=$(tr -dc 'A-Za-z0-9' <"$token_file") && [[ -n $token ]]; then
+  # the token goes in a header, not the URL, so it does not end up in a log line
+  if curl -fsSL --proto '=https' --tlsv1.2 --max-time 300 --max-filesize 200000000 -H "Authorization: Bearer $token" \
+      -o "$tmp/ipinfo_lite.mmdb" "https://ipinfo.io/data/ipinfo_lite.mmdb" && install_checked "$tmp/ipinfo_lite.mmdb" ipinfo_lite.mmdb; then
+    ok=1
+  else
+    echo "heimdall-ipdb-update: IPinfo Lite download failed; trying DB-IP Lite" >&2
+  fi
+fi
+if [[ $ok == 0 ]]; then
+  for kind in country asn; do
+    got=0
+    # this month's file appears on the 1st; early in the month last month's is still the newest
+    for month in "$(date -u +%Y-%m)" "$(date -u -d "$(date -u +%Y-%m-01) -1 day" +%Y-%m)"; do
+      if fetch "https://download.db-ip.com/free/dbip-$kind-lite-$month.mmdb.gz" "$tmp/$kind.mmdb.gz"; then
+        gzip -dc "$tmp/$kind.mmdb.gz" >"$tmp/dbip-$kind-lite.mmdb" && got=1 && break
+      fi
+    done
+    [[ $got == 1 ]] && install_checked "$tmp/dbip-$kind-lite.mmdb" "dbip-$kind-lite.mmdb" && ok=1
+  done
+fi
+[[ $ok == 1 ]] || { echo "heimdall-ipdb-update: no database could be fetched" >&2; exit 1; }
