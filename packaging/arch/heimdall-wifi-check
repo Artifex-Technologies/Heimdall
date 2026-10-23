@@ -101,12 +101,15 @@ def check_radio(r):
 
 
 def connectivity():
-    for _ in range(10):  # right after joining, give the network a moment
-        st = run(["nmcli", "networking", "connectivity", "check"]).strip()
+    """NetworkManager's own view (read, not re-tested: re-testing needs a permission the check does not have). Right after joining,
+    give it a moment."""
+    st = "unknown"
+    for _ in range(10):
+        st = run(["nmcli", "-t", "-f", "CONNECTIVITY", "general"]).strip() or "unknown"
         if st in ("full", "portal"):
             return st
         time.sleep(2)
-    return st or "unknown"
+    return st
 
 
 def gateway():
@@ -268,10 +271,10 @@ def main():
     state = connectivity()
     if state == "portal":
         r.add("sign-in", "warn", "the network wants you to sign in first (a captive portal); its sign-in page is not checked")
-    elif state != "full":
+    elif state in ("none", "limited"):
         r.add("internet", "skip", "no internet yet (%s): online checks skipped" % state)
     dev = check_gateway(r, me, known)
-    if state in ("full", "portal"):
+    if state not in ("none", "limited"):  # "unknown": NetworkManager does not test connectivity here; the checks themselves will tell
         check_dns(r)
         check_tls(r)
         check_http(r, state)
