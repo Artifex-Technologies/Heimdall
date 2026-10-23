@@ -1,5 +1,5 @@
 [Unit]
-Description=Heimdall -- fetch the offline IP databases (where an address belongs)
+Description=Heimdall -- fetch IP databases, threat lists and the security tracker (used offline)
 Documentation=https://github.com/Artifex-Technologies/Heimdall
 Wants=network-online.target
 After=network-online.target
@@ -8,7 +8,7 @@ After=network-online.target
 Type=oneshot
 User=heimdall
 Group=heimdall
-ExecStart=/usr/bin/heimdall-ipdb-update
+ExecStart=/usr/bin/heimdall-intel-update
 StateDirectory=heimdall
 NoNewPrivileges=true
 ProtectSystem=strict

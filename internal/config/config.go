@@ -80,8 +80,16 @@ type Config struct {
 
 	// IPDatabases are offline IP database files (MaxMind DB format: IPinfo Lite, DB-IP Lite) that name the country and
 	// network of a remote address in alerts; the first that knows an address answers. Missing files are fine (the origin is
-	// then "unknown"). Nothing is looked up online. `heimdalld ipdb-update` refreshes them.
+	// then "unknown"). Nothing is looked up online. heimdall-intel-update refreshes them.
 	IPDatabases []string `json:"ip_databases"`
+
+	// ThreatListDir holds threat lists (*.list: Spamhaus DROP, FireHOL Level 1, Emerging Threats compromised hosts), downloaded by
+	// heimdall-intel-update; a connection to a listed address is a critical alert. SecurityTracker is Arch's security tracker file,
+	// matched against the installed packages every PackageAuditIntervalHours. Missing files just mean no such check yet.
+	ThreatListDir             string `json:"threat_list_dir"`
+	SecurityTracker           string `json:"security_tracker"`
+	PackageAuditIntervalHours int    `json:"package_audit_interval_hours"`
+	PackageAuditStatePath     string `json:"package_audit_state_path"`
 
 	// Firewall watches the journal for packets ufw blocked and failed SSH logins, and alerts when one address adds up
 	// (internal/detect/inbound.go). Needs the systemd-journal group (packaging/arch/heimdall-firewall.conf.example);
@@ -162,6 +170,10 @@ func Default() Config {
 		AppNetworkPolicy:        "/etc/labyrinth/app-network.json",
 
 		IPDatabases:                 []string{"/var/lib/heimdall/ipdb/ipinfo_lite.mmdb", "/var/lib/heimdall/ipdb/dbip-country-lite.mmdb", "/var/lib/heimdall/ipdb/dbip-asn-lite.mmdb"},
+		ThreatListDir:               "/var/lib/heimdall/intel",
+		SecurityTracker:             "/var/lib/heimdall/intel/arch-security.json",
+		PackageAuditIntervalHours:   6,
+		PackageAuditStatePath:       "/var/lib/heimdall/package-audit.json",
 		Firewall:                    true,
 		FirewallPollIntervalSeconds: 15,
 		FirewallCursorPath:          "/var/lib/heimdall/firewall.cursor",

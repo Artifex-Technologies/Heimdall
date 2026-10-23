@@ -5,6 +5,7 @@ import "fmt"
 // ConnectionDetector turns the connection watcher's "new_connection" events
 // (which process connected to which remote address, never any contents) into findings:
 //
+//	critical  a connection to an address on a threat list (Spamhaus DROP, FireHOL Level 1, ...): even while learning
 //	critical  an app whose network the owner switched off has a connection (the rule is not in force: the app was
 //	          running when it was set and needs a restart, or something is wrong with the rule)
 //	critical  one of the ecosystem's own programs (Sarina, Heimdall, Limbo) connected off the machine: the
@@ -33,6 +34,11 @@ func (d *ConnectionDetector) Inspect(e Event) []Finding {
 	sev := SeverityInfo
 	summary := fmt.Sprintf("%s connected to %s (new destination for it)", f["process"], dest)
 	switch {
+	case f["remote_listed"] != "":
+		sev = SeverityCritical
+		summary = fmt.Sprintf("%s connected to %s, an address on threat lists (%s): known malware, botnet or criminal networks. "+
+			"This was a real, completed connection. Find out why %s talks to it before anything else; to cut it off: sudo ufw insert 1 deny out to %s comment 'blocked after a Heimdall alert'",
+			f["process"], dest, f["remote_listed"], f["process"], f["remote_addr"])
 	case f["blocked"] == "1":
 		sev = SeverityCritical
 		summary = fmt.Sprintf("app %q has its network switched off but %s connected to %s: restart the app so the rule applies", f["app"], f["process"], dest)
@@ -43,7 +49,7 @@ func (d *ConnectionDetector) Inspect(e Event) []Finding {
 		sev = SeverityWarning
 		summary = fmt.Sprintf("ollama connected off the machine to %s (a model download does this; nothing else should)", dest)
 	case f["learning"] == "1":
-		return nil
+		return nil // (a listed destination is reported even while learning: the case above comes first)
 	}
 	return []Finding{{DetectorID: d.ID(), Severity: sev, Summary: summary, Event: e}}
 }

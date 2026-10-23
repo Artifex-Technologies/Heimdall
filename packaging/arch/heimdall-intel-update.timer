@@ -1,0 +1,11 @@
+[Unit]
+Description=Heimdall -- refresh threat lists and the security tracker daily
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=2h
+OnBootSec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

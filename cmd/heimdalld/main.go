@@ -24,6 +24,7 @@ import (
 	"github.com/Artifex-Technologies/Heimdall/internal/governance"
 	"github.com/Artifex-Technologies/Heimdall/internal/ipintel"
 	"github.com/Artifex-Technologies/Heimdall/internal/maintenance"
+	"github.com/Artifex-Technologies/Heimdall/internal/pkgaudit"
 	"github.com/Artifex-Technologies/Heimdall/internal/pkgverify"
 	"github.com/Artifex-Technologies/Heimdall/internal/response"
 	"github.com/Artifex-Technologies/Heimdall/internal/scan"
@@ -53,6 +54,8 @@ func main() {
 		os.Exit(cmdMaintenance(os.Args[2:]))
 	case "origin":
 		os.Exit(cmdOrigin(os.Args[2:]))
+	case "intel-check":
+		os.Exit(cmdIntelCheck(os.Args[2:]))
 	case "ipdb-check":
 		os.Exit(cmdIPDBCheck(os.Args[2:]))
 	case "version":
@@ -77,7 +80,9 @@ Usage:
   heimdalld maintenance off|status [--config PATH]
   heimdalld origin [--config PATH] IP...
                                     Where addresses belong (country, network), from the offline IP database.
-  heimdalld ipdb-check FILE...      Check downloaded IP database files (heimdall-ipdb-update runs this before using one).
+  heimdalld ipdb-check FILE...      Check downloaded IP database files (heimdall-intel-update runs this before using one).
+  heimdalld intel-check list|tracker FILE
+                                    Check a downloaded threat list or security tracker file before it is used.
   heimdalld scan-files [--state FILE] [--exclude PATTERN]... [--max-mb N] PATH...
                                     Scan files for malware with ClamAV (must be installed). Prints one line per finding; exit 1 if
                                     anything was found, 2 if ClamAV is missing or a file could not be scanned. Runs as the calling
@@ -110,6 +115,7 @@ func newDetectors(cfg config.Config) []detect.Detector {
 		detect.NewNetworkExposureDetector(),
 		detect.NewConnectionDetector(),
 		detect.NewInboundDetector(),
+		detect.NewPackageVulnerabilityDetector(),
 		detect.NewBaselineDriftDetectorWithFloors(cfg.BaselineMinSamples, cfg.BaselineZThreshold, detect.DefaultBaselineFloors),
 		detect.NewLimboGuestDetector(),
 	}
@@ -210,13 +216,27 @@ func cmdRun(args []string) int {
 	if origins.Available() {
 		logger.Printf("naming where remote addresses belong from the offline IP database")
 	} else {
-		logger.Printf("no IP database yet: remote addresses show no origin (heimdalld ipdb-update fetches one)")
+		logger.Printf("no IP database yet: remote addresses show no origin (heimdall-intel-update fetches one)")
+	}
+
+	threats := ipintel.NewLists(cfg.ThreatListDir)
+	if n, e := threats.Count(); n > 0 {
+		logger.Printf("checking connections against %d threat list(s), %d entries", n, e)
+	} else {
+		logger.Printf("no threat lists yet (heimdall-intel-update fetches them)")
+	}
+	if cfg.SecurityTracker != "" {
+		pw := &pkgaudit.Watcher{TrackerPath: cfg.SecurityTracker, PacmanDB: cfg.PacmanDB, StatePath: cfg.PackageAuditStatePath}
+		every := time.Duration(max(cfg.PackageAuditIntervalHours, 1)) * time.Hour
+		logger.Printf("matching installed packages against the security tracker (every %s)", every)
+		go pw.Run(ctx, every, func(err error) { logger.Printf("package audit: %v", err) }, eng.Handle)
 	}
 
 	if cfg.ConnWatch {
 		logger.Printf("logging connections per process (poll every %s)", cfg.ConnPollInterval())
 		cw := netsource.NewConnWatcher(cfg.ConnStatePath, cfg.AppNetworkPolicy)
 		cw.Origins = origins
+		cw.Threats = threats
 		go cw.Run(ctx, cfg.ConnPollInterval(),
 			func(err error) { logger.Printf("connection watch unavailable, disabling: %v", err) },
 			func(err error) { logger.Printf("connection watch error: %v", err) },
@@ -227,6 +247,7 @@ func cmdRun(args []string) int {
 	if cfg.Firewall {
 		logger.Printf("watching the firewall and SSH logins in the journal (poll every %s)", cfg.FirewallPollInterval())
 		fw := fwsource.NewWatcher(cfg.FirewallCursorPath, origins)
+		fw.Threats = threats
 		go fw.Run(ctx, cfg.FirewallPollInterval(),
 			func(err error) { logger.Printf("firewall watch unavailable, disabling: %v", err) },
 			func(err error) { logger.Printf("firewall watch error: %v", err) },

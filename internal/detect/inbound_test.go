@@ -55,3 +55,17 @@ func TestInboundAlertsAddUpPerAddress(t *testing.T) {
 		}
 	}
 }
+
+func TestAConnectionToAListedAddressIsCriticalEvenWhileLearning(t *testing.T) {
+	d := NewConnectionDetector()
+	e := Event{Kind: "new_connection", Fields: map[string]string{"process": "updater", "remote_addr": "198.51.100.9", "remote_port": "443",
+		"remote_listed": "spamhaus-drop", "learning": "1", "remote_scope": "public", "remote_origin": "Netherlands, AS64500 Example"}}
+	got := d.Inspect(e)
+	if len(got) != 1 || got[0].Severity != SeverityCritical || !strings.Contains(got[0].Summary, "spamhaus-drop") || !strings.Contains(got[0].Summary, "ufw insert 1 deny out to 198.51.100.9") {
+		t.Fatalf("%+v", got)
+	}
+	e.Fields["remote_listed"] = ""
+	if got := d.Inspect(e); len(got) != 0 {
+		t.Errorf("an unlisted learning connection alerted: %+v", got)
+	}
+}

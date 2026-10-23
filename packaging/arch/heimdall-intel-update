@@ -1,0 +1,88 @@
+#!/bin/bash
+# heimdall-intel-update: fetch the files Heimdall checks against, all used offline on this computer:
+#   - the IP databases that say where an address belongs (country and network), monthly
+#   - threat lists of known malware, botnet and criminal addresses (Spamhaus DROP, FireHOL Level 1, Emerging Threats), daily
+#   - Arch Linux's security tracker (which package versions have known vulnerabilities), daily
+#
+# Only these files are downloaded; no address Heimdall has seen and nothing about this computer is ever sent anywhere. heimdalld itself never connects off the
+# machine (its own rule), so this separate script does the download, and `heimdalld ipdb-check` validates each file before it
+# replaces the one in use (a broken or tampered download is thrown away and the old file stays).
+#
+# Sources, both free:
+#   - IPinfo Lite (country + network in one file), when a token is in /etc/heimdall/ipinfo-token (a free account at ipinfo.io).
+#     Data: IPinfo, CC BY-SA 4.0.
+#   - otherwise DB-IP Lite (country file + network file, no account). Data: DB-IP.com, CC BY 4.0.
+# Threat lists: Spamhaus DROP/DROPv6 (free to use), FireHOL Level 1 (iplists.firehol.org, aggregated from public sources), Emerging
+# Threats compromised hosts (Proofpoint, free). Security tracker: security.archlinux.org. Run daily by heimdall-intel-update.timer,
+# as the heimdall user. A source that fails keeps its last good file.
+set -euo pipefail
+umask 027
+
+dir=${HEIMDALL_IPDB_DIR:-/var/lib/heimdall/ipdb}
+intel=${HEIMDALL_INTEL_DIR:-/var/lib/heimdall/intel}
+mkdir -p "$intel"
+mkdir -p "$dir"
+tmp=$(mktemp -d "$dir/.update.XXXXXX")
+trap 'rm -rf "$tmp"' EXIT
+
+fetch() { # url out.gz-or-file
+  curl -fsSL --proto '=https' --tlsv1.2 --max-time 300 --max-filesize 200000000 -o "$2" "$1"
+}
+
+install_checked() { # downloaded-file final-name
+  if heimdalld ipdb-check "$1"; then
+    mv -f "$1" "$dir/$2"
+  else
+    echo "heimdall-intel-update: $2 failed the check; the old file stays" >&2
+    return 1
+  fi
+}
+
+# ---- threat lists and the security tracker (daily)
+itmp=$(mktemp -d "$intel/.update.XXXXXX")
+trap 'rm -rf "$tmp" "$itmp"' EXIT
+intel_ok=0
+get_intel() { # url kind name
+  if fetch "$1" "$itmp/$3" && heimdalld intel-check "$2" "$itmp/$3"; then
+    mv -f "$itmp/$3" "$intel/$3"
+    intel_ok=1
+  else
+    echo "heimdall-intel-update: $3 not updated; the last good copy stays" >&2
+  fi
+}
+get_intel "https://www.spamhaus.org/drop/drop_v4.json" list spamhaus-drop.list
+get_intel "https://www.spamhaus.org/drop/drop_v6.json" list spamhaus-dropv6.list
+get_intel "https://iplists.firehol.org/files/firehol_level1.netset" list firehol-level1.list
+get_intel "https://rules.emergingthreats.net/blockrules/compromised-ips.txt" list et-compromised.list
+get_intel "https://security.archlinux.org/issues/all.json" tracker arch-security.json
+
+# ---- IP databases (monthly is enough: they change slowly)
+fresh() { [[ -n $(find "$dir" -maxdepth 1 -name '*.mmdb' -mtime -25 2>/dev/null | head -n1) ]]; }
+if fresh && [[ ${HEIMDALL_IPDB_FORCE:-0} != 1 ]]; then
+  [[ $intel_ok == 1 ]] || { echo "heimdall-intel-update: nothing could be fetched" >&2; exit 1; }
+  exit 0
+fi
+ok=0
+token_file=${HEIMDALL_IPINFO_TOKEN_FILE:-/etc/heimdall/ipinfo-token}
+if [[ -r $token_file ]] && token=$(tr -dc 'A-Za-z0-9' <"$token_file") && [[ -n $token ]]; then
+  # the token goes in a header, not the URL, so it does not end up in a log line
+  if curl -fsSL --proto '=https' --tlsv1.2 --max-time 300 --max-filesize 200000000 -H "Authorization: Bearer $token" \
+      -o "$tmp/ipinfo_lite.mmdb" "https://ipinfo.io/data/ipinfo_lite.mmdb" && install_checked "$tmp/ipinfo_lite.mmdb" ipinfo_lite.mmdb; then
+    ok=1
+  else
+    echo "heimdall-intel-update: IPinfo Lite download failed; trying DB-IP Lite" >&2
+  fi
+fi
+if [[ $ok == 0 ]]; then
+  for kind in country asn; do
+    got=0
+    # this month's file appears on the 1st; early in the month last month's is still the newest
+    for month in "$(date -u +%Y-%m)" "$(date -u -d "$(date -u +%Y-%m-01) -1 day" +%Y-%m)"; do
+      if fetch "https://download.db-ip.com/free/dbip-$kind-lite-$month.mmdb.gz" "$tmp/$kind.mmdb.gz"; then
+        gzip -dc "$tmp/$kind.mmdb.gz" >"$tmp/dbip-$kind-lite.mmdb" && got=1 && break
+      fi
+    done
+    [[ $got == 1 ]] && install_checked "$tmp/dbip-$kind-lite.mmdb" "dbip-$kind-lite.mmdb" && ok=1
+  done
+fi
+[[ $ok == 1 || $intel_ok == 1 ]] || { echo "heimdall-intel-update: nothing could be fetched" >&2; exit 1; }

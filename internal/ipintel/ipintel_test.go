@@ -242,3 +242,41 @@ func TestResolverScopesAndReloads(t *testing.T) {
 		t.Errorf("block command: %q", c)
 	}
 }
+
+func TestThreatListsMatchOnlyPublicListedAddresses(t *testing.T) {
+	data := []byte(`# a FireHOL-style list
+0.0.0.0/8
+10.0.0.0/8
+192.168.0.0/16
+198.51.100.0/24
+198.51.100.128/25
+203.0.113.7
+203.0.0.0/16 ; a comment
+not-an-address
+{"cidr":"2001:db8:bad::/48","sblid":"SBL1"}
+{"type":"metadata","timestamp":1}
+`)
+	l, err := ParseList("test", data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for ip, want := range map[string]bool{"198.51.100.5": true, "198.51.100.200": true, "198.51.101.1": false, "203.0.113.7": true, "203.0.200.1": true,
+		"203.1.0.1": false, "10.1.2.3": false, "192.168.1.20": false, "2001:db8:bad::1": true, "2001:db8:bae::1": false, "::ffff:198.51.100.9": true} {
+		if got := l.Contains(net.ParseIP(ip)); got != want {
+			t.Errorf("%s: %v, want %v", ip, got, want)
+		}
+	}
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "spamhaus-drop.list"), []byte("198.51.100.0/24\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "et-compromised.list"), []byte("198.51.100.9\n"), 0o644)
+	ls := NewLists(dir)
+	if got := ls.Match(net.ParseIP("198.51.100.9")); strings.Join(got, ",") != "et-compromised,spamhaus-drop" {
+		t.Errorf("match: %v", got)
+	}
+	if got := ls.Match(net.ParseIP("192.168.1.1")); got != nil {
+		t.Errorf("own network matched: %v", got)
+	}
+	if n, e := ls.Count(); n != 2 || e != 2 {
+		t.Errorf("count %d %d", n, e)
+	}
+}

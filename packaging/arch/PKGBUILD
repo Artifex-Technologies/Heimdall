@@ -42,8 +42,8 @@ package() {
 		"$pkgdir/usr/lib/sysusers.d/heimdall.conf"
 	install -Dm644 packaging/arch/config.json.example \
 		"$pkgdir/etc/heimdall/config.json.example"
-	install -Dm755 packaging/arch/heimdall-ipdb-update "$pkgdir/usr/bin/heimdall-ipdb-update"
-	install -Dm644 packaging/arch/heimdall-ipdb-update.service "$pkgdir/usr/lib/systemd/system/heimdall-ipdb-update.service"
-	install -Dm644 packaging/arch/heimdall-ipdb-update.timer "$pkgdir/usr/lib/systemd/system/heimdall-ipdb-update.timer"
+	install -Dm755 packaging/arch/heimdall-intel-update "$pkgdir/usr/bin/heimdall-intel-update"
+	install -Dm644 packaging/arch/heimdall-intel-update.service "$pkgdir/usr/lib/systemd/system/heimdall-intel-update.service"
+	install -Dm644 packaging/arch/heimdall-intel-update.timer "$pkgdir/usr/lib/systemd/system/heimdall-intel-update.timer"
 	install -Dm644 packaging/arch/heimdall-firewall.conf.example "$pkgdir/usr/share/doc/$pkgname/heimdall-firewall.conf.example"
 }

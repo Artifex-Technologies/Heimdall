@@ -212,6 +212,13 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-10-23 (3) — Threat lists and vulnerable packages (prompted by PHP2Shell, CVE-2026-109618/109619)
+- `ipintel.Lists`: offline threat lists (*.list in `threat_list_dir`); `connection-watch` events gain `remote_listed`, and
+  a listed destination is critical even while learning; `inbound` origins gain `origin_listed`.
+- `internal/pkgaudit` (pacman-exact `Vercmp`) + `detect.PackageVulnerabilityDetector` (`package-vulnerability`,
+  event kind `vulnerable_package`, source `host-packages`) against Arch's security tracker (`security_tracker`).
+- `heimdall-ipdb-update` renamed `heimdall-intel-update` (daily timer; IP databases still monthly); new `heimdalld intel-check`.
+
 ### 2026-10-23 (2) — Verdicts on findings
 - `internal/verify`, applied in `engine.Handle` before maintenance softening: alerts gain `verdict`
   (`confirmed` / `needs_validation` / `rejected`) and `verdict_reason` fields for credential-shape, inbound,
@@ -226,7 +233,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   alerting per address. Only failed logins (completed handshakes) get a suggested `ufw insert 1 deny from ...`; blocked
   packets are marked `spoofable=1`. Heimdall never runs the command.
 - New config: `ip_databases`, `firewall`, `firewall_poll_interval_seconds`, `firewall_cursor_path`. New commands:
-  `heimdalld origin`, `heimdalld ipdb-check`. Packaging: `heimdall-ipdb-update` (+ monthly timer; it, not heimdalld,
+  `heimdalld origin`, `heimdalld ipdb-check`. Packaging: `heimdall-intel-update` (+ monthly timer; it, not heimdalld,
   downloads, so heimdalld still never connects off the machine) and `heimdall-firewall.conf.example`.
 - For Sarina: alert fields above are stable names she may read; `origin` is a short sentence.
 

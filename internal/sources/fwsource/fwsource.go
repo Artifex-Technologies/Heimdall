@@ -30,6 +30,7 @@ import (
 type Watcher struct {
 	CursorPath string
 	Origins    *ipintel.Resolver
+	Threats    *ipintel.Lists
 	journalctl string
 	// run is how journalctl is started (a test replaces it).
 	run func(ctx context.Context, args ...string) ([]byte, error)
@@ -195,6 +196,10 @@ func (w *Watcher) origin(ip net.IP, f map[string]string) ipintel.Origin {
 		f[k] = v
 	}
 	f["origin"] = o.String()
+	if l := w.Threats.Match(ip); len(l) > 0 {
+		f["origin_listed"] = strings.Join(l, ",")
+		f["origin"] += "; on threat lists: " + f["origin_listed"]
+	}
 	return o
 }
 

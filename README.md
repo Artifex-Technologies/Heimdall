@@ -92,7 +92,7 @@ same self-disabling behavior as telemetry.
 Every remote address in an alert (`connection-watch` and `inbound`) is named with its
 country and network (autonomous system), read from an **offline** IP database on this
 computer (`internal/ipintel`, a small reader of the MaxMind DB format written from its
-specification). No address is ever looked up online. `heimdall-ipdb-update` (monthly
+specification). No address is ever looked up online. `heimdall-intel-update` (monthly
 timer) downloads the free IPinfo Lite database when `/etc/heimdall/ipinfo-token` holds
 a token, otherwise DB-IP Lite, and `heimdalld ipdb-check` validates each file before it
 replaces the one in use. `heimdalld origin IP...` answers by hand.
@@ -102,6 +102,20 @@ the `systemd-journal` group (`heimdall-firewall.conf.example` drop-in) and turns
 off otherwise. Heimdall never changes the firewall: it suggests the command.
 
 IP data: [IPinfo](https://ipinfo.io) Lite (CC BY-SA 4.0) or [DB-IP](https://db-ip.com) Lite (CC BY 4.0).
+
+### Known-bad addresses and vulnerable packages
+
+| Detector | Catches |
+| --- | --- |
+| `connection-watch` | (also) any new connection to an address on a threat list: Spamhaus DROP and DROPv6 (hijacked or criminal networks), FireHOL Level 1 (botnet, malware and attack sources), Emerging Threats compromised hosts. Critical, even on the learning run, with the `ufw` command to cut it off |
+| `inbound` | (also) names the threat lists a knocking address is on |
+| `package-vulnerability` | an installed package with a known vulnerability in Arch's security tracker: critical for critical ones, with the fixed version and the update command. Unfixed entries count only for the very version known to be affected (the tracker keeps stale entries open for years) |
+
+All of it is checked offline against files `heimdall-intel-update` downloads daily into
+`/var/lib/heimdall/intel` (each validated by `heimdalld intel-check` first; a failed source
+keeps its last good copy). Private and reserved ranges in a list are ignored, so the
+owner's own network is never flagged. Package versions are compared exactly as pacman does
+(`internal/pkgaudit`), so a CachyOS rebuild of a fixed version counts as fixed.
 
 ### Every finding is checked once more (verdicts)
 

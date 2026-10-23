@@ -36,6 +36,8 @@ type ConnWatcher struct {
 	learning   bool
 	// Origins, when set, names the country and network of each new destination (offline; see internal/ipintel).
 	Origins *ipintel.Resolver
+	// Threats, when set, are the threat lists each new destination is checked against (offline).
+	Threats *ipintel.Lists
 }
 
 func NewConnWatcher(statePath, policyPath string) *ConnWatcher {
@@ -226,6 +228,10 @@ func (w *ConnWatcher) Poll() ([]detect.Event, error) {
 			}
 			f["remote_origin"] = og.String()
 			text += " (" + og.String() + ")"
+		}
+		if l := w.Threats.Match(e.RemoteIP); len(l) > 0 {
+			f["remote_listed"] = strings.Join(l, ",")
+			text += " [on threat lists: " + f["remote_listed"] + "]"
 		}
 		if w.learning {
 			f["learning"] = "1"

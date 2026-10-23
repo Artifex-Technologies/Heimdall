@@ -104,7 +104,7 @@ func (d *BaselineDriftDetector) Inspect(e Event) []Finding {
 					DetectorID: d.ID(),
 					// a statistical oddity of this machine's own load or memory, not a security finding: it is recorded (and shown at the
 					// "everything" alert level), but it does not interrupt anyone
-					Severity:   SeverityInfo,
+					Severity: SeverityInfo,
 					Summary: fmt.Sprintf(
 						"%s is %.2f, %.1f standard deviations from this host's own learned baseline (mean %.2f, stddev %.2f) -- statistically unusual for this machine, not just over a fixed threshold",
 						key, val, z, stats.Mean(), stats.StdDev(),
