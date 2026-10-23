@@ -117,6 +117,20 @@ keeps its last good copy). Private and reserved ranges in a list are ignored, so
 owner's own network is never flagged. Package versions are compared exactly as pacman does
 (`internal/pkgaudit`), so a CachyOS rebuild of a fixed version counts as fixed.
 
+### Is this Wi-Fi network safe?
+
+Each time a Wi-Fi connection comes up, NetworkManager's dispatcher starts `heimdall-wifi-check`
+(as the heimdall user, sandboxed). It only reads what NetworkManager and the kernel already
+know, looks up a few well-known names and opens a few well-known pages, then compares the
+answers with what they must be. It never scans or touches other devices. Checks: encryption
+(open, WEP), an evil twin (the same name with different security nearby), a sign-in page,
+another device answering for the router's address (ARP spoofing) or a changed router,
+DNS answers outside a well-known site's own network (spoofing) or invented for names that do
+not exist, HTTPS certificates this computer does not trust (someone in the middle), plain
+pages changed on the way (injection), devices not kept apart, and the firewall. The verdict
+(safe / caution / unsafe) becomes a `wifi-safety` alert (critical when unsafe), and a
+network-name-and-verdict summary in `/run/heimdall-wifi/last.json` lets the desktop notify.
+
 ### Every finding is checked once more (verdicts)
 
 Before a finding becomes an alert, `internal/verify` checks it separately from the

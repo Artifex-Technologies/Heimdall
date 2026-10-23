@@ -1,0 +1,7 @@
+#!/bin/sh
+# NetworkManager dispatcher: when a Wi-Fi connection comes up, Heimdall checks whether the network is safe (heimdall-wifi-check).
+# It only starts the check (as the heimdall user, sandboxed) and returns at once.
+[ "$2" = "up" ] || exit 0
+[ -d "/sys/class/net/$1/wireless" ] || exit 0
+uuid=$(printf '%s' "${CONNECTION_UUID:-x}" | tr -cd 'a-f0-9-')
+exec systemctl start --no-block "heimdall-wifi-check@${uuid:-x}.service"

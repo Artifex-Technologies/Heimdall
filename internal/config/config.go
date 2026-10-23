@@ -91,6 +91,9 @@ type Config struct {
 	PackageAuditIntervalHours int    `json:"package_audit_interval_hours"`
 	PackageAuditStatePath     string `json:"package_audit_state_path"`
 
+	// WifiResults is where heimdall-wifi-check writes its verdict on each Wi-Fi network joined; each becomes an alert.
+	WifiResults string `json:"wifi_results"`
+
 	// Firewall watches the journal for packets ufw blocked and failed SSH logins, and alerts when one address adds up
 	// (internal/detect/inbound.go). Needs the systemd-journal group (packaging/arch/heimdall-firewall.conf.example);
 	// without it the source turns itself off with one log line. FirewallCursorPath remembers where reading stopped.
@@ -174,6 +177,7 @@ func Default() Config {
 		SecurityTracker:             "/var/lib/heimdall/intel/arch-security.json",
 		PackageAuditIntervalHours:   6,
 		PackageAuditStatePath:       "/var/lib/heimdall/package-audit.json",
+		WifiResults:                 "/var/lib/heimdall/wifi/results.jsonl",
 		Firewall:                    true,
 		FirewallPollIntervalSeconds: 15,
 		FirewallCursorPath:          "/var/lib/heimdall/firewall.cursor",

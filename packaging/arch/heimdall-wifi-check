@@ -1,0 +1,306 @@
+#!/usr/bin/env python3
+"""heimdall-wifi-check: is the Wi-Fi network this computer just joined safe to use?
+
+Run by NetworkManager's dispatcher (through heimdall-wifi-check@.service, as the heimdall user) each time a Wi-Fi connection comes up.
+Everything it does is what any device on the network does anyway: it reads what NetworkManager and the kernel already know, looks up a
+few well-known names and opens a few well-known web pages, then compares the answers with what they must be. It never scans or
+touches other devices on the network. Nothing about the network is sent anywhere.
+
+Checks: encryption; an "evil twin" (the same network name nearby with different security); a sign-in page; a second device answering
+for the router's address (ARP spoofing); DNS answers that point well-known names somewhere else, or invent answers for names that do
+not exist; HTTPS certificates this computer does not trust (someone in the middle); plain web pages changed on the way; whether other
+devices are visible, and whether the firewall is on.
+
+The verdict (safe, caution, unsafe) and the reasons go to /var/lib/heimdall/wifi/results.jsonl (Heimdall raises an alert from it)
+and, network name and verdict only, to /run/heimdall-wifi/last.json (the desktop shows a notification from it).
+"""
+import hashlib
+import ipaddress
+import json
+import os
+import re
+import secrets
+import socket
+import ssl
+import subprocess
+import sys
+import time
+import urllib.request
+
+STATE = os.environ.get("HEIMDALL_WIFI_DIR", "/var/lib/heimdall/wifi")
+PUBLIC = os.environ.get("HEIMDALL_WIFI_PUBLIC", "/run/heimdall-wifi/last.json")
+ENV = {"PATH": "/usr/bin:/bin", "LANG": "C"}
+
+# Well-known names and the network (autonomous system) their addresses must belong to, wherever in the world one asks.
+PINNED = [("www.google.com", "AS15169"), ("github.com", "AS36459"), ("www.wikipedia.org", "AS14907"), ("www.cloudflare.com", "AS13335")]
+TLS_HOSTS = ["www.google.com", "github.com", "www.wikipedia.org", "www.cloudflare.com"]
+
+
+def run(argv, timeout=15):
+    try:
+        return subprocess.run(argv, capture_output=True, text=True, timeout=timeout, env=ENV).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+
+
+def split_nmcli(line):
+    """nmcli -t escapes ':' in values as '\\:'."""
+    return [p.replace("\\:", ":").replace("\\\\", "\\") for p in re.split(r"(?<!\\):", line)]
+
+
+class Report:
+    def __init__(self):
+        self.checks = []
+
+    def add(self, name, status, detail):
+        self.checks.append({"check": name, "status": status, "detail": detail})
+
+    def verdict(self):
+        st = {c["status"] for c in self.checks}
+        return "unsafe" if "bad" in st else "caution" if "warn" in st else "safe"
+
+
+def wifi_networks():
+    out = run(["nmcli", "-t", "-f", "ACTIVE,SSID,BSSID,SECURITY", "dev", "wifi", "list", "--rescan", "no"])
+    nets = []
+    for line in out.splitlines():
+        f = split_nmcli(line)
+        if len(f) >= 4:
+            nets.append({"active": f[0] == "yes", "ssid": f[1], "bssid": f[2].upper(), "security": f[3].strip()})
+    return nets
+
+
+def security_class(s):
+    s = (s or "").upper()
+    if s in ("", "--"):
+        return "open"
+    if "WEP" in s:
+        return "wep"
+    return "secured"
+
+
+def check_radio(r):
+    nets = wifi_networks()
+    me = next((n for n in nets if n["active"]), None)
+    if not me:
+        r.add("network", "skip", "not on Wi-Fi")
+        return None
+    cls = security_class(me["security"])
+    if cls == "open":
+        r.add("encryption", "warn", "open network: anything not encrypted by the site itself (plain web pages, some apps) can be read by anyone nearby")
+    elif cls == "wep":
+        r.add("encryption", "bad", "WEP encryption is broken and can be cracked in minutes")
+    else:
+        r.add("encryption", "ok", "encrypted (%s)" % me["security"])
+    twins = [n for n in nets if n["ssid"] == me["ssid"] and n["ssid"] and security_class(n["security"]) != cls]
+    if twins:
+        r.add("evil twin", "bad", "another network with the same name (%s) but different security is nearby: someone may be imitating it" % me["ssid"])
+    else:
+        r.add("evil twin", "ok", "no copy of this network with different security nearby")
+    return me
+
+
+def connectivity():
+    for _ in range(10):  # right after joining, give the network a moment
+        st = run(["nmcli", "networking", "connectivity", "check"]).strip()
+        if st in ("full", "portal"):
+            return st
+        time.sleep(2)
+    return st or "unknown"
+
+
+def gateway():
+    try:
+        routes = json.loads(run(["ip", "-j", "route", "show", "default"]) or "[]")
+    except ValueError:
+        routes = []
+    for rt in routes:
+        if rt.get("gateway"):
+            return rt["gateway"], rt.get("dev", "")
+    return None, None
+
+
+def neighbours(dev):
+    try:
+        return json.loads(run(["ip", "-j", "neigh", "show", "dev", dev]) or "[]")
+    except ValueError:
+        return []
+
+
+def check_gateway(r, me, known):
+    gw, dev = gateway()
+    if not gw:
+        r.add("router", "skip", "no default route")
+        return dev
+    neigh = neighbours(dev)
+    mac = next((n.get("lladdr", "").upper() for n in neigh if n.get("dst") == gw and n.get("lladdr")), "")
+    if not mac:
+        r.add("router", "skip", "the router's hardware address is not known yet")
+        return dev
+    others = [n["dst"] for n in neigh if n.get("lladdr", "").upper() == mac and n.get("dst") != gw and ":" not in n.get("dst", "")]
+    if others:
+        r.add("router", "bad", "another address (%s) answers with the router's hardware address: a sign of ARP spoofing (someone placing themselves between you and the router)" % ", ".join(others[:3]))
+    key = hashlib.sha256((me["ssid"] + "|" + me["bssid"]).encode()).hexdigest()[:16]
+    seen = known.setdefault(key, [])
+    if seen and mac not in seen:
+        r.add("router", "warn", "the router's hardware address is different from the last time on this network (%s): it may have been replaced, or someone is imitating it" % me["ssid"])
+    elif not others:
+        r.add("router", "ok", "one router, as expected" + (" (same as before)" if seen else ""))
+    if mac not in seen:
+        seen.append(mac)
+        del seen[:-3]
+    return dev
+
+
+def origins(ips):
+    cfg = os.environ.get("HEIMDALL_CONFIG")
+    out = run(["heimdalld", "origin"] + (["--config", cfg] if cfg else []) + ips, 20)
+    res = {}
+    for line in out.splitlines():
+        ip, _, o = line.partition("  ")
+        m = re.search(r"\bAS\d+\b", o)
+        res[ip] = (m.group(0) if m else "", o.strip())
+    return res
+
+
+def check_dns(r):
+    # a name that cannot exist must not get an answer
+    fake = "heimdall-%s.com" % secrets.token_hex(8)
+    try:
+        socket.getaddrinfo(fake, 80)
+        r.add("dns: missing names", "warn", "this network's DNS invents answers for names that do not exist (it rewrites DNS; common on hotel and café networks, and a way to redirect you)")
+    except socket.gaierror:
+        r.add("dns: missing names", "ok", "names that do not exist are reported as missing")
+    # well-known names must point into their owners' networks
+    answers = {}
+    for name, _ in PINNED:
+        try:
+            answers[name] = sorted({a[4][0] for a in socket.getaddrinfo(name, 443, socket.AF_INET)})
+        except socket.gaierror:
+            answers[name] = []
+    ips = [ip for v in answers.values() for ip in v]
+    org = origins(ips) if ips else {}
+    if ips and not any(a for a, _ in org.values()):
+        r.add("dns: well-known names", "skip", "no IP database yet to check addresses against (heimdall-intel-update)")
+        return
+    wrong = []
+    for name, asn in PINNED:
+        for ip in answers[name]:
+            got, desc = org.get(ip, ("", ""))
+            if ipaddress.ip_address(ip).is_private:
+                wrong.append("%s -> %s (a local address)" % (name, ip))
+            elif got and got != asn:
+                wrong.append("%s -> %s (%s)" % (name, ip, desc))
+    if wrong:
+        r.add("dns: well-known names", "bad", "well-known sites resolve to addresses outside their own networks: " + "; ".join(wrong[:3]) + ". This is DNS spoofing")
+    elif any(answers.values()):
+        r.add("dns: well-known names", "ok", "well-known sites resolve into their own networks")
+    else:
+        r.add("dns: well-known names", "skip", "names did not resolve")
+
+
+def check_tls(r):
+    ctx = ssl.create_default_context()
+    bad, blocked, ok = [], [], 0
+    for host in TLS_HOSTS:
+        try:
+            with socket.create_connection((host, 443), timeout=8) as s, ctx.wrap_socket(s, server_hostname=host) as t:
+                t.getpeercert()
+                ok += 1
+        except ssl.SSLCertVerificationError as e:
+            bad.append("%s (%s)" % (host, getattr(e, "verify_message", "") or "not trusted"))
+        except (OSError, ssl.SSLError):
+            blocked.append(host)
+    if bad:
+        r.add("https", "bad", "secure connections are being intercepted: certificates this computer does not trust for " + ", ".join(bad[:3]) + ". Someone is in the middle; do not sign in to anything here")
+    elif ok:
+        r.add("https", "ok", "secure connections to well-known sites have genuine certificates")
+    if blocked and not bad:
+        r.add("https: blocked", "warn" if ok == 0 else "ok", "could not reach " + ", ".join(blocked))
+
+
+def check_http(r, state):
+    tests = [("http://detectportal.firefox.com/success.txt", 200, b"success\n"), ("http://connectivitycheck.gstatic.com/generate_204", 204, b"")]
+    changed = []
+    for url, code, body in tests:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                got = resp.read(4096)
+                if resp.status != code or got != body:
+                    changed.append(url.split("/")[2])
+        except Exception:
+            changed.append(url.split("/")[2] + " (no answer)")
+    if not changed:
+        r.add("plain web pages", "ok", "plain web pages arrive unchanged")
+    elif state == "portal":
+        r.add("plain web pages", "warn", "plain web pages are replaced by a sign-in page; check again after signing in")
+    else:
+        r.add("plain web pages", "bad", "plain web pages are changed on the way (" + ", ".join(changed) + "): the network injects or replaces content")
+
+
+def check_neighbourhood(r, dev, me):
+    time.sleep(3)
+    gw, _ = gateway()
+    seen = [n for n in neighbours(dev) if n.get("dst") != gw and n.get("state") and set(n["state"]) & {"REACHABLE", "STALE", "DELAY"}]
+    fw = run(["systemctl", "is-active", "ufw"]).strip()
+    if fw != "active":
+        r.add("firewall", "bad", "the firewall is off: on this network other devices could reach this computer's services")
+    else:
+        r.add("firewall", "ok", "the firewall is on: other devices cannot connect in")
+    if me and security_class(me["security"]) == "open" and seen:
+        r.add("isolation", "warn", "%d other device(s) on this network are visible to this computer, so devices are not kept apart; the firewall blocks them from connecting in" % len(seen))
+
+
+def main():
+    r = Report()
+    os.makedirs(STATE, exist_ok=True)
+    known_path = os.path.join(STATE, "routers.json")
+    try:
+        with open(known_path) as f:
+            known = json.load(f)
+    except (OSError, ValueError):
+        known = {}
+    me = check_radio(r)
+    if not me:
+        print("not on Wi-Fi")
+        return 0
+    state = connectivity()
+    if state == "portal":
+        r.add("sign-in", "warn", "the network wants you to sign in first (a captive portal); its sign-in page is not checked")
+    elif state != "full":
+        r.add("internet", "skip", "no internet yet (%s): online checks skipped" % state)
+    dev = check_gateway(r, me, known)
+    if state in ("full", "portal"):
+        check_dns(r)
+        check_tls(r)
+        check_http(r, state)
+    check_neighbourhood(r, dev, me)
+    res = {"time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "ssid": me["ssid"], "bssid": me["bssid"], "security": me["security"],
+           "connectivity": state, "verdict": r.verdict(), "checks": r.checks}
+    with open(known_path + ".tmp", "w") as f:
+        json.dump(known, f)
+    os.replace(known_path + ".tmp", known_path)
+    with open(os.path.join(STATE, "results.jsonl"), "a") as f:
+        f.write(json.dumps(res) + "\n")
+    try:
+        os.makedirs(os.path.dirname(PUBLIC), exist_ok=True)
+        pub = {"time": res["time"], "ssid": res["ssid"], "verdict": res["verdict"],
+               "reasons": [c["detail"] for c in r.checks if c["status"] in ("bad", "warn")][:4]}
+        with open(PUBLIC + ".tmp", "w") as f:
+            json.dump(pub, f)
+        os.chmod(PUBLIC + ".tmp", 0o644)
+        os.replace(PUBLIC + ".tmp", PUBLIC)
+    except OSError:
+        pass
+    if "--json" in sys.argv:
+        print(json.dumps(res, indent=2))
+    else:
+        print("%s: %s" % (res["ssid"], res["verdict"]))
+        for c in r.checks:
+            print("  %-22s %-5s %s" % (c["check"], c["status"], c["detail"]))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -212,6 +212,12 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-10-23 (4) — Wi-Fi safety check
+- `packaging/arch/heimdall-wifi-check` (Python, run per connection by `heimdall-wifi-check@.service` from the NetworkManager
+  dispatcher `90-heimdall-wifi`) writes `/var/lib/heimdall/wifi/results.jsonl`; `internal/sources/wifisource` +
+  `detect.WifiDetector` (`wifi-safety`, event kind `wifi_check`). New config: `wifi_results`. heimdalld itself still never
+  connects off the machine; the checker is a separate, sandboxed process.
+
 ### 2026-10-23 (3) — Threat lists and vulnerable packages (prompted by PHP2Shell, CVE-2026-109618/109619)
 - `ipintel.Lists`: offline threat lists (*.list in `threat_list_dir`); `connection-watch` events gain `remote_listed`, and
   a listed destination is critical even while learning; `inbound` origins gain `origin_listed`.

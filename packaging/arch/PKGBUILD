@@ -6,7 +6,8 @@ pkgdesc="Heimdall -- security agent monitoring Sarina for prompt injection, cred
 arch=('x86_64')
 url="https://github.com/Artifex-Technologies/Heimdall"
 license=('MPL2')
-depends=('glibc' 'curl' 'gzip')
+depends=('glibc' 'curl' 'gzip' 'python' 'iproute2')
+optdepends=('networkmanager: the Wi-Fi safety check')
 makedepends=('go' 'git')
 provides=('heimdall')
 conflicts=('heimdall')
@@ -45,5 +46,8 @@ package() {
 	install -Dm755 packaging/arch/heimdall-intel-update "$pkgdir/usr/bin/heimdall-intel-update"
 	install -Dm644 packaging/arch/heimdall-intel-update.service "$pkgdir/usr/lib/systemd/system/heimdall-intel-update.service"
 	install -Dm644 packaging/arch/heimdall-intel-update.timer "$pkgdir/usr/lib/systemd/system/heimdall-intel-update.timer"
+	install -Dm755 packaging/arch/heimdall-wifi-check "$pkgdir/usr/bin/heimdall-wifi-check"
+	install -Dm644 packaging/arch/heimdall-wifi-check@.service "$pkgdir/usr/lib/systemd/system/heimdall-wifi-check@.service"
+	install -Dm755 packaging/arch/90-heimdall-wifi "$pkgdir/usr/lib/NetworkManager/dispatcher.d/90-heimdall-wifi"
 	install -Dm644 packaging/arch/heimdall-firewall.conf.example "$pkgdir/usr/share/doc/$pkgname/heimdall-firewall.conf.example"
 }

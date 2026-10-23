@@ -33,6 +33,7 @@ import (
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/hostsource"
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/limbosource"
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/netsource"
+	"github.com/Artifex-Technologies/Heimdall/internal/sources/wifisource"
 )
 
 const version = "0.1.0"
@@ -116,6 +117,7 @@ func newDetectors(cfg config.Config) []detect.Detector {
 		detect.NewConnectionDetector(),
 		detect.NewInboundDetector(),
 		detect.NewPackageVulnerabilityDetector(),
+		detect.NewWifiDetector(),
 		detect.NewBaselineDriftDetectorWithFloors(cfg.BaselineMinSamples, cfg.BaselineZThreshold, detect.DefaultBaselineFloors),
 		detect.NewLimboGuestDetector(),
 	}
@@ -242,6 +244,11 @@ func cmdRun(args []string) int {
 			func(err error) { logger.Printf("connection watch error: %v", err) },
 			eng.Handle,
 		)
+	}
+
+	if cfg.WifiResults != "" {
+		ww := &wifisource.Watcher{Path: cfg.WifiResults, OffsetPath: cfg.WifiResults + ".offset"}
+		go ww.Run(ctx, 10*time.Second, func(err error) { logger.Printf("wifi results: %v", err) }, eng.Handle)
 	}
 
 	if cfg.Firewall {
