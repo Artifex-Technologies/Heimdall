@@ -9,8 +9,11 @@ import (
 	"testing"
 )
 
+var n int
+
 func line(ident, msg string) string {
-	b, _ := json.Marshal(map[string]string{"MESSAGE": msg, "SYSLOG_IDENTIFIER": ident, "__REALTIME_TIMESTAMP": "1761170000000000"})
+	n++
+	b, _ := json.Marshal(map[string]string{"MESSAGE": msg, "SYSLOG_IDENTIFIER": ident, "__REALTIME_TIMESTAMP": "1761170000000000", "__CURSOR": "s=abc;i=" + string(rune('0'+n))})
 	return string(b)
 }
 
@@ -25,7 +28,7 @@ func TestKnocksAreReadFromTheJournal(t *testing.T) {
 			line("kernel", "usb 1-2: new device"),
 			line("sshd-session", "Failed password for invalid user admin‮ from 198.51.100.7 port 40022 ssh2"),
 			line("sshd", "Accepted publickey for zlothra from 192.168.1.5 port 5000 ssh2"),
-			`{"MESSAGE":[1,2,3],"SYSLOG_IDENTIFIER":"kernel"}`,
+			`{"MESSAGE":[1,2,3],"SYSLOG_IDENTIFIER":"kernel","__CURSOR":"s=abc;i=Z"}`,
 		}, "\n")), nil
 	}
 	ev, err := w.Poll(context.Background())
@@ -42,8 +45,14 @@ func TestKnocksAreReadFromTheJournal(t *testing.T) {
 		t.Errorf("login: %+v", ev[1])
 	}
 	a := strings.Join(gotArgs, " ")
-	if !strings.Contains(a, "--since=-10min") || !strings.Contains(a, "--cursor-file=") || !strings.Contains(a, "_TRANSPORT=kernel") {
+	if !strings.Contains(a, "--since=-10min") || strings.Contains(a, "cursor") || !strings.Contains(a, "_TRANSPORT=kernel") {
 		t.Errorf("first run args: %s", a)
+	}
+	// the next poll continues after the last entry read (the byte-array one counts too)
+	w.Poll(context.Background())
+	a = strings.Join(gotArgs, " ")
+	if !strings.Contains(a, "--after-cursor=s=abc;i=Z") || strings.Contains(a, "--since") {
+		t.Errorf("second run args: %s", a)
 	}
 }
 

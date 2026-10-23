@@ -57,12 +57,33 @@ var ErrNoAccess = errors.New("cannot read the system journal (add the systemd-jo
 const maxPerPoll = 5000 // a flood is counted from what is read; the rest waits for the next poll
 
 func (w *Watcher) args() []string {
-	a := []string{"-o", "json", "--no-pager", "-q", "-n", fmt.Sprint(maxPerPoll), "--cursor-file=" + w.CursorPath,
+	a := []string{"-o", "json", "--no-pager", "-q", "-n", fmt.Sprint(maxPerPoll),
 		"_TRANSPORT=kernel", "+", "SYSLOG_IDENTIFIER=sshd", "+", "SYSLOG_IDENTIFIER=sshd-session"}
-	if _, err := os.Stat(w.CursorPath); err != nil {
-		a = append(a, "--since=-10min") // first run: not the whole history, only what is recent
+	if c := w.cursor(); c != "" {
+		return append(a, "--after-cursor="+c)
 	}
-	return a
+	return append(a, "--since=-10min") // first run: not the whole history, only what is recent
+}
+
+// cursor is where the last poll stopped (journalctl's own --cursor-file cannot be combined with --since, so it is kept here).
+func (w *Watcher) cursor() string {
+	b, err := os.ReadFile(w.CursorPath)
+	if err != nil {
+		return ""
+	}
+	c := strings.TrimSpace(string(b))
+	if len(c) > 512 || strings.ContainsAny(c, "\n\x00") {
+		return ""
+	}
+	return c
+}
+
+func (w *Watcher) saveCursor(c string) error {
+	tmp := w.CursorPath + ".tmp"
+	if err := os.WriteFile(tmp, []byte(c+"\n"), 0o600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, w.CursorPath)
 }
 
 // Poll reads the new journal entries and returns one event per knock.
@@ -75,6 +96,7 @@ func (w *Watcher) Poll(ctx context.Context) ([]detect.Event, error) {
 		return nil, err
 	}
 	var events []detect.Event
+	last := ""
 	sc := bufio.NewScanner(strings.NewReader(string(out)))
 	sc.Buffer(make([]byte, 64<<10), 1<<20)
 	for sc.Scan() {
@@ -82,9 +104,20 @@ func (w *Watcher) Poll(ctx context.Context) ([]detect.Event, error) {
 			Message string `json:"MESSAGE"`
 			Ident   string `json:"SYSLOG_IDENTIFIER"`
 			TS      string `json:"__REALTIME_TIMESTAMP"`
+			Cursor  string `json:"__CURSOR"`
 		}
 		if json.Unmarshal(sc.Bytes(), &e) != nil {
-			continue // MESSAGE given as a byte array (not text): not a line this source reads
+			// MESSAGE given as a byte array (not text): not a line this source reads, but reading moves past it
+			var c struct {
+				Cursor string `json:"__CURSOR"`
+			}
+			if json.Unmarshal(sc.Bytes(), &c) == nil && c.Cursor != "" {
+				last = c.Cursor
+			}
+			continue
+		}
+		if e.Cursor != "" {
+			last = e.Cursor
 		}
 		t := time.Now()
 		var us int64
@@ -93,6 +126,11 @@ func (w *Watcher) Poll(ctx context.Context) ([]detect.Event, error) {
 		}
 		if ev, ok := w.parse(e.Message, e.Ident, t); ok {
 			events = append(events, ev)
+		}
+	}
+	if last != "" {
+		if err := w.saveCursor(last); err != nil {
+			return events, err
 		}
 	}
 	return events, nil
