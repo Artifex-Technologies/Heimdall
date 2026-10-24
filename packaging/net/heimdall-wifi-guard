@@ -159,15 +159,22 @@ def locked():
 
 # ---- quiet on untrusted networks
 
+def mac_is_real(value):
+    """Whether a profile's cloned-mac-address setting means the real hardware address (unset, or "permanent"/"preserve")."""
+    return value.strip() in ("", "permanent", "preserve", "--")
+
 def quiet(uuid, on):
     state = load(os.path.join(RUN, "state.json"), {})
     if on:
         if sh(["systemctl", "is-active", "avahi-daemon.service"]).stdout.strip() == "active":
             state["avahi_was_on"] = True
             sh(["systemctl", "stop", "avahi-daemon.socket", "avahi-daemon.service"])
-        # from the next connection on: no computer name in address requests, a random hardware address of its own for this network
-        sh(["nmcli", "connection", "modify", uuid, "ipv4.dhcp-send-hostname", "no", "ipv6.dhcp-send-hostname", "no",
-            "802-11-wireless.cloned-mac-address", "stable"])
+        # from the next connection on: no computer name in address requests, and not the real hardware address: one of its own for
+        # this network ("stable"). An address chosen in Settings (a new random one each time, or one typed in) is kept as it is.
+        args = ["ipv4.dhcp-send-hostname", "no", "ipv6.dhcp-send-hostname", "no"]
+        if mac_is_real(sh(["nmcli", "-g", "802-11-wireless.cloned-mac-address", "connection", "show", uuid]).stdout):
+            args += ["802-11-wireless.cloned-mac-address", "stable"]
+        sh(["nmcli", "connection", "modify", uuid] + args)
     elif state.pop("avahi_was_on", False):
         sh(["systemctl", "start", "avahi-daemon.socket", "avahi-daemon.service"])
     set_state(**{k: v for k, v in state.items()})

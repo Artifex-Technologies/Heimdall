@@ -28,6 +28,7 @@ class Guard(unittest.TestCase):
         self.m.RUN = os.path.join(self.d, "run")
         self.calls, self.vpn_ok, self.table = [], True, False
         self.mac = "AA:BB:CC:00:00:01"
+        self.cloned = ""
         m = self
 
         def sh(argv, timeout=30, check=False):
@@ -41,6 +42,8 @@ class Guard(unittest.TestCase):
                 rc = 0 if m.vpn_ok else 4
             elif argv[:3] == ["nmcli", "-g", "802-11-wireless.ssid"]:
                 out = "Cafe"
+            elif argv[:3] == ["nmcli", "-g", "802-11-wireless.cloned-mac-address"]:
+                out = m.cloned + "\n"
             elif argv[:2] == ["systemctl", "is-active"]:
                 out = "active"
             return types.SimpleNamespace(returncode=rc, stdout=out, stderr="")
@@ -100,6 +103,18 @@ class Guard(unittest.TestCase):
         self.m.up("wlan0", "home-uuid")
         self.assertIn("LOCK", self.calls)
         self.assertIn("nmcli connection up vpn-uuid", self.calls)
+
+    def test_untrusted_network_gets_a_private_address_unless_one_was_chosen(self):
+        modify = lambda: [c for c in self.calls if c.startswith("nmcli connection modify")]
+        for real in ("", "permanent"):
+            self.calls, self.cloned = [], real
+            self.m.quiet("cafe-uuid", True)
+            self.assertIn("802-11-wireless.cloned-mac-address stable", modify()[0], f"the real address ({real!r}) is replaced")
+        for chosen in ("random", "stable", "02:1A:2B:3C:4D:5E"):
+            self.calls, self.cloned = [], chosen
+            self.m.quiet("cafe-uuid", True)
+            self.assertNotIn("cloned-mac-address", modify()[0], f"a chosen address ({chosen}) is kept")
+            self.assertIn("ipv4.dhcp-send-hostname no", modify()[0])
 
     def test_no_vpn_means_quiet_but_not_locked(self):
         os.remove(self.m.CONF)
