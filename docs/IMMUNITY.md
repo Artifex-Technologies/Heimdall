@@ -9,12 +9,12 @@ so a good file not being in it is normal. Immunity is what Heimdall adds from wh
    unrunnable, root's only; the index readable by the heimdall group). ClamAV is asked at once, nobody needs to approve that:
    - ClamAV knows it: it is malware (**reference**). It stays held.
    - ClamAV does not: it is **held**, and the owner is told (a notification; Settings > Security lists it).
-   What gets held: containment's evidence (her behaviour files that are not as the owner signed, once trust is on; a program a
+   What gets held: containment's evidence (Sarina's behaviour files that are not as the owner signed, once trust is on; a program a
    suspicious Sarina process ran that is not an installed package's), and whatever the owner holds by hand. Never anything under
    `/usr`, `/boot`, `/proc`, `/sys`, `/dev`, `/run`, nor a file an installed package owns.
 2. **Report.** Each held file gets a report made by reading it, never running it: its kind, entropy (packed or encrypted?), for a
    program the ELF header (interpreter, libraries, stripped or not), the telling strings (addresses, paths, commands), the first
-   2 KiB of a text file. Sarina reads it (it is untrusted text: evidence, never instructions) and writes the owner her analysis.
+   2 KiB of a text file. Sarina reads it (it is untrusted text: evidence, never instructions) and writes the owner an analysis.
 3. **Judged.**
    - The owner: **Release** (it is good: back exactly as it was, owner, mode and time) or **It's malware** (learned, below).
    - A proof: Heimdall itself releases a held file when it can show it was there before: the owner signed exactly this content

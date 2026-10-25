@@ -1,7 +1,7 @@
 # Heimdall
 
 The security agent of the **Artifex Ecosystem**. It runs on Labyrinth OS and on Niflheim OS (formerly Chymaera OS). It
-watches [Sarina](https://github.com/Artifex-Technologies/Sarina), the local AI agent, from outside her process. It also watches
+watches [Sarina](https://github.com/Artifex-Technologies/Sarina), the local AI agent, from outside Sarina's process. It also watches
 the computer itself: its connections, Wi-Fi, packages and kernels, settings, and the files that arrive. When something is wrong
 it raises an alert a person (or another tool) can act on. When an AI agent is compromised it can stop it.
 
@@ -14,8 +14,8 @@ repositories fit together, and [`CLAUDE.md`](CLAUDE.md) for Heimdall's coordinat
 ## Why a separate process, and why Go
 
 A monitor that shares a runtime, a dependency tree or a crash with the thing it watches is a weaker monitor. Heimdall is its own
-binary, run as its own unprivileged `heimdall` user. It sees Sarina only through what she writes to disk and what she asks it
-over its loopback API. It shares no memory with her and imports none of her code.
+binary, run as its own unprivileged `heimdall` user. It sees Sarina only through what Sarina writes to disk and what Sarina asks it
+over its loopback API. It shares no memory with Sarina and imports none of Sarina's code.
 
 Go, for the same reason [CrowdSec](https://github.com/crowdsecurity/crowdsec) and [Tailscale](https://github.com/tailscale/tailscale)
 use it: one static binary, low CPU and memory for something that runs all the time. **The binary has no third-party
@@ -40,7 +40,7 @@ actual deny is respected. Every review is logged as an alert.
 ### Trust: the AI's behaviour files, signed by the owner ([docs/TRUST.md](docs/TRUST.md))
 
 Sarina's rules, tool connections, skills and agent profiles are plain files. Most are writable by the user's account, so any
-program running as the user could change how she behaves. The owner keeps a list of the approved content, signed with a key only
+program running as the user could change how Sarina behaves. The owner keeps a list of the approved content, signed with a key only
 root can read. Heimdall then raises a critical alert for any change, planted file or deletion that does not match (an approved
 change is info). In enforce mode Sarina also refuses unapproved files. Every signed version is kept as a known-good copy, which
 `heimdalld trust restore` puts back.
@@ -54,15 +54,15 @@ Each step goes further only when the step before did not hold:
 0. **Evidence first.** Before anything is stopped, Heimdall saves what it needs to learn what happened, in a root-only folder:
    - every process (Sarina's with the hash of the program that is really running);
    - connections, the graphics card and the loaded models;
-   - the last hour of logs and her newest sessions;
+   - the last hour of logs and Sarina's newest sessions;
    - copies of the behaviour files that are not as approved.
-1. **Contain.** A lock (`/etc/heimdall/contained`) keeps her from starting, also after a restart. Then her service and processes
+1. **Contain.** A lock (`/etc/heimdall/contained`) keeps Sarina from starting, also after a restart. Then Sarina's service and processes
    are stopped and the models are unloaded from the graphics card.
 2. **Check.** A minute later: is anything back?
 3. **Emergency, the last resort.** The approved files are restored. The login screen, the model server and everything on the
    graphics card are stopped. The card is reset and the computer restarts. The lock stays.
 
-The owner releases her in Settings > Security ("Restore and release", password asked) or with `sudo heimdalld contain release`.
+The owner releases Sarina in Settings > Security ("Restore and release", password asked) or with `sudo heimdalld contain release`.
 The daemon only writes a request; a root unit (`heimdall-contain.path`) acts on it. **Automatic containment and the automatic
 emergency are both off** until `/etc/heimdall/contain.json` switches them on.
 
@@ -73,7 +73,7 @@ ClamAV is the reference: the signatures the world shares. Immunity is what Heimd
 - **Held.** A suspicious file is moved into a root-only quarantine and ClamAV is asked at once. If ClamAV knows it, it is
   malware and stays held. If not, it is held and the owner is told. Heimdall also writes a report by reading the file, never
   running it: its kind, entropy, its ELF header for a program, the strings that stand out, and the first lines of a text file.
-  Sarina reads the report and gives the owner her analysis.
+  Sarina reads the report and gives the owner an analysis.
 - **Judged.** The owner can **Release** it (put back exactly as it was) or mark **It's malware**. Heimdall releases a file by
   itself only on proof that it was there before: the owner's signature, or its root-only daily **inventory** of the programs
   outside the packages, which must have seen exactly this file a day or more earlier. A request to release (from Sarina when a

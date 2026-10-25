@@ -151,7 +151,7 @@ heimdalld scan --config /etc/heimdall/config.json                          # exi
 
 ## Sarina consulting Heimdall (`POST /v1/review`)
 
-Heimdall only answers; failures here show on Sarina's side (she fails open on
+Heimdall only answers; failures here show on Sarina's side (Sarina fails open on
 absence and closed on `"deny"`). Check that Heimdall is up and the URL matches
 Sarina's `SENTRY_REVIEW_URL`:
 
