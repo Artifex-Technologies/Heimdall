@@ -24,7 +24,9 @@ import (
 	"github.com/Artifex-Technologies/Heimdall/internal/detect"
 	"github.com/Artifex-Technologies/Heimdall/internal/engine"
 	"github.com/Artifex-Technologies/Heimdall/internal/governance"
+	"github.com/Artifex-Technologies/Heimdall/internal/hardening"
 	"github.com/Artifex-Technologies/Heimdall/internal/ipintel"
+	"github.com/Artifex-Technologies/Heimdall/internal/kernelaudit"
 	"github.com/Artifex-Technologies/Heimdall/internal/maintenance"
 	"github.com/Artifex-Technologies/Heimdall/internal/pkgaudit"
 	"github.com/Artifex-Technologies/Heimdall/internal/pkgverify"
@@ -58,6 +60,8 @@ func main() {
 		os.Exit(cmdMaintenance(os.Args[2:]))
 	case "trust":
 		os.Exit(cmdTrust(os.Args[2:]))
+	case "kernel-check":
+		os.Exit(cmdKernelCheck(os.Args[2:]))
 	case "contain":
 		os.Exit(cmdContain(os.Args[2:]))
 	case "origin":
@@ -89,7 +93,7 @@ Usage:
   heimdalld origin [--config PATH] IP...
                                     Where addresses belong (country, network), from the offline IP database.
   heimdalld ipdb-check FILE...      Check downloaded IP database files (heimdall-intel-update runs this before using one).
-  heimdalld intel-check list|tracker FILE
+  heimdalld intel-check list|tracker FILE | kernel ARCHIVE OUT [EXPLOITED]
                                     Check a downloaded threat list or security tracker file before it is used.
   heimdalld scan-files [--state FILE] [--exclude PATTERN]... [--max-mb N] PATH...
                                     Scan files for malware with ClamAV (must be installed). Prints one line per finding; exit 1 if
@@ -97,6 +101,7 @@ Usage:
                                     user; with --state, unchanged files are skipped next time.
   heimdalld trust init|status|mode|sign|forget|restore|verify|watch ...
                                     The signed list of files that decide how the AI agents behave (heimdalld trust for details).
+  heimdalld kernel-check [--all]   Known holes in each installed kernel that a newer kernel fixes (offline, from the kernel's CVE list).
   heimdalld contain status|now|emergency|release
                                     Stop a compromised AI agent: unload the models, stop and lock Sarina; the last resort clears
                                     the graphics card and restarts (heimdalld contain for details).
@@ -129,6 +134,8 @@ func newDetectors(cfg config.Config) []detect.Detector {
 		detect.NewConnectionDetector(),
 		detect.NewInboundDetector(),
 		detect.NewPackageVulnerabilityDetector(),
+		detect.NewKernelVulnerabilityDetector(),
+		detect.NewHardeningDetector(),
 		detect.NewWifiDetector(),
 		detect.NewLANDetector(),
 		detect.NewBaselineDriftDetectorWithFloors(cfg.BaselineMinSamples, cfg.BaselineZThreshold, detect.DefaultBaselineFloors),
@@ -255,6 +262,17 @@ func cmdRun(args []string) int {
 		every := time.Duration(max(cfg.PackageAuditIntervalHours, 1)) * time.Hour
 		logger.Printf("matching installed packages against the security tracker (every %s)", every)
 		go pw.Run(ctx, every, func(err error) { logger.Printf("package audit: %v", err) }, eng.Handle)
+	}
+
+	if cfg.KernelVulns != "" {
+		kw := &kernelaudit.Watcher{ListPath: cfg.KernelVulns, ModulesDir: "/usr/lib/modules", StatePath: cfg.KernelAuditStatePath}
+		every := time.Duration(max(cfg.PackageAuditIntervalHours, 1)) * time.Hour
+		go kw.Run(ctx, every, func(err error) { logger.Printf("kernel audit: %v", err) }, eng.Handle)
+	}
+
+	if cfg.HardeningStatePath != "" {
+		hw := &hardening.Watcher{StatePath: cfg.HardeningStatePath}
+		go hw.Run(ctx, time.Duration(max(cfg.PackageAuditIntervalHours, 1))*time.Hour, eng.Handle)
 	}
 
 	if cfg.ConnWatch {

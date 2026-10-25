@@ -3,6 +3,7 @@
 #   - the IP databases that say where an address belongs (country and network), monthly
 #   - threat lists of known malware, botnet and criminal addresses (Spamhaus DROP, FireHOL Level 1, Emerging Threats), daily
 #   - Arch Linux's security tracker (which package versions have known vulnerabilities), daily
+#   - the Linux kernel's CVE records (osv.dev) with CISA's known-exploited list, weekly
 #
 # Only these files are downloaded; no address Heimdall has seen and nothing about this computer is ever sent anywhere. heimdalld itself never connects off the
 # machine (its own rule), so this separate script does the download, and `heimdalld ipdb-check` validates each file before it
@@ -55,6 +56,22 @@ get_intel "https://www.spamhaus.org/drop/drop_v6.json" list spamhaus-dropv6.list
 get_intel "https://iplists.firehol.org/files/firehol_level1.netset" list firehol-level1.list
 get_intel "https://rules.emergingthreats.net/blockrules/compromised-ips.txt" list et-compromised.list
 get_intel "https://security.archlinux.org/issues/all.json" tracker arch-security.json
+
+# ---- the kernel's own CVE records (weekly: about 60 MB) and CISA's list of vulnerabilities exploited in the wild, made into
+# one small file (linux-kernel.json) that heimdalld matches against the installed kernels
+if [[ -z $(find "$intel" -maxdepth 1 -name linux-kernel.json -mtime -6 2>/dev/null) || ${HEIMDALL_KERNEL_FORCE:-0} == 1 ]]; then
+  kev=""
+  if fetch "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json" "$itmp/kev.json"; then
+    kev="$itmp/kev.json"
+  fi
+  if fetch "https://osv-vulnerabilities.storage.googleapis.com/Linux/all.zip" "$itmp/linux.zip" &&
+      heimdalld intel-check kernel "$itmp/linux.zip" "$intel/linux-kernel.json" $kev; then
+    intel_ok=1
+  else
+    echo "heimdall-intel-update: the kernel CVE list not updated; the last good copy stays" >&2
+  fi
+  rm -f "$itmp/linux.zip" "$itmp/kev.json"
+fi
 
 # ---- IP databases (monthly is enough: they change slowly)
 fresh() { [[ -n $(find "$dir" -maxdepth 1 -name '*.mmdb' -mtime -25 2>/dev/null | head -n1) ]]; }

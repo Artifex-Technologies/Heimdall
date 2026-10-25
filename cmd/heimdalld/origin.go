@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/Artifex-Technologies/Heimdall/internal/config"
 	"github.com/Artifex-Technologies/Heimdall/internal/ipintel"
+	"github.com/Artifex-Technologies/Heimdall/internal/kernelaudit"
 	"github.com/Artifex-Technologies/Heimdall/internal/pkgaudit"
 )
 
@@ -77,8 +79,36 @@ func cmdIPDBCheck(args []string) int {
 
 // cmdIntelCheck validates a downloaded threat list (at least a few entries, all parseable) or security tracker file.
 func cmdIntelCheck(args []string) int {
+	if (len(args) == 3 || len(args) == 4) && args[0] == "kernel" {
+		// osv.dev's Linux archive in (and CISA's exploited list, optional), the small list the daemon reads out (only written when
+		// the archive is whole)
+		var exploited map[string]bool
+		if len(args) == 4 {
+			var err error
+			if exploited, err = kernelaudit.Exploited(args[3]); err != nil {
+				fmt.Fprintf(os.Stderr, "%s: %v (the list is made without it)\n", args[3], err)
+			}
+		}
+		f, err := kernelaudit.Compact(args[1], exploited)
+		if err == nil {
+			var b []byte
+			b, err = json.Marshal(f)
+			if err == nil {
+				tmp := args[2] + ".tmp"
+				if err = os.WriteFile(tmp, b, 0o640); err == nil {
+					err = os.Rename(tmp, args[2])
+				}
+			}
+		}
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s: %v\n", args[1], err)
+			return 1
+		}
+		fmt.Printf("%s: %d kernel CVE records\n", args[2], len(f.Vulns))
+		return 0
+	}
 	if len(args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: heimdalld intel-check list|tracker FILE")
+		fmt.Fprintln(os.Stderr, "usage: heimdalld intel-check list|tracker FILE | kernel ARCHIVE OUT [EXPLOITED]")
 		return 2
 	}
 	b, err := os.ReadFile(args[1])

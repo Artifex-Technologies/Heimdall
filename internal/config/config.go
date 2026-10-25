@@ -90,6 +90,12 @@ type Config struct {
 	SecurityTracker           string `json:"security_tracker"`
 	PackageAuditIntervalHours int    `json:"package_audit_interval_hours"`
 	PackageAuditStatePath     string `json:"package_audit_state_path"`
+	// KernelVulns is the kernel's own CVE list (heimdall-intel-update, weekly), matched against the kernels in /usr/lib/modules on
+	// the same schedule as the packages.
+	KernelVulns          string `json:"kernel_vulns"`
+	KernelAuditStatePath string `json:"kernel_audit_state_path"`
+	// HardeningStatePath: where the settings check (package hardening) remembers what it reported; empty switches it off.
+	HardeningStatePath string `json:"hardening_state_path"`
 
 	// WifiResults is where heimdall-wifi-check writes its verdict on each Wi-Fi network joined; each becomes an alert.
 	WifiResults string `json:"wifi_results"`
@@ -179,6 +185,9 @@ func Default() Config {
 		SecurityTracker:             "/var/lib/heimdall/intel/arch-security.json",
 		PackageAuditIntervalHours:   6,
 		PackageAuditStatePath:       "/var/lib/heimdall/package-audit.json",
+		KernelVulns:                 "/var/lib/heimdall/intel/linux-kernel.json",
+		KernelAuditStatePath:        "/var/lib/heimdall/kernel-audit.json",
+		HardeningStatePath:          "/var/lib/heimdall/hardening.json",
 		WifiResults:                 "/var/lib/heimdall/wifi/results.jsonl",
 		ListenWatch:                 true,
 		Firewall:                    true,
