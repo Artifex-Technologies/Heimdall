@@ -196,6 +196,26 @@ func (e Excluder) Match(path string) bool {
 type State struct {
 	path  string
 	Files map[string]stamp `json:"files"`
+	// Signatures is a stamp of the signatures the files were scanned with; when it changes (Heimdall learned something), every file
+	// is scanned again, so copies that arrived before are caught too.
+	Signatures string `json:"signatures,omitempty"`
+}
+
+// UseSignatures sets the stamp of the signatures in use, forgetting every file when it differs from the one they were scanned with.
+func (s *State) UseSignatures(sig string) {
+	if s.Signatures != sig {
+		s.Files = map[string]stamp{}
+		s.Signatures = sig
+	}
+}
+
+// FileStamp is a stamp of a signature file (size and modification time; "" when it is not there).
+func FileStamp(path string) string {
+	info, err := os.Stat(path)
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf("%d:%d", info.Size(), info.ModTime().UnixNano())
 }
 
 type stamp struct {

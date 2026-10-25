@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/Artifex-Technologies/Heimdall/internal/immunity"
 )
 
 // EvidenceDir holds what was saved before each containment (root-only): what was running, what it talked to, the recent logs and
@@ -203,9 +205,17 @@ func (s Real) Collect(reason string) (string, error) {
 
 	// the files that decide how she behaves and are not as approved
 	index := map[string]string{}
+	var suspects []string
+	for _, p := range hers {
+		// the program she ran, unless it is an installed package's (/usr): a replaced or planted program is a sample worth keeping
+		if p.Exe != "" && !strings.HasPrefix(p.Exe, "/usr/") {
+			suspects = append(suspects, filepath.Join("/proc", strconv.Itoa(p.PID), "exe")+"\x00"+p.Exe)
+		}
+	}
 	if _, err := s.Trust.Load(); err == nil {
 		for _, f := range s.Trust.Unapproved() {
 			e.copyFile(f, index)
+			suspects = append(suspects, f)
 		}
 	} else {
 		e.notes = append(e.notes, "no signed list (heimdalld trust init): her behaviour files could not be compared")
@@ -232,6 +242,7 @@ func (s Real) Collect(reason string) (string, error) {
 		}
 	}
 	e.json("files-index.json", index)
+	e.notes = append(e.notes, keepSuspects(s.Immunity, suspects, reason)...)
 	e.json("notes.json", e.notes)
 	return dir, nil
 }
@@ -251,4 +262,27 @@ func redactEnv(env []byte) []byte {
 		out = append(out, kv)
 	}
 	return []byte(strings.Join(out, "\n") + "\n")
+}
+
+// keepSuspects puts what the evidence found suspicious into Heimdall's immunity store as suspects: kept for the owner to confirm (or
+// for an analysis), never fingerprinted by itself.
+func keepSuspects(st *immunity.Store, paths []string, reason string) []string {
+	if st == nil {
+		return nil
+	}
+	var notes []string
+	for _, p := range paths {
+		// "read-from\x00shown-as": a running program is read through /proc/PID/exe (the program that ran, even if its file was
+		// replaced since) and kept under its real path
+		from, shown, ok := strings.Cut(p, "\x00")
+		if !ok {
+			shown = from
+		}
+		if en, err := st.KeepAs(from, shown, "found during a containment: "+reason, "containment"); err != nil {
+			notes = append(notes, "not kept as a suspect: "+err.Error())
+		} else {
+			notes = append(notes, fmt.Sprintf("kept as a suspect: %s (%s) %s; sudo heimdalld immunity confirm %s if it is malware", shown, en.Kind, en.SHA256, en.SHA256[:12]))
+		}
+	}
+	return notes
 }

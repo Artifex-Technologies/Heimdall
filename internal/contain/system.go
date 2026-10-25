@@ -15,6 +15,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Artifex-Technologies/Heimdall/internal/immunity"
 	"github.com/Artifex-Technologies/Heimdall/internal/trust"
 )
 
@@ -26,6 +27,8 @@ type Real struct {
 	SessionDirs []string
 	// EvidenceDir overrides EvidenceDir (tests).
 	EvidenceDir string
+	// Immunity keeps what the evidence found suspicious as suspects (nil: not kept).
+	Immunity *immunity.Store
 }
 
 func (s Real) ollama() string {

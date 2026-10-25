@@ -25,6 +25,7 @@ import (
 	"github.com/Artifex-Technologies/Heimdall/internal/engine"
 	"github.com/Artifex-Technologies/Heimdall/internal/governance"
 	"github.com/Artifex-Technologies/Heimdall/internal/hardening"
+	"github.com/Artifex-Technologies/Heimdall/internal/immunity"
 	"github.com/Artifex-Technologies/Heimdall/internal/ipintel"
 	"github.com/Artifex-Technologies/Heimdall/internal/kernelaudit"
 	"github.com/Artifex-Technologies/Heimdall/internal/maintenance"
@@ -60,6 +61,8 @@ func main() {
 		os.Exit(cmdMaintenance(os.Args[2:]))
 	case "trust":
 		os.Exit(cmdTrust(os.Args[2:]))
+	case "immunity":
+		os.Exit(cmdImmunity(os.Args[2:]))
 	case "kernel-check":
 		os.Exit(cmdKernelCheck(os.Args[2:]))
 	case "contain":
@@ -101,6 +104,8 @@ Usage:
                                     user; with --state, unchanged files are skipped next time.
   heimdalld trust init|status|mode|sign|forget|restore|verify|watch ...
                                     The signed list of files that decide how the AI agents behave (heimdalld trust for details).
+  heimdalld immunity add|suspect|confirm|list|forget|check ...
+                                    Malware learned beyond ClamAV: fingerprints ClamAV loads, so every scan catches copies.
   heimdalld kernel-check [--all]   Known holes in each installed kernel that a newer kernel fixes (offline, from the kernel's CVE list).
   heimdalld contain status|now|emergency|release
                                     Stop a compromised AI agent: unload the models, stop and lock Sarina; the last resort clears
@@ -575,6 +580,7 @@ func cmdScanFiles(args []string) int {
 	}
 	start := time.Now()
 	st := scan.LoadState(*statePath)
+	st.UseSignatures(scan.FileStamp(immunity.DefaultSignatures))
 	files, err := scan.Collect(fs.Args(), scan.Options{Exclude: scan.Excluder{Patterns: exclude}, MaxBytes: *maxMB << 20, State: st})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "heimdalld scan-files:", err)

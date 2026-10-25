@@ -12,6 +12,7 @@ import (
 
 	"github.com/Artifex-Technologies/Heimdall/internal/config"
 	"github.com/Artifex-Technologies/Heimdall/internal/contain"
+	"github.com/Artifex-Technologies/Heimdall/internal/immunity"
 	"github.com/Artifex-Technologies/Heimdall/internal/trust"
 )
 
@@ -40,7 +41,8 @@ func cmdContain(args []string) int {
 		}
 		homes, _ := filepath.Glob("/home/*/.sarina/sessions")
 		sessions = append(sessions, homes...)
-		return &contain.Runner{Sys: contain.Real{Trust: trust.Store{Dir: trust.DefaultDir}, SessionDirs: sessions}, MarkerPath: marker,
+		imm := immunity.Default()
+		return &contain.Runner{Sys: contain.Real{Trust: trust.Store{Dir: trust.DefaultDir}, SessionDirs: sessions, Immunity: &imm}, MarkerPath: marker,
 			Log: func(s string) { logger.Println(s) }}
 	}
 	switch args[0] {

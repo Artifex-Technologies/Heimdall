@@ -141,3 +141,15 @@ exit $code
 		t.Fatalf("batch: %+v", r)
 	}
 }
+
+func TestNewSignaturesMeanEverythingIsScannedAgain(t *testing.T) {
+	st := &State{Files: map[string]stamp{"/a": {1, 2}}}
+	st.UseSignatures("")
+	if len(st.Files) != 1 {
+		t.Fatal("same (no) signatures: kept")
+	}
+	st.UseSignatures("64:123")
+	if len(st.Files) != 0 || st.Signatures != "64:123" {
+		t.Fatal("new signatures: forgotten")
+	}
+}
