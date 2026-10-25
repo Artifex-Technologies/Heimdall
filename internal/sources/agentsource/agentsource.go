@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/Artifex-Technologies/Heimdall/internal/detect"
@@ -77,7 +79,49 @@ func decodeMessage(raw json.RawMessage) (role, text string, ok bool) {
 	if text == "" {
 		return m.Role, "", false
 	}
+	if m.Role == "tool" {
+		text = unwrapJSON(text)
+	}
 	return m.Role, text, true
+}
+
+// unwrapJSON turns a tool result Sarina stored as JSON ({"tool": "read_file", "content": "line one\nline two"}) into the text it
+// carries: every string value, decoded, one after another. Scanned as stored, a file's line breaks are the two characters "\n", so a
+// planted line ("\nSYSTEM NOTICE TO THE ASSISTANT: ...") starts mid-word and the detectors' word boundaries never match (found by
+// Sarina's injection evals, 2026-10-25). Text that is not JSON is returned as it is.
+func unwrapJSON(text string) string {
+	var v any
+	if err := json.Unmarshal([]byte(text), &v); err != nil {
+		return text
+	}
+	var parts []string
+	var walk func(any)
+	walk = func(x any) {
+		switch t := x.(type) {
+		case string:
+			if t != "" {
+				parts = append(parts, t)
+			}
+		case []any:
+			for _, e := range t {
+				walk(e)
+			}
+		case map[string]any:
+			keys := make([]string, 0, len(t))
+			for k := range t {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			for _, k := range keys {
+				walk(t[k])
+			}
+		}
+	}
+	walk(v)
+	if len(parts) == 0 {
+		return text
+	}
+	return strings.Join(parts, "\n")
 }
 
 // readable reports whether raw is a message shape this package understands (a
