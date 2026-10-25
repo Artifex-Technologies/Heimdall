@@ -1,0 +1,9 @@
+[Unit]
+Description=Heimdall -- contain a compromised AI agent (when automatic containment is on)
+Documentation=https://github.com/Artifex-Technologies/Heimdall/blob/main/docs/CONTAIN.md
+
+[Service]
+Type=oneshot
+# root: stopping Sarina, unloading the models and, as the last resort, resetting the graphics card need it. It acts only when
+# /etc/heimdall/contain.json switches automatic containment on; the request file only says why.
+ExecStart=/usr/bin/heimdalld contain run-request

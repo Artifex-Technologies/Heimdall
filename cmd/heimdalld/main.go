@@ -20,6 +20,7 @@ import (
 	"github.com/Artifex-Technologies/Heimdall/internal/alert"
 	"github.com/Artifex-Technologies/Heimdall/internal/api"
 	"github.com/Artifex-Technologies/Heimdall/internal/config"
+	"github.com/Artifex-Technologies/Heimdall/internal/contain"
 	"github.com/Artifex-Technologies/Heimdall/internal/detect"
 	"github.com/Artifex-Technologies/Heimdall/internal/engine"
 	"github.com/Artifex-Technologies/Heimdall/internal/governance"
@@ -57,6 +58,8 @@ func main() {
 		os.Exit(cmdMaintenance(os.Args[2:]))
 	case "trust":
 		os.Exit(cmdTrust(os.Args[2:]))
+	case "contain":
+		os.Exit(cmdContain(os.Args[2:]))
 	case "origin":
 		os.Exit(cmdOrigin(os.Args[2:]))
 	case "intel-check":
@@ -94,6 +97,9 @@ Usage:
                                     user; with --state, unchanged files are skipped next time.
   heimdalld trust init|status|mode|sign|forget|restore|verify|watch ...
                                     The signed list of files that decide how the AI agents behave (heimdalld trust for details).
+  heimdalld contain status|now|emergency|release
+                                    Stop a compromised AI agent: unload the models, stop and lock Sarina; the last resort clears
+                                    the graphics card and restarts (heimdalld contain for details).
   heimdalld version                 Print the version and exit.
 
 See README.md and docs/ARCHITECTURE.md for configuration and design.
@@ -177,6 +183,8 @@ func cmdRun(args []string) int {
 		engineSink = resp
 		logger.Printf("Limbo quarantine response enabled (control socket %s, Sarina advisories: %v)", cfg.LimboControlSocket, cfg.SarinaURL != "")
 	}
+	// a critical finding about the AI agents asks the root unit to contain them (only when switched on in contain.json)
+	engineSink = &contain.Trigger{Next: engineSink, ConfigPath: contain.ConfigPath, RequestPath: contain.RequestPath, MarkerPath: contain.MarkerPath}
 	eng := engine.New(engineSink, logger, newDetectors(cfg)...)
 	win := maintenance.NewWatcher(cfg.MaintenancePath)
 	eng.SetMaintenance(win, cfg.MaintenanceSoften)

@@ -13,6 +13,10 @@ i 644 README.md                                  usr/share/doc/heimdall/README.m
 i 644 $p/arch/heimdall.service                   usr/lib/systemd/system/heimdall.service
 i 644 $p/arch/heimdall.sysusers                  usr/lib/sysusers.d/heimdall.conf
 i 644 $p/arch/config.json.example                etc/heimdall/config.json.example
+# containment of a compromised AI agent: heimdalld asks, this root unit acts (off until /etc/heimdall/contain.json says so)
+i 644 $p/arch/heimdall-contain.path              usr/lib/systemd/system/heimdall-contain.path
+i 644 $p/arch/heimdall-contain.service           usr/lib/systemd/system/heimdall-contain.service
+i 644 docs/CONTAIN.md                            usr/share/doc/heimdall/CONTAIN.md
 i 644 $p/arch/limbo-integration.conf.example     etc/heimdall/limbo-integration.conf.example
 # read-only journal access, for the firewall and SSH-login watch
 i 644 $p/arch/heimdall-firewall.conf.example     usr/lib/systemd/system/heimdall.service.d/firewall.conf

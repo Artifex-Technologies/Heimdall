@@ -1,0 +1,8 @@
+[Unit]
+Description=Heimdall containment requests
+
+[Path]
+PathChanged=/var/lib/heimdall/contain-request.json
+
+[Install]
+WantedBy=multi-user.target
