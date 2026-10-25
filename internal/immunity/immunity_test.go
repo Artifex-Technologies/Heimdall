@@ -33,8 +33,11 @@ func TestASuspectBecomesAFingerprintOnlyWhenConfirmedAndUnknownToTheReference(t 
 	if _, err := os.Stat(s.Signatures); err == nil {
 		t.Fatal("a suspect is not fingerprinted")
 	}
-	if info, _ := os.Stat(s.Dir); info.Mode().Perm() != 0o700 {
-		t.Fatal("the store is root-only")
+	if info, _ := os.Stat(filepath.Join(s.Dir, "samples")); info.Mode().Perm() != 0o700 {
+		t.Fatal("the samples are root-only")
+	}
+	if info, _ := os.Stat(s.Dir); info.Mode().Perm() != 0o750 {
+		t.Fatal("the index is shared with the daemon's group only")
 	}
 	again, _ := s.Keep(sample(t, planted), "again", "owner")
 	if again.Reason != "planted skill" {

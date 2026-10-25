@@ -29,6 +29,14 @@ type Server struct {
 	audit    func() any
 }
 
+// SetQuarantine serves GET /v1/quarantine: what Heimdall holds (immunity's index, readable by its group), for Settings and Sarina.
+func (s *Server) SetQuarantine(f func() any) {
+	s.mux.HandleFunc("/v1/quarantine", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(f())
+	})
+}
+
 // SetAudit serves GET /v1/audit: what is open right now (known holes in the packages and kernels, hardening gaps), computed on
 // each request from files already on the computer. Read-only like the rest.
 func (s *Server) SetAudit(f func() any) {

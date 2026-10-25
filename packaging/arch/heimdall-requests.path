@@ -1,0 +1,10 @@
+[Unit]
+Description=Requests to Heimdall (release a held file if it can prove the file was there before)
+
+[Path]
+DirectoryNotEmpty=/var/lib/heimdall-requests
+MakeDirectory=yes
+DirectoryMode=1733
+
+[Install]
+WantedBy=multi-user.target

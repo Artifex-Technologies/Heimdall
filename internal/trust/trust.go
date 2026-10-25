@@ -517,3 +517,18 @@ func (s Store) Unapproved() []string {
 	sort.Strings(out)
 	return out
 }
+
+// Watches reports whether a path is one of the watched behaviour files (listed, or inside a watched folder).
+func (w WatchList) Watches(path string) bool { return w.watches(path) }
+
+// Judges for other packages (immunity's release proof): whether the owner signed exactly this content, and whether a path decides
+// how an AI agent behaves.
+func (s Store) SignedFunc() func(path, sha string) bool {
+	m, err := s.Load()
+	return func(path, sha string) bool { return err == nil && m.Matches(path, sha) }
+}
+
+func (s Store) BehaviourFunc() func(path string) bool {
+	w := s.Watch()
+	return w.Watches
+}

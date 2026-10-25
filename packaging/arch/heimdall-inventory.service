@@ -1,0 +1,8 @@
+[Unit]
+Description=Heimdall -- inventory of programs outside the packages (what was on the computer, and since when)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/heimdalld immunity inventory
+Nice=15
+IOSchedulingClass=idle

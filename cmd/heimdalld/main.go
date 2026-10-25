@@ -209,6 +209,13 @@ func cmdRun(args []string) int {
 		reviewer := governance.NewReviewer(multiSink)
 		srv := api.NewServer(ring, reviewer)
 		srv.SetAudit(func() any { return audit(cfg) })
+		srv.SetQuarantine(func() any {
+			es, err := immunity.Default().Load()
+			if err != nil || es == nil {
+				return []immunity.Entry{}
+			}
+			return es
+		})
 		go func() {
 			logger.Printf("status API listening on %s", cfg.APIAddr)
 			if err := api.ListenAndServeLoopback(cfg.APIAddr, srv); err != nil {

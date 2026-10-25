@@ -1,7 +1,7 @@
 #!/bin/sh
 # heimdall-enable-defaults: switch on what Heimdall needs, once, when the package is first installed (a pacman hook runs this; it
 # also works offline, in an installer's chroot). Upgrades never run it again, so whatever the owner switched off stays off.
-for u in heimdall.service heimdall-intel-update.timer heimdall-dns-blocklist.timer heimdall-contain.path; do
+for u in heimdall.service heimdall-intel-update.timer heimdall-dns-blocklist.timer heimdall-contain.path heimdall-requests.path heimdall-inventory.timer; do
   systemctl enable "$u" >/dev/null 2>&1 || echo "heimdall: could not enable $u" >&2
 done
 systemctl --global enable heimdall-wifi-notify.path >/dev/null 2>&1 || echo "heimdall: could not enable heimdall-wifi-notify.path" >&2

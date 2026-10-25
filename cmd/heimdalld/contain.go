@@ -149,6 +149,22 @@ func cmdContain(args []string) int {
 			fmt.Fprintln(os.Stderr, "heimdalld contain:", err)
 			return 1
 		}
+		// what the containment held and Heimdall can prove was there before (the owner's signature, or the inventory a day before)
+		// goes back now; the rest stays held for the owner to judge
+		imm := immunity.Default()
+		signed, behaviour := proofFuncs()
+		if es, err := imm.Load(); err == nil {
+			for _, e := range es {
+				if e.Status != immunity.Held || e.Source != "containment" {
+					continue
+				}
+				if r, err := imm.ReleaseIfProven(e.SHA256, signed, behaviour); err == nil {
+					fmt.Printf("put back %s (%s)\n", r.Original, r.ReleasedBy)
+				} else {
+					fmt.Printf("still held, for you to judge: %s\n", e.Original)
+				}
+			}
+		}
 		if os.Getenv("HEIMDALL_CONTAIN_MARKER") == "" {
 			_ = exec.Command("systemctl", "start", "ollama.service").Run()
 		}

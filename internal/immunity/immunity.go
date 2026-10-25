@@ -21,8 +21,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/user"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -40,9 +42,11 @@ const (
 
 // Status of an entry.
 const (
-	Suspect   = "suspect"   // kept, waiting for the owner
-	Immune    = "immune"    // confirmed and not known to ClamAV: fingerprinted
-	Reference = "reference" // confirmed, but ClamAV already knows it (no fingerprint needed)
+	Suspect   = "suspect"   // kept, the original left where it is
+	Held      = "held"      // quarantined: the original was moved here; waiting for the owner (or a proof that it was there before)
+	Immune    = "immune"    // malware ClamAV does not know: fingerprinted (stays held)
+	Reference = "reference" // malware ClamAV knows (stays held; no fingerprint needed)
+	Released  = "released"  // judged good: put back where it was
 )
 
 // Entry is one sample.
@@ -57,6 +61,22 @@ type Entry struct {
 	Status    string    `json:"status"`
 	Confirmed time.Time `json:"confirmed,omitempty"`
 	ClamAV    string    `json:"clamav,omitempty"` // the reference's signature, when it knew the sample
+
+	// while held: what is needed to put it back exactly
+	HeldAt time.Time `json:"held_at,omitempty"`
+	UID    int       `json:"uid,omitempty"`
+	GID    int       `json:"gid,omitempty"`
+	Mode   uint32    `json:"mode,omitempty"`
+	MTime  int64     `json:"mtime,omitempty"`
+	// SeenSince: Heimdall's inventory had this exact content at this path since then (before it was held)
+	SeenSince time.Time `json:"seen_since,omitempty"`
+	Released  time.Time `json:"released,omitempty"`
+	// ReleasedBy: "owner", or the proof Heimdall checked ("signed by the owner", "on this computer since ...")
+	ReleasedBy string `json:"released_by,omitempty"`
+	// Copies: other paths the same content was held from (put back too on release)
+	Copies []string `json:"copies,omitempty"`
+	// Report: what the file is and contains, for the owner and Sarina (never run: read and parsed only)
+	Report *Report `json:"report,omitempty"`
 }
 
 // Name is the signature name ClamAV reports.
@@ -65,7 +85,8 @@ func (e Entry) Name() string { return "Heimdall.Immunity." + e.Kind + "." + e.SH
 // Reference asks the reference scanner about a file: its signature when it knows the file, "" when not.
 type ReferenceScanner func(path string) (signature string, err error)
 
-// Store is the immunity store.
+// Store is the immunity store. The folder and its index are readable by the heimdall group (the daemon shows what is held on its
+// local API); the samples are root's only.
 type Store struct {
 	Dir        string
 	Signatures string
@@ -104,11 +125,29 @@ func (s Store) Load() ([]Entry, error) {
 func (s Store) save(es []Entry) error {
 	sort.Slice(es, func(i, j int) bool { return es[i].Added.After(es[j].Added) })
 	b, _ := json.MarshalIndent(es, "", "  ")
-	tmp := s.index() + ".tmp"
-	if err := os.WriteFile(tmp, append(b, '\n'), 0o600); err != nil {
+	if err := os.MkdirAll(s.Dir, 0o750); err != nil {
 		return err
 	}
+	shareWithDaemon(s.Dir, 0o750)
+	tmp := s.index() + ".tmp"
+	if err := os.WriteFile(tmp, append(b, '\n'), 0o640); err != nil {
+		return err
+	}
+	shareWithDaemon(tmp, 0o640)
 	return os.Rename(tmp, s.index())
+}
+
+// shareWithDaemon gives the heimdall group read access (as root; elsewhere, in tests, only the mode is set).
+func shareWithDaemon(path string, mode os.FileMode) {
+	_ = os.Chmod(path, mode)
+	if os.Geteuid() != 0 {
+		return
+	}
+	if g, err := user.LookupGroup("heimdall"); err == nil {
+		if gid, err := strconv.Atoi(g.Gid); err == nil {
+			_ = os.Chown(path, 0, gid)
+		}
+	}
 }
 
 // Kind names what a file is from its first bytes.
@@ -178,7 +217,6 @@ func (s Store) KeepAs(path, original, reason, source string) (Entry, error) {
 	if err := os.MkdirAll(filepath.Join(s.Dir, "samples"), 0o700); err != nil {
 		return Entry{}, err
 	}
-	_ = os.Chmod(s.Dir, 0o700)
 	var gz bytes.Buffer
 	zw := gzip.NewWriter(&gz)
 	zw.Name = filepath.Base(original)
@@ -192,22 +230,31 @@ func (s Store) KeepAs(path, original, reason, source string) (Entry, error) {
 
 func (s Store) sample(sha string) string { return filepath.Join(s.Dir, "samples", sha+".gz") }
 
-// Extract writes a sample out (uncompressed, not executable, owner-only) for the reference check or an analysis.
-func (s Store) Extract(sha, to string) error {
+// sampleBytes reads a stored sample back, checking it still matches its fingerprint.
+func (s Store) sampleBytes(sha string) ([]byte, error) {
 	gzb, err := os.ReadFile(s.sample(sha))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	zr, err := gzip.NewReader(bytes.NewReader(gzb))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	b, err := io.ReadAll(io.LimitReader(zr, MaxSize+1))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if sum := sha256.Sum256(b); hex.EncodeToString(sum[:]) != sha {
-		return errors.New("the stored sample does not match its fingerprint")
+		return nil, errors.New("the stored sample does not match its fingerprint")
+	}
+	return b, nil
+}
+
+// Extract writes a sample out (uncompressed, not executable, owner-only) for the reference check or an analysis.
+func (s Store) Extract(sha, to string) error {
+	b, err := s.sampleBytes(sha)
+	if err != nil {
+		return err
 	}
 	return os.WriteFile(to, b, 0o600)
 }

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Artifex-Technologies/Heimdall/internal/immunity"
+	"github.com/Artifex-Technologies/Heimdall/internal/trust"
 )
 
 // EvidenceDir holds what was saved before each containment (root-only): what was running, what it talked to, the recent logs and
@@ -213,9 +214,13 @@ func (s Real) Collect(reason string) (string, error) {
 		}
 	}
 	if _, err := s.Trust.Load(); err == nil {
+		// copies always; held only once trust is switched on (while it is off, during training, her files change every day)
+		holdThem := s.Trust.Mode() != trust.Off
 		for _, f := range s.Trust.Unapproved() {
 			e.copyFile(f, index)
-			suspects = append(suspects, f)
+			if holdThem {
+				suspects = append(suspects, f)
+			}
 		}
 	} else {
 		e.notes = append(e.notes, "no signed list (heimdalld trust init): her behaviour files could not be compared")
@@ -242,7 +247,7 @@ func (s Real) Collect(reason string) (string, error) {
 		}
 	}
 	e.json("files-index.json", index)
-	e.notes = append(e.notes, keepSuspects(s.Immunity, suspects, reason)...)
+	e.notes = append(e.notes, holdSuspects(s.Immunity, suspects, reason)...)
 	e.json("notes.json", e.notes)
 	return dir, nil
 }
@@ -264,25 +269,29 @@ func redactEnv(env []byte) []byte {
 	return []byte(strings.Join(out, "\n") + "\n")
 }
 
-// keepSuspects puts what the evidence found suspicious into Heimdall's immunity store as suspects: kept for the owner to confirm (or
-// for an analysis), never fingerprinted by itself.
-func keepSuspects(st *immunity.Store, paths []string, reason string) []string {
+// holdSuspects quarantines what the evidence found suspicious (Heimdall's immunity store): checked against ClamAV at once, moved
+// away, kept for the owner to judge (Sarina helps); a file the inventory or the owner's signature proves was there before is released
+// with the containment (heimdalld contain release). Nothing is fingerprinted without the owner.
+func holdSuspects(st *immunity.Store, paths []string, reason string) []string {
 	if st == nil {
 		return nil
 	}
 	var notes []string
 	for _, p := range paths {
 		// "read-from\x00shown-as": a running program is read through /proc/PID/exe (the program that ran, even if its file was
-		// replaced since) and kept under its real path
+		// replaced since) and held under its real path
 		from, shown, ok := strings.Cut(p, "\x00")
 		if !ok {
 			shown = from
 		}
-		if en, err := st.KeepAs(from, shown, "found during a containment: "+reason, "containment"); err != nil {
-			notes = append(notes, "not kept as a suspect: "+err.Error())
+		if en, err := st.Hold(from, shown, "found during a containment: "+reason, "containment", Reference); err != nil {
+			notes = append(notes, "not held: "+err.Error())
 		} else {
-			notes = append(notes, fmt.Sprintf("kept as a suspect: %s (%s) %s; sudo heimdalld immunity confirm %s if it is malware", shown, en.Kind, en.SHA256, en.SHA256[:12]))
+			notes = append(notes, fmt.Sprintf("held: %s (%s, %s) %s", shown, en.Kind, en.Status, en.SHA256))
 		}
 	}
 	return notes
 }
+
+// Reference is the scanner holds are checked with (ClamAV; replaced in tests).
+var Reference immunity.ReferenceScanner = immunity.ClamAV

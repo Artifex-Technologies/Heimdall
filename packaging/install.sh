@@ -16,6 +16,12 @@ i 644 $p/arch/config.json.example                etc/heimdall/config.json.exampl
 # containment of a compromised AI agent: heimdalld asks, this root unit acts (off until /etc/heimdall/contain.json says so)
 i 644 $p/arch/heimdall-contain.path              usr/lib/systemd/system/heimdall-contain.path
 i 644 $p/arch/heimdall-contain.service           usr/lib/systemd/system/heimdall-contain.service
+# immunity: held files, release requests (proof-checked by root), the daily inventory of programs
+i 644 $p/arch/heimdall-requests.path             usr/lib/systemd/system/heimdall-requests.path
+i 644 $p/arch/heimdall-requests.service          usr/lib/systemd/system/heimdall-requests.service
+i 644 $p/arch/heimdall-requests.tmpfiles         usr/lib/tmpfiles.d/heimdall-requests.conf
+i 644 $p/arch/heimdall-inventory.service         usr/lib/systemd/system/heimdall-inventory.service
+i 644 $p/arch/heimdall-inventory.timer           usr/lib/systemd/system/heimdall-inventory.timer
 i 644 docs/CONTAIN.md                            usr/share/doc/heimdall/CONTAIN.md
 i 644 docs/IMMUNITY.md                           usr/share/doc/heimdall/IMMUNITY.md
 i 644 docs/AUDITS.md                             usr/share/doc/heimdall/AUDITS.md

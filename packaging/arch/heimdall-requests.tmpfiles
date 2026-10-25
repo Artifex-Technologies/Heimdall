@@ -1,0 +1,2 @@
+# anyone may leave a request (sticky: nobody can remove another's); root reads them (heimdall-requests.path)
+d /var/lib/heimdall-requests 1733 root root -

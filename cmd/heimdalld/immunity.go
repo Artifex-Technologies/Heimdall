@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -10,29 +9,29 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
-	"time"
+	"syscall"
 
+	"github.com/Artifex-Technologies/Heimdall/internal/contain"
 	"github.com/Artifex-Technologies/Heimdall/internal/immunity"
-	"github.com/Artifex-Technologies/Heimdall/internal/scan"
+	"github.com/Artifex-Technologies/Heimdall/internal/trust"
 )
 
-// clamReference asks ClamAV (the reference) about one file.
-func clamReference(path string) (string, error) {
-	c := scan.NewClamAV()
-	if !c.Available() {
-		return "", fmt.Errorf("ClamAV is not installed")
+// RequestDir is where anyone on the computer (Sarina, the check-up) may ask Heimdall to release a held file *if it can prove* the
+// file was there before. The request carries only which file and why; root (heimdall-requests.path) checks the proof itself, so a
+// request can never release anything the proof does not cover.
+const RequestDir = "/var/lib/heimdall-requests"
+
+func notifyOwner(text string) {
+	if os.Getenv("HEIMDALL_IMMUNITY_DIR") == "" {
+		contain.Real{}.Notify(text)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-	defer cancel()
-	r, err := c.ScanFile(ctx, path)
-	if err != nil {
-		return "", err
-	}
-	if r.Infected {
-		return r.Signature, nil
-	}
-	return "", nil
+}
+
+func proofFuncs() (func(string, string) bool, func(string) bool) {
+	ts := trust.Store{Dir: trust.DefaultDir}
+	return ts.SignedFunc(), ts.BehaviourFunc()
 }
 
 // reloadClamd tells a running ClamAV daemon to load the new fingerprints (clamscan reads them on every run by itself).
@@ -71,19 +70,90 @@ func cmdImmunity(args []string) int {
 		if out, err := exec.Command("pacman", "-Qoq", path).Output(); err == nil && !*force {
 			return fail(fmt.Errorf("%s belongs to the package %s: a fingerprint of it would flag every copy of that package (--force if it really is malware)", path, strings.TrimSpace(string(out))))
 		}
-		e, err := st.Keep(path, *reason, "owner")
+		var e immunity.Entry
+		var err error
+		if args[0] == "suspect" {
+			e, err = st.Keep(path, *reason, "owner")
+		} else {
+			// the owner says it is malware: held (moved away) and learned
+			e, err = st.Hold(path, path, *reason, "owner", immunity.ClamAV)
+		}
 		if err != nil {
 			return fail(err)
 		}
-		if e.Status != immunity.Suspect || args[0] == "suspect" {
+		if e.Status != immunity.Held || args[0] == "suspect" {
 			fmt.Printf("%s %s (%s, %s)\n", e.Status, e.SHA256, e.Kind, e.Original)
 			return 0
 		}
-		e, err = st.Confirm(e.SHA256, clamReference)
+		e, err = st.Confirm(e.SHA256, immunity.ClamAV)
 		if err != nil {
 			return fail(err)
 		}
 		return printConfirmed(e)
+	case "hold":
+		// quarantine a file: ClamAV is asked at once; the owner is told and decides (or a proof releases it)
+		fs := flag.NewFlagSet("immunity hold", flag.ContinueOnError)
+		reason := fs.String("reason", "", "why it is suspicious")
+		if fs.Parse(args[1:]) != nil || fs.NArg() != 1 || strings.TrimSpace(*reason) == "" {
+			fmt.Fprintln(os.Stderr, "usage: heimdalld immunity hold --reason WHY FILE")
+			return 2
+		}
+		if !needRoot() {
+			return 2
+		}
+		e, err := st.Hold(fs.Arg(0), fs.Arg(0), *reason, "owner", immunity.ClamAV)
+		if err != nil {
+			return fail(err)
+		}
+		fmt.Printf("%s %s %s\n", e.Status, e.SHA256, e.Original)
+		notifyHeld(e)
+		return 0
+	case "release":
+		// the owner judged it good (Settings asks for the password)
+		if len(args) != 2 {
+			fmt.Fprintln(os.Stderr, "usage: heimdalld immunity release SHA256")
+			return 2
+		}
+		if !needRoot() {
+			return 2
+		}
+		e, err := st.Release(args[1], "owner")
+		if err != nil {
+			return fail(err)
+		}
+		fmt.Println("released: " + e.Original)
+		return 0
+	case "release-if-proven":
+		if len(args) != 2 {
+			fmt.Fprintln(os.Stderr, "usage: heimdalld immunity release-if-proven SHA256")
+			return 2
+		}
+		if !needRoot() {
+			return 2
+		}
+		signed, behaviour := proofFuncs()
+		e, err := st.ReleaseIfProven(args[1], signed, behaviour)
+		if err != nil {
+			return fail(err)
+		}
+		fmt.Println("released (" + e.ReleasedBy + "): " + e.Original)
+		return 0
+	case "inventory":
+		if !needRoot() {
+			return 2
+		}
+		n, err := st.TakeInventory(immunity.InventoryRoots)
+		if err != nil {
+			return fail(err)
+		}
+		fmt.Printf("inventory: %d programs\n", n)
+		return 0
+	case "run-requests":
+		// heimdall-requests.service (root): release-if-proven requests from Sarina or the check-up
+		if !needRoot() {
+			return 2
+		}
+		return runRequests(st)
 	case "confirm":
 		if len(args) != 2 {
 			fmt.Fprintln(os.Stderr, "usage: heimdalld immunity confirm SHA256 (or its first 8+ characters)")
@@ -92,7 +162,7 @@ func cmdImmunity(args []string) int {
 		if !needRoot() {
 			return 2
 		}
-		e, err := st.Confirm(args[1], clamReference)
+		e, err := st.Confirm(args[1], immunity.ClamAV)
 		if err != nil {
 			return fail(err)
 		}
@@ -171,6 +241,64 @@ func cmdImmunity(args []string) int {
 	return 2
 }
 
+func notifyHeld(e immunity.Entry) {
+	what := "Heimdall moved " + e.Original + " to quarantine"
+	if e.Status == immunity.Reference {
+		what += ": ClamAV knows it as " + e.ClamAV + " (malware)."
+	} else {
+		what += " (" + e.Reason + "). ClamAV does not know it; you decide (Settings > Security). Sarina can look at it with you."
+	}
+	notifyOwner(what)
+}
+
+type request struct {
+	ReleaseIfProven string `json:"release_if_proven"`
+	Why             string `json:"why"`
+}
+
+func runRequests(st immunity.Store) int {
+	ents, err := os.ReadDir(RequestDir)
+	if err != nil {
+		return 0
+	}
+	_, contained := contain.ReadMarker(contain.MarkerPath)
+	signed, behaviour := proofFuncs()
+	done := 0
+	for _, ent := range ents {
+		p := filepath.Join(RequestDir, ent.Name())
+		// opened without following links (anyone can write here), read at most 4 KiB
+		var b []byte
+		if f, err := os.OpenFile(p, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0); err == nil {
+			if info, err := f.Stat(); err == nil && info.Mode().IsRegular() {
+				b, _ = io.ReadAll(io.LimitReader(f, 4096))
+			}
+			f.Close()
+		}
+		_ = os.Remove(p)
+		var r request
+		if done >= 20 || json.Unmarshal(b, &r) != nil || r.ReleaseIfProven == "" {
+			continue
+		}
+		done++
+		if contained {
+			fmt.Fprintln(os.Stderr, "heimdalld immunity: no release while Sarina is contained:", r.ReleaseIfProven)
+			continue
+		}
+		e, err := st.ReleaseIfProven(r.ReleaseIfProven, signed, behaviour)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "heimdalld immunity: not released:", r.ReleaseIfProven, err)
+			continue
+		}
+		why := strings.Join(strings.Fields(r.Why), " ")
+		if len(why) > 200 {
+			why = why[:200]
+		}
+		fmt.Println("released (" + e.ReleasedBy + "): " + e.Original)
+		notifyOwner("Heimdall released " + e.Original + " from quarantine: " + e.ReleasedBy + ". Asked because: " + why)
+	}
+	return 0
+}
+
 func printConfirmed(e immunity.Entry) int {
 	switch e.Status {
 	case immunity.Reference:
@@ -185,10 +313,14 @@ func printConfirmed(e immunity.Entry) int {
 func immunityUsage() {
 	fmt.Fprint(os.Stderr, strings.TrimLeft(`
 heimdalld immunity: malware Heimdall has learned that ClamAV (the reference) does not know (see docs/IMMUNITY.md)
-  heimdalld immunity add --reason WHY FILE      keep it, check it against ClamAV, and fingerprint it when ClamAV does not know it (root)
+  heimdalld immunity hold --reason WHY FILE     quarantine it: ClamAV is asked at once; you are told and decide (root)
+  heimdalld immunity release SHA256             it is good: put it back exactly as it was (root; Settings asks for the password)
+  heimdalld immunity release-if-proven SHA256   put it back only if Heimdall can prove it was there before (root)
+  heimdalld immunity add --reason WHY FILE      it is malware: hold it and learn it when ClamAV does not know it (root)
   heimdalld immunity suspect --reason WHY FILE  only keep it, for later (root); containments do this with their evidence
-  heimdalld immunity confirm SHA256             a kept suspect is malware: check it against ClamAV and fingerprint it (root)
-  heimdalld immunity list [--json]              what is kept: suspect, immune (fingerprinted) or reference (ClamAV knew it) (root)
+  heimdalld immunity confirm SHA256             a held file or suspect is malware: learn it (root)
+  heimdalld immunity inventory                  look at the programs outside the packages again (root; daily by itself)
+  heimdalld immunity list [--json]              held, immune (learned), reference (ClamAV's), released, suspect (root)
   heimdalld immunity forget SHA256              a mistake: remove the sample and its fingerprint (root)
   heimdalld immunity check FILE                 is this file one Heimdall has learned? (any user; exit 1 when it is)
 `, "\n"))

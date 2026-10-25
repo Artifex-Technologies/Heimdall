@@ -1,0 +1,9 @@
+[Unit]
+Description=Heimdall -- release held files that it can prove were there before (requests from Sarina or the check-up)
+Documentation=https://github.com/Artifex-Technologies/Heimdall/blob/main/docs/IMMUNITY.md
+
+[Service]
+Type=oneshot
+# root: held files are root's. A request only names a file; the proof is checked here, so no request can release more than the proof
+# covers (and none while Sarina is contained).
+ExecStart=/usr/bin/heimdalld immunity run-requests

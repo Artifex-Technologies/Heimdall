@@ -1,0 +1,11 @@
+[Unit]
+Description=Heimdall's daily inventory of programs outside the packages
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=1d
+Persistent=true
+RandomizedDelaySec=30min
+
+[Install]
+WantedBy=timers.target
