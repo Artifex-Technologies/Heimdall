@@ -13,6 +13,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/Artifex-Technologies/Heimdall/internal/config"
 	"github.com/Artifex-Technologies/Heimdall/internal/contain"
 	"github.com/Artifex-Technologies/Heimdall/internal/immunity"
 	"github.com/Artifex-Technologies/Heimdall/internal/trust"
@@ -27,6 +28,16 @@ func notifyOwner(text string) {
 	if os.Getenv("HEIMDALL_IMMUNITY_DIR") == "" {
 		contain.Real{}.Notify(text)
 	}
+}
+
+// sarinaHere says whether Sarina is installed (the configured marker file, by default her program), so messages offer her help only
+// when she is there.
+func sarinaHere() bool {
+	cfg, err := config.Load("/etc/heimdall/config.json")
+	if err != nil {
+		cfg = config.Default()
+	}
+	return sarinaInstalled(cfg)
 }
 
 func proofFuncs() (func(string, string) bool, func(string) bool) {
@@ -268,7 +279,10 @@ func notifyHeld(e immunity.Entry) {
 	if e.Status == immunity.Reference {
 		what += ": ClamAV knows it as " + e.ClamAV + " (malware)."
 	} else {
-		what += " (" + e.Reason + "). ClamAV does not know it; you decide (Settings > Security). Sarina can look at it with you."
+		what += " (" + e.Reason + "). ClamAV does not know it; you decide (Settings > Security)."
+		if sarinaHere() {
+			what += " Sarina can look at it with you."
+		}
 	}
 	notifyOwner(what)
 }
@@ -303,7 +317,11 @@ func analyzeHeld(st immunity.Store, sha string) {
 	}
 	fmt.Printf("analysed %s in Limbo: %s\n", e.Original, a.Status)
 	if a.Status == "done" {
-		notifyOwner("Limbo took " + e.Original + " apart in a sealed machine; the analysis is with the held file (Settings > Security). Sarina's next review uses it.")
+		note := "Limbo took " + e.Original + " apart in a sealed machine; the analysis is with the held file (Settings > Security)."
+		if sarinaHere() {
+			note += " Sarina's next review uses it."
+		}
+		notifyOwner(note)
 	}
 }
 

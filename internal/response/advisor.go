@@ -279,3 +279,26 @@ func BuildBacklogPrompt(summary string) string {
 		"Reply in at most 100 words: what the backlog suggests, and what the operator should check first.\n\n" +
 		"<<<BACKLOG\n" + summary + "\nEND BACKLOG>>>"
 }
+
+// IfInstalled asks Inner only while Installed says the AI is there (checked at every call, so installing Sarina later starts the
+// advice without a restart). Without it the answer is simply none: no error, so no "unreachable" alert on a computer that never had
+// Sarina. Heimdall's own explanation goes on the quarantine either way.
+type IfInstalled struct {
+	Inner     Advisor
+	Installed func() bool
+}
+
+func (o IfInstalled) Advise(ctx context.Context, a alert.Alert) (string, error) {
+	if !o.Installed() {
+		return "", nil
+	}
+	return o.Inner.Advise(ctx, a)
+}
+
+func (o IfInstalled) AdviseBacklog(ctx context.Context, summary string) (string, error) {
+	ba, ok := o.Inner.(BacklogAdvisor)
+	if !ok || !o.Installed() {
+		return "", nil
+	}
+	return ba.AdviseBacklog(ctx, summary)
+}

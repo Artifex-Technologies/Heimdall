@@ -154,12 +154,15 @@ func cmdRun(args []string) int {
 		fmt.Fprintln(os.Stderr, "heimdalld:", err)
 		return 2
 	}
-	if cfg.AgentSessionDir == "" && cfg.LimboEventLog == "" {
-		fmt.Fprintln(os.Stderr, "heimdalld: neither agent_session_dir nor limbo_event_log is set in config; nothing to watch")
-		return 2
-	}
-
+	// Heimdall watches the computer itself (files, network, packages, the firewall) with or without an AI agent or Limbo: those
+	// two are extra sources, not a reason to refuse to start.
 	logger := log.New(os.Stderr, "heimdalld: ", log.LstdFlags)
+	if cfg.AgentSessionDir == "" && cfg.LimboEventLog == "" {
+		logger.Printf("no AI agent sessions or Limbo log to watch; watching the computer itself")
+	}
+	if !sarinaInstalled(cfg) {
+		logger.Printf("Sarina is not installed: running on my own (alerts are explained with built-in text)")
+	}
 
 	sinks := []alert.Sink{alert.NewWriterSink(os.Stdout)}
 	ring := alert.NewRing(cfg.RingSize)
@@ -190,7 +193,7 @@ func cmdRun(args []string) int {
 				fmt.Fprintln(os.Stderr, "heimdalld:", err)
 				return 2
 			}
-			resp.Advisor = adv
+			resp.Advisor = response.IfInstalled{Inner: adv, Installed: func() bool { return sarinaInstalled(cfg) }}
 		}
 		engineSink = resp
 		logger.Printf("Limbo quarantine response enabled (control socket %s, Sarina advisories: %v)", cfg.LimboControlSocket, cfg.SarinaURL != "")
@@ -345,8 +348,14 @@ func cmdRun(args []string) int {
 			watcher = agentsource.NewWatcherWithState(cfg.AgentSessionDir, cfg.AgentStatePath)
 		}
 		watcher.Run(ctx, cfg.PollInterval(), func(err error) {
-			logger.Printf("poll error: %v", err)
 			var issue agentsource.Issue
+			// no session folder because Sarina is not installed: nothing is wrong, there is just nothing to read yet
+			if errors.As(err, &issue) && issue.Code == agentsource.CodeUnreadable && !sarinaInstalled(cfg) {
+				if _, statErr := os.Stat(cfg.AgentSessionDir); os.IsNotExist(statErr) {
+					return
+				}
+			}
+			logger.Printf("poll error: %v", err)
 			if errors.As(err, &issue) { // also put it in the alert stream, with its code and remedy
 				multiSink.Write(alert.Integration(issue.Code, issue.Path+": "+issue.Detail, issue.Remedy, map[string]string{"path": issue.Path}))
 			}
@@ -616,4 +625,14 @@ func cmdScanFiles(args []string) int {
 		return 2
 	}
 	return 0
+}
+
+// sarinaInstalled says whether Sarina is on this computer (her program exists). Without the setting, she is taken to be there, as
+// before this setting existed.
+func sarinaInstalled(cfg config.Config) bool {
+	if cfg.SarinaInstalled == "" {
+		return true
+	}
+	_, err := os.Stat(cfg.SarinaInstalled)
+	return err == nil
 }

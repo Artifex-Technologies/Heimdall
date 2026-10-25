@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Artifex-Technologies/Heimdall/internal/detect"
+	"github.com/Artifex-Technologies/Heimdall/internal/explain"
 )
 
 // Alert is a Finding plus the wall-clock time Heimdall raised it. Findings
@@ -29,10 +30,19 @@ type Alert struct {
 	// event is about), so a responder can act on it without parsing EventText.
 	// Additive: existing consumers that ignore it are unaffected.
 	Fields map[string]string `json:"fields,omitempty"`
+	// Explain says what the alert means in plain words (what happened, how serious, what was done, what to do), from fixed text:
+	// it is there with or without Sarina. Additive, like Fields.
+	Explain *explain.Text `json:"explain,omitempty"`
+}
+
+func explained(a Alert) Alert {
+	t := explain.For(a.DetectorID, string(a.Severity), a.Fields)
+	a.Explain = &t
+	return a
 }
 
 func FromFinding(f detect.Finding) Alert {
-	return Alert{
+	return explained(Alert{
 		Time:       time.Now().UTC(),
 		DetectorID: f.DetectorID,
 		Severity:   f.Severity,
@@ -42,7 +52,7 @@ func FromFinding(f detect.Finding) Alert {
 		EventKind:  f.Event.Kind,
 		EventText:  f.Event.Text,
 		Fields:     f.Event.Fields,
-	}
+	})
 }
 
 // Sink receives every Alert the engine raises. Implementations must be
@@ -155,7 +165,7 @@ func Integration(code, summary, remedy string, fields map[string]string) Alert {
 	for k, v := range fields {
 		f[k] = v
 	}
-	return Alert{
+	return explained(Alert{
 		Time:       time.Now().UTC(),
 		DetectorID: IntegrationDetector,
 		Severity:   detect.SeverityWarning,
@@ -163,5 +173,5 @@ func Integration(code, summary, remedy string, fields map[string]string) Alert {
 		Source:     "heimdall",
 		EventKind:  "integration_error",
 		Fields:     f,
-	}
+	})
 }

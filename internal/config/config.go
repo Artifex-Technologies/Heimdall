@@ -150,6 +150,10 @@ type Config struct {
 	SarinaURL   string `json:"sarina_url"`
 	SarinaToken string `json:"sarina_token"`
 	SarinaCwd   string `json:"sarina_cwd"`
+	// SarinaInstalled is a file that exists only when Sarina is installed (her program). Sarina is optional: while it is absent,
+	// Heimdall asks her nothing and does not report her session folder as missing; it runs on its own, explaining its alerts with
+	// its built-in text. Checked as Heimdall goes, so installing her later needs no restart.
+	SarinaInstalled string `json:"sarina_installed"`
 
 	// Baseline-drift detector tuning (Phase 5) -- see
 	// detect.NewBaselineDriftDetector. Runs by default on the same
@@ -204,6 +208,7 @@ func Default() Config {
 		LimboPollIntervalSeconds: 5,
 		LimboAutoQuarantine:      true,
 		SarinaCwd:                "/var/lib/heimdall",
+		SarinaInstalled:          "/usr/bin/sarina",
 
 		BaselineMinSamples: 20,
 		BaselineZThreshold: 3.0,

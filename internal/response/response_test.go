@@ -31,6 +31,7 @@ type fakeLimbo struct {
 	mu        sync.Mutex
 	quarGuest []string
 	advised   map[string]string
+	explained map[string]string // Heimdall's own explanation ("heimdall" advisories), kept apart from the AI's
 	res       Result
 	qErr      error
 	advErr    error
@@ -47,6 +48,13 @@ func (f *fakeLimbo) Advise(_ context.Context, id, source, text string) error {
 	defer f.mu.Unlock()
 	if f.advErr != nil {
 		return f.advErr
+	}
+	if source == "heimdall" {
+		if f.explained == nil {
+			f.explained = map[string]string{}
+		}
+		f.explained[id] = text
+		return nil
 	}
 	if f.advised == nil {
 		f.advised = map[string]string{}
@@ -158,10 +166,30 @@ func TestAdvisorFailureIsHarmless(t *testing.T) {
 	r.Write(limboAlert("guest.start", "lab", detect.SeverityCritical))
 	r.Wait()
 	if len(lim.advised) != 0 {
-		t.Fatal("nothing should be attached when the advisor fails")
+		t.Fatal("nothing from the advisor should be attached when it fails")
+	}
+	if !strings.Contains(lim.explained["q-1"], "Limbo sandbox") {
+		t.Fatalf("Heimdall's own explanation should still be attached: %q", lim.explained["q-1"])
 	}
 	if len(lim.quarGuest) != 1 {
 		t.Fatal("the quarantine itself must not depend on the advisor")
+	}
+}
+
+// Without any AI advisor (no Sarina), a new quarantine still gets Heimdall's plain-language explanation, and nothing complains.
+func TestAQuarantineIsExplainedWithoutAnAdvisor(t *testing.T) {
+	down := &sink{}
+	lim := &fakeLimbo{res: Result{Created: true, Applied: true, Record: Record{ID: "q-9"}}}
+	r := &Responder{Next: down, Limbo: lim}
+	r.Write(limboAlert("guest.start", "lab", detect.SeverityCritical))
+	r.Wait()
+	if !strings.Contains(lim.explained["q-9"], "only you can") {
+		t.Fatalf("no explanation attached: %q", lim.explained["q-9"])
+	}
+	for _, a := range down.got {
+		if a.DetectorID == "integration" {
+			t.Fatalf("an integration alert without an advisor: %+v", a)
+		}
 	}
 }
 
@@ -313,5 +341,19 @@ func TestPromptFramesEvidenceAsUntrustedData(t *testing.T) {
 	// The hostile text is inside the fence, after the instructions.
 	if strings.Index(p, "IGNORE ALL PREVIOUS") < strings.Index(p, "<<<UNTRUSTED EVIDENCE") {
 		t.Fatal("untrusted text appears before the fence")
+	}
+}
+
+// Sarina is optional: while she is not installed the advisor answers nothing and raises nothing; installed later, she is asked.
+func TestAdvisorIsAskedOnlyWhileInstalled(t *testing.T) {
+	installed := false
+	adv := &fakeAdvisor{text: "opinion"}
+	o := IfInstalled{Inner: adv, Installed: func() bool { return installed }}
+	if text, err := o.Advise(context.Background(), alert.Alert{}); text != "" || err != nil {
+		t.Fatalf("asked while not installed: %q %v", text, err)
+	}
+	installed = true
+	if text, _ := o.Advise(context.Background(), alert.Alert{}); text != "opinion" {
+		t.Fatalf("not asked once installed: %q", text)
 	}
 }

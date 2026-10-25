@@ -15,6 +15,7 @@ import (
 
 	"github.com/Artifex-Technologies/Heimdall/internal/alert"
 	"github.com/Artifex-Technologies/Heimdall/internal/detect"
+	"github.com/Artifex-Technologies/Heimdall/internal/explain"
 )
 
 // triggerKinds are the Limbo events that mean a guest that is running (or about
@@ -442,6 +443,12 @@ func (r *Responder) quarantine(q *request) {
 	} else {
 		r.logf("guest %q quarantined (%s, level %s, queue wait %s)", guest, res.Record.ID, res.Record.Level, wait)
 	}
+	// Heimdall's own plain-language explanation goes on every new quarantine, with or without an AI advisor, so the person
+	// deciding always has words beside the evidence (fixed text, explain.For; never derived from the guest's output).
+	if res.Created {
+		r.wg.Add(1)
+		go r.explain(res.Record.ID, a)
+	}
 	// Only the first alert for an incident asks for an opinion; repeats just
 	// re-assert the hold.
 	if res.Created && r.Advisor != nil {
@@ -636,6 +643,18 @@ func (r *Responder) advise(id string, a alert.Alert) {
 	}
 	if err := r.Limbo.Advise(ctx, id, "sarina", text); err != nil {
 		r.logf("could not attach advisory to %s: %v", id, err)
+	}
+}
+
+// explain attaches Heimdall's own explanation of the alert to a new quarantine, as the advisory from "heimdall".
+func (r *Responder) explain(id string, a alert.Alert) {
+	defer r.wg.Done()
+	t := explain.For(a.DetectorID, string(a.Severity), a.Fields)
+	text := t.What + "\n" + t.Serious + "\n" + t.Done + "\n" + t.Do
+	ctx, cancel := context.WithTimeout(r.ctx, 30*time.Second)
+	defer cancel()
+	if err := r.Limbo.Advise(ctx, id, "heimdall", text); err != nil {
+		r.logf("could not attach Heimdall's explanation to %s: %v", id, err)
 	}
 }
 
