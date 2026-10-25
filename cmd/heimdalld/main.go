@@ -341,6 +341,9 @@ func cmdRun(args []string) int {
 	} else {
 		logger.Printf("watching %s (poll every %s)", cfg.AgentSessionDir, cfg.PollInterval())
 		watcher := agentsource.NewWatcher(cfg.AgentSessionDir)
+		if cfg.AgentStatePath != "" {
+			watcher = agentsource.NewWatcherWithState(cfg.AgentSessionDir, cfg.AgentStatePath)
+		}
 		watcher.Run(ctx, cfg.PollInterval(), func(err error) {
 			logger.Printf("poll error: %v", err)
 			var issue agentsource.Issue

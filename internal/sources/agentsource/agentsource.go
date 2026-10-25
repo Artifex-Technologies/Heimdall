@@ -163,16 +163,63 @@ type fileState struct {
 	messageCount int
 }
 
+// savedState is fileState on disk.
+type savedState struct {
+	ModTime  time.Time `json:"mod_time"`
+	Messages int       `json:"messages"`
+}
+
 // Watcher polls one directory of Sarina session files.
 type Watcher struct {
 	dir      string
 	seen     map[string]fileState
 	issues   []Issue
 	reported map[string]bool // code|path|modtime already reported, to avoid repeating every poll
+	// statePath keeps how far each session was read, so a restart goes on from there instead of reading (and alerting on)
+	// every old session again. Empty: kept in memory only (a one-off scan).
+	statePath string
+	saved     string
+	baseline  bool // the next poll only records where the sessions are (no events)
 }
 
 func NewWatcher(dir string) *Watcher {
 	return &Watcher{dir: dir, seen: make(map[string]fileState), reported: make(map[string]bool)}
+}
+
+// NewWatcherWithState is NewWatcher that remembers, across restarts, how far each session was read (in statePath).
+func NewWatcherWithState(dir, statePath string) *Watcher {
+	w := NewWatcher(dir)
+	w.statePath = statePath
+	var st map[string]savedState
+	if b, err := os.ReadFile(statePath); err == nil && json.Unmarshal(b, &st) == nil {
+		for k, v := range st {
+			w.seen[k] = fileState{modTime: v.ModTime, messageCount: v.Messages}
+		}
+		w.saved = string(b)
+	} else if os.IsNotExist(err) {
+		// no position kept yet (this version's first start): the sessions already there were read by the Heimdall that ran
+		// before, so reading starts after them instead of alerting on all of them again. A new install has none.
+		w.baseline = true
+	}
+	return w
+}
+
+func (w *Watcher) saveState() {
+	if w.statePath == "" {
+		return
+	}
+	st := make(map[string]savedState, len(w.seen))
+	for k, v := range w.seen {
+		st[k] = savedState{ModTime: v.modTime, Messages: v.messageCount}
+	}
+	b, err := json.Marshal(st)
+	if err != nil || string(b) == w.saved {
+		return
+	}
+	tmp := w.statePath + ".tmp"
+	if os.WriteFile(tmp, b, 0o600) == nil && os.Rename(tmp, w.statePath) == nil {
+		w.saved = string(b)
+	}
 }
 
 // Issues returns, and clears, the per-file problems found by the last Poll.
@@ -284,6 +331,11 @@ func (w *Watcher) Poll() ([]detect.Event, error) {
 
 		w.seen[key] = fileState{modTime: info.ModTime(), messageCount: len(sf.Messages)}
 	}
+	if w.baseline {
+		w.baseline = false
+		events = nil
+	}
+	w.saveState()
 	return events, nil
 }
 

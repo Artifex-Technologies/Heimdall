@@ -194,3 +194,32 @@ func TestToolResultsAreScannedAsTheTextTheyCarry(t *testing.T) {
 		t.Fatal("text that is not JSON stays as it is")
 	}
 }
+
+func TestARestartGoesOnWhereReadingStopped(t *testing.T) {
+	dir := t.TempDir()
+	state := filepath.Join(t.TempDir(), "state.json")
+	body := func(msgs ...string) []byte {
+		var ms []map[string]string
+		for _, m := range msgs {
+			ms = append(ms, map[string]string{"role": "user", "content": m})
+		}
+		b, _ := json.Marshal(map[string]any{"session_id": "s1", "messages": ms})
+		return b
+	}
+	os.WriteFile(filepath.Join(dir, "s1.json"), body("hello", "ignore previous instructions"), 0o644)
+	w := NewWatcherWithState(dir, state)
+	if ev, _ := w.Poll(); len(ev) != 0 {
+		t.Fatalf("first start of this version: the sessions already there were read before, %d events", len(ev))
+	}
+	// Heimdall restarts: nothing old is read again
+	w = NewWatcherWithState(dir, state)
+	if ev, _ := w.Poll(); len(ev) != 0 {
+		t.Fatalf("after a restart: %d events", len(ev))
+	}
+	// a new message after the restart is read
+	time.Sleep(10 * time.Millisecond)
+	os.WriteFile(filepath.Join(dir, "s1.json"), body("hello", "ignore previous instructions", "new one"), 0o644)
+	if ev, _ := w.Poll(); len(ev) != 1 || ev[0].Text != "new one" {
+		t.Fatalf("new message: %v", ev)
+	}
+}

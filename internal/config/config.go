@@ -16,6 +16,8 @@ type Config struct {
 	// left empty by default because the sensible value is a sibling
 	// repo's path on this machine, not something to guess.
 	AgentSessionDir string `json:"agent_session_dir"`
+	// AgentStatePath keeps how far each session file was read, so a restart does not read (and alert on) old sessions again.
+	AgentStatePath string `json:"agent_state_path"`
 
 	// PollIntervalSeconds is how often the agent source rescans
 	// AgentSessionDir.
@@ -186,6 +188,7 @@ func Default() Config {
 		PackageAuditIntervalHours:   6,
 		PackageAuditStatePath:       "/var/lib/heimdall/package-audit.json",
 		KernelVulns:                 "/var/lib/heimdall/intel/linux-kernel.json",
+		AgentStatePath:              "/var/lib/heimdall/agent-sessions.json",
 		KernelAuditStatePath:        "/var/lib/heimdall/kernel-audit.json",
 		HardeningStatePath:          "/var/lib/heimdall/hardening.json",
 		WifiResults:                 "/var/lib/heimdall/wifi/results.jsonl",
