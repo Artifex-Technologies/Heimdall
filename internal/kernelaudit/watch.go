@@ -19,7 +19,8 @@ type Watcher struct {
 	Running                         string // the running kernel (uname -r); empty: asked of the system
 }
 
-func running() string {
+// Running is the running kernel (uname -r).
+func Running() string {
 	var u syscall.Utsname
 	if syscall.Uname(&u) != nil {
 		return ""
@@ -41,7 +42,7 @@ func (w *Watcher) Poll() ([]detect.Event, error) {
 	}
 	run := w.Running
 	if run == "" {
-		run = running()
+		run = Running()
 	}
 	seen := map[string]bool{}
 	if b, err := os.ReadFile(w.StatePath); err == nil {

@@ -26,6 +26,17 @@ type Server struct {
 	ring     *alert.Ring
 	reviewer *governance.Reviewer
 	mux      *http.ServeMux
+	audit    func() any
+}
+
+// SetAudit serves GET /v1/audit: what is open right now (known holes in the packages and kernels, hardening gaps), computed on
+// each request from files already on the computer. Read-only like the rest.
+func (s *Server) SetAudit(f func() any) {
+	s.audit = f
+	s.mux.HandleFunc("/v1/audit", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(s.audit())
+	})
 }
 
 func NewServer(ring *alert.Ring, reviewer *governance.Reviewer) *Server {

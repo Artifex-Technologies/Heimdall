@@ -203,6 +203,7 @@ func cmdRun(args []string) int {
 	if cfg.APIAddr != "" {
 		reviewer := governance.NewReviewer(multiSink)
 		srv := api.NewServer(ring, reviewer)
+		srv.SetAudit(func() any { return audit(cfg) })
 		go func() {
 			logger.Printf("status API listening on %s", cfg.APIAddr)
 			if err := api.ListenAndServeLoopback(cfg.APIAddr, srv); err != nil {

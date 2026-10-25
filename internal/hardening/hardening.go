@@ -17,11 +17,11 @@ import (
 
 // Gap is one setting that could be safer.
 type Gap struct {
-	ID    string // stable name
-	Now   string // what it is
-	Why   string // what the hole is
-	Fix   string // the commands that close it
-	Level string // "warning" or "info"
+	ID    string `json:"id"`    // stable name
+	Now   string `json:"now"`   // what it is
+	Why   string `json:"why"`   // what the hole is
+	Fix   string `json:"fix"`   // the commands that close it
+	Level string `json:"level"` // "warning" or "info"
 }
 
 // System is where the checks read (a temporary tree in the tests).
