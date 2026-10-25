@@ -120,7 +120,7 @@ Adding a source means a new package under `internal/sources/` producing
   a real `alerts.jsonl` may contain exactly the credentials/injections it
   exists to catch.
 
-## 5. Chymaera Ecosystem — coordination protocol
+## 5. Artifex Ecosystem — coordination protocol
 
 Multiple Claude instances work across the sibling repos and can access each
 other's repositories. This file is the contract + message board for this
