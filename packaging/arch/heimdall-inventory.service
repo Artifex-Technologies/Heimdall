@@ -6,3 +6,5 @@ Type=oneshot
 ExecStart=/usr/bin/heimdalld immunity inventory
 Nice=15
 IOSchedulingClass=idle
+# the files it reads fill the page cache; keep that small (it is only read once a day)
+MemoryHigh=192M

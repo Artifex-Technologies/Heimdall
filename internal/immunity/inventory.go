@@ -97,6 +97,7 @@ func (s Store) TakeInventory(roots []string) (int, error) {
 	if err := os.MkdirAll(s.Dir, 0o750); err != nil {
 		return 0, err
 	}
+	shareWithDaemon(s.Dir, 0o750)
 	b, _ := json.Marshal(inv)
 	tmp := s.inventoryPath() + ".tmp"
 	if err := os.WriteFile(tmp, b, 0o600); err != nil {
