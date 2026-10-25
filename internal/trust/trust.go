@@ -488,3 +488,32 @@ func (j Judge) Judge(path, newHash string, deleted bool) (verdict, why string) {
 	}
 	return "unsigned", "it is not on the signed list"
 }
+
+// Unapproved lists the watched files whose content is not what was signed: changed, or new in a watched folder (not on the list).
+func (s Store) Unapproved() []string {
+	m, err := s.Load()
+	if err != nil {
+		return nil
+	}
+	w := s.Watch()
+	files := append([]string{}, w.Files...)
+	for _, d := range w.Dirs {
+		if exp, err := Expand(d); err == nil {
+			files = append(files, exp...)
+		}
+	}
+	seen := map[string]bool{}
+	var out []string
+	for _, f := range files {
+		if seen[f] {
+			continue
+		}
+		seen[f] = true
+		sum, err := HashFile(f)
+		if err == nil && !m.Matches(f, sum) {
+			out = append(out, f)
+		}
+	}
+	sort.Strings(out)
+	return out
+}

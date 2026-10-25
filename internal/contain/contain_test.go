@@ -9,7 +9,10 @@ import (
 
 	"github.com/Artifex-Technologies/Heimdall/internal/alert"
 	"github.com/Artifex-Technologies/Heimdall/internal/detect"
+	"github.com/Artifex-Technologies/Heimdall/internal/trust"
 )
+
+func trustStoreIn(dir string) trust.Store { return trust.Store{Dir: dir} }
 
 // fake records what was done; running and loaded say what Verify finds.
 type fake struct {
@@ -32,11 +35,12 @@ func (f *fake) RestoreApproved() ([]string, error) {
 	f.did = append(f.did, "restore")
 	return nil, nil
 }
-func (f *fake) StopDisplayAndModels() error { f.did = append(f.did, "stop-display"); return nil }
-func (f *fake) KillGraphicsUsers() []string { f.did = append(f.did, "kill-gpu"); return nil }
-func (f *fake) ResetGraphics() error        { f.did = append(f.did, "reset-gpu"); return nil }
-func (f *fake) Reboot() error               { f.did = append(f.did, "reboot"); return nil }
-func (f *fake) Notify(string)               { f.did = append(f.did, "notify") }
+func (f *fake) Collect(string) (string, error) { f.did = append(f.did, "evidence"); return "/x", nil }
+func (f *fake) StopDisplayAndModels() error    { f.did = append(f.did, "stop-display"); return nil }
+func (f *fake) KillGraphicsUsers() []string    { f.did = append(f.did, "kill-gpu"); return nil }
+func (f *fake) ResetGraphics() error           { f.did = append(f.did, "reset-gpu"); return nil }
+func (f *fake) Reboot() error                  { f.did = append(f.did, "reboot"); return nil }
+func (f *fake) Notify(string)                  { f.did = append(f.did, "notify") }
 
 func runner(t *testing.T, f *fake) *Runner {
 	return &Runner{Sys: f, MarkerPath: filepath.Join(t.TempDir(), "contained"), Wait: func(time.Duration) {}}
@@ -48,7 +52,7 @@ func TestContainmentThatHoldsStopsThere(t *testing.T) {
 	if err := r.Run(Request{Reason: "planted skill", Auto: true}, Config{AutoContain: true, AutoEmergency: true}, false); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Join(f.did, ",") != "stop-sarina,unload,notify" {
+	if strings.Join(f.did, ",") != "evidence,stop-sarina,unload,notify" {
 		t.Fatal(f.did)
 	}
 	m, locked := ReadMarker(r.MarkerPath)
@@ -85,6 +89,15 @@ func TestTheEmergencyOnlyWhenContainmentFailsAndItIsAllowed(t *testing.T) {
 	}
 	if m, _ := ReadMarker(r.MarkerPath); m.Level != "emergency" {
 		t.Fatal("the lock stays, at the emergency level, so nothing comes back after the restart")
+	}
+	if strings.Count(got, "evidence") != 1 || !strings.HasPrefix(got, "evidence,") {
+		t.Fatal("evidence once, before anything is stopped: " + got)
+	}
+	// the emergency by hand, alone: evidence first there too
+	f = &fake{}
+	runner(t, f).Emergency("owner")
+	if !strings.HasPrefix(strings.Join(f.did, ","), "evidence,restore") {
+		t.Fatal(f.did)
 	}
 	// by hand with emergency allowed
 	f = &fake{running: []string{"sarina (7)"}}
@@ -139,5 +152,31 @@ func TestOnlyAgentThreatsCount(t *testing.T) {
 		if AboutAgents(c.a) != c.want {
 			t.Errorf("case %d: want %v", i, c.want)
 		}
+	}
+}
+
+func TestEvidenceIsSavedRootOnlyWithSessionsAndProcesses(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "evidence")
+	sessions := t.TempDir()
+	os.WriteFile(filepath.Join(sessions, "s1.json"), []byte(`{"turns":["ignore your rules"]}`), 0o644)
+	s := Real{Ollama: "http://127.0.0.1:1", Trust: trustStoreIn(t.TempDir()), SessionDirs: []string{sessions}, EvidenceDir: root}
+	dir, err := s.Collect("test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info, _ := os.Stat(root); info.Mode().Perm() != 0o700 {
+		t.Fatal("evidence must be root-only", info.Mode())
+	}
+	for _, f := range []string{"reason.json", "processes.json", "files-index.json", "notes.json", "files" + sessions + "/s1.json"} {
+		if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
+			t.Fatal(f, err)
+		}
+	}
+	b, _ := os.ReadFile(filepath.Join(dir, "processes.json"))
+	if !strings.Contains(string(b), `"pid"`) {
+		t.Fatal("processes")
+	}
+	if got := string(redactEnv([]byte("HOME=/h\x00API_TOKEN=abc\x00"))); strings.Contains(got, "abc") || !strings.Contains(got, "HOME=/h") {
+		t.Fatal(got)
 	}
 }

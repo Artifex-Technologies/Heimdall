@@ -22,6 +22,10 @@ import (
 type Real struct {
 	Ollama string // the model server's address (default http://127.0.0.1:11434)
 	Trust  trust.Store
+	// SessionDirs: where her sessions are saved (the newest are kept as evidence).
+	SessionDirs []string
+	// EvidenceDir overrides EvidenceDir (tests).
+	EvidenceDir string
 }
 
 func (s Real) ollama() string {

@@ -7,8 +7,10 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
+	"github.com/Artifex-Technologies/Heimdall/internal/config"
 	"github.com/Artifex-Technologies/Heimdall/internal/contain"
 	"github.com/Artifex-Technologies/Heimdall/internal/trust"
 )
@@ -31,10 +33,28 @@ func cmdContain(args []string) int {
 	}
 	logger := log.New(os.Stderr, "heimdalld contain: ", 0)
 	runner := func() *contain.Runner {
-		return &contain.Runner{Sys: contain.Real{Trust: trust.Store{Dir: trust.DefaultDir}}, MarkerPath: marker,
+		// her sessions, kept as evidence: the folder Heimdall watches, and each user's own
+		var sessions []string
+		if cfg, err := config.Load("/etc/heimdall/config.json"); err == nil && cfg.AgentSessionDir != "" {
+			sessions = append(sessions, cfg.AgentSessionDir)
+		}
+		homes, _ := filepath.Glob("/home/*/.sarina/sessions")
+		sessions = append(sessions, homes...)
+		return &contain.Runner{Sys: contain.Real{Trust: trust.Store{Dir: trust.DefaultDir}, SessionDirs: sessions}, MarkerPath: marker,
 			Log: func(s string) { logger.Println(s) }}
 	}
 	switch args[0] {
+	case "evidence":
+		// the saved collections, newest first (root: they are root-only)
+		ents, err := os.ReadDir(contain.EvidenceDir)
+		if err != nil {
+			fmt.Println("no evidence saved (or not readable without sudo)")
+			return 0
+		}
+		for i := len(ents) - 1; i >= 0; i-- {
+			fmt.Println(filepath.Join(contain.EvidenceDir, ents[i].Name()))
+		}
+		return 0
 	case "status":
 		m, locked := contain.ReadMarker(marker)
 		cfg := contain.LoadConfig(contain.ConfigPath)
@@ -153,6 +173,8 @@ heimdalld contain: stop a compromised AI agent (see docs/CONTAIN.md)
                                               emergency step follows when that did not hold after a minute
   heimdalld contain emergency --yes           the last resort (root): restore the approved files, kill everything on the
                                               graphics card (games and the desktop too), reset the card, restart
+  heimdalld contain evidence                  the saved evidence folders (root): what ran, connections, logs, sessions,
+                                              copies of the unapproved files; saved before anything is stopped
   heimdalld contain release                   restore the approved files and lift the lock (root)
 `, "\n"))
 }

@@ -3,6 +3,11 @@
 When Sarina (or anything posing as her) may be compromised, Heimdall stops her in steps. Each step goes further only when the one
 before did not hold.
 
+0. **Evidence.** Before anything is stopped, Heimdall saves what is needed to learn what happened, in a root-only folder
+   (`/var/lib/heimdall-evidence/<time>/`, `sudo heimdalld contain evidence` lists them): every process (Sarina's with the SHA-256
+   of the program actually running, its memory map, open files and environment with secrets hidden), the network connections,
+   what is on the graphics card and in the model server, the last hour of the system log, copies of her behaviour files that are
+   not as approved, and her newest sessions. Capped at 256 MiB; it takes seconds.
 1. **Contain.** A lock (`/etc/heimdall/contained`) is written first, so a Sarina that is just starting refuses. Then her service,
    her timers and every Sarina process are stopped, and the AI models are unloaded from the graphics card (Ollama, `keep_alive 0`).
    The lock survives a restart: nothing comes back until the owner releases her.

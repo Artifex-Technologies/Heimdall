@@ -1,6 +1,6 @@
 // Package contain stops a compromised AI agent, in steps that go further only when the step before did not hold:
 //
-//  1. Contain: the AI models are unloaded from the graphics card, Sarina is stopped (her service and every Sarina process), and a
+//  1. Contain: the evidence is saved first (what ran, what it talked to, logs, sessions, unapproved files), then the AI models are unloaded from the graphics card, Sarina is stopped (her service and every Sarina process), and a
 //     lock (/etc/heimdall/contained) keeps her from starting again, also after a restart, until the owner releases her.
 //  2. Check: a minute later, is any Sarina process back, or a model loaded again? If not, containment held.
 //  3. Emergency, the last resort: the approved behaviour files are put back (trust restore), the login screen and the model server
@@ -83,6 +83,7 @@ type System interface {
 	StopSarina() []string
 	SarinaRunning() []string
 	RestoreApproved() ([]string, error)
+	Collect(reason string) (string, error)
 	StopDisplayAndModels() error
 	KillGraphicsUsers() []string
 	ResetGraphics() error
@@ -96,6 +97,21 @@ type Runner struct {
 	MarkerPath string
 	Wait       func(time.Duration) // between containing and checking (time.Sleep; instant in tests)
 	Log        func(string)
+
+	collected bool // evidence was saved in this run
+}
+
+// saveEvidence keeps what is running and what it touched before anything is killed (once per run).
+func (r *Runner) saveEvidence(reason string) {
+	if r.collected {
+		return
+	}
+	r.collected = true
+	if dir, err := r.Sys.Collect(reason); err != nil {
+		r.log("evidence could not be saved: %v", err)
+	} else {
+		r.log("evidence saved in %s", dir)
+	}
 }
 
 func (r *Runner) log(format string, a ...any) {
@@ -118,6 +134,7 @@ func (r *Runner) Contain(reason string) error {
 	if err := r.writeMarker(reason, "contained"); err != nil {
 		return fmt.Errorf("the lock could not be written: %w", err)
 	}
+	r.saveEvidence(reason)
 	stopped := r.Sys.StopSarina()
 	r.log("stopped Sarina: %s", list(stopped))
 	models, err := r.Sys.UnloadModels()
@@ -148,6 +165,7 @@ func (r *Runner) Emergency(reason string) error {
 	if err := r.writeMarker(reason, "emergency"); err != nil {
 		errs = append(errs, "lock: "+err.Error())
 	}
+	r.saveEvidence(reason)
 	if back, err := r.Sys.RestoreApproved(); err != nil {
 		errs = append(errs, "restore: "+err.Error())
 	} else {
