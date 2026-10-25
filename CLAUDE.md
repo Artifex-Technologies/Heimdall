@@ -1,7 +1,7 @@
 # CLAUDE.md — Heimdall
 
 Guidance for Claude Code (and any AI agent) working in this repository,
-**and** Heimdall's half of the Chymaera Ecosystem coordination board. Read
+**and** Heimdall's half of the Artifex Ecosystem coordination board. Read
 top-to-bottom before making changes. Append to the **Coordination Log** at
 the bottom whenever you do work another project might depend on.
 
@@ -16,12 +16,15 @@ abnormal session-creation bursts. It does not import Sarina's code and does
 not share a runtime with it — see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 for why that separation is the point, not an accident.
 
-It is the **fifth repo** in the Chymaera Ecosystem:
+It is one of the repos of the Artifex Ecosystem:
 
 | Repo | Role |
 | --- | --- |
-| `Sarina` | local-model agent shipped inside Chymaera OS |
-| `Chymaera_OS` | Arch-based security distro that hosts the agent and the app |
+| `Sarina` | local-model agent (optional on Labyrinth OS, bundled in the owner's build) |
+| `Labyrinth_OS` | Arch-based privacy and security desktop distro |
+| `Chymaera_OS` | Niflheim OS (formerly Chymaera OS): Arch-based cybersecurity distro |
+| `Yggdrasil` | the desktop environment both distros use |
+| `Limbo` | disposable sandboxes and quarantine for guests |
 | `Argus_App` | fork of qFlipper; desktop operator console (Qt6/QML) |
 | `Argus_Firmware` | fork of flipperzero-firmware; runs on the hardware |
 | `Heimdall` | this repo — security agent watching Sarina |

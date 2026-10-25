@@ -1,6 +1,6 @@
 # External references
 
-Every project cited as a design or technique reference for Chymaera
+Every project cited as a design or technique reference for
 Heimdall, tracked in one place so an update to any of them can be checked
 against what this repo actually did with it. `docs/ARCHITECTURE.md` tells
 the design story per phase; this file is the flat ledger underneath it —

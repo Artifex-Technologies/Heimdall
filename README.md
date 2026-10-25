@@ -1,269 +1,177 @@
 # Heimdall
 
-A security agent for [Sarina](https://github.com/Artifex-Technologies/Sarina) — the
-local-model AI coding agent shipped in Chymaera OS. Heimdall watches
-Sarina from outside its process, looking for prompt injection, leaked
-credentials, invisible-Unicode smuggling, permission escalation, and
-abnormal session-creation bursts, and raises alerts a human or another tool
-can act on.
+The security agent of the **Artifex Ecosystem**. It runs on Labyrinth OS and on Niflheim OS (formerly Chymaera OS). It
+watches [Sarina](https://github.com/Artifex-Technologies/Sarina), the local AI agent, from outside her process. It also watches
+the computer itself: its connections, Wi-Fi, packages and kernels, settings, and the files that arrive. When something is wrong
+it raises an alert a person (or another tool) can act on. When an AI agent is compromised it can stop it.
 
-Heimdall is the fifth repo in the Chymaera Ecosystem — see
-[Sarina's `docs/ECOSYSTEM.md`](https://github.com/Artifex-Technologies/Sarina/blob/main/docs/ECOSYSTEM.md)
-for the full four-repo contract this one now joins, and this repo's
-[`CLAUDE.md`](CLAUDE.md) for Heimdall's own coordination board.
+Every check runs on this computer. Heimdall itself never connects off the machine. A separate updater downloads the public
+lists it checks against (threat lists, the security trackers, IP databases), and nothing about this computer is ever sent.
+
+See Sarina's [`docs/ECOSYSTEM.md`](https://github.com/Artifex-Technologies/Sarina/blob/main/docs/ECOSYSTEM.md) for how the
+repositories fit together, and [`CLAUDE.md`](CLAUDE.md) for Heimdall's coordination board.
 
 ## Why a separate process, and why Go
 
-A security monitor that shares a runtime, a dependency tree, or a crash
-with the thing it watches is a weaker monitor. Heimdall runs as its own
-binary and talks to Sarina only through what Sarina already writes to disk
-(session files today; see the roadmap below for what's next) — no shared
-memory, no importing Sarina's code, no coupling to whatever language
-Sarina's own code is written in.
+A monitor that shares a runtime, a dependency tree or a crash with the thing it watches is a weaker monitor. Heimdall is its own
+binary, run as its own unprivileged `heimdall` user. It sees Sarina only through what she writes to disk and what she asks it
+over its loopback API. It shares no memory with her and imports none of her code.
 
-Go, specifically, for the same reason [CrowdSec](https://github.com/crowdsecurity/crowdsec)
-and [Tailscale](https://github.com/tailscale/tailscale) are Go: a single
-static binary, no interpreter/GC-heavy runtime idling between the monitor
-and the host, low CPU/RAM for something meant to run forever in the
-background. **The whole binary has zero third-party dependencies** — see
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for why that's a deliberate
-choice, not an accident of the current feature set.
+Go, for the same reason [CrowdSec](https://github.com/crowdsecurity/crowdsec) and [Tailscale](https://github.com/tailscale/tailscale)
+use it: one static binary, low CPU and memory for something that runs all the time. **The binary has no third-party
+dependencies** (see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)). **Arch Linux only**: both distributions are built on Arch.
 
-**Arch Linux only.** This targets Chymaera OS specifically, not
-"Linux and best-effort elsewhere" — see `docs/ARCHITECTURE.md`'s "Arch,
-specifically" section.
+## What it does
 
-## What's built vs. planned
-
-**Phase 1 (agent-behavior monitoring), Phase 2 (host telemetry & file
-integrity), the connection-monitoring half of Phase 3 (network exposure),
-a first slice of Phase 4 (governance), and a first slice of Phase 5 (a
-statistical baseline over host telemetry) are built.** The rest of the
-five-phase roadmap — the network mesh, the rest of governance, and the
-rest of pattern recognition, each grounded in a specific reference project
-— is in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Read it before
-starting any later phase, and see
-[`docs/REFERENCES.md`](docs/REFERENCES.md) for the tracked ledger of every
-external project cited anywhere in this repo — what it's for, what (if
-anything) got adapted from it, and where to look if it updates.
-
-### Phase 1 detectors — agent behavior
+### The AI agent's behaviour
 
 | Detector | Catches |
 | --- | --- |
-| `injection-phrase` | Text reading as an instruction override ("ignore all previous instructions", "you are now...") |
-| `credential-shape` | Private keys, cloud/API tokens, password-looking assignments |
-| `invisible-unicode` | Zero-width/bidi-override/tag Unicode characters hiding instructions from a human skim |
-| `permission-escalation` | A session reporting one or more permission denials |
-| `session-burst` | An abnormally high rate of new sessions (leaky-bucket rate limiter, CrowdSec-style) |
+| `injection-phrase` | Text that reads as an instruction override ("ignore all previous instructions", "you are now...") |
+| `credential-shape` | Private keys, cloud and API tokens, password-looking assignments |
+| `invisible-unicode` | Zero-width, bidi-override and tag characters that hide instructions from a human reader |
+| `permission-escalation` | A session reporting permission denials (critical from 3) |
+| `session-burst` | An abnormally high rate of new sessions (leaky bucket, CrowdSec-style) |
 
-The injection/credential/invisible-unicode patterns are ported from
-Sarina's own `sarina/memory_security.py` — the same threat model Sarina
-applies to its curated-memory writes, applied here from outside to
-everything a session transcript contains.
+**Governance.** `POST /v1/review` runs the same injection, credential and invisible-Unicode checks on text Sarina is about to
+store, and answers allow or deny. Sarina asks when `HEIMDALL_REVIEW_URL` is set. It fails open when Heimdall is not there; an
+actual deny is respected. Every review is logged as an alert.
 
-### Phase 2 detectors — host
+### Trust: the AI's behaviour files, signed by the owner ([docs/TRUST.md](docs/TRUST.md))
 
-| Detector | Catches |
-| --- | --- |
-| `file-integrity` | A watched file (`fim_paths`) changed or was deleted — cheap mtime+size precheck before hashing, Wazuh-syscheck-style; baselines persist to disk so a restart or a one-shot `scan` doesn't silently reset them |
-| `resource-pressure` | Host memory or load average crossed a threshold (edge-triggered, alerts once per crossing) |
+Sarina's rules, tool connections, skills and agent profiles are plain files. Most are writable by the user's account, so any
+program running as the user could change how she behaves. The owner keeps a list of the approved content, signed with a key only
+root can read. Heimdall then raises a critical alert for any change, planted file or deletion that does not match (an approved
+change is info). In enforce mode Sarina also refuses unapproved files. Every signed version is kept as a known-good copy, which
+`heimdalld trust restore` puts back.
 
-Neither Phase 2 source is enabled unless configured: `fim_paths` must be
-set for file integrity, though host telemetry runs by default on a
-supported platform (self-disables gracefully where `/proc` doesn't exist).
+**Off by default** (`heimdalld trust mode off`), while Sarina and Heimdall are still being trained.
 
-### Phase 3 detector — network exposure
+### Containment: stopping a compromised AI agent ([docs/CONTAIN.md](docs/CONTAIN.md))
 
-| Detector | Catches |
-| --- | --- |
-| `network-exposure` | An ecosystem port (`net_ports`, defaults to the registry: 8765, 8899, 44700, 8930) is bound or connected from somewhere other than loopback |
+Each step goes further only when the step before did not hold:
 
-Reads `/proc/net/tcp{,6}` connection state — the same source `ss`/`netstat`
-read from — not packet capture. Runs by default on a supported platform,
-same self-disabling behavior as telemetry.
+0. **Evidence first.** Before anything is stopped, Heimdall saves what it needs to learn what happened, in a root-only folder:
+   - every process (Sarina's with the hash of the program that is really running);
+   - connections, the graphics card and the loaded models;
+   - the last hour of logs and her newest sessions;
+   - copies of the behaviour files that are not as approved.
+1. **Contain.** A lock (`/etc/heimdall/contained`) keeps her from starting, also after a restart. Then her service and processes
+   are stopped and the models are unloaded from the graphics card.
+2. **Check.** A minute later: is anything back?
+3. **Emergency, the last resort.** The approved files are restored. The login screen, the model server and everything on the
+   graphics card are stopped. The card is reset and the computer restarts. The lock stays.
 
-### Where an address belongs, and who knocks from outside
+The owner releases her in Settings > Security ("Restore and release", password asked) or with `sudo heimdalld contain release`.
+The daemon only writes a request; a root unit (`heimdall-contain.path`) acts on it. **Automatic containment and the automatic
+emergency are both off** until `/etc/heimdall/contain.json` switches them on.
 
-| Detector | Catches |
-| --- | --- |
-| `inbound` | Failed SSH logins from one address (5 in 10 min: a real address, the alert carries the `ufw` command to block it), a port scan (10 ports in 10 min: the firewall already stopped it, and the address may be forged, so no block is suggested), or one address the firewall blocked 20 times (info) |
+### Quarantine and immunity ([docs/IMMUNITY.md](docs/IMMUNITY.md))
 
-Every remote address in an alert (`connection-watch` and `inbound`) is named with its
-country and network (autonomous system), read from an **offline** IP database on this
-computer (`internal/ipintel`, a small reader of the MaxMind DB format written from its
-specification). No address is ever looked up online. `heimdall-intel-update` (monthly
-timer) downloads the free IPinfo Lite database when `/etc/heimdall/ipinfo-token` holds
-a token, otherwise DB-IP Lite, and `heimdalld ipdb-check` validates each file before it
-replaces the one in use. `heimdalld origin IP...` answers by hand.
+ClamAV is the reference: the signatures the world shares. Immunity is what Heimdall learns on top of it.
 
-The firewall watch reads the journal (packets ufw blocked, failed SSH logins); it needs
-the `systemd-journal` group (`heimdall-firewall.conf.example` drop-in) and turns itself
-off otherwise. Heimdall never changes the firewall: it suggests the command.
+- **Held.** A suspicious file is moved into a root-only quarantine and ClamAV is asked at once. If ClamAV knows it, it is
+  malware and stays held. If not, it is held and the owner is told. Heimdall also writes a report by reading the file, never
+  running it: its kind, entropy, its ELF header for a program, the strings that stand out, and the first lines of a text file.
+  Sarina reads the report and gives the owner her analysis.
+- **Judged.** The owner can **Release** it (put back exactly as it was) or mark **It's malware**. Heimdall releases a file by
+  itself only on proof that it was there before: the owner's signature, or its root-only daily **inventory** of the programs
+  outside the packages, which must have seen exactly this file a day or more earlier. A request to release (from Sarina when a
+  program that was there before breaks, or from anyone) only names the file; root checks the proof.
+- **Learned.** Malware ClamAV does not know gets a fingerprint in `/var/lib/clamav/heimdall-immunity.hsb`, which ClamAV loads
+  with its own database. Every scan from then on catches any copy of it.
 
-IP data: [IPinfo](https://ipinfo.io) Lite (CC BY-SA 4.0) or [DB-IP](https://db-ip.com) Lite (CC BY 4.0).
+Never moved: anything under `/usr`, `/boot`, `/proc`, `/sys`, `/dev` or `/run`, and any file an installed package owns.
+`heimdalld scan-files` scans folders with ClamAV for the desktop (the downloads watch, Settings' scan).
 
-### Known-bad addresses and vulnerable packages
-
-| Detector | Catches |
-| --- | --- |
-| `connection-watch` | (also) any new connection to an address on a threat list: Spamhaus DROP and DROPv6 (hijacked or criminal networks), FireHOL Level 1 (botnet, malware and attack sources), Emerging Threats compromised hosts. Critical, even on the learning run, with the `ufw` command to cut it off |
-| `inbound` | (also) names the threat lists a knocking address is on |
-| `package-vulnerability` | an installed package with a known vulnerability in Arch's security tracker: critical for critical ones, with the fixed version and the update command. Unfixed entries count only for the very version known to be affected (the tracker keeps stale entries open for years) |
-
-All of it is checked offline against files `heimdall-intel-update` downloads daily into
-`/var/lib/heimdall/intel` (each validated by `heimdalld intel-check` first; a failed source
-keeps its last good copy). Private and reserved ranges in a list are ignored, so the
-owner's own network is never flagged. Package versions are compared exactly as pacman does
-(`internal/pkgaudit`), so a CachyOS rebuild of a fixed version counts as fixed.
-
-### Is this Wi-Fi network safe?
-
-Each time a Wi-Fi connection comes up, NetworkManager's dispatcher starts `heimdall-wifi-check`
-(as the heimdall user, sandboxed). It only reads what NetworkManager and the kernel already
-know, looks up a few well-known names and opens a few well-known pages, then compares the
-answers with what they must be. It never scans or touches other devices. Checks: encryption
-(open, WEP), an evil twin (the same name with different security nearby), a sign-in page,
-another device answering for the router's address (ARP spoofing) or a changed router,
-DNS answers outside a well-known site's own network (spoofing) or invented for names that do
-not exist, HTTPS certificates this computer does not trust (someone in the middle), plain
-pages changed on the way (injection), devices not kept apart, and the firewall. The verdict
-(safe / caution / unsafe) becomes a `wifi-safety` alert (critical when unsafe), and a
-network-name-and-verdict summary in `/run/heimdall-wifi/last.json` lets the desktop notify.
-
-### Every finding is checked once more (verdicts)
-
-Before a finding becomes an alert, `internal/verify` checks it separately from the
-detector that raised it and tries to disprove it. The alert's fields then carry
-`verdict` and `verdict_reason`:
-
-- `confirmed`: the check found what makes it real (a completed connection; a value with a
-  real secret's shape and randomness)
-- `needs_validation`: possibly real, with the open fact named (a forgeable address; text in
-  the person's own message rather than a tool result)
-- `rejected`: disproved (a documentation example key such as AWS's `AKIAIOSFODNN7EXAMPLE`,
-  a placeholder). The alert is kept, drops to info and says why.
-
-A verdict never raises a severity. Idea from cloudflare/security-audit-skill's validation
-phase (the checker is never the finder); no code taken.
-
-### Phase 4 — governance (first slice: memory writes)
-
-`POST /v1/review` runs Heimdall's own copy of the `injection-phrase`,
-`credential-shape`, and `invisible-unicode` detectors against text a
-sibling process is about to persist, and returns `{"decision":
-"allow"|"deny", "reasons": [...]}`. Sarina's `sarina/memory_security.py`
-consults it (opt-in via `SENTRY_REVIEW_URL`) after its own in-process
-checks pass, folding a deny into the same result its own checks already
-produce. Every consultation is logged as an alert regardless of outcome.
-Fails open if Heimdall isn't configured or isn't reachable; an actual `deny`
-is respected, not merely logged. See
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)'s Phase 4 section for why
-running this in a separate process is the actual point, not a formality.
-
-### Phase 5 detector — baseline drift
+### Known holes and safer settings ([docs/AUDITS.md](docs/AUDITS.md))
 
 | Detector | Catches |
 | --- | --- |
-| `baseline-drift` | A `host_telemetry` value (`mem_percent`, `load_per_cpu`) that's a statistical outlier against *this host's own* learned normal range — not a fixed percentage, a learned one (`baseline_z_threshold` standard deviations, default 3.0, after `baseline_min_samples` observations, default 20) |
+| `package-vulnerability` | An installed package version with a known vulnerability (Arch's security tracker, daily), with the fixed version and the update command |
+| `kernel-vulnerability` | An installed kernel with known holes that a newer kernel fixes (the kernel CVE team's records from osv.dev, and CISA's list of vulnerabilities exploited in the wild, weekly). Critical only for an exploited hole in the running kernel |
+| `hardening` | A setting that leaves a known kind of hole open where closing it costs nothing noticeable (a world-writable `/dev/kvm`, nested KVM, a few kernel settings), with the exact fix. Nothing is changed by itself |
 
-Runs on the same telemetry Phase 2 already collects — no new source. This
-is honest streaming statistics (Welford's algorithm, `internal/detect/stats.go`),
-not a model — see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)'s Phase 5
-section for why that's a deliberate, accurately-described scope rather
-than an overclaimed "ML" feature.
+`GET /v1/audit` answers what is open right now. Sarina's security advisor reads it and proposes the fixes to the owner in
+order. `sudo heimdalld kernel-check` lists the holes per kernel.
 
-## Quick start
+### The computer and its network
 
-Requires Go 1.21+ to build; the built binary has no runtime dependencies.
+| Detector | Catches |
+| --- | --- |
+| `file-integrity` | A watched file (`fim_paths`, and the agents' files when trust is on) changed, created or deleted |
+| `resource-pressure` | Memory or load crossed a threshold |
+| `baseline-drift` | A telemetry value that is an outlier against this computer's own learned normal range (streaming statistics, not a model) |
+| `network-exposure` | An ecosystem port (8765, 8899, 44700, 8930) bound or reached from somewhere other than loopback |
+| `connection-watch` | Each program's first connection to a new destination, and any connection to an address on a threat list (Spamhaus DROP, FireHOL Level 1, Emerging Threats): critical, with the `ufw` command to cut it off |
+| `inbound` | Failed SSH logins from one address, port scans, an address the firewall keeps blocking |
+| `wifi-safety` | The verdict on each Wi-Fi network joined: encryption, evil twins, sign-in pages, ARP and DNS spoofing, untrusted certificates, injected pages |
 
-```bash
-go build -o heimdalld ./cmd/heimdalld
-```
+- **Where an address belongs.** Every remote address is named with its country and network from an offline IP database
+  (IPinfo Lite or DB-IP Lite). Nothing is looked up online.
+- **Wi-Fi guard.** `heimdall-wifi-guard` sets up trusted networks (remembered with their router's hardware address) and a VPN
+  with a kill switch on every other network. It keeps the computer quiet on untrusted networks.
+- **DNS block list.** NetworkManager's local DNS cache refuses malware, phishing and scam domains, updated daily.
+- **Limbo.** Heimdall reads Limbo's audit log. With `limbo_auto_quarantine`, it restricts a guest that misbehaves and attaches
+  Sarina's advisory. It can tighten a guest but never loosen one.
+- **Verdicts.** Before a finding becomes an alert, `internal/verify` tries to disprove it separately from the detector:
+  `confirmed`, `needs_validation` or `rejected` (a documentation example key drops to info). A verdict never raises a severity.
+- **Maintenance windows.** `heimdalld maintenance on --for 2h --reason ...` (root, at most 4 h) turns routine alerts into info
+  while the owner works on the system.
 
-Write a config pointing at a Sarina workspace's session directory:
+## Commands
 
-```json
-{
-  "agent_session_dir": "/path/to/Sarina/.port_sessions",
-  "alert_log_path": "/var/lib/heimdall/alerts.jsonl",
-  "api_addr": "127.0.0.1:8930"
-}
-```
+| Command | What it does |
+| --- | --- |
+| `heimdalld run --config PATH` | The daemon (what `heimdall.service` starts) |
+| `heimdalld scan --config PATH` | Scan once, print findings, exit 1 on any |
+| `heimdalld scan-files [--state F] PATH...` | ClamAV scan of files or folders, as the calling user |
+| `heimdalld trust init\|status\|mode\|sign\|forget\|restore\|verify\|watch` | The signed list of the agents' behaviour files |
+| `heimdalld contain status\|now\|emergency\|evidence\|release` | Containment |
+| `heimdalld immunity hold\|release\|release-if-proven\|add\|confirm\|list\|forget\|check\|inventory` | Quarantine and immunity |
+| `heimdalld kernel-check [--all]` | Known holes per installed kernel |
+| `heimdalld maintenance on\|off\|status` | Maintenance windows |
+| `heimdalld origin IP...` | Where addresses belong (offline) |
+| `heimdalld intel-check`, `heimdalld ipdb-check` | Validate downloaded lists before they are used |
 
-Every field is optional except `agent_session_dir`; see
-[`internal/config/config.go`](internal/config/config.go) for defaults.
+Most changes need root (sudo): the keys, the samples and the locks are root's.
 
-```bash
-./heimdalld scan --config config.json   # one-shot: print findings, exit 1 if any
-./heimdalld run  --config config.json   # foreground daemon, polls until killed
-./heimdalld version
-```
+## The local API
 
-`scan` is the one to run by hand or from cron/CI — it prints one JSON alert
-per line and exits non-zero on any finding, the same convention Sarina's
-own `desktop-audit` uses. `run` is what the systemd unit below starts.
-
-### Status & governance API
-
-When `api_addr` is set, `run` serves a **loopback-only** HTTP API.
-`/healthz` and `/v1/alerts` are read-only; `/v1/review` is the one
-exception — a sibling process's behavior may depend on its response:
+Loopback only (`api_addr`, default `127.0.0.1:8930`); it refuses to bind anything else.
 
 | Endpoint | Description |
 | --- | --- |
-| `GET /healthz` | liveness check |
-| `GET /v1/alerts?n=50` | the `n` most recent alerts, newest first (default 50, max 500) |
-| `POST /v1/review` | `{"kind","session_id","text"}` → `{"decision":"allow"\|"deny","reasons":[...]}` — see Phase 4 above |
+| `GET /healthz` | liveness |
+| `GET /v1/alerts?n=50` | the most recent alerts, newest first (max 500) |
+| `GET /v1/audit` | what is open now: package and kernel holes, hardening gaps |
+| `GET /v1/quarantine` | what Heimdall holds, with each file's report |
+| `POST /v1/review` | governance: `{"kind","session_id","text"}` → `{"decision":"allow"\|"deny","reasons":[...]}` |
 
-## Arch Linux packaging
-
-`packaging/install.sh DESTDIR` installs everything (the daemon, the updaters, the Wi-Fi check and guard, the DNS block list,
-their units and NetworkManager hooks); every package recipe calls it, so the list of files is kept in one place. On a fresh
-install a pacman hook switches on the service, its timers and the Wi-Fi notifications (never again on upgrades).
-
-`packaging/arch/` mirrors Sarina's own `packaging/arch/` layout: a
-`PKGBUILD` (builds via `go build`, no CGO), a systemd unit (sandboxed —
-`ProtectSystem=strict`, `ProtectHome=read-only` since Heimdall only ever
-reads a Sarina workspace, never writes to it), a `sysusers.d` snippet for
-the unprivileged service user, and a config example.
+## Building and packaging
 
 ```bash
-cd packaging/arch
-makepkg -si
-sudo systemctl enable --now heimdall
+go build -o heimdalld ./cmd/heimdalld
+go test ./... && go vet ./...
 ```
 
-**Cross-user read access.** The systemd unit runs as its own
-`heimdall` user, which needs read access to whatever user's Sarina
-workspace it's pointed at — grant it via a shared group on the
-`.port_sessions` directory (or its parent) rather than widening the
-service's sandbox. Not yet automated; a packaging TODO once there's a real
-multi-user deployment to design against.
+The tests are offline and use only the standard library: no Sarina, no model, no network.
 
-## Testing
+`packaging/install.sh DESTDIR` installs everything (the daemon, the updaters, the Wi-Fi check and guard, the DNS block list, the
+containment, request and inventory units, and the docs). Every package recipe calls it (`packaging/arch/PKGBUILD`, Labyrinth's
+and Niflheim's `heimdall-git`), so the file list lives in one place. On a fresh install a pacman hook switches on the service,
+its timers and the path units, never again on upgrades.
 
-```bash
-go test ./...
-go vet ./...
-```
+The service is sandboxed (`ProtectSystem=strict`, `ProtectHome=read-only`). The optional connection-watch drop-in
+(`heimdall-connwatch.conf.example`) gives it read-only `CAP_SYS_PTRACE` and `CAP_DAC_READ_SEARCH`, to see which program owns a
+connection and to read other users' files. See [`internal/config/config.go`](internal/config/config.go) for every setting and its
+default.
 
-Every test is offline and stdlib-only — no Sarina process, no model
-backend, no network. `internal/sources/agentsource`'s tests build fixture
-session files with the exact schema a real Sarina `.port_sessions/*.json`
-file has (verified against a live Sarina checkout while building this).
+## Design and references
 
-## Disclaimer
-
-Heimdall reads Sarina's on-disk session files and, when `api_addr` is
-configured, answers governance consultations Sarina's own code may send it
-(Phase 4, opt-in via `SENTRY_REVIEW_URL` on Sarina's side). Neither
-direction imports the other's code — Heimdall doesn't import Sarina's
-Python, and Sarina's `sentry_governance.py` only ever speaks HTTP to it.
-Heimdall is not maintained by the Sarina project, and both the session-file
-shape it reads and the `/v1/review` contract are recorded as **proposed,
-not yet frozen**, in this repo's `CLAUDE.md` Coordination Log — see there
-before relying on either staying exactly this shape.
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) covers the design phase by phase.
+[`docs/REFERENCES.md`](docs/REFERENCES.md) is the ledger of every external project cited and what was taken from it.
+[`docs/INTEGRATION-FAILURES.md`](docs/INTEGRATION-FAILURES.md) is the runbook for when Heimdall and Sarina do not reach each other.
 
 ## License
 

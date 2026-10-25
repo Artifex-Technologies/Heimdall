@@ -172,7 +172,7 @@ structured, protocol-aware connection logs rather than raw packet dumps —
 the reference for *how* to observe, not a suggestion to embed a full
 protocol-analysis engine) and [Tailscale](https://github.com/tailscale/tailscale)
 (WireGuard mesh with identity-based ACLs — the reference for how several
-Chymaera OS machines' Heimdall instances might one day share alerts
+Artifex Ecosystem machines' Heimdall instances might one day share alerts
 directly with each other over a private mesh, the way CrowdSec's central
 API lets community signals cross instances).
 
@@ -381,7 +381,7 @@ there's a clean per-session aggregate signal to track it against (see
 
 ## Arch, specifically
 
-This project targets Arch Linux (Chymaera OS, specifically) as its only
+This project targets Arch Linux (Labyrinth OS and Niflheim OS, formerly Chymaera OS) as its only
 supported platform — not "Linux and best-effort elsewhere." That
 simplifies Phase 2/3 meaningfully: no cross-platform `/proc` abstraction to
 write, no Windows-vs-Linux branch to test (contrast Sarina's own
@@ -389,7 +389,7 @@ Linux-is-reference/Windows-is-best-effort split, which exists only because
 Sarina itself is cross-platform). `packaging/arch/` is the maintained
 source of truth for the systemd unit and package metadata, mirroring
 Sarina's own `packaging/arch/` layout so the distro's build tooling can
-treat every Chymaera repo's Arch packaging the same way.
+treat every Artifex repo's Arch packaging the same way.
 
 ## Connection log (per process, no packet capture)
 
