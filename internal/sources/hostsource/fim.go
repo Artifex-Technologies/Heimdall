@@ -6,7 +6,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"io"
+	"io/fs"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Artifex-Technologies/Heimdall/internal/detect"
@@ -36,6 +39,72 @@ type FIMWatcher struct {
 	paths     []string
 	statePath string
 	baselines map[string]FileBaseline
+	loaded    map[string]FileBaseline // the saved state, until keepLoaded sorts it
+	// Folders watched as a whole (the AI agents' skills and agents folders): a file that appears in one after its first look is
+	// reported too (file_created), since that is how a planted skill arrives.
+	dirs []string
+	// graced paths (the agents' behaviour files, see WithTrust) are reported only after grace has passed, so a change approved by
+	// signing it right after making it is judged against the signed list, not raised in the minute in between.
+	graced  map[string]bool
+	grace   time.Duration
+	pending map[string]pendingChange
+	now     func() time.Time
+}
+
+type pendingChange struct {
+	seen  time.Time
+	event detect.Event
+}
+
+// dirMarker is the state entry that says a folder has had its first (silent) look.
+const dirMarker = "dir:"
+
+// WithTrust adds the agents' behaviour files and folders (trust.WatchList) to the watch, judged after grace.
+func (w *FIMWatcher) WithTrust(files, dirs []string, grace time.Duration) *FIMWatcher {
+	w.graced = map[string]bool{}
+	for _, f := range files {
+		w.paths = append(w.paths, f)
+		w.graced[f] = true
+	}
+	w.dirs = append(w.dirs, dirs...)
+	w.grace = grace
+	w.keepLoaded()
+	return w
+}
+
+func (w *FIMWatcher) clock() time.Time {
+	if w.now != nil {
+		return w.now()
+	}
+	return time.Now()
+}
+
+func (w *FIMWatcher) underDir(path string) bool {
+	for _, d := range w.dirs {
+		if strings.HasPrefix(path, d+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
+}
+
+// dirFiles lists the regular files under the watched folders (symbolic links are not followed; at most 5000 a folder).
+func (w *FIMWatcher) dirFiles() map[string]bool {
+	out := map[string]bool{}
+	for _, d := range w.dirs {
+		n := 0
+		_ = filepath.WalkDir(d, func(path string, e fs.DirEntry, err error) error {
+			if err != nil {
+				return nil
+			}
+			if e.Type().IsRegular() && n < 5000 {
+				out[path] = true
+				n++
+			}
+			return nil
+		})
+	}
+	return out
 }
 
 // NewFIMWatcher holds baselines in memory only -- state is lost when the
@@ -69,16 +138,29 @@ func NewFIMWatcherWithState(paths []string, statePath string) *FIMWatcher {
 	if json.Unmarshal(raw, &loaded) != nil {
 		return w
 	}
-	watched := make(map[string]bool, len(paths))
-	for _, p := range paths {
+	w.loaded = loaded
+	w.keepLoaded()
+	return w
+}
+
+// keepLoaded drops saved entries for paths no longer watched (a file list, a folder, a folder's marker). Called once the watch is
+// complete (WithTrust may add to it after the constructor).
+func (w *FIMWatcher) keepLoaded() {
+	if w.loaded == nil {
+		return
+	}
+	watched := make(map[string]bool, len(w.paths))
+	for _, p := range w.paths {
 		watched[p] = true
 	}
-	for path, b := range loaded {
-		if watched[path] { // drop entries for paths no longer configured
+	for _, d := range w.dirs {
+		watched[dirMarker+d] = true
+	}
+	for path, b := range w.loaded {
+		if watched[path] || w.underDir(path) {
 			w.baselines[path] = b
 		}
 	}
-	return w
 }
 
 // Poll checks every configured path once. A path seen for the first time
@@ -90,15 +172,76 @@ func NewFIMWatcherWithState(paths []string, statePath string) *FIMWatcher {
 // state-file save failure -- Poll's own detection work has already
 // completed and its Events are valid either way.
 func (w *FIMWatcher) Poll() ([]detect.Event, error) {
+	w.keepLoaded()
+	w.loaded = nil
 	var events []detect.Event
-	for _, path := range w.paths {
+	emit := func(path string, e detect.Event) {
+		if w.graced[path] || w.underDir(path) {
+			if w.pending == nil {
+				w.pending = map[string]pendingChange{}
+			}
+			if _, already := w.pending[path]; !already {
+				w.pending[path] = pendingChange{seen: w.clock(), event: e}
+			}
+			return
+		}
+		events = append(events, e)
+	}
+	// the folders: files that appeared since the folder's first look, and files that went away
+	inDirs := w.dirFiles()
+	for _, d := range w.dirs {
+		if _, known := w.baselines[dirMarker+d]; !known {
+			// first look at this folder: everything in it is the baseline, quietly
+			for f := range inDirs {
+				if strings.HasPrefix(f, d+string(filepath.Separator)) {
+					if info, err := os.Stat(f); err == nil {
+						if h, err := hashFile(f); err == nil {
+							w.baselines[f] = FileBaseline{ModTime: info.ModTime(), Size: info.Size(), Hash: h}
+						}
+					}
+				}
+			}
+			w.baselines[dirMarker+d] = FileBaseline{Hash: "dir"}
+		}
+	}
+	for path := range inDirs {
+		if _, known := w.baselines[path]; known {
+			continue
+		}
+		info, err := os.Stat(path)
+		if err != nil {
+			continue
+		}
+		hash, err := hashFile(path)
+		if err != nil {
+			continue
+		}
+		w.baselines[path] = FileBaseline{ModTime: info.ModTime(), Size: info.Size(), Hash: hash}
+		emit(path, detect.Event{Source: "host-fim", Time: info.ModTime(), Kind: "file_created", Text: path,
+			Fields: map[string]string{"path": path, "new_hash": hash}})
+	}
+	for path, prior := range w.baselines {
+		if w.underDir(path) && !inDirs[path] {
+			if _, err := os.Lstat(path); os.IsNotExist(err) {
+				emit(path, detect.Event{Source: "host-fim", Time: w.clock(), Kind: "file_deleted", Text: path,
+					Fields: map[string]string{"path": path, "prior_hash": prior.Hash}})
+				delete(w.baselines, path)
+			}
+		}
+	}
+	var paths []string
+	paths = append(paths, w.paths...)
+	for p := range inDirs {
+		paths = append(paths, p)
+	}
+	for _, path := range paths {
 		info, err := os.Stat(path)
 		if err != nil {
 			if os.IsNotExist(err) {
 				if prior, known := w.baselines[path]; known {
-					events = append(events, detect.Event{
+					emit(path, detect.Event{
 						Source: "host-fim",
-						Time:   time.Now(),
+						Time:   w.clock(),
 						Kind:   "file_deleted",
 						Text:   path,
 						Fields: map[string]string{"path": path, "prior_hash": prior.Hash},
@@ -125,7 +268,7 @@ func (w *FIMWatcher) Poll() ([]detect.Event, error) {
 			continue
 		}
 		if hash != prior.Hash {
-			events = append(events, detect.Event{
+			emit(path, detect.Event{
 				Source: "host-fim",
 				Time:   info.ModTime(),
 				Kind:   "file_modified",
@@ -137,6 +280,23 @@ func (w *FIMWatcher) Poll() ([]detect.Event, error) {
 		// moved mtime but not size/content) so the cheap precheck above
 		// stays accurate against the file's current mtime.
 		w.baselines[path] = next
+	}
+	// changes held for their grace period: reported now, with the content as it is now (it may have been signed meanwhile)
+	for path, p := range w.pending {
+		if w.clock().Sub(p.seen) < w.grace {
+			continue
+		}
+		e := p.event
+		if e.Kind != "file_deleted" {
+			if h, err := hashFile(path); err == nil {
+				e.Fields["new_hash"] = h
+			} else if os.IsNotExist(err) {
+				e.Kind = "file_deleted"
+				delete(e.Fields, "new_hash")
+			}
+		}
+		events = append(events, e)
+		delete(w.pending, path)
 	}
 	return events, w.save()
 }

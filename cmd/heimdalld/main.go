@@ -35,6 +35,7 @@ import (
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/limbosource"
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/netsource"
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/wifisource"
+	"github.com/Artifex-Technologies/Heimdall/internal/trust"
 )
 
 const version = "0.1.0"
@@ -54,6 +55,8 @@ func main() {
 		os.Exit(cmdScanFiles(os.Args[2:]))
 	case "maintenance":
 		os.Exit(cmdMaintenance(os.Args[2:]))
+	case "trust":
+		os.Exit(cmdTrust(os.Args[2:]))
 	case "origin":
 		os.Exit(cmdOrigin(os.Args[2:]))
 	case "intel-check":
@@ -89,6 +92,8 @@ Usage:
                                     Scan files for malware with ClamAV (must be installed). Prints one line per finding; exit 1 if
                                     anything was found, 2 if ClamAV is missing or a file could not be scanned. Runs as the calling
                                     user; with --state, unchanged files are skipped next time.
+  heimdalld trust init|status|mode|sign|forget|restore|verify|watch ...
+                                    The signed list of files that decide how the AI agents behave (heimdalld trust for details).
   heimdalld version                 Print the version and exit.
 
 See README.md and docs/ARCHITECTURE.md for configuration and design.
@@ -111,7 +116,7 @@ func newDetectors(cfg config.Config) []detect.Detector {
 		detect.NewUnicodeDetector(),
 		detect.NewEscalationDetector(),
 		detect.NewBurstDetector(cfg.BurstWindow(), cfg.BurstThreshold, cfg.BurstCooldown()),
-		detect.NewPackageAwareFileIntegrityDetector(pkgverify.New(cfg.PacmanDB)),
+		detect.NewPackageAwareFileIntegrityDetector(pkgverify.New(cfg.PacmanDB)).WithTrust(trust.Judge{Store: trust.Store{Dir: trust.DefaultDir}}),
 		detect.NewMaintenanceDetector(),
 		detect.NewResourcePressureDetector(cfg.ResourceMemThresholdPercent, cfg.ResourceLoadThresholdPerCPU),
 		detect.NewNetworkExposureDetector(),
@@ -198,9 +203,17 @@ func cmdRun(args []string) int {
 		eng.Handle,
 	)
 
-	if len(cfg.FIMPaths) > 0 {
+	// with trust on, the AI agents' behaviour files and folders are watched too (their changes judged against the signed list after a
+	// short grace, so a change signed right after it was made stays quiet)
+	ts := trust.Store{Dir: trust.DefaultDir}
+	tw := trust.WatchList{}
+	if ts.Mode() != trust.Off {
+		tw = ts.Watch()
+		logger.Printf("trust %s: watching %d behaviour file(s) and %d folder(s) of the AI agents", ts.Mode(), len(tw.Files), len(tw.Dirs))
+	}
+	if len(cfg.FIMPaths) > 0 || len(tw.Files)+len(tw.Dirs) > 0 {
 		logger.Printf("watching %d file(s) for integrity (poll every %s)", len(cfg.FIMPaths), cfg.FIMPollInterval())
-		fim := hostsource.NewFIMWatcherWithState(cfg.FIMPaths, cfg.FIMStatePath)
+		fim := hostsource.NewFIMWatcherWithState(cfg.FIMPaths, cfg.FIMStatePath).WithTrust(tw.Files, tw.Dirs, 2*time.Minute)
 		go fim.Run(ctx, cfg.FIMPollInterval(), func(err error) {
 			logger.Printf("fim state save error: %v", err)
 		}, eng.Handle)

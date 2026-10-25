@@ -10,6 +10,19 @@ import "fmt"
 // precheck before ever emitting one.
 type FileIntegrityDetector struct {
 	verify PackageVerifier
+	trust  TrustJudge
+}
+
+// TrustJudge says whether a change to one of the AI agents' behaviour files was approved (signed by the owner, package trust):
+// "approved", "unsigned" (with why), or "" when it has no say (trust off, or not one of its files).
+type TrustJudge interface {
+	Judge(path, newHash string, deleted bool) (verdict, why string)
+}
+
+// WithTrust makes the detector ask the signed list of approved files first.
+func (d *FileIntegrityDetector) WithTrust(t TrustJudge) *FileIntegrityDetector {
+	d.trust = t
+	return d
 }
 
 // PackageVerifier tells whether a package manager owns a file and what SHA-256 it recorded for it.
@@ -29,7 +42,20 @@ func NewPackageAwareFileIntegrityDetector(v PackageVerifier) *FileIntegrityDetec
 func (d *FileIntegrityDetector) ID() string { return "file-integrity" }
 
 func (d *FileIntegrityDetector) Inspect(e Event) []Finding {
+	if d.trust != nil && (e.Kind == "file_modified" || e.Kind == "file_created" || e.Kind == "file_deleted") {
+		switch verdict, why := d.trust.Judge(e.Fields["path"], e.Fields["new_hash"], e.Kind == "file_deleted"); verdict {
+		case "approved":
+			return []Finding{{DetectorID: d.ID(), Severity: SeverityInfo,
+				Summary: fmt.Sprintf("%s: %s, approved (it matches the signed list)", e.Fields["path"], verb(e.Kind)), Event: e}}
+		case "unsigned":
+			return []Finding{{DetectorID: d.ID(), Severity: SeverityCritical,
+				Summary: fmt.Sprintf("%s: %s without approval (%s); it decides how an AI agent behaves", e.Fields["path"], verb(e.Kind), why), Event: e}}
+		}
+	}
 	switch e.Kind {
+	case "file_created":
+		return []Finding{{DetectorID: d.ID(), Severity: SeverityCritical,
+			Summary: fmt.Sprintf("a new file appeared in a watched folder: %s", e.Fields["path"]), Event: e}}
 	case "file_modified":
 		if d.verify != nil {
 			if pkg, sha, owned := d.verify.Expected(e.Fields["path"]); owned {
@@ -59,4 +85,14 @@ func (d *FileIntegrityDetector) Inspect(e Event) []Finding {
 	default:
 		return nil
 	}
+}
+
+func verb(kind string) string {
+	switch kind {
+	case "file_created":
+		return "new file"
+	case "file_deleted":
+		return "deleted"
+	}
+	return "changed"
 }
