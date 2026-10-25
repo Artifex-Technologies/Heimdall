@@ -77,6 +77,8 @@ type Entry struct {
 	Copies []string `json:"copies,omitempty"`
 	// Report: what the file is and contains, for the owner and Sarina (never run: read and parsed only)
 	Report *Report `json:"report,omitempty"`
+	// Analysis: what Limbo found taking it apart in a sealed guest (queued after every hold)
+	Analysis *Analysis `json:"analysis,omitempty"`
 }
 
 // Name is the signature name ClamAV reports.

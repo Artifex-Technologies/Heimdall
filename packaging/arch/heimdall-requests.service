@@ -7,3 +7,5 @@ Type=oneshot
 # root: held files are root's. A request only names a file; the proof is checked here, so no request can release more than the proof
 # covers (and none while Sarina is contained).
 ExecStart=/usr/bin/heimdalld immunity run-requests
+# an analysis in Limbo takes a minute or more (a fresh guest per file, at most two per run)
+TimeoutStartSec=40min

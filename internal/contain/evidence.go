@@ -287,11 +287,17 @@ func holdSuspects(st *immunity.Store, paths []string, reason string) []string {
 		if en, err := st.Hold(from, shown, "found during a containment: "+reason, "containment", Reference); err != nil {
 			notes = append(notes, "not held: "+err.Error())
 		} else {
+			if en.Status == immunity.Held && AnalysisQueue != "" {
+				_ = immunity.QueueAnalysis(AnalysisQueue, en.SHA256)
+			}
 			notes = append(notes, fmt.Sprintf("held: %s (%s, %s) %s", shown, en.Kind, en.Status, en.SHA256))
 		}
 	}
 	return notes
 }
+
+// AnalysisQueue is where a held file's analysis in Limbo is queued (empty in tests: nothing queued).
+var AnalysisQueue = immunity.RequestDir
 
 // Reference is the scanner holds are checked with (ClamAV; replaced in tests).
 var Reference immunity.ReferenceScanner = immunity.ClamAV

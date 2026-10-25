@@ -20,8 +20,8 @@ import (
 
 // RequestDir is where anyone on the computer (Sarina, the check-up) may ask Heimdall to release a held file *if it can prove* the
 // file was there before. The request carries only which file and why; root (heimdall-requests.path) checks the proof itself, so a
-// request can never release anything the proof does not cover.
-const RequestDir = "/var/lib/heimdall-requests"
+// request can never release anything the proof does not cover. Heimdall also queues the analysis of each held file there.
+const RequestDir = immunity.RequestDir
 
 func notifyOwner(text string) {
 	if os.Getenv("HEIMDALL_IMMUNITY_DIR") == "" {
@@ -107,6 +107,9 @@ func cmdImmunity(args []string) int {
 		}
 		fmt.Printf("%s %s %s\n", e.Status, e.SHA256, e.Original)
 		notifyHeld(e)
+		if e.Status == immunity.Held {
+			_ = immunity.QueueAnalysis(RequestDir, e.SHA256)
+		}
 		return 0
 	case "release":
 		// the owner judged it good (Settings asks for the password)
@@ -137,6 +140,25 @@ func cmdImmunity(args []string) int {
 			return fail(err)
 		}
 		fmt.Println("released (" + e.ReleasedBy + "): " + e.Original)
+		return 0
+	case "analyze":
+		// take a kept sample apart in Limbo now (root; holds queue this by themselves)
+		if len(args) != 2 {
+			fmt.Fprintln(os.Stderr, "usage: heimdalld immunity analyze SHA256")
+			return 2
+		}
+		if !needRoot() {
+			return 2
+		}
+		a, err := st.Analyze(args[1], immunity.DefaultLimbo())
+		if err != nil {
+			return fail(err)
+		}
+		fmt.Printf("analysis: %s (Limbo run %s)\n", a.Status, a.RunID)
+		if a.Error != "" {
+			fmt.Println(a.Error)
+		}
+		fmt.Print(a.Output)
 		return 0
 	case "inventory":
 		if !needRoot() {
@@ -254,6 +276,35 @@ func notifyHeld(e immunity.Entry) {
 type request struct {
 	ReleaseIfProven string `json:"release_if_proven"`
 	Why             string `json:"why"`
+	// Analyze: take a held sample apart in Limbo. Anyone could ask, so only a held sample without an analysis yet is analysed, two
+	// per run at most (each takes a minute or more).
+	Analyze string `json:"analyze"`
+}
+
+// analyzeHeld takes one held sample apart in Limbo, if it has no analysis yet, and tells the owner what it is now ready.
+func analyzeHeld(st immunity.Store, sha string) {
+	es, err := st.Load()
+	if err != nil {
+		return
+	}
+	var e *immunity.Entry
+	for i := range es {
+		if es[i].SHA256 == sha {
+			e = &es[i]
+		}
+	}
+	if e == nil || e.Status != immunity.Held || (e.Analysis != nil && e.Analysis.Status == "done") {
+		return
+	}
+	a, err := st.Analyze(sha, immunity.DefaultLimbo())
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "heimdalld immunity: analysis of", sha, "not recorded:", err)
+		return
+	}
+	fmt.Printf("analysed %s in Limbo: %s\n", e.Original, a.Status)
+	if a.Status == "done" {
+		notifyOwner("Limbo took " + e.Original + " apart in a sealed machine; the analysis is with the held file (Settings > Security). Sarina's next review uses it.")
+	}
 }
 
 func runRequests(st immunity.Store) int {
@@ -263,7 +314,7 @@ func runRequests(st immunity.Store) int {
 	}
 	_, contained := contain.ReadMarker(contain.MarkerPath)
 	signed, behaviour := proofFuncs()
-	done := 0
+	done, analyzed := 0, 0
 	for _, ent := range ents {
 		p := filepath.Join(RequestDir, ent.Name())
 		// opened without following links (anyone can write here), read at most 4 KiB
@@ -276,7 +327,17 @@ func runRequests(st immunity.Store) int {
 		}
 		_ = os.Remove(p)
 		var r request
-		if done >= 20 || json.Unmarshal(b, &r) != nil || r.ReleaseIfProven == "" {
+		if json.Unmarshal(b, &r) != nil {
+			continue
+		}
+		if r.Analyze != "" {
+			if analyzed < 2 {
+				analyzed++
+				analyzeHeld(st, r.Analyze)
+			}
+			continue
+		}
+		if done >= 20 || r.ReleaseIfProven == "" {
 			continue
 		}
 		done++
@@ -319,6 +380,7 @@ heimdalld immunity: malware Heimdall has learned that ClamAV (the reference) doe
   heimdalld immunity add --reason WHY FILE      it is malware: hold it and learn it when ClamAV does not know it (root)
   heimdalld immunity suspect --reason WHY FILE  only keep it, for later (root); containments do this with their evidence
   heimdalld immunity confirm SHA256             a held file or suspect is malware: learn it (root)
+  heimdalld immunity analyze SHA256             take a kept sample apart in Limbo's sealed machine now (root; holds queue it)
   heimdalld immunity inventory                  look at the programs outside the packages again (root; daily by itself)
   heimdalld immunity list [--json]              held, immune (learned), reference (ClamAV's), released, suspect (root)
   heimdalld immunity forget SHA256              a mistake: remove the sample and its fingerprint (root)

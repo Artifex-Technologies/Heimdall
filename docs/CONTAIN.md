@@ -10,7 +10,8 @@ before did not hold.
    not as approved, and Sarina's newest sessions. Capped at 256 MiB; it takes seconds.
 1. **Contain.** A lock (`/etc/heimdall/contained`) is written first, so a Sarina that is just starting refuses. Then Sarina's service,
    timers and every Sarina process are stopped, and the AI models are unloaded from the graphics card (Ollama, `keep_alive 0`).
-   The lock survives a restart: nothing comes back until the owner releases Sarina.
+   The lock survives a restart: nothing comes back until the owner releases Sarina. Limbo stops the runs Sarina's agents started
+   and refuses new ones while the lock exists.
 2. **Check.** A minute later: is a Sarina process back, or a model loaded again? If not, containment held, and the desktop, games
    and everything else keep running.
 3. **Emergency (the last resort).** The approved behaviour files are put back from the known-good copies (`heimdalld trust

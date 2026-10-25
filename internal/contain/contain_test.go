@@ -184,6 +184,7 @@ func TestEvidenceIsSavedRootOnlyWithSessionsAndProcesses(t *testing.T) {
 
 func TestSuspiciousFilesAreHeldNotFingerprinted(t *testing.T) {
 	immunity.OwnedByPackage = func(string) (string, bool) { return "", false }
+	AnalysisQueue = t.TempDir()
 	Reference = func(string) (string, error) { return "", nil }
 	st := &immunity.Store{Dir: filepath.Join(t.TempDir(), "imm"), Signatures: filepath.Join(t.TempDir(), "x.hsb")}
 	p := filepath.Join(t.TempDir(), "planted.md")

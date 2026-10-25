@@ -2,8 +2,10 @@ package contain
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -27,6 +29,8 @@ type Real struct {
 	SessionDirs []string
 	// EvidenceDir overrides EvidenceDir (tests).
 	EvidenceDir string
+	// LimboAdmin is Limbo's admin socket: Sarina's agent runs there are stopped too (Limbo refuses new ones while the lock exists).
+	LimboAdmin string
 	// Immunity keeps what the evidence found suspicious as suspects (nil: not kept).
 	Immunity *immunity.Store
 }
@@ -115,6 +119,7 @@ func (s Real) SarinaRunning() []string {
 func (s Real) StopSarina() []string {
 	_ = exec.Command("systemctl", "stop", "sarina-service.service").Run()
 	_ = exec.Command("systemctl", "stop", "sarina-*.timer", "sarina-*.service").Run()
+	stopLimboAgentRuns(s.LimboAdmin)
 	var out []string
 	for pid, name := range sarinaProcs() {
 		if syscall.Kill(pid, syscall.SIGKILL) == nil {
@@ -208,5 +213,21 @@ func (s Real) Notify(summary string) {
 			"notify-send", "-u", "critical", "-a", "Heimdall", "Heimdall", summary)
 		cmd.Env = []string{"DBUS_SESSION_BUS_ADDRESS=" + bus, "PATH=/usr/bin:/bin"}
 		_ = cmd.Run()
+	}
+}
+
+// stopLimboAgentRuns asks Limbo (admin socket, root) to end every run Sarina's agents started. No Limbo: nothing to do.
+func stopLimboAgentRuns(sock string) {
+	if sock == "" {
+		sock = "/run/limbo/admin.sock"
+	}
+	if _, err := os.Stat(sock); err != nil {
+		return
+	}
+	c := &http.Client{Timeout: 10 * time.Second, Transport: &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "unix", sock)
+	}}}
+	if resp, err := c.Post("http://limbo/v1/agent-runs/stop", "application/json", strings.NewReader("{}")); err == nil {
+		resp.Body.Close()
 	}
 }
