@@ -107,8 +107,8 @@ func cmdIntelCheck(args []string) int {
 		fmt.Printf("%s: %d kernel CVE records\n", args[2], len(f.Vulns))
 		return 0
 	}
-	if len(args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: heimdalld intel-check list|tracker FILE | kernel ARCHIVE OUT [EXPLOITED]")
+	if len(args) != 2 && !(len(args) == 3 && args[0] == "list") {
+		fmt.Fprintln(os.Stderr, "usage: heimdalld intel-check list FILE [LAST-GOOD] | tracker FILE | kernel ARCHIVE OUT [EXPLOITED]")
 		return 2
 	}
 	b, err := os.ReadFile(args[1])
@@ -118,6 +118,13 @@ func cmdIntelCheck(args []string) int {
 			var l *ipintel.List
 			if l, err = ipintel.ParseList("check", b); err == nil && l.Len() < 10 {
 				err = errors.New("fewer than 10 entries: probably an error page, not a list")
+			}
+			if err == nil && len(args) == 3 {
+				if pb, perr := os.ReadFile(args[2]); perr == nil {
+					if prev, perr := ipintel.ParseList("last", pb); perr == nil {
+						err = ipintel.CheckUpdate(prev, l)
+					}
+				}
 			}
 			if err == nil {
 				fmt.Printf("%s: %d entries\n", args[1], l.Len())

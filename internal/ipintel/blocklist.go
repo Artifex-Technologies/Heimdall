@@ -106,6 +106,34 @@ func ParseList(name string, data []byte) (*List, error) {
 	return l, nil
 }
 
+// V4Addresses is how many IPv4 addresses the list covers (overlaps counted once).
+func (l *List) V4Addresses() uint64 {
+	var n uint64
+	for i, st := range l.starts {
+		if !st.Is4() {
+			continue
+		}
+		a, b := st.As4(), l.ends[i].As4()
+		lo := uint64(a[0])<<24 | uint64(a[1])<<16 | uint64(a[2])<<8 | uint64(a[3])
+		hi := uint64(b[0])<<24 | uint64(b[1])<<16 | uint64(b[2])<<8 | uint64(b[3])
+		n += hi - lo + 1
+	}
+	return n
+}
+
+// CheckUpdate refuses a new copy of a list that changed too much from the last good one to be an ordinary update: more than
+// double the IPv4 space (plus a /16), which is how a poisoned list would add a wide range and with it critical alerts and
+// block commands for ordinary destinations, or fewer than half the entries (a truncated or emptied list).
+func CheckUpdate(prev, next *List) error {
+	if pv, nv := prev.V4Addresses(), next.V4Addresses(); nv > 2*pv+65536 {
+		return fmt.Errorf("covers %d IPv4 addresses, the last good copy %d: too big a change for an update", nv, pv)
+	}
+	if next.Len() < prev.Len()/2 {
+		return fmt.Errorf("%d entries, the last good copy %d: too many gone for an update", next.Len(), prev.Len())
+	}
+	return nil
+}
+
 // Len is how many entries the list has.
 func (l *List) Len() int { return l.entries }
 

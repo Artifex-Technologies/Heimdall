@@ -280,3 +280,23 @@ not-an-address
 		t.Errorf("count %d %d", n, e)
 	}
 }
+
+func TestAnUpdateThatChangesTooMuchIsRefused(t *testing.T) {
+	list := func(lines ...string) *List {
+		l, err := ParseList("t", []byte(strings.Join(lines, "\n")))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return l
+	}
+	prev := list("1.2.3.4", "5.6.7.0/24", "9.9.9.9")
+	if err := CheckUpdate(prev, list("1.2.3.4", "5.6.7.0/24", "8.8.4.4")); err != nil {
+		t.Fatalf("an ordinary update refused: %v", err)
+	}
+	if err := CheckUpdate(prev, list("1.2.3.4", "5.6.7.0/24", "35.0.0.0/9")); err == nil {
+		t.Fatal("a wide range slipped in")
+	}
+	if err := CheckUpdate(list("1.1.1.1", "2.2.2.2", "3.3.3.3", "4.4.4.4"), list("1.1.1.1")); err == nil {
+		t.Fatal("an emptied list accepted")
+	}
+}

@@ -44,7 +44,9 @@ itmp=$(mktemp -d "$intel/.update.XXXXXX")
 trap 'rm -rf "$tmp" "$itmp"' EXIT
 intel_ok=0
 get_intel() { # url kind name
-  if fetch "$1" "$itmp/$3" && heimdalld intel-check "$2" "$itmp/$3"; then
+  # a list is also compared with its last good copy (a sudden wide range or a list emptied is refused)
+  local prev=(); [[ $2 == list && -f $intel/$3 ]] && prev=("$intel/$3")
+  if fetch "$1" "$itmp/$3" && heimdalld intel-check "$2" "$itmp/$3" "${prev[@]}"; then
     mv -f "$itmp/$3" "$intel/$3"
     intel_ok=1
   else
