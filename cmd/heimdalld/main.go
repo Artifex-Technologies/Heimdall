@@ -10,6 +10,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/Artifex-Technologies/Heimdall/internal/safefs"
 	"log"
 	"os"
 	"os/signal"
@@ -51,11 +52,8 @@ func main() {
 	}
 
 	switch os.Args[1] {
-	case trust.ChildCommand: // a trust restore's write, already running as the folder's owner (internal/trust/owner.go)
-		if len(os.Args) != 3 {
-			os.Exit(2)
-		}
-		if err := trust.WriteChild(os.Args[2]); err != nil {
+	case safefs.ChildCommand: // a write already running as the file's owner (internal/safefs)
+		if err := safefs.Child(os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}

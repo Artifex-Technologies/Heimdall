@@ -3,6 +3,7 @@ package immunity
 import (
 	"errors"
 	"fmt"
+	"github.com/Artifex-Technologies/Heimdall/internal/safefs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -119,37 +120,17 @@ func (s Store) Release(sha, by string) (Entry, error) {
 		return e, fmt.Errorf("%s is %s: only a held file can be released (forget it first if this was a mistake)", e.Original, e.Status)
 	}
 	if e.Status == Held {
-		if err := os.MkdirAll(filepath.Dir(e.Original), 0o755); err != nil {
-			return e, err
-		}
 		b, err := s.sampleBytes(e.SHA256)
 		if err != nil {
 			return e, err
 		}
-		f, err := os.OpenFile(e.Original, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
-		if err != nil {
-			return e, fmt.Errorf("%s: %w (something is there now; move it away first)", e.Original, err)
+		// written as the user who owned it (root only into root-only folders), never through a link, never over a file there now
+		f := safefs.File{Data: b, Mode: os.FileMode(e.Mode), MTime: time.Unix(0, e.MTime), Exclusive: true}
+		if err := safefs.PutAs(e.Original, f, uint32(e.UID), uint32(e.GID)); err != nil {
+			return e, fmt.Errorf("%s: %w (if something is there now, move it away first)", e.Original, err)
 		}
-		_, werr := f.Write(b)
-		f.Close()
-		if werr != nil {
-			os.Remove(e.Original)
-			return e, werr
-		}
-		if os.Geteuid() == 0 {
-			_ = os.Chown(e.Original, e.UID, e.GID)
-		}
-		_ = os.Chmod(e.Original, os.FileMode(e.Mode))
-		mt := time.Unix(0, e.MTime)
-		_ = os.Chtimes(e.Original, mt, mt)
 		for _, c := range e.Copies {
-			if f, err := os.OpenFile(c, os.O_WRONLY|os.O_CREATE|os.O_EXCL, os.FileMode(e.Mode)); err == nil {
-				_, _ = f.Write(b)
-				f.Close()
-				if os.Geteuid() == 0 {
-					_ = os.Chown(c, e.UID, e.GID)
-				}
-			}
+			_ = safefs.PutAs(c, f, uint32(e.UID), uint32(e.GID))
 		}
 	}
 	es[i].Status, es[i].Released, es[i].ReleasedBy = Released, time.Now().UTC().Truncate(time.Second), by

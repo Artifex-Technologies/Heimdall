@@ -1,6 +1,7 @@
 package trust
 
 import (
+	"github.com/Artifex-Technologies/Heimdall/internal/safefs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -111,12 +112,12 @@ func TestJudge(t *testing.T) {
 // asOwner stands in for the child process in tests (they do not run as root): it records who the write was for.
 func asOwner(t *testing.T) *[]uint32 {
 	var uids []uint32
-	old := writeAsOwner
-	writeAsOwner = func(path string, data []byte, uid, gid uint32) error {
+	old := safefs.WriteAs
+	safefs.WriteAs = func(path string, f safefs.File, uid, gid uint32) error {
 		uids = append(uids, uid)
-		return writeOwned(path, data)
+		return safefs.WriteForTest(path, f)
 	}
-	t.Cleanup(func() { writeAsOwner = old })
+	t.Cleanup(func() { safefs.WriteAs = old })
 	return &uids
 }
 
@@ -152,10 +153,10 @@ func TestRootWritesOnlyIntoRootOnlyFolders(t *testing.T) {
 	if os.Getuid() == 0 {
 		t.Skip("needs a folder not owned by root")
 	}
-	if err := rootOnly(t.TempDir()); err == nil {
+	if err := safefs.RootOnly(t.TempDir()); err == nil {
 		t.Fatal("a folder owned by a user passed as root-only")
 	}
-	if err := rootOnly("/usr/share"); err != nil {
+	if err := safefs.RootOnly("/usr/share"); err != nil {
 		t.Fatalf("/usr/share should be root-only: %v", err)
 	}
 }

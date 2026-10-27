@@ -26,6 +26,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Artifex-Technologies/Heimdall/internal/safefs"
 	"io"
 	"io/fs"
 	"os"
@@ -337,7 +338,7 @@ func (s Store) Restore(paths []string) ([]Restored, error) {
 			return out, fmt.Errorf("no approved copy of %s: %w", f, err)
 		}
 		// as the folder's owner (the user's own files), or as root only inside root-only folders: never through a link
-		if err := restoreFile(f, b); err != nil {
+		if err := safefs.Put(f, safefs.File{Data: b, Mode: 0o644}); err != nil {
 			return out, err
 		}
 		out = append(out, Restored{f, why})

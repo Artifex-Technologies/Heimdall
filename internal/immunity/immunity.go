@@ -19,10 +19,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/Artifex-Technologies/Heimdall/internal/safefs"
 	"io"
 	"os"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -180,9 +182,20 @@ func (s Store) Keep(path, reason, source string) (Entry, error) {
 	return s.KeepAs(path, path, reason, source)
 }
 
+// openSample opens a file to keep, never through a link (as root, a link could hand over a root-only file); the one exception
+// is a running program's /proc/PID/exe, which is the kernel's own link to the program.
+func openSample(path string) (*os.File, error) {
+	if procExe.MatchString(path) {
+		return os.Open(path)
+	}
+	return safefs.OpenNoLinks(path, os.O_RDONLY, 0)
+}
+
+var procExe = regexp.MustCompile(`^/proc/[0-9]+/exe$`)
+
 // KeepAs is Keep for a file read from one path (/proc/PID/exe) and known by another (the program's real path).
 func (s Store) KeepAs(path, original, reason, source string) (Entry, error) {
-	f, err := os.Open(path)
+	f, err := openSample(path)
 	if err != nil {
 		return Entry{}, err
 	}
