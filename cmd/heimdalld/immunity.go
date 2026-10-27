@@ -343,7 +343,11 @@ func runRequests(st immunity.Store) int {
 			}
 			f.Close()
 		}
-		_ = os.Remove(p)
+		if os.Remove(p) != nil {
+			// a folder (with something in it) would stay and set the path unit off again and again: remove the whole
+			// entry; RemoveAll never follows a link
+			_ = os.RemoveAll(p)
+		}
 		var r request
 		if json.Unmarshal(b, &r) != nil {
 			continue
