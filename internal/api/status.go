@@ -14,6 +14,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/Artifex-Technologies/Heimdall/internal/alert"
 	"github.com/Artifex-Technologies/Heimdall/internal/governance"
@@ -55,7 +56,29 @@ func NewServer(ring *alert.Ring, reviewer *governance.Reviewer) *Server {
 	return s
 }
 
-func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) { s.mux.ServeHTTP(w, r) }
+// ServeHTTP answers only requests addressed to a loopback name and not sent by a browser. A web page cannot reach the API
+// directly, but through DNS rebinding (its own name pointed at 127.0.0.1) the Host header still names the page's site, and
+// a cross-site request carries Origin or Sec-Fetch-Site. Heimdall's real clients (Settings, Sarina, the CLI) send neither.
+func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if !LoopbackHost(r.Host) || r.Header.Get("Origin") != "" || r.Header.Get("Sec-Fetch-Site") != "" {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	s.mux.ServeHTTP(w, r)
+}
+
+// LoopbackHost reports whether a Host header names this machine's loopback (127.0.0.1, ::1 or localhost, any port).
+func LoopbackHost(host string) bool {
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	host = strings.Trim(host, "[]")
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
 
 func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
 	w.WriteHeader(http.StatusOK)

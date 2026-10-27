@@ -45,6 +45,21 @@ func CredentialMatches(text string) []string {
 	return out
 }
 
+// RedactCredentials keeps the first 4 characters of every credential-shaped piece of text and drops the rest, so an alert
+// can say what was found and where without carrying the secret itself into the alert log, the journal or the API.
+func RedactCredentials(text string) string {
+	for _, pattern := range credentialPatterns {
+		text = pattern.ReplaceAllStringFunc(text, func(m string) string {
+			keep := 4
+			if len(m) < keep {
+				keep = len(m)
+			}
+			return m[:keep] + "…[redacted]"
+		})
+	}
+	return text
+}
+
 func (d *CredentialDetector) Inspect(e Event) []Finding {
 	for _, pattern := range credentialPatterns {
 		if pattern.MatchString(e.Text) {

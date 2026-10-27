@@ -41,17 +41,26 @@ func explained(a Alert) Alert {
 	return a
 }
 
+// FromFinding builds the alert. Every text it carries is redacted (credential-shaped pieces cut to their first 4
+// characters): alerts go to a log file, the journal and the local API, and a detected secret must not travel with them.
 func FromFinding(f detect.Finding) Alert {
+	fields := f.Event.Fields
+	if len(fields) > 0 {
+		fields = make(map[string]string, len(f.Event.Fields))
+		for k, v := range f.Event.Fields {
+			fields[k] = detect.RedactCredentials(v)
+		}
+	}
 	return explained(Alert{
 		Time:       time.Now().UTC(),
 		DetectorID: f.DetectorID,
 		Severity:   f.Severity,
-		Summary:    f.Summary,
+		Summary:    detect.RedactCredentials(f.Summary),
 		Source:     f.Event.Source,
 		SessionID:  f.Event.SessionID,
 		EventKind:  f.Event.Kind,
-		EventText:  f.Event.Text,
-		Fields:     f.Event.Fields,
+		EventText:  detect.RedactCredentials(f.Event.Text),
+		Fields:     fields,
 	})
 }
 

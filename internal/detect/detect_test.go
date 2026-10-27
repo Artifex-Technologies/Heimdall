@@ -329,3 +329,17 @@ func TestMaintenanceDetector(t *testing.T) {
 		t.Fatalf("%+v", c)
 	}
 }
+
+func TestRedactCredentialsKeepsOnlyAHint(t *testing.T) {
+	in := "export OPENAI_API_KEY=sk-proj-abcdefghijklmnopqrstuvwxyz0123 and ghp_" + strings.Repeat("a", 36)
+	out := RedactCredentials(in)
+	if strings.Contains(out, "abcdefghijklmnop") || strings.Contains(out, strings.Repeat("a", 36)) {
+		t.Fatalf("secret survived: %q", out)
+	}
+	if !strings.Contains(out, "…[redacted]") || !strings.Contains(out, "export OPENAI_") {
+		t.Fatalf("redaction lost the context: %q", out)
+	}
+	if RedactCredentials("nothing secret here") != "nothing secret here" {
+		t.Fatal("plain text changed")
+	}
+}

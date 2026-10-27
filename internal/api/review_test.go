@@ -14,7 +14,7 @@ import (
 
 func postReview(t *testing.T, srv *Server, body string) *http.Response {
 	t.Helper()
-	req := httptest.NewRequest(http.MethodPost, "/v1/review", strings.NewReader(body))
+	req := httptest.NewRequest(http.MethodPost, "http://127.0.0.1:8930/v1/review", strings.NewReader(body))
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
 	return rec.Result()
@@ -52,7 +52,7 @@ func TestHandleReviewDeniesInjectionPhrase(t *testing.T) {
 
 func TestHandleReviewRejectsGET(t *testing.T) {
 	srv := NewServer(alert.NewRing(10), governance.NewReviewer(alert.NewRing(10)))
-	req := httptest.NewRequest(http.MethodGet, "/v1/review", nil)
+	req := httptest.NewRequest(http.MethodGet, "http://127.0.0.1:8930/v1/review", nil)
 	rec := httptest.NewRecorder()
 	srv.ServeHTTP(rec, req)
 	if rec.Code != http.StatusMethodNotAllowed {
