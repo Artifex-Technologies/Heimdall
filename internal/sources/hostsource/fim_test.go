@@ -193,3 +193,24 @@ func bumpMtime(t *testing.T, path string) {
 		t.Fatalf("chtimes: %v", err)
 	}
 }
+
+// A folder in fim_paths (sudoers.d, polkit rules) is watched as a whole and reported at once: no grace, unlike the agents'
+// folders.
+func TestAFolderInTheConfiguredPathsIsWatchedAsAWhole(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "sudoers.d")
+	os.MkdirAll(dir, 0o750)
+	os.WriteFile(filepath.Join(dir, "10-wheel"), []byte("%wheel ALL=(ALL) ALL\n"), 0o440)
+	w := NewFIMWatcher([]string{dir})
+	if ev, _ := w.Poll(); len(ev) != 0 {
+		t.Fatalf("first look must be quiet: %+v", ev)
+	}
+	os.WriteFile(filepath.Join(dir, "99-backdoor"), []byte("evil ALL=(ALL) NOPASSWD: ALL\n"), 0o440)
+	ev, _ := w.Poll()
+	if len(ev) != 1 || ev[0].Kind != "file_created" || filepath.Base(ev[0].Fields["path"]) != "99-backdoor" {
+		t.Fatalf("a planted file: %+v", ev)
+	}
+	os.Remove(filepath.Join(dir, "10-wheel"))
+	if ev, _ := w.Poll(); len(ev) != 1 || ev[0].Kind != "file_deleted" {
+		t.Fatalf("a removed file: %+v", ev)
+	}
+}

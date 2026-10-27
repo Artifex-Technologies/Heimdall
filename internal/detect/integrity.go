@@ -54,6 +54,12 @@ func (d *FileIntegrityDetector) Inspect(e Event) []Finding {
 	}
 	switch e.Kind {
 	case "file_created":
+		if d.verify != nil {
+			if pkg, sha, owned := d.verify.Expected(e.Fields["path"]); owned && sha != "" && sha == e.Fields["new_hash"] {
+				return []Finding{{DetectorID: d.ID(), Severity: SeverityInfo,
+					Summary: fmt.Sprintf("a new file in a watched folder, installed by package %s: %s", pkg, e.Fields["path"]), Event: e}}
+			}
+		}
 		return []Finding{{DetectorID: d.ID(), Severity: SeverityCritical,
 			Summary: fmt.Sprintf("a new file appeared in a watched folder: %s", e.Fields["path"]), Event: e}}
 	case "file_modified":

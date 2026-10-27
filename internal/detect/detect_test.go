@@ -378,3 +378,14 @@ func TestRemoteAccessToolsAreCriticalUnlessApproved(t *testing.T) {
 		t.Fatal("an ordinary connection is not this detector's")
 	}
 }
+
+// A new file in a watched folder is critical unless a package installed exactly that content.
+func TestNewFileInAWatchedFolderIsCheckedAgainstPackages(t *testing.T) {
+	ev := Event{Kind: "file_created", Fields: map[string]string{"path": "/etc/polkit-1/rules.d/50-x.rules", "new_hash": "aaa"}}
+	if got := NewPackageAwareFileIntegrityDetector(fakeVerifier{"x-1", "aaa", true}).Inspect(ev); len(got) != 1 || got[0].Severity != SeverityInfo {
+		t.Fatalf("installed by a package: %+v", got)
+	}
+	if got := NewPackageAwareFileIntegrityDetector(fakeVerifier{"", "", false}).Inspect(ev); len(got) != 1 || got[0].Severity != SeverityCritical {
+		t.Fatalf("planted: %+v", got)
+	}
+}

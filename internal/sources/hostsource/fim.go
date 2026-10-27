@@ -43,6 +43,9 @@ type FIMWatcher struct {
 	// Folders watched as a whole (the AI agents' skills and agents folders): a file that appears in one after its first look is
 	// reported too (file_created), since that is how a planted skill arrives.
 	dirs []string
+	// trustDirs are the folders of dirs that came from WithTrust: their files are judged after grace like the behaviour files.
+	// Folders from fim_paths (sudoers.d, polkit rules, ...) are reported at once.
+	trustDirs map[string]bool
 	// graced paths (the agents' behaviour files, see WithTrust) are reported only after grace has passed, so a change approved by
 	// signing it right after making it is judged against the signed list, not raised in the minute in between.
 	graced  map[string]bool
@@ -67,6 +70,12 @@ func (w *FIMWatcher) WithTrust(files, dirs []string, grace time.Duration) *FIMWa
 		w.graced[f] = true
 	}
 	w.dirs = append(w.dirs, dirs...)
+	if w.trustDirs == nil {
+		w.trustDirs = map[string]bool{}
+	}
+	for _, d := range dirs {
+		w.trustDirs[d] = true
+	}
 	w.grace = grace
 	w.keepLoaded()
 	return w
@@ -77,6 +86,16 @@ func (w *FIMWatcher) clock() time.Time {
 		return w.now()
 	}
 	return time.Now()
+}
+
+// underTrustDir reports whether path is inside one of the agents' folders (judged after grace).
+func (w *FIMWatcher) underTrustDir(path string) bool {
+	for d := range w.trustDirs {
+		if strings.HasPrefix(path, d+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
 }
 
 func (w *FIMWatcher) underDir(path string) bool {
@@ -114,7 +133,21 @@ func (w *FIMWatcher) dirFiles() map[string]bool {
 // and a file tampered with in the exact window around that restart would
 // never be reported.
 func NewFIMWatcher(paths []string) *FIMWatcher {
-	return &FIMWatcher{paths: paths, baselines: make(map[string]FileBaseline)}
+	files, dirs := splitDirs(paths)
+	return &FIMWatcher{paths: files, dirs: dirs, baselines: make(map[string]FileBaseline)}
+}
+
+// splitDirs separates the folders among the configured paths (watched as a whole: a file appearing, changing or going away in
+// one is reported) from the files. A path that does not exist yet stays a file path.
+func splitDirs(paths []string) (files, dirs []string) {
+	for _, p := range paths {
+		if info, err := os.Lstat(p); err == nil && info.IsDir() {
+			dirs = append(dirs, filepath.Clean(p))
+			continue
+		}
+		files = append(files, p)
+	}
+	return files, dirs
 }
 
 // NewFIMWatcherWithState behaves like NewFIMWatcher but loads any existing
@@ -176,7 +209,7 @@ func (w *FIMWatcher) Poll() ([]detect.Event, error) {
 	w.loaded = nil
 	var events []detect.Event
 	emit := func(path string, e detect.Event) {
-		if w.graced[path] || w.underDir(path) {
+		if w.graced[path] || w.underTrustDir(path) {
 			if w.pending == nil {
 				w.pending = map[string]pendingChange{}
 			}
