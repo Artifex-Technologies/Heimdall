@@ -20,5 +20,28 @@ ProtectHome=read-only
 PrivateTmp=true
 ReadWritePaths=/var/lib/heimdall
 
+# The connection drop-in (heimdall-connwatch.conf.example) gives Heimdall read access over other users' processes and files.
+# These keep a bug in the daemon from turning that into control (2026-10-27 audit): no ptrace or cross-process memory calls,
+# /proc read-only (so no writes to another process's memory), no device opens, no new namespaces, kernel settings, modules,
+# log and clock untouchable. Checked live: the connection log still names other users' programs.
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~ptrace process_vm_readv process_vm_writev kcmp pidfd_getfd
+SystemCallErrorNumber=EPERM
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+DevicePolicy=closed
+ReadOnlyPaths=/proc
+UMask=0077
+
 [Install]
 WantedBy=multi-user.target

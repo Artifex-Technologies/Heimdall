@@ -5,8 +5,10 @@
 #   sudo systemctl daemon-reload && sudo systemctl restart heimdall
 #
 # Without it the connection log still works, but processes of other users show as "unknown".
-# CAP_SYS_PTRACE and CAP_DAC_READ_SEARCH only allow reading /proc/<pid>/fd and /proc/<pid>/cgroup of other users (read-only:
-# it names the owner of a socket). Heimdall never attaches to or signals a process, and NoNewPrivileges stays on.
+# CAP_SYS_PTRACE and CAP_DAC_READ_SEARCH are broad: they let Heimdall read any file and inspect any process, which it needs to
+# read /proc/<pid>/fd and /proc/<pid>/exe of other users (to name the owner of a socket). heimdall.service takes away the
+# dangerous uses (no ptrace or process-memory calls, /proc read-only, a syscall filter, NoNewPrivileges), so a bug in the
+# daemon gives reading, not control.
 [Service]
 AmbientCapabilities=CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
 CapabilityBoundingSet=CAP_SYS_PTRACE CAP_DAC_READ_SEARCH
