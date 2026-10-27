@@ -20,11 +20,14 @@ package agentsource
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/Artifex-Technologies/Heimdall/internal/detect"
@@ -139,6 +142,10 @@ const (
 	CodeUnreadable   = "agent_session_unreadable"    // directory or file cannot be read
 	CodeMalformed    = "agent_session_malformed"     // file is not valid JSON and is not being written
 	CodeUnknownShape = "agent_session_unknown_shape" // messages Heimdall cannot decode, so cannot scan
+	CodeNotAFile     = "agent_session_not_a_file"    // a pipe, device, link or oversized file where a session should be
+
+	// maxSessionBytes is far above any real session (about 100 KB today); a bigger file is not read whole into memory.
+	maxSessionBytes = 32 << 20
 
 	// settleTime is how long a file must be unmodified before invalid JSON in it
 	// counts as damage rather than a write in progress.
@@ -273,8 +280,12 @@ func (w *Watcher) Poll() ([]detect.Event, error) {
 			continue // unchanged since last poll
 		}
 
-		raw, err := os.ReadFile(path)
+		raw, err := readSession(path)
 		if err != nil {
+			if nf, ok := err.(notAFile); ok {
+				w.report(Issue{CodeNotAFile, path, string(nf), "nothing but Sarina's session files belongs here; a pipe or a huge file can stall or exhaust a reader, so check who made it (ls -l " + path + ")"}, info.ModTime())
+				continue
+			}
 			w.report(Issue{CodeUnreadable, path, err.Error(), "make the file readable by heimdalld's user (ls -l " + path + ")"}, info.ModTime())
 			continue // retry next poll
 		}
@@ -371,4 +382,39 @@ func (w *Watcher) Run(ctx context.Context, interval time.Duration, onErr func(er
 			}
 		}
 	}
+}
+
+type notAFile string
+
+func (e notAFile) Error() string { return string(e) }
+
+// readSession reads one session file without following a link and without blocking on a pipe or reading a device, and
+// refuses one bigger than maxSessionBytes. The folder is writable by more than Sarina, so what is in it is not trusted.
+func readSession(path string) ([]byte, error) {
+	f, err := os.OpenFile(path, os.O_RDONLY|syscall.O_NOFOLLOW|syscall.O_NONBLOCK, 0)
+	if err != nil {
+		if errors.Is(err, syscall.ELOOP) {
+			return nil, notAFile("a symbolic link")
+		}
+		return nil, err
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if fi.IsDir() {
+		return nil, &os.PathError{Op: "read", Path: path, Err: syscall.EISDIR}
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, notAFile("not a regular file (" + fi.Mode().Type().String() + ")")
+	}
+	if fi.Size() > maxSessionBytes {
+		return nil, notAFile(fmt.Sprintf("%d bytes, more than the %d a session may be", fi.Size(), maxSessionBytes))
+	}
+	raw, err := io.ReadAll(io.LimitReader(f, maxSessionBytes+1))
+	if err == nil && len(raw) > maxSessionBytes {
+		return nil, notAFile("grew past the size a session may be while being read")
+	}
+	return raw, err
 }

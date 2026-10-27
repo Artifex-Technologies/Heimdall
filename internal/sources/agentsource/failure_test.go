@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -156,5 +157,42 @@ func TestRunReportsIssuesOnceAndKeepsGoing(t *testing.T) {
 	<-done
 	if len(got) != 1 {
 		t.Fatalf("a persistent problem should be reported once, got %d", len(got))
+	}
+}
+
+// The session folder is writable by more than Sarina: a pipe must not stall the reader, a huge file must not be read
+// into memory, and a link must not lead it to another file. Each is reported, and real sessions are still read.
+func TestPipesLinksAndHugeFilesAreReportedNotRead(t *testing.T) {
+	root, dir := agentDir(t)
+	writeAgentSession(t, root, "real", []map[string]any{{"role": "user", "content": "hi"}})
+	if err := syscall.Mkfifo(filepath.Join(dir, "pipe.json"), 0o600); err != nil {
+		t.Skip(err)
+	}
+	os.Symlink("/etc/passwd", filepath.Join(dir, "link.json"))
+	big, _ := os.Create(filepath.Join(dir, "big.json"))
+	big.Truncate(maxSessionBytes + 1)
+	big.Close()
+	w := NewWatcher(root)
+	done := make(chan int)
+	go func() {
+		events, _ := w.Poll()
+		done <- len(events)
+	}()
+	select {
+	case n := <-done:
+		if n == 0 {
+			t.Fatal("the real session was not read")
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the reader is stuck on the pipe")
+	}
+	got := map[string]bool{}
+	for _, i := range w.Issues() {
+		if i.Code == CodeNotAFile {
+			got[filepath.Base(i.Path)] = true
+		}
+	}
+	if !got["pipe.json"] || !got["link.json"] || !got["big.json"] {
+		t.Fatalf("reported: %v", got)
 	}
 }
