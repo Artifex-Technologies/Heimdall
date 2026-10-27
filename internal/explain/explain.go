@@ -133,6 +133,22 @@ func For(detector, severity string, fields map[string]string) Text {
 		t.What = "A program running in a Limbo sandbox broke the sandbox's safety rules" + orEmpty(quoted(fields, "guest"), ": ") + "."
 		t.Done = "Heimdall asked Limbo to cut the sandbox off (quarantine). Limbo never lets Heimdall release it; only you can."
 		t.Do = "Look at the quarantine in Settings > Security before releasing anything; if unsure, delete the sandbox."
+	case "remote-access":
+		tool := orUnknown(clean(fields["provider_name"], 60), "a tool")
+		switch {
+		case fields["signal"] == "tunnel":
+			t.What = "A new tunnel network interface appeared (" + orUnknown(clean(fields["iface"], 30), "unnamed") + "). A VPN you start does this; so does a program that wants a hidden way in or out."
+			t.Do = "If you just connected a VPN, nothing to do. Otherwise look at what created it (ip link, and the programs you installed recently)."
+		case fields["ra_kind"] == "c2":
+			t.What = "A program known as an attacker's remote control (" + tool + ") is on this computer."
+			t.Do = "Treat the computer as compromised: disconnect it from the network and ask for help before using it for anything private."
+		case severity == "info":
+			t.What = tool + ", which you approved, is in use."
+			t.Do = "Nothing to do."
+		default:
+			t.What = tool + " lets someone reach this computer from elsewhere, and it is here without your approval (" + orUnknown(clean(fields["signal"], 30), "seen") + "). Malware often installs a tool like this to keep a way in."
+			t.Do = "If you installed it yourself and want it, approve it: sudo heimdalld remote approve " + orUnknown(clean(fields["provider"], 30), "ID") + ". If not, remove it now and look at what else was installed with it."
+		}
 	case "integration":
 		t.What = "Heimdall could not use one of the things it works with (" + orUnknown(clean(fields["error_code"], 40), "a component") + ")."
 		t.Do = orUnknown(clean(fields["remedy"], 200), "See Heimdall's log (journalctl -u heimdall).")

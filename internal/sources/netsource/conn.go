@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/Artifex-Technologies/Heimdall/internal/remoteaccess"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -27,13 +28,15 @@ import (
 // only learns: it records what is already connected and marks those events as
 // "learning" so a detector does not raise an alert for each of them.
 type ConnWatcher struct {
-	procRoot   string
-	tcpPaths   []string
-	statePath  string
-	policyPath string
-	known      map[string]bool
-	loaded     bool
-	learning   bool
+	// RemoteAccess, when set, tags connections held by a remote-access tool from the catalog (ra_provider).
+	RemoteAccess *remoteaccess.Identifier
+	procRoot     string
+	tcpPaths     []string
+	statePath    string
+	policyPath   string
+	known        map[string]bool
+	loaded       bool
+	learning     bool
 	// Origins, when set, names the country and network of each new destination (offline; see internal/ipintel).
 	Origins *ipintel.Resolver
 	// Threats, when set, are the threat lists each new destination is checked against (offline).
@@ -120,6 +123,7 @@ type owner struct {
 	pid  int
 	comm string
 	app  string
+	exe  string
 }
 
 // owners maps socket inodes to the process holding them.
@@ -152,7 +156,8 @@ func (w *ConnWatcher) owners(want map[uint64]bool) map[uint64]owner {
 			if o == nil {
 				comm, _ := os.ReadFile(filepath.Join(w.procRoot, d.Name(), "comm"))
 				cg, _ := os.ReadFile(filepath.Join(w.procRoot, d.Name(), "cgroup"))
-				o = &owner{pid: pid, comm: strings.TrimSpace(string(comm))}
+				exe, _ := os.Readlink(filepath.Join(w.procRoot, d.Name(), "exe"))
+				o = &owner{pid: pid, comm: strings.TrimSpace(string(comm)), exe: exe}
 				if m := appSlice.FindStringSubmatch(string(cg)); m != nil {
 					o.app = m[1]
 				}
@@ -238,6 +243,12 @@ func (w *ConnWatcher) Poll() ([]detect.Event, error) {
 		}
 		if o.app != "" && blocked[o.app] {
 			f["blocked"] = "1"
+		}
+		// a remote-access tool (by its program, or a renamed Go program by its build info): the remote-access detector judges it
+		if w.RemoteAccess != nil && ok {
+			if p, sig := w.RemoteAccess.Identify(o.exe, o.comm); p != nil {
+				f["ra_provider"], f["provider_name"], f["ra_kind"], f["ra_signal"], f["exe"] = p.ID, p.Name, p.Kind, sig, o.exe
+			}
 		}
 		events = append(events, detect.Event{
 			Source: "host-network", Time: now, Kind: "new_connection",

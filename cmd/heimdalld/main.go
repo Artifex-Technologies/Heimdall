@@ -10,11 +10,14 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/Artifex-Technologies/Heimdall/internal/remoteaccess"
 	"github.com/Artifex-Technologies/Heimdall/internal/safefs"
+	"github.com/Artifex-Technologies/Heimdall/internal/sources/rasource"
 	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -52,6 +55,8 @@ func main() {
 	}
 
 	switch os.Args[1] {
+	case "remote": // the remote-access tools Heimdall knows, and the owner's approvals (docs/REMOTE_ACCESS.md)
+		os.Exit(runRemote(os.Args[2:]))
 	case safefs.ChildCommand: // a write already running as the file's owner (internal/safefs)
 		if err := safefs.Child(os.Args[2:]); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -132,6 +137,9 @@ func loadConfigFlag(args []string) (config.Config, error) {
 	return config.Load(*configPath)
 }
 
+// remoteApprovals is the owner's list of approved remote-access tools (heimdalld remote approve).
+var remoteApprovals = &remoteaccess.Approvals{Path: "/etc/heimdall/remote-access-approved.json"}
+
 func newDetectors(cfg config.Config) []detect.Detector {
 	return []detect.Detector{
 		detect.NewInjectionDetector(),
@@ -152,6 +160,7 @@ func newDetectors(cfg config.Config) []detect.Detector {
 		detect.NewLANDetector(),
 		detect.NewBaselineDriftDetectorWithFloors(cfg.BaselineMinSamples, cfg.BaselineZThreshold, detect.DefaultBaselineFloors),
 		detect.NewLimboGuestDetector(),
+		detect.NewRemoteAccessDetector(remoteApprovals.Approved),
 	}
 }
 
@@ -301,6 +310,7 @@ func cmdRun(args []string) int {
 	if cfg.ConnWatch {
 		logger.Printf("logging connections per process (poll every %s)", cfg.ConnPollInterval())
 		cw := netsource.NewConnWatcher(cfg.ConnStatePath, cfg.AppNetworkPolicy)
+		cw.RemoteAccess = &remoteaccess.Identifier{Catalog: remoteaccess.Builtin()}
 		cw.Origins = origins
 		cw.Threats = threats
 		go cw.Run(ctx, cfg.ConnPollInterval(),
@@ -319,6 +329,8 @@ func cmdRun(args []string) int {
 	}
 	if cfg.ListenWatch {
 		go netsource.NewListenWatcher().Run(ctx, 15*time.Second, eng.Handle)
+		// remote-access tools by what is installed and which tunnel interfaces exist (docs/REMOTE_ACCESS.md)
+		go rasource.New(remoteaccess.Builtin()).Run(ctx, 15*time.Second, eng.Handle)
 	}
 
 	if cfg.Firewall {
@@ -642,4 +654,48 @@ func sarinaInstalled(cfg config.Config) bool {
 	}
 	_, err := os.Stat(cfg.SarinaInstalled)
 	return err == nil
+}
+
+func runRemote(args []string) int {
+	c := remoteaccess.Builtin()
+	if len(args) == 0 || args[0] == "list" {
+		for _, p := range c.Providers {
+			mark := " "
+			if remoteApprovals.Approved(p.ID) {
+				mark = "*"
+			}
+			fmt.Printf("%s %-14s %-15s %s\n", mark, p.ID, p.Kind, p.Name)
+		}
+		fmt.Println("(* approved: Heimdall reports it as info instead of critical)")
+		return 0
+	}
+	if len(args) != 2 || (args[0] != "approve" && args[0] != "forget") {
+		fmt.Fprintln(os.Stderr, "usage: heimdalld remote list | approve ID | forget ID")
+		return 2
+	}
+	if os.Geteuid() != 0 {
+		fmt.Fprintln(os.Stderr, "heimdalld remote: approving needs root (sudo)")
+		return 1
+	}
+	var p *remoteaccess.Provider
+	for i := range c.Providers {
+		if c.Providers[i].ID == args[1] {
+			p = &c.Providers[i]
+		}
+	}
+	if p == nil {
+		fmt.Fprintln(os.Stderr, "heimdalld remote: no such tool (heimdalld remote list)")
+		return 2
+	}
+	if args[0] == "approve" && !p.Approvable() {
+		fmt.Fprintf(os.Stderr, "heimdalld remote: %s is a command-and-control implant and can never be approved\n", p.Name)
+		return 2
+	}
+	ids, err := remoteaccess.SetApproved(remoteApprovals.Path, p.ID, args[0] == "approve")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "heimdalld remote:", err)
+		return 1
+	}
+	fmt.Println("approved:", strings.Join(ids, ", "))
+	return 0
 }

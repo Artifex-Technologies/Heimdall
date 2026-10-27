@@ -1,0 +1,25 @@
+{
+ "about": "Remote-access, tunnel and command-and-control tools Heimdall recognises (docs/REMOTE_ACCESS.md). Matching is by package name, program name, Go module path (read from the program's own build info, so a renamed Go binary is still known), network interface and service name. A provider the owner approves (heimdalld remote approve ID) is reported as info; c2 tools can never be approved.",
+ "providers": [
+  {"id": "tailscale", "name": "Tailscale", "kind": "mesh-vpn", "packages": ["tailscale"], "exes": ["tailscaled", "tailscale"], "go_modules": ["tailscale.com"], "units": ["tailscaled.service"], "ifaces": ["tailscale*"], "ports": [41641]},
+  {"id": "headscale", "name": "headscale", "kind": "mesh-vpn", "packages": ["headscale"], "exes": ["headscale"], "go_modules": ["github.com/juanfont/headscale"], "units": ["headscale.service"]},
+  {"id": "zerotier", "name": "ZeroTier", "kind": "mesh-vpn", "packages": ["zerotier-one"], "exes": ["zerotier-one", "zerotier-cli"], "units": ["zerotier-one.service"], "ifaces": ["zt*"], "ports": [9993]},
+  {"id": "netbird", "name": "NetBird", "kind": "mesh-vpn", "packages": ["netbird", "netbird-bin"], "exes": ["netbird"], "go_modules": ["github.com/netbirdio/netbird"], "units": ["netbird.service"], "ifaces": ["wt*"]},
+  {"id": "ngrok", "name": "ngrok", "kind": "tunnel", "packages": ["ngrok"], "exes": ["ngrok"], "go_modules": ["golang.ngrok.com/ngrok", "github.com/inconshreveable/ngrok"]},
+  {"id": "cloudflared", "name": "Cloudflare Tunnel", "kind": "tunnel", "packages": ["cloudflared", "cloudflared-bin"], "exes": ["cloudflared"], "go_modules": ["github.com/cloudflare/cloudflared"], "units": ["cloudflared.service"]},
+  {"id": "frp", "name": "frp (fast reverse proxy)", "kind": "tunnel", "packages": ["frp", "frpc", "frps"], "exes": ["frpc", "frps"], "go_modules": ["github.com/fatedier/frp"]},
+  {"id": "chisel", "name": "chisel", "kind": "tunnel", "packages": ["chisel"], "exes": ["chisel"], "go_modules": ["github.com/jpillora/chisel"]},
+  {"id": "rathole", "name": "rathole", "kind": "tunnel", "packages": ["rathole"], "exes": ["rathole"]},
+  {"id": "bore", "name": "bore", "kind": "tunnel", "packages": ["bore", "bore-cli"], "exes": ["bore"]},
+  {"id": "vscode-tunnel", "name": "VS Code tunnel", "kind": "tunnel", "exes": ["code-tunnel"], "units": ["code-tunnel.service"]},
+  {"id": "anydesk", "name": "AnyDesk", "kind": "remote-desktop", "packages": ["anydesk", "anydesk-bin"], "exes": ["anydesk"], "units": ["anydesk.service"], "ports": [6568]},
+  {"id": "teamviewer", "name": "TeamViewer", "kind": "remote-desktop", "packages": ["teamviewer"], "exes": ["teamviewer", "teamviewerd", "TeamViewer"], "units": ["teamviewerd.service"], "ports": [5938]},
+  {"id": "rustdesk", "name": "RustDesk", "kind": "remote-desktop", "packages": ["rustdesk", "rustdesk-bin"], "exes": ["rustdesk"], "units": ["rustdesk.service"], "ports": [21115, 21116, 21117, 21118, 21119]},
+  {"id": "meshcentral", "name": "MeshCentral agent", "kind": "rmm", "packages": ["meshagent"], "exes": ["meshagent", "MeshAgent"], "units": ["meshagent.service"]},
+  {"id": "vnc-server", "name": "VNC server", "kind": "remote-desktop", "packages": ["x11vnc", "tigervnc", "wayvnc"], "exes": ["x11vnc", "x0vncserver", "Xvnc", "wayvnc"], "ports": [5900, 5901]},
+  {"id": "xrdp", "name": "xrdp", "kind": "remote-desktop", "packages": ["xrdp"], "exes": ["xrdp", "xrdp-sesman"], "units": ["xrdp.service"], "ports": [3389]},
+  {"id": "tor", "name": "Tor", "kind": "anonymizer", "packages": ["tor"], "exes": ["tor"], "units": ["tor.service"]},
+  {"id": "sliver", "name": "Sliver implant", "kind": "c2", "go_modules": ["github.com/bishopfox/sliver"]},
+  {"id": "merlin", "name": "Merlin agent", "kind": "c2", "go_modules": ["github.com/Ne0nd0g/merlin"]}
+ ]
+}

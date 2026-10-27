@@ -343,3 +343,34 @@ func TestRedactCredentialsKeepsOnlyAHint(t *testing.T) {
 		t.Fatal("plain text changed")
 	}
 }
+
+func TestRemoteAccessToolsAreCriticalUnlessApproved(t *testing.T) {
+	approved := map[string]bool{"tailscale": true}
+	d := NewRemoteAccessDetector(func(id string) bool { return approved[id] })
+	ev := func(provider, kind, signal string) Event {
+		return Event{Kind: "remote_access", Text: "x", Fields: map[string]string{"provider": provider, "ra_kind": kind, "signal": signal, "provider_name": provider}}
+	}
+	if f := d.Inspect(ev("ngrok", "tunnel", "package")); len(f) != 1 || f[0].Severity != SeverityCritical {
+		t.Fatalf("unapproved tool: %+v", f)
+	}
+	if f := d.Inspect(ev("ngrok", "tunnel", "package")); len(f) != 0 {
+		t.Fatal("the same tool and signal again within the cooldown: no second alert")
+	}
+	if f := d.Inspect(ev("tailscale", "mesh-vpn", "package")); len(f) != 1 || f[0].Severity != SeverityInfo {
+		t.Fatalf("approved tool: %+v", f)
+	}
+	approved["sliver"] = true
+	if f := d.Inspect(ev("sliver", "c2", "connection:gomod")); len(f) != 1 || f[0].Severity != SeverityCritical {
+		t.Fatalf("a c2 implant is critical even if someone approved it: %+v", f)
+	}
+	if f := d.Inspect(Event{Kind: "remote_access", Text: "a new wireguard tunnel interface wg0 appeared", Fields: map[string]string{"signal": "tunnel", "iface": "wg0"}}); len(f) != 1 || f[0].Severity != SeverityWarning {
+		t.Fatalf("an unexplained tunnel: %+v", f)
+	}
+	conn := Event{Kind: "new_connection", Text: "tailscaled (pid 9) connected to 1.2.3.4:443", Fields: map[string]string{"ra_provider": "anydesk", "ra_kind": "remote-desktop", "ra_signal": "exe"}}
+	if f := d.Inspect(conn); len(f) != 1 || f[0].Severity != SeverityCritical {
+		t.Fatalf("a connection held by an unapproved tool: %+v", f)
+	}
+	if f := d.Inspect(Event{Kind: "new_connection", Fields: map[string]string{"process": "firefox"}}); len(f) != 0 {
+		t.Fatal("an ordinary connection is not this detector's")
+	}
+}
