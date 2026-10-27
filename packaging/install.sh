@@ -49,6 +49,7 @@ i 644 $p/net/heimdall-wifi-privacy.conf          usr/lib/NetworkManager/conf.d/h
 i 755 $p/net/heimdall-dns-blocklist              usr/bin/heimdall-dns-blocklist
 i 644 $p/net/heimdall-dns.conf                   usr/lib/NetworkManager/conf.d/heimdall-dns.conf
 i 644 $p/net/heimdall-blocklist.conf             etc/NetworkManager/dnsmasq.d/heimdall-blocklist.conf
+i 644 $p/net/heimdall-rebind.conf                etc/NetworkManager/dnsmasq.d/heimdall-rebind.conf
 i 644 $p/net/dns-allow.txt                       etc/heimdall/dns-allow.txt
 i 644 $p/net/heimdall-dns-block.tmpfiles         usr/lib/tmpfiles.d/heimdall-dns.conf
 i 644 $p/net/units/heimdall-dns-blocklist.service usr/lib/systemd/system/heimdall-dns-blocklist.service
