@@ -126,16 +126,20 @@ func (c Catalog) MatchGoModules(mods []string) *Provider {
 }
 
 // goModules reads a program's Go build info (main module and dependencies); nil for a program that is not Go.
-func goModules(path string) []string {
+func goModules(path string) (main, deps []string) {
 	bi, err := buildinfo.ReadFile(path)
 	if err != nil {
-		return nil
+		return nil, nil
 	}
-	mods := []string{bi.Main.Path, bi.Path}
 	for _, d := range bi.Deps {
-		mods = append(mods, d.Path)
+		deps = append(deps, d.Path)
 	}
-	return mods
+	return []string{bi.Main.Path, bi.Path}, deps
+}
+
+type identified struct {
+	p   *Provider
+	sig string
 }
 
 // Identifier matches running programs, reading each executable's Go build info once (cached by path, size and time), so a
@@ -143,7 +147,7 @@ func goModules(path string) []string {
 type Identifier struct {
 	Catalog Catalog
 	mu      sync.Mutex
-	cache   map[string]*Provider
+	cache   map[string]identified
 }
 
 func (id *Identifier) Identify(exePath, comm string) (*Provider, string) {
@@ -159,20 +163,27 @@ func (id *Identifier) Identify(exePath, comm string) (*Provider, string) {
 	id.mu.Lock()
 	defer id.mu.Unlock()
 	if id.cache == nil {
-		id.cache = map[string]*Provider{}
+		id.cache = map[string]identified{}
 	}
-	if p, ok := id.cache[key]; ok {
-		if p == nil {
-			return nil, ""
-		}
-		return p, "gomod"
+	if r, ok := id.cache[key]; ok {
+		return r.p, r.sig
 	}
-	p := id.Catalog.MatchGoModules(goModules(path))
-	id.cache[key] = p
-	if p == nil {
-		return nil, ""
+	// The tool itself ("gomod"), or a program that only contains some of a tool's code ("gomod-dep": ngrok's library or
+	// Tailscale's tsnet embed a tunnel, but some programs borrow one small utility package).
+	main, deps := goModules(path)
+	r := classify(id.Catalog, main, deps)
+	id.cache[key] = r
+	return r.p, r.sig
+}
+
+func classify(c Catalog, main, deps []string) identified {
+	if p := c.MatchGoModules(main); p != nil {
+		return identified{p, "gomod"}
 	}
-	return p, "gomod"
+	if p := c.MatchGoModules(deps); p != nil {
+		return identified{p, "gomod-dep"}
+	}
+	return identified{}
 }
 
 // Approvals is the owner's list of approved provider ids (/etc/heimdall/remote-access-approved.json, written by

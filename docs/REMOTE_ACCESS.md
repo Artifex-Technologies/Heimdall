@@ -22,6 +22,8 @@ names, interface patterns, Go module paths and a kind (`mesh-vpn`, `tunnel`, `re
 - A tool that is not approved: **critical**, with what was seen and where.
 - An approved tool: **info** (it is expected, but a record is kept).
 - A `c2` implant: always **critical**. It cannot be approved.
+- A program that only *contains* a tool's code (ngrok's library, Tailscale's tsnet): **warning**. Some of these really open a
+  tunnel; others only borrow a small utility package.
 - A new tunnel interface nothing explains: **warning**.
 - One alert per tool and signal per hour.
 

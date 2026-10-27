@@ -68,6 +68,19 @@ func TestARenamedGoProgramIsRecognisedByItsBuildInfo(t *testing.T) {
 	}
 }
 
+func TestAProgramThatOnlyContainsAToolsCodeIsToldApart(t *testing.T) {
+	c := Builtin()
+	if r := classify(c, []string{"github.com/jpillora/chisel"}, nil); r.p == nil || r.sig != "gomod" {
+		t.Fatalf("the tool itself: %+v", r)
+	}
+	if r := classify(c, []string{"example.com/app"}, []string{"golang.org/x/net", "tailscale.com"}); r.p == nil || r.p.ID != "tailscale" || r.sig != "gomod-dep" {
+		t.Fatalf("an embedding program: %+v", r)
+	}
+	if r := classify(c, []string{"example.com/app"}, []string{"golang.org/x/net"}); r.p != nil {
+		t.Fatalf("an ordinary program: %+v", r)
+	}
+}
+
 func TestApprovalsAreReadAgainWhenTheFileChanges(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "approved.json")
 	a := &Approvals{Path: path}

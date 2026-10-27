@@ -1,6 +1,7 @@
 package detect
 
 import (
+	"strings"
 	"sync"
 	"time"
 )
@@ -60,9 +61,11 @@ func (d *RemoteAccessDetector) Inspect(e Event) []Finding {
 	if kind != "c2" && d.Approved != nil && d.Approved(provider) {
 		return []Finding{{DetectorID: d.ID(), Severity: SeverityInfo, Summary: e.Text + " (" + name + ", approved by the owner)", Event: e}}
 	}
-	sum := e.Text + ": " + name + " is a remote-access tool the owner has not approved"
 	if kind == "c2" {
-		sum = e.Text + ": " + name + " is a command-and-control implant"
+		return []Finding{{DetectorID: d.ID(), Severity: SeverityCritical, Summary: e.Text + ": " + name + " is a command-and-control implant", Event: e}}
 	}
-	return []Finding{{DetectorID: d.ID(), Severity: SeverityCritical, Summary: sum, Event: e}}
+	if strings.HasSuffix(signal, "gomod-dep") {
+		return []Finding{{DetectorID: d.ID(), Severity: SeverityWarning, Summary: e.Text + ": the program contains code of " + name + " (it may open its own " + kind + ")", Event: e}}
+	}
+	return []Finding{{DetectorID: d.ID(), Severity: SeverityCritical, Summary: e.Text + ": " + name + " is a remote-access tool the owner has not approved", Event: e}}
 }

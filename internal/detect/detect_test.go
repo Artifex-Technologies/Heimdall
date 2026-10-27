@@ -370,6 +370,10 @@ func TestRemoteAccessToolsAreCriticalUnlessApproved(t *testing.T) {
 	if f := d.Inspect(conn); len(f) != 1 || f[0].Severity != SeverityCritical {
 		t.Fatalf("a connection held by an unapproved tool: %+v", f)
 	}
+	embed := Event{Kind: "new_connection", Text: "app (pid 7) connected to 1.2.3.4:443", Fields: map[string]string{"ra_provider": "ngrok", "ra_kind": "tunnel", "ra_signal": "gomod-dep"}}
+	if f := d.Inspect(embed); len(f) != 1 || f[0].Severity != SeverityWarning {
+		t.Fatalf("a program that only contains a tool's code: %+v", f)
+	}
 	if f := d.Inspect(Event{Kind: "new_connection", Fields: map[string]string{"process": "firefox"}}); len(f) != 0 {
 		t.Fatal("an ordinary connection is not this detector's")
 	}
