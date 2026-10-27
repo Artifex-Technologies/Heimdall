@@ -330,7 +330,9 @@ func cmdRun(args []string) int {
 	if cfg.ListenWatch {
 		go netsource.NewListenWatcher().Run(ctx, 15*time.Second, eng.Handle)
 		// remote-access tools by what is installed and which tunnel interfaces exist (docs/REMOTE_ACCESS.md)
-		go rasource.New(remoteaccess.Builtin()).Run(ctx, 15*time.Second, eng.Handle)
+		ra := remoteaccess.Builtin()
+		go rasource.New(ra).Run(ctx, 15*time.Second, eng.Handle)
+		log.Printf("watching for %d remote-access tools (installed packages and tunnel interfaces every 15s, connections by program)", len(ra.Providers))
 	}
 
 	if cfg.Firewall {
