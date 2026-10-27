@@ -3,6 +3,7 @@ package hardening
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -37,4 +38,24 @@ func TestGapsAreFoundOnceWithTheirFix(t *testing.T) {
 	if gaps := (System{Root: root}).Check(); len(gaps) != 2 {
 		t.Fatal("closed when fixed", gaps)
 	}
+}
+
+// A setting Heimdall may not read is reported as unchecked, not passed over as if it were fine.
+func TestAnUnreadableSettingIsReportedAsUnchecked(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads everything")
+	}
+	root := t.TempDir()
+	p := filepath.Join(root, "proc/sys/net/core/bpf_jit_harden")
+	os.MkdirAll(filepath.Dir(p), 0o755)
+	os.WriteFile(p, []byte("0\n"), 0o000)
+	for _, g := range (System{Root: root}).Check() {
+		if g.ID == "sysctl-net.core.bpf_jit_harden" {
+			if !strings.Contains(g.Now, "may not read") {
+				t.Fatalf("%+v", g)
+			}
+			return
+		}
+	}
+	t.Fatal("an unreadable setting was taken as fine")
 }

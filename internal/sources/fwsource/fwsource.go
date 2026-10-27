@@ -59,7 +59,9 @@ const maxPerPoll = 5000 // a flood is counted from what is read; the rest waits 
 
 func (w *Watcher) args() []string {
 	a := []string{"-o", "json", "--no-pager", "-q", "-n", fmt.Sprint(maxPerPoll),
-		"_TRANSPORT=kernel", "+", "SYSLOG_IDENTIFIER=sshd", "+", "SYSLOG_IDENTIFIER=sshd-session"}
+		// SYSLOG_IDENTIFIER is whatever the writer says (logger -t sshd works for anyone), so the SSH lines must also come from
+		// root: _UID is set by journald itself and cannot be forged
+		"_TRANSPORT=kernel", "+", "SYSLOG_IDENTIFIER=sshd", "_UID=0", "+", "SYSLOG_IDENTIFIER=sshd-session", "_UID=0"}
 	if c := w.cursor(); c != "" {
 		return append(a, "--after-cursor="+c)
 	}

@@ -45,6 +45,9 @@ type Finding struct {
 	Severity   Severity
 	Summary    string
 	Event      Event
+	// Firm findings are never softened by a maintenance window (an unsigned change to an AI agent's behaviour files: the
+	// window is for expected system changes, and must not switch off the trust check or the containment it starts).
+	Firm bool
 }
 
 // Detector inspects one Event at a time and optionally emits Findings.

@@ -6,7 +6,9 @@ package hardening
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,7 +37,13 @@ func (s System) read(p string) (string, bool) {
 	return strings.TrimSpace(string(b)), true
 }
 
-// sysctl reads one setting; ok is false when the kernel does not have it.
+// unreadable reports whether p exists but could not be read (permission), as opposed to missing.
+func (s System) unreadable(p string) bool {
+	_, err := os.ReadFile(filepath.Join(s.Root, p))
+	return err != nil && errors.Is(err, fs.ErrPermission)
+}
+
+// sysctl reads one setting; ok is false when the kernel does not have it or it cannot be read.
 func (s System) sysctl(name string) (string, bool) {
 	return s.read(filepath.Join("/proc/sys", strings.ReplaceAll(name, ".", "/")))
 }
@@ -79,6 +87,12 @@ func (s System) Check() []Gap {
 		{"net.core.bpf_jit_harden", "2", false, "the kernel's BPF compiler output can be used to smuggle exploit code; hardening it costs a little speed only for BPF"},
 	} {
 		now, ok := s.sysctl(c.name)
+		if !ok && s.unreadable(filepath.Join("/proc/sys", strings.ReplaceAll(c.name, ".", "/"))) {
+			// root-only settings (bpf_jit_harden): not knowing is not the same as no gap
+			gaps = append(gaps, Gap{ID: "sysctl-" + c.name, Now: c.name + ": Heimdall may not read it", Why: "could not be checked: " + c.why,
+				Fix: "sudo sysctl " + c.name + "   (if it is not " + c.want + ": " + sysctlFix(c.name, c.want) + ")", Level: "info"})
+			continue
+		}
 		if !ok || (c.lowerIsStricter && now <= c.want) || (!c.lowerIsStricter && now >= c.want) { // single digits: text order is number order
 			continue
 		}

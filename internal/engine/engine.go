@@ -51,7 +51,7 @@ func (e *Engine) Handle(ev detect.Event) {
 	for _, d := range e.detectors {
 		for _, f := range d.Inspect(ev) {
 			f = verify.Apply(f)
-			if e.window != nil && e.softened[f.DetectorID] && f.Severity != detect.SeverityInfo {
+			if e.window != nil && e.softened[f.DetectorID] && f.Severity != detect.SeverityInfo && !f.Firm {
 				if w, ok := e.window.Active(); ok {
 					f.Severity = detect.SeverityInfo
 					f.Summary = "[maintenance: " + w.Reason + "] " + f.Summary

@@ -49,7 +49,7 @@ func (d *FileIntegrityDetector) Inspect(e Event) []Finding {
 				Summary: fmt.Sprintf("%s: %s, approved (it matches the signed list)", e.Fields["path"], verb(e.Kind)), Event: e}}
 		case "unsigned":
 			return []Finding{{DetectorID: d.ID(), Severity: SeverityCritical,
-				Summary: fmt.Sprintf("%s: %s without approval (%s); it decides how an AI agent behaves", e.Fields["path"], verb(e.Kind), why), Event: e}}
+				Summary: fmt.Sprintf("%s: %s without approval (%s); it decides how an AI agent behaves", e.Fields["path"], verb(e.Kind), why), Event: e, Firm: true}}
 		}
 	}
 	switch e.Kind {

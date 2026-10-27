@@ -210,7 +210,7 @@ func (s Real) Notify(summary string) {
 			gid = u.Gid
 		}
 		cmd := exec.Command("setpriv", "--reuid="+uid, "--regid="+gid, "--init-groups", "--",
-			"notify-send", "-u", "critical", "-a", "Heimdall", "Heimdall", summary)
+			"notify-send", "-u", "critical", "-a", "Heimdall", "--", "Heimdall", summary)
 		cmd.Env = []string{"DBUS_SESSION_BUS_ADDRESS=" + bus, "PATH=/usr/bin:/bin"}
 		_ = cmd.Run()
 	}

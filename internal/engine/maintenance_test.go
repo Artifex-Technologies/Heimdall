@@ -41,3 +41,22 @@ func TestMaintenanceSoftensOnlyTheListedDetectors(t *testing.T) {
 		}
 	}
 }
+
+type firmDetector struct{}
+
+func (firmDetector) ID() string { return "file-integrity" }
+func (firmDetector) Inspect(e detect.Event) []detect.Finding {
+	return []detect.Finding{{DetectorID: "file-integrity", Severity: detect.SeverityCritical, Summary: "unsigned", Event: e, Firm: true}}
+}
+
+// An unsigned change to an AI agent's behaviour files stays critical while a window is open: the window must not switch
+// off the trust check or the containment it starts.
+func TestFirmFindingsAreNeverSoftened(t *testing.T) {
+	c := &capture{}
+	e := New(c, nil, firmDetector{})
+	e.SetMaintenance(fixedWindow{true}, []string{"file-integrity"})
+	e.Handle(detect.Event{Kind: "file_modified"})
+	if len(c.got) != 1 || c.got[0].Severity != detect.SeverityCritical {
+		t.Fatalf("%+v", c.got)
+	}
+}
