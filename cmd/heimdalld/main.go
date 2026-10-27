@@ -51,6 +51,15 @@ func main() {
 	}
 
 	switch os.Args[1] {
+	case trust.ChildCommand: // a trust restore's write, already running as the folder's owner (internal/trust/owner.go)
+		if len(os.Args) != 3 {
+			os.Exit(2)
+		}
+		if err := trust.WriteChild(os.Args[2]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
 	case "run":
 		os.Exit(cmdRun(os.Args[2:]))
 	case "scan":

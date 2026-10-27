@@ -336,14 +336,9 @@ func (s Store) Restore(paths []string) ([]Restored, error) {
 		if err != nil {
 			return out, fmt.Errorf("no approved copy of %s: %w", f, err)
 		}
-		if err := os.MkdirAll(filepath.Dir(f), 0o755); err != nil {
+		// as the folder's owner (the user's own files), or as root only inside root-only folders: never through a link
+		if err := restoreFile(f, b); err != nil {
 			return out, err
-		}
-		if err := writeFile(f, b, 0o644); err != nil {
-			return out, err
-		}
-		if st, err := os.Stat(filepath.Dir(f)); err == nil {
-			chownLike(f, st)
 		}
 		out = append(out, Restored{f, why})
 	}

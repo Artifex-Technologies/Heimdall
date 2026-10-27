@@ -108,7 +108,60 @@ func TestJudge(t *testing.T) {
 	}
 }
 
+// asOwner stands in for the child process in tests (they do not run as root): it records who the write was for.
+func asOwner(t *testing.T) *[]uint32 {
+	var uids []uint32
+	old := writeAsOwner
+	writeAsOwner = func(path string, data []byte, uid, gid uint32) error {
+		uids = append(uids, uid)
+		return writeOwned(path, data)
+	}
+	t.Cleanup(func() { writeAsOwner = old })
+	return &uids
+}
+
+func TestRestoreWritesAsTheFoldersOwnerAndNeverThroughALink(t *testing.T) {
+	uids := asOwner(t)
+	s := Store{Dir: t.TempDir()}
+	s.Init()
+	home := t.TempDir()
+	f := filepath.Join(home, "skills", "fix.md")
+	os.MkdirAll(filepath.Dir(f), 0o755)
+	os.WriteFile(f, []byte("approved"), 0o644)
+	s.Sign([]string{f})
+	os.WriteFile(f, []byte("tampered"), 0o644)
+	if _, err := s.Restore(nil); err != nil {
+		t.Fatal(err)
+	}
+	if len(*uids) != 1 || (*uids)[0] != uint32(os.Getuid()) {
+		t.Fatalf("not written as the folder's owner: %v", *uids)
+	}
+	// the user swaps the folder for a link to somewhere else: the restore refuses instead of following it
+	elsewhere := t.TempDir()
+	os.RemoveAll(filepath.Join(home, "skills"))
+	os.Symlink(elsewhere, filepath.Join(home, "skills"))
+	if _, err := s.Restore(nil); err == nil || !strings.Contains(err.Error(), "is a link") {
+		t.Fatalf("followed a link: %v", err)
+	}
+	if entries, _ := os.ReadDir(elsewhere); len(entries) != 0 {
+		t.Fatal("wrote through the link")
+	}
+}
+
+func TestRootWritesOnlyIntoRootOnlyFolders(t *testing.T) {
+	if os.Getuid() == 0 {
+		t.Skip("needs a folder not owned by root")
+	}
+	if err := rootOnly(t.TempDir()); err == nil {
+		t.Fatal("a folder owned by a user passed as root-only")
+	}
+	if err := rootOnly("/usr/share"); err != nil {
+		t.Fatalf("/usr/share should be root-only: %v", err)
+	}
+}
+
 func TestRestorePutsTheApprovedContentBack(t *testing.T) {
+	asOwner(t)
 	s := Store{Dir: t.TempDir()}
 	s.Init()
 	dir := t.TempDir()
