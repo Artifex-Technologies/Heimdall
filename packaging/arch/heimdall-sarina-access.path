@@ -1,0 +1,10 @@
+[Unit]
+Description=Heimdall -- give the monitor read access to Sarina's sessions when the folder appears
+Documentation=https://github.com/Artifex-Technologies/Heimdall/blob/main/docs/ARCHITECTURE.md
+
+[Path]
+# inotify, no polling: fires once when Sarina's service first makes the folder (and at boot when it is there)
+PathExists=/var/lib/sarina/sessions
+
+[Install]
+WantedBy=paths.target

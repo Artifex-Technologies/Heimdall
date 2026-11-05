@@ -164,7 +164,10 @@ its timers and the path units, never again on upgrades.
 
 The service is sandboxed (`ProtectSystem=strict`, `ProtectHome=read-only`). The optional connection-watch drop-in
 (`heimdall-connwatch.conf.example`) gives it read-only `CAP_SYS_PTRACE` and `CAP_DAC_READ_SEARCH`, to see which program owns a
-connection and to read other users' files. See [`internal/config/config.go`](internal/config/config.go) for every setting and its
+connection and to read other users' files. Read access to Sarina's session folder (`/var/lib/sarina/sessions`) comes
+from an ACL the package sets (`heimdall-sarina-read.conf` in tmpfiles.d: read and enter, never write), applied at boot and by
+`heimdall-sarina-access.path` the moment Sarina's service makes the folder. Session files written before Heimdall was
+installed stay unreadable (each is reported once); `sudo setfacl -R -m u:heimdall:rX /var/lib/sarina/sessions` opens them. See [`internal/config/config.go`](internal/config/config.go) for every setting and its
 default.
 
 ## Design and references

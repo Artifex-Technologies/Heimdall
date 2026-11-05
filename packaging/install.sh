@@ -13,6 +13,10 @@ i 644 README.md                                  usr/share/doc/heimdall/README.m
 i 644 $p/arch/heimdall.service                   usr/lib/systemd/system/heimdall.service
 i 644 $p/arch/heimdall.sysusers                  usr/lib/sysusers.d/heimdall.conf
 i 644 $p/arch/config.json.example                etc/heimdall/config.json.example
+# read access (ACL, read only) to Sarina's session folder, set at boot and as soon as Sarina's service makes the folder
+i 644 $p/arch/heimdall-sarina-read.tmpfiles     usr/lib/tmpfiles.d/heimdall-sarina-read.conf
+i 644 $p/arch/heimdall-sarina-access.path       usr/lib/systemd/system/heimdall-sarina-access.path
+i 644 $p/arch/heimdall-sarina-access.service    usr/lib/systemd/system/heimdall-sarina-access.service
 # containment of a compromised AI agent: heimdalld asks, this root unit acts (off until /etc/heimdall/contain.json says so)
 i 644 $p/arch/heimdall-contain.path              usr/lib/systemd/system/heimdall-contain.path
 i 644 $p/arch/heimdall-contain.service           usr/lib/systemd/system/heimdall-contain.service

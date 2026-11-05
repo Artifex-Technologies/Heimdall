@@ -1,0 +1,8 @@
+# Heimdall reads Sarina's session files (agent_session_dir), and nothing else of hers. Least privilege, by ACL:
+#   /var/lib/sarina            enter only (no listing), in case Sarina's packaging ever closes it to others
+#   /var/lib/sarina/sessions   list and enter; files made in it from now on are readable (the files' own mode masks
+#                              the entry, so a 0640 session file gives heimdall read, never write)
+# A line whose folder does not exist (Sarina not installed yet) is skipped without an error; heimdall-sarina-access.path
+# applies this file again as soon as Sarina's service makes the folder. Heimdall never gets write access here.
+a+ /var/lib/sarina          - - - - u:heimdall:--x
+a+ /var/lib/sarina/sessions - - - - u:heimdall:r-x,d:u:heimdall:r-x

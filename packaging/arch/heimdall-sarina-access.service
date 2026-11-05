@@ -1,0 +1,15 @@
+[Unit]
+Description=Heimdall -- read access to Sarina's sessions (ACL from heimdall-sarina-read.conf)
+Documentation=https://github.com/Artifex-Technologies/Heimdall/blob/main/docs/ARCHITECTURE.md
+
+[Service]
+Type=oneshot
+# stays "active" afterwards, so the path unit does not fire again in a loop
+RemainAfterExit=yes
+ExecStart=/usr/bin/systemd-tmpfiles --create /usr/lib/tmpfiles.d/heimdall-sarina-read.conf
+NoNewPrivileges=yes
+ProtectHome=yes
+PrivateNetwork=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=-/var/lib/sarina

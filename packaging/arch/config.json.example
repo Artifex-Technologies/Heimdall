@@ -1,5 +1,5 @@
 {
-  "agent_session_dir": "/home/YOUR_USER/path/to/Sarina/.port_sessions",
+  "agent_session_dir": "/var/lib/sarina/sessions",
   "poll_interval_seconds": 5,
   "alert_log_path": "/var/lib/heimdall/alerts.jsonl",
   "ring_size": 500,
