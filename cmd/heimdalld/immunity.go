@@ -124,6 +124,31 @@ func cmdImmunity(args []string) int {
 			_ = immunity.QueueAnalysis(RequestDir, e.SHA256)
 		}
 		return 0
+	case "take-limbo":
+		// keep a copy of a file Limbo held at a guest's exchange (exchange.held): by SHA-256 only, never run
+		if len(args) != 2 {
+			fmt.Fprintln(os.Stderr, "usage: heimdalld immunity take-limbo SHA256")
+			return 2
+		}
+		if !needRoot() {
+			return 2
+		}
+		dir := immunity.LimboHeldDir
+		if test {
+			if d := os.Getenv("HEIMDALL_LIMBO_HELD_DIR"); d != "" {
+				dir = d
+			}
+		}
+		e, err := st.TakeFromLimbo(dir, args[1], immunity.ClamAV)
+		if err != nil {
+			return fail(err)
+		}
+		extra := ""
+		if e.ClamAV != "" {
+			extra = " (ClamAV: " + e.ClamAV + ")"
+		}
+		fmt.Printf("%s %s %s%s\n", e.Status, e.SHA256, e.Original, extra)
+		return 0
 	case "release":
 		// the owner judged it good (Settings asks for the password)
 		if len(args) != 2 {
@@ -399,6 +424,7 @@ func immunityUsage() {
 	fmt.Fprint(os.Stderr, strings.TrimLeft(`
 heimdalld immunity: malware Heimdall has learned that ClamAV (the reference) does not know (see docs/IMMUNITY.md)
   heimdalld immunity hold --reason WHY FILE     quarantine it: ClamAV is asked at once; you are told and decide (root)
+  heimdalld immunity take-limbo SHA256          keep a copy of a file Limbo held at a guest's exchange (root; never run)
   heimdalld immunity release SHA256             it is good: put it back exactly as it was (root; Settings asks for the password)
   heimdalld immunity release-if-proven SHA256   put it back only if Heimdall can prove it was there before (root)
   heimdalld immunity add --reason WHY FILE      it is malware: hold it and learn it when ClamAV does not know it (root)

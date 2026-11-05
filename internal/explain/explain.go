@@ -165,7 +165,7 @@ func For(detector, severity string, fields map[string]string) Text {
 		if fields["signature"] != "" || severity != "info" {
 			t.What = "A program in the Limbo sandbox " + guest + " tried to hand you a file (" + orUnknown(quoted(fields, "guest_path"), "unnamed") + ") that ClamAV knows as malware (" + orUnknown(clean(fields["signature"], 80), "a known signature") + ")."
 			t.Done = "Limbo kept the file back, where only root can read it; it did not reach you."
-			t.Do = "Do not copy files out of this sandbox by other means. The sandbox itself is probably infected: if you do not need it, delete it."
+			t.Do = "Do not copy files out of this sandbox by other means. The sandbox itself is probably infected: if you do not need it, delete it. To keep a copy in Heimdall's own malware store (root-only, never run): sudo heimdalld immunity take-limbo " + sha256OrPlaceholder(fields["sha256"]) + "."
 		} else {
 			t.What = "A file in the Limbo sandbox " + guest + "'s outbox (" + orUnknown(quoted(fields, "guest_path"), "unnamed") + ") could not be scanned, so Limbo did not hand it out."
 			t.Done = "The file stayed inside the sandbox."
@@ -208,6 +208,15 @@ func For(detector, severity string, fields map[string]string) Text {
 		t.Do = settings
 	}
 	return t
+}
+
+// sha256OrPlaceholder puts a SHA-256 into a suggested command only when it is one (64 hex characters); anything else
+// becomes the word SHA256, so no observed text ever lands in a command line.
+func sha256OrPlaceholder(s string) string {
+	if len(s) != 64 || strings.Trim(strings.ToLower(s), "0123456789abcdef") != "" {
+		return "SHA256"
+	}
+	return s
 }
 
 func orUnknown(s, fallback string) string {

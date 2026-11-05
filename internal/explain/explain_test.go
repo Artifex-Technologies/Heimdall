@@ -57,6 +57,12 @@ func TestLimboNetworkAndExchangeWords(t *testing.T) {
 	if !strings.Contains(held.What, "malware") || !strings.Contains(held.What, "Eicar-Test-Signature") || !strings.Contains(held.What, "“out/x.exe”") {
 		t.Errorf("held: %+v", held)
 	}
+	if sha := strings.Repeat("a", 64); !strings.Contains(For("limbo-exchange", "warning", map[string]string{"sha256": sha}).Do, "immunity take-limbo "+sha) {
+		t.Error("held: the owner should be told how to keep a copy")
+	}
+	if do := For("limbo-exchange", "warning", map[string]string{"sha256": "x; rm -rf ~"}).Do; strings.Contains(do, "rm -rf") {
+		t.Errorf("observed text in a command: %q", do)
+	}
 	if fail := For("limbo-exchange", "info", map[string]string{"reason": "clamd down"}); !strings.Contains(fail.What, "could not be scanned") {
 		t.Errorf("fail: %+v", fail)
 	}
