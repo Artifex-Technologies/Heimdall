@@ -27,6 +27,16 @@ var triggerKinds = map[string]bool{
 	"policy.remove": true, // firewall removed while the guest was running
 }
 
+// networkTriggerReasons are the net.anomaly reasons (limbo-network alerts) that restrict the guest: it reached for this
+// computer, the home network, or scanned. Anything Limbo's firewall refused, so nothing got through; restricting is the
+// cautious answer to a guest that is looking for a way out. ipv6 (dropped, no route) and capped flows are alerts only, and
+// net.flow (normal traffic) never reaches here: no detector turns it into an alert.
+var networkTriggerReasons = map[string]bool{
+	"host_probe": true,
+	"lan_probe":  true,
+	"scan":       true,
+}
+
 // guestRe mirrors Limbo's name rule. The name came from a log file, so it is
 // checked again before being put on a request.
 var guestRe = regexp.MustCompile(`^[a-z][a-z0-9-]{0,11}$`)
@@ -353,7 +363,7 @@ func (r *Responder) recheck(q *request) (skip bool, reason string) {
 	r.mu.Lock()
 	m, ok := r.marks[q.guest]
 	r.mu.Unlock()
-	if ok && m.seq > q.seq {
+	if ok && m.seq > q.seq && q.clearedByLater() {
 		return true, m.reason
 	}
 	sc, ok := r.Limbo.(StatusChecker)
@@ -616,10 +626,25 @@ func (r *Responder) quarantineFailure(guest, code, msg, remedy string, extra map
 }
 
 func (r *Responder) triggers(a alert.Alert) bool {
-	return a.DetectorID == "limbo-guest" &&
-		a.Severity == detect.SeverityCritical &&
-		triggerKinds[a.EventKind] &&
-		guestRe.MatchString(a.Fields["guest"])
+	if !guestRe.MatchString(a.Fields["guest"]) {
+		return false
+	}
+	switch a.DetectorID {
+	case "limbo-guest":
+		return a.Severity == detect.SeverityCritical && triggerKinds[a.EventKind]
+	case "limbo-network":
+		// warning or higher, so a maintenance window that softens it to info also stops the response
+		return a.Source == "limbo" && a.EventKind == "net.anomaly" && networkTriggerReasons[a.Fields["reason"]] &&
+			severityRank(a.Severity) >= severityRank(detect.SeverityWarning)
+	}
+	return false
+}
+
+// clearedByLater reports whether a later Limbo event (policy re-applied, guest stopped) can make the request unnecessary.
+// Not for a network anomaly: the guest went looking for a way out, and neither a fresh policy nor a stop changes that. A
+// hold on a stopped guest still matters, because Limbo will not start a guest it holds.
+func (q *request) clearedByLater() bool {
+	return !containsStr(q.kinds, "net.anomaly")
 }
 
 func (r *Responder) advise(id string, a alert.Alert) {

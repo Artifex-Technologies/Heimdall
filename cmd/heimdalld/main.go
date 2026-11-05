@@ -173,6 +173,8 @@ func newDetectors(cfg config.Config) []detect.Detector {
 		detect.NewBaselineDriftDetectorWithFloors(cfg.BaselineMinSamples, cfg.BaselineZThreshold, detect.DefaultBaselineFloors),
 		detect.NewAgentBaselineDetector(cfg.BaselineMinSamples, cfg.BaselineZThreshold, cfg.AgentBaselineStatePath),
 		detect.NewLimboGuestDetector(),
+		detect.NewLimboNetworkDetector(),
+		detect.NewLimboExchangeDetector(),
 		detect.NewRemoteAccessDetector(remoteApprovals.Approved),
 	}
 }

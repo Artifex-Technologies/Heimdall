@@ -95,3 +95,36 @@ func TestABridgingAlertMergesIncidents(t *testing.T) {
 		t.Fatalf("%+v", got)
 	}
 }
+
+// Limbo's guest network and exchange alerts link through the guest, so a guest that probes this computer and tries to hand
+// out a known virus is one incident. The guest's own file path does not link to a file on this computer.
+func TestLimboGuestAlertsBecomeOneIncident(t *testing.T) {
+	out := &capture{}
+	c := &Correlator{Next: out}
+	ev := func(kind string, f map[string]string) detect.Event {
+		f["guest"] = "lab"
+		return detect.Event{Source: "limbo", Kind: kind, Fields: f}
+	}
+	write := func(d detect.Detector, e detect.Event) {
+		for _, f := range d.Inspect(e) {
+			c.Write(alert.FromFinding(f))
+		}
+	}
+	// an unrelated alert about a real file on this computer with the same name as the guest's file
+	c.Write(al("file-integrity", detect.SeverityCritical, "", map[string]string{"path": "out/x.exe"}))
+	write(detect.NewLimboNetworkDetector(), ev("net.anomaly", map[string]string{"reason": "host_probe", "proto": "tcp", "dst": "192.0.2.1", "dport": "22"}))
+	if len(out.incidents()) != 0 {
+		t.Fatal("one Limbo detector is not an incident")
+	}
+	write(detect.NewLimboExchangeDetector(), ev("exchange.held", map[string]string{"path": "out/x.exe", "sha256": strings.Repeat("a", 64), "signature": "Eicar-Test-Signature"}))
+	inc := out.incidents()
+	if len(inc) != 1 {
+		t.Fatalf("%d incident alerts, want 1", len(inc))
+	}
+	if inc[0].Severity != detect.SeverityCritical || inc[0].Fields["detectors"] != "limbo-exchange,limbo-network" || !strings.Contains(inc[0].Fields["keys"], "guest:lab") {
+		t.Fatalf("incident: %+v", inc[0])
+	}
+	if strings.Contains(inc[0].Fields["keys"], "file:") {
+		t.Fatalf("the guest's path linked to a file on this computer: %s", inc[0].Fields["keys"])
+	}
+}

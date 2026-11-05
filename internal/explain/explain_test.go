@@ -9,7 +9,7 @@ import (
 func TestEveryDetectorIsExplained(t *testing.T) {
 	ids := []string{"injection-phrase", "credential-shape", "invisible-unicode", "permission-escalation", "session-burst", "file-integrity",
 		"maintenance-window", "resource-pressure", "network-exposure", "connection-watch", "inbound", "package-vulnerability",
-		"kernel-vulnerability", "hardening", "wifi-safety", "lan-watch", "baseline-drift", "limbo-guest", "integration", "remote-access"}
+		"kernel-vulnerability", "hardening", "wifi-safety", "lan-watch", "baseline-drift", "limbo-guest", "limbo-network", "limbo-exchange", "integration", "remote-access"}
 	for _, id := range ids {
 		for _, sev := range []string{"info", "warning", "critical"} {
 			x := For(id, sev, nil)
@@ -41,5 +41,23 @@ func TestObservedValuesAreQuotedAndCleaned(t *testing.T) {
 	}
 	if For("limbo-guest", "critical", nil).Done == logged {
 		t.Error("a quarantined guest should say Limbo cut it off")
+	}
+}
+
+// The guest network and exchange alerts say what happened for each reason, and never claim a restriction happened for certain.
+func TestLimboNetworkAndExchangeWords(t *testing.T) {
+	host := For("limbo-network", "critical", map[string]string{"guest": "lab", "reason": "host_probe"})
+	if !strings.Contains(host.What, "this computer itself") || !strings.Contains(host.What, "“lab”") || !strings.Contains(host.Done, "If automatic restriction is on") {
+		t.Errorf("host probe: %+v", host)
+	}
+	if v6 := For("limbo-network", "warning", map[string]string{"reason": "ipv6"}); strings.Contains(v6.Done, "quarantine") {
+		t.Errorf("ipv6 is never restricted, the text must not say so: %+v", v6)
+	}
+	held := For("limbo-exchange", "warning", map[string]string{"guest": "lab", "guest_path": "out/x.exe", "signature": "Eicar-Test-Signature"})
+	if !strings.Contains(held.What, "malware") || !strings.Contains(held.What, "Eicar-Test-Signature") || !strings.Contains(held.What, "“out/x.exe”") {
+		t.Errorf("held: %+v", held)
+	}
+	if fail := For("limbo-exchange", "info", map[string]string{"reason": "clamd down"}); !strings.Contains(fail.What, "could not be scanned") {
+		t.Errorf("fail: %+v", fail)
 	}
 }

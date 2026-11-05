@@ -133,6 +133,44 @@ func For(detector, severity string, fields map[string]string) Text {
 		t.What = "A program running in a Limbo sandbox broke the sandbox's safety rules" + orEmpty(quoted(fields, "guest"), ": ") + "."
 		t.Done = "Heimdall asked Limbo to cut the sandbox off (quarantine). Limbo never lets Heimdall release it; only you can."
 		t.Do = "Look at the quarantine in Settings > Security before releasing anything; if unsure, delete the sandbox."
+	case "limbo-network":
+		guest := orUnknown(quoted(fields, "guest"), "a sandbox")
+		switch fields["reason"] {
+		case "host_probe":
+			t.What = "A program in the Limbo sandbox " + guest + " tried to reach this computer itself. Its firewall refused it, but a sandboxed program has no reason to knock on its host."
+		case "lan_probe":
+			t.What = "A program in the Limbo sandbox " + guest + " tried to reach your home network, the router or another sandbox. Its firewall refused it."
+		case "scan":
+			t.What = "A program in the Limbo sandbox " + guest + " tried many different addresses in a short time and was refused each time. That is what a scan looks like."
+		case "ipv6":
+			t.What = "A program in the Limbo sandbox " + guest + " tried to send IPv6 traffic out. Sandboxes have no IPv6, so it went nowhere."
+		case "":
+			t.What = "The Limbo sandbox " + guest + " used up its budget of recorded network destinations. Limbo keeps reporting anything that looks like probing."
+		default:
+			t.What = "Limbo reported unusual refused network traffic from the sandbox " + guest + "."
+		}
+		switch fields["reason"] {
+		case "host_probe", "lan_probe", "scan":
+			t.Done = "Nothing got through: the sandbox's firewall refused it. If automatic restriction is on in Heimdall's settings, Heimdall also asked Limbo to cut the sandbox's network (quarantine); only you can release it."
+			t.Do = "Look at what runs in the sandbox (Settings > Security shows any quarantine). If you do not know why it would do this, delete the sandbox."
+		case "":
+			t.Done = "Nothing was changed; Limbo only stops writing down new ordinary destinations for this sandbox."
+			t.Do = "Nothing, unless other alerts name the same sandbox."
+		default:
+			t.Done = "Nothing got through: the sandbox's firewall refused it."
+			t.Do = "If other alerts name the same sandbox, read them together; otherwise nothing to do."
+		}
+	case "limbo-exchange":
+		guest := orUnknown(quoted(fields, "guest"), "a sandbox")
+		if fields["signature"] != "" || severity != "info" {
+			t.What = "A program in the Limbo sandbox " + guest + " tried to hand you a file (" + orUnknown(quoted(fields, "guest_path"), "unnamed") + ") that ClamAV knows as malware (" + orUnknown(clean(fields["signature"], 80), "a known signature") + ")."
+			t.Done = "Limbo kept the file back, where only root can read it; it did not reach you."
+			t.Do = "Do not copy files out of this sandbox by other means. The sandbox itself is probably infected: if you do not need it, delete it."
+		} else {
+			t.What = "A file in the Limbo sandbox " + guest + "'s outbox (" + orUnknown(quoted(fields, "guest_path"), "unnamed") + ") could not be scanned, so Limbo did not hand it out."
+			t.Done = "The file stayed inside the sandbox."
+			t.Do = "Check that ClamAV is running (systemctl status clamav-daemon), then try again."
+		}
 	case "remote-access":
 		tool := orUnknown(clean(fields["provider_name"], 60), "a tool")
 		switch {
