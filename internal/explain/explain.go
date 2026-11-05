@@ -149,6 +149,12 @@ func For(detector, severity string, fields map[string]string) Text {
 			t.What = tool + " lets someone reach this computer from elsewhere, and it is here without your approval (" + orUnknown(clean(fields["signal"], 30), "seen") + "). Malware often installs a tool like this to keep a way in."
 			t.Do = "If you installed it yourself and want it, approve it: sudo heimdalld remote approve " + orUnknown(clean(fields["provider"], 30), "ID") + ". If not, remove it now and look at what else was installed with it."
 		}
+	case "agent-baseline":
+		t.What = "The AI agent behaved unlike its usual self: far more sessions or tool calls than normal for it, or a tool it had never used. " + aiAgentNote
+		t.Do = "If you just gave it a big job (or the evals are running), nothing to do. Otherwise look at its latest sessions and at any other alert about them."
+	case "incident":
+		t.What = "Several of Heimdall's alerts are about the same thing (" + orUnknown(clean(fields["keys"], 160), "a session, address or program") + ") within a short time: " + orUnknown(clean(fields["detectors"], 120), "several checks") + ". Each alone may be harmless; together they tell one story."
+		t.Do = "Read these alerts together, oldest first (Settings > Security, or heimdalld's API /v1/incidents). Act on the most serious one."
 	case "grant-request":
 		t.What = "An AI agent asks for more than it has: " + orUnknown(clean(fields["kind"], 20), "a grant") + " " + orUnknown(clean(fields["detail"], 40), "") + ". It cannot give this to itself; only you can."
 		t.Done = "Heimdall recorded the request. Nothing changes until you decide."

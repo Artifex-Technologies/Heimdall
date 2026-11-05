@@ -53,6 +53,14 @@ func (s *Server) SetQuarantine(f func() any) {
 	})
 }
 
+// SetIncidents serves GET /v1/incidents: related alerts grouped into incidents (internal/correlate), newest first.
+func (s *Server) SetIncidents(f func() any) {
+	s.mux.HandleFunc("/v1/incidents", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(f())
+	})
+}
+
 // SetAudit serves GET /v1/audit: what is open right now (known holes in the packages and kernels, hardening gaps), computed on
 // each request from files already on the computer. Read-only like the rest.
 func (s *Server) SetAudit(f func() any) {

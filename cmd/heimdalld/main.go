@@ -26,6 +26,7 @@ import (
 	"github.com/Artifex-Technologies/Heimdall/internal/api"
 	"github.com/Artifex-Technologies/Heimdall/internal/config"
 	"github.com/Artifex-Technologies/Heimdall/internal/contain"
+	"github.com/Artifex-Technologies/Heimdall/internal/correlate"
 	"github.com/Artifex-Technologies/Heimdall/internal/detect"
 	"github.com/Artifex-Technologies/Heimdall/internal/engine"
 	"github.com/Artifex-Technologies/Heimdall/internal/governance"
@@ -165,6 +166,7 @@ func newDetectors(cfg config.Config) []detect.Detector {
 		detect.NewWifiDetector(),
 		detect.NewLANDetector(),
 		detect.NewBaselineDriftDetectorWithFloors(cfg.BaselineMinSamples, cfg.BaselineZThreshold, detect.DefaultBaselineFloors),
+		detect.NewAgentBaselineDetector(cfg.BaselineMinSamples, cfg.BaselineZThreshold, cfg.AgentBaselineStatePath),
 		detect.NewLimboGuestDetector(),
 		detect.NewRemoteAccessDetector(remoteApprovals.Approved),
 	}
@@ -199,7 +201,9 @@ func cmdRun(args []string) int {
 		}
 	}
 
-	multiSink := alert.NewMultiSink(sinks...)
+	// every alert passes the correlator on its way to the outputs: related alerts become one incident alert (Phase 5)
+	corr := &correlate.Correlator{Next: alert.NewMultiSink(sinks...)}
+	multiSink := alert.Sink(corr)
 	var engineSink alert.Sink = multiSink
 	var resp *response.Responder
 	if cfg.LimboControlSocket != "" && cfg.LimboAutoQuarantine {
@@ -236,6 +240,7 @@ func cmdRun(args []string) int {
 		srv.SetAccess(&api.Access{Users: cfg.APIUsers, Groups: cfg.APIGroups})
 		srv.SetGrants(grants.Store{Requests: cfg.GrantRequestsPath, Decisions: grants.DefaultDecisions}, multiSink)
 		srv.SetAudit(func() any { return audit(cfg) })
+		srv.SetIncidents(func() any { return corr.Incidents() })
 		srv.SetQuarantine(func() any {
 			es, err := immunity.Default().Load()
 			if err != nil || es == nil {
@@ -418,6 +423,7 @@ func cmdScan(args []string) int {
 
 	logger := log.New(os.Stderr, "heimdalld: ", log.LstdFlags)
 	ring := alert.NewRing(cfg.RingSize)
+	cfg.AgentBaselineStatePath = "" // an audit learns nothing into the daemon's baseline
 	eng := engine.New(ring, logger, newDetectors(cfg)...)
 	scanIncomplete := false // some session file could not be read
 

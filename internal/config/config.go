@@ -176,6 +176,9 @@ type Config struct {
 	// consumes; no separate source or opt-in needed.
 	BaselineMinSamples int     `json:"baseline_min_samples"`
 	BaselineZThreshold float64 `json:"baseline_z_threshold"`
+	// AgentBaselineStatePath keeps the AI agent's learned baseline (sessions and tool calls per 15 minutes, the tools it
+	// uses) between restarts; detect.AgentBaselineDetector. Uses baseline_min_samples and baseline_z_threshold.
+	AgentBaselineStatePath string `json:"agent_baseline_state_path"`
 }
 
 func Default() Config {
@@ -231,6 +234,8 @@ func Default() Config {
 
 		BaselineMinSamples: 20,
 		BaselineZThreshold: 3.0,
+
+		AgentBaselineStatePath: "/var/lib/heimdall/agent-baseline.json",
 	}
 }
 

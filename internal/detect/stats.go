@@ -1,6 +1,10 @@
 package detect
 
-import "math"
+import (
+	"encoding/json"
+	"errors"
+	"math"
+)
 
 // OnlineStats tracks a running mean and variance via Welford's algorithm:
 // O(1) memory and O(1) work per sample, no history array to keep or
@@ -45,4 +49,27 @@ func (s *OnlineStats) ZScore(x float64) float64 {
 		return 0
 	}
 	return (x - s.mean) / sd
+}
+
+// statsJSON is OnlineStats on disk, so a learned baseline survives a restart.
+type statsJSON struct {
+	Count int     `json:"count"`
+	Mean  float64 `json:"mean"`
+	M2    float64 `json:"m2"`
+}
+
+func (s OnlineStats) MarshalJSON() ([]byte, error) {
+	return json.Marshal(statsJSON{s.count, s.mean, s.m2})
+}
+
+func (s *OnlineStats) UnmarshalJSON(b []byte) error {
+	var j statsJSON
+	if err := json.Unmarshal(b, &j); err != nil {
+		return err
+	}
+	if j.Count < 0 || math.IsNaN(j.Mean) || math.IsNaN(j.M2) || j.M2 < 0 {
+		return errors.New("stats: damaged")
+	}
+	s.count, s.mean, s.m2 = j.Count, j.Mean, j.M2
+	return nil
 }

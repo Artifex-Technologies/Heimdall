@@ -61,31 +61,40 @@ type messageObject struct {
 // text includes the tool calls it issued, since those are where a command or
 // a credential would show up.
 func decodeMessage(raw json.RawMessage) (role, text string, ok bool) {
+	role, text, _, ok = decodeMessageTools(raw)
+	return role, text, ok
+}
+
+// decodeMessageTools is decodeMessage plus the names of the tools an assistant message called (for the agent baseline).
+func decodeMessageTools(raw json.RawMessage) (role, text string, tools []string, ok bool) {
 	var s string
 	if err := json.Unmarshal(raw, &s); err == nil {
-		return "", s, true
+		return "", s, nil, true
 	}
 	var m messageObject
 	if err := json.Unmarshal(raw, &m); err != nil {
-		return "", "", false
+		return "", "", nil, false
 	}
 	if m.Role == "system" {
-		return m.Role, "", false
+		return m.Role, "", nil, false
 	}
 	text = m.Content
 	for _, tc := range m.ToolCalls {
+		if n := tc.Function.Name; n != "" && len(n) <= 64 && !strings.ContainsAny(n, ", \n") {
+			tools = append(tools, n)
+		}
 		if text != "" {
 			text += "\n"
 		}
 		text += tc.Function.Name + " " + tc.Function.Arguments
 	}
 	if text == "" {
-		return m.Role, "", false
+		return m.Role, "", nil, false
 	}
 	if m.Role == "tool" {
 		text = unwrapJSON(text)
 	}
-	return m.Role, text, true
+	return m.Role, text, tools, true
 }
 
 // unwrapJSON turns a tool result Sarina stored as JSON ({"tool": "read_file", "content": "line one\nline two"}) into the text it
@@ -319,7 +328,7 @@ func (w *Watcher) Poll() ([]detect.Event, error) {
 			startAt = prior.messageCount
 		}
 		for i := startAt; i < len(sf.Messages); i++ {
-			role, text, ok := decodeMessage(sf.Messages[i])
+			role, text, tools, ok := decodeMessageTools(sf.Messages[i])
 			if !ok {
 				if !readable(sf.Messages[i]) {
 					w.report(Issue{CodeUnknownShape, path, fmt.Sprintf("message %d has a shape Heimdall cannot decode", i), "Sarina's session format may have changed; check docs/spec/01-agent-core.md section 4.2 against agentsource"}, info.ModTime())
@@ -329,6 +338,9 @@ func (w *Watcher) Poll() ([]detect.Event, error) {
 			fields := map[string]string{"file": name}
 			if role != "" {
 				fields["role"] = role
+			}
+			if len(tools) > 0 {
+				fields["tools"] = strings.Join(tools, ",")
 			}
 			events = append(events, detect.Event{
 				Source:    "agent-session",
