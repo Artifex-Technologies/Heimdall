@@ -67,6 +67,8 @@ var (
 	knownExamples = []string{"AKIAIOSFODNN7EXAMPLE", "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY", "AKIAI44QH8DHBEXAMPLE"}
 	placeholderRx = regexp.MustCompile(`(?i)(example|dummy|placeholder|redacted|changeme|your[_-]?(api|secret|key|token|password)|<[^>]*>|\$\{[^}]*\}|\$[A-Z_]{3,}|\*{4,}|x{6,}|\.\.\.)`)
 	valueRx       = regexp.MustCompile(`[:=]\s*['"]?(\S+)$`)
+	// switchValues are what an on/off setting holds; no password is one of these words.
+	switchValues = map[string]bool{"true": true, "false": true, "yes": true, "no": true, "on": true, "off": true, "0": true, "1": true}
 )
 
 // credential: every match is checked; a single real-looking one confirms the finding.
@@ -80,7 +82,7 @@ func credential(f detect.Finding) (Verdict, string, bool) {
 			return Confirmed, "a value with the shape and randomness of a real secret", true
 		}
 	}
-	return Rejected, "only documentation examples or placeholders, not real secrets", true
+	return Rejected, "only documentation examples, placeholders or on/off settings, not real secrets", true
 }
 
 func sample(m string) bool {
@@ -95,6 +97,9 @@ func sample(m string) bool {
 	v := m
 	if g := valueRx.FindStringSubmatch(m); g != nil {
 		v = strings.Trim(g[1], `'"`)
+	}
+	if switchValues[strings.ToLower(v)] {
+		return true // "ask_password=true" (Limbo's settings.change, 2026-11-05) names a setting, not a password
 	}
 	if strings.HasPrefix(m, "-----BEGIN") || strings.HasPrefix(m, "ssh-") {
 		return false // a key header: what follows decides, and it is not in the match

@@ -17,7 +17,8 @@ func TestExampleKeysAreRejectedAndRealOnesConfirmed(t *testing.T) {
 	if f.Event.Fields["verdict"] != "rejected" || f.Severity != detect.SeverityInfo || !strings.HasPrefix(f.Summary, "[rejected: only documentation examples") {
 		t.Errorf("AWS's documented example: %+v", f)
 	}
-	for _, text := range []string{"password = ${DB_PASSWORD}", "secret_key = xxxxxxxxxxxxxxxx", "password: ********", "api_key=aaaaaaaaaaaaaaaaaaaa"} {
+	for _, text := range []string{"password = ${DB_PASSWORD}", "secret_key = xxxxxxxxxxxxxxxx", "password: ********", "api_key=aaaaaaaaaaaaaaaaaaaa",
+		"limbo settings.change guest=lab ask_password=true peer=uid=0 pid=1 principal=admin", "password: off"} {
 		if f := Apply(cred(text, "tool")); f.Event.Fields["verdict"] != "rejected" {
 			t.Errorf("%q: %v", text, f.Event.Fields)
 		}
