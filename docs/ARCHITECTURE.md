@@ -456,3 +456,35 @@ contents, and it ignores loopback.
 - **Done 2026-10-16:** ClamAV installed here (signatures update through clamav-freshclam.service); tested with the EICAR test file (found), an exclusion (skipped) and the remembered state (unchanged files skipped); one ClamAV run scans a whole batch (clamscan loads the signatures on every start, about 7 s; the clamd daemon, `systemctl enable --now clamav-daemon`, keeps them loaded and makes it fast but uses about 1-2 GB of memory, so it is off).
 - **Not yet:** the per-user service, scheduled full scans, scanning a package's files after install (pacman hook),
   sending suspicious unknowns to a Limbo guest, and the exclusions list in Settings. See Labyrinth_OS docs/SECURITY_ROADMAP.md.
+
+## Limbo guests: lifecycle, network, exchange
+
+Limbo (the sandbox) writes an append-only event log (Limbo's docs/EVENTS.md); `internal/sources/limbosource` tails it. Three
+detectors read it, each keeping no state beyond what the lifecycle check needs:
+
+- `limbo-guest`: Limbo's own safety ordering, checked from outside (a guest started with no firewall policy loaded first, a
+  policy removed under a running guest), plus `image.rejected` and `gate.blocked`.
+- `limbo-network` (2026-11-05): `net.anomaly` is Limbo's own judgement that a guest's refused packets look like probing.
+  `host_probe` (this computer) and `lan_probe` (the home network, the router, other guests) are critical; `scan` and `ipv6`
+  warnings; an unknown reason a warning; `net.capped` info. `net.flow` (allowed traffic) and `net.blocked` (one refusal) are
+  never alerts: Limbo already counts refusals and reports the pattern as `net.anomaly`, so an alert per refusal would say the
+  same thing twice, and allowed traffic is what the guest's policy is for.
+- `limbo-exchange` (2026-11-05): `exchange.held` (ClamAV knew a file a guest tried to hand out) is a warning, `exchange.fail`
+  info, `exchange.file` nothing. The guest's path is renamed `guest_path`: in the rest of Heimdall `path` is a file on this
+  computer, and the correlator links alerts that share one.
+
+Separate detector IDs matter for incidents: the correlator reports an incident when two detectors share a key, so a guest
+that probes this computer and also tries to hand out malware becomes one story through `guest:<name>`.
+
+**Response.** Where the response is on (`limbo_control_socket` set and `limbo_auto_quarantine` true), `internal/response`
+asks Limbo to restrict the guest (`level: restrict`: deny-all firewall, the guest keeps running and stays inspectable) for
+`limbo-guest` criticals on `guest.start`/`policy.remove`, and for `limbo-network` `net.anomaly` with reason `host_probe`,
+`lan_probe` or `scan` at warning or above (so a maintenance window that softens it to info also stops the response). A probe
+is not cleared by a later `guest.stop` or `policy.apply`: the guest still went looking for a way out, and Limbo will not
+start a guest it holds. `ipv6` (dropped, no route exists) and `exchange.held` (the file was already kept back) are alerts only.
+Limbo limits how often it writes each of these (an anomaly at most once per guest and reason per 10 minutes, 256 flow events
+per guest), so nothing here counts or times anything: no polling beyond the existing log tail.
+
+**Held files.** `sudo heimdalld immunity take-limbo SHA256` copies a file Limbo held into Heimdall's immunity store
+(`IMMUNITY.md`). Doing it automatically is a proposal there, because the daemon cannot write to root's request queue today.
+

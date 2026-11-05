@@ -19,6 +19,25 @@ closed rather than deleting it -- the history of *why* is worth keeping.
 
 ---
 
+## 2026-11-05 (2) — Limbo's new network and exchange events (DONE; one proposal waits for Matt)
+
+**Ask:** act on the events Limbo started writing today (`net.*`, `exchange.*`).
+
+| Item | State | Commit | Tested |
+| --- | --- | --- | --- |
+| `net.anomaly` -> `limbo-network` alert (host/LAN probe critical, scan/ipv6 warning), `net.capped` info | done | `f84191c` | table tests; scan of a sample log |
+| host_probe / lan_probe / scan restrict the guest (restrict level, only with auto-quarantine on) | done | `f84191c` | fake Limbo in tests; `heimdalld run` against a fake control.sock: one restrict call for lan_probe, none for ipv6 |
+| Incidents: network + exchange alerts for one guest link | done | `f84191c` | correlator test; the guest's path does not link to a host file |
+| `exchange.held` -> warning, `exchange.fail` -> info | done | `f84191c` | table tests |
+| Copy a held file into immunity | done by hand (`immunity take-limbo`); automatic is a proposal | `d8561df` | unit tests (refusals: bad name, wrong hash, link, missing); real ClamAV on EICAR |
+| `ask_password=true` was a critical "credential" | fixed | `d2a39d4` | verify tests; scan of the sample log |
+
+- `net.flow` and `net.blocked` are deliberately not alerts (normal traffic; Limbo already turns refusals into anomalies).
+- No new polling or timers: the detectors keep no state, Limbo bounds how often it writes each event.
+- The live config has `limbo_auto_quarantine: true`, so after the install a probing guest will be restricted.
+- **Still open:** Matt's answers (automatic take of held files; whether a held file should also restrict its guest);
+  install from the newest commit (owner steps, section 6).
+
 ## 2026-11-05 — The pending list, closed (DONE except what needs Matt or the second PC)
 
 **Ask (Matt):** "complete the pending tasks for Heimdall". The 2026-09-26 list below named Python files that no longer exist

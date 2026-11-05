@@ -113,7 +113,11 @@ order. `sudo heimdalld kernel-check` lists the holes per kernel.
   with a kill switch on every other network. It keeps the computer quiet on untrusted networks.
 - **DNS block list.** NetworkManager's local DNS cache refuses malware, phishing and scam domains, updated daily.
 - **Limbo.** Heimdall reads Limbo's audit log. With `limbo_auto_quarantine`, it restricts a guest that misbehaves and attaches
-  Sarina's advisory. It can tighten a guest but never loosen one.
+  Sarina's advisory. It can tighten a guest but never loosen one. Detectors: `limbo-guest` (a guest started without its
+  firewall, or the firewall removed under it), `limbo-network` (a guest reaching for this computer or the home network:
+  critical; a scan or IPv6: warning; reaching for this computer, the home network, or scanning also restricts it) and
+  `limbo-exchange` (a guest tried to hand out a file ClamAV knows: warning; `sudo heimdalld immunity take-limbo SHA256` keeps
+  a copy). Normal guest traffic (`net.flow`) is never an alert.
 - **Verdicts.** Before a finding becomes an alert, `internal/verify` tries to disprove it separately from the detector:
   `confirmed`, `needs_validation` or `rejected` (a documentation example key drops to info). A verdict never raises a severity.
 - **Maintenance windows.** `heimdalld maintenance on --for 2h --reason ...` (root, at most 4 h) turns routine alerts into info
@@ -128,7 +132,7 @@ order. `sudo heimdalld kernel-check` lists the holes per kernel.
 | `heimdalld scan-files [--state F] PATH...` | ClamAV scan of files or folders, as the calling user |
 | `heimdalld trust init\|status\|mode\|sign\|forget\|restore\|verify\|watch` | The signed list of the agents' behaviour files |
 | `heimdalld contain status\|now\|emergency\|evidence\|release` | Containment |
-| `heimdalld immunity hold\|release\|release-if-proven\|add\|confirm\|list\|forget\|check\|inventory` | Quarantine and immunity |
+| `heimdalld immunity hold\|release\|release-if-proven\|add\|confirm\|list\|forget\|check\|inventory\|take-limbo` | Quarantine and immunity |
 | `heimdalld immunity rule list\|show\|draft\|test\|approve\|reject` | YARA rules for held samples, owner-approved (docs/IMMUNITY.md) |
 | `heimdalld grant status\|approve\|deny\|tier\|revoke\|off` | The one gate for an AI agent asking for more (docs/GRANTS.md) |
 | `heimdalld mesh id\|init\|list\|enroll\|forget` | Alerts shared with your other computers, off by default (docs/MESH.md) |

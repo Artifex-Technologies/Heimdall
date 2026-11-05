@@ -177,7 +177,11 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   line with `time`, `kind`, `guest`, and a flat string-valued `detail`).
   `detect.LimboGuestDetector` audits Limbo's own safety ordering from outside its
   process (guest start without a prior firewall policy; policy removal under a
-  running guest) and translates `image.rejected` / `gate.blocked`. Heimdall never
+  running guest) and translates `image.rejected` / `gate.blocked`. Since 2026-11-05
+  `detect.LimboNetworkDetector` (`limbo-network`: `net.anomaly` by `reason`, `net.capped`)
+  and `detect.LimboExchangeDetector` (`limbo-exchange`: `exchange.held`, `exchange.fail`;
+  detail `path` becomes alert field `guest_path`) read the new kinds; `net.flow`,
+  `net.blocked` and `exchange.file` are deliberately not alerts. Heimdall never
   writes to the file. Limbo adding kinds or detail keys is backwards compatible;
   renaming or removing them is a contract change needing `CONTRACT:` and an
   update here. Verified against logs from real Limbo runs on a real hypervisor.
@@ -190,8 +194,10 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   no route to release a guest, lift a hold, lower a level, tear a guest down or
   give a verdict** (Limbo registers a separate route table per socket; the
   absent routes are tested), so a compromised Heimdall can make a guest more
-  restricted, never less. Trigger: only `limbo-guest` alerts of severity critical
-  on event kinds `guest.start` / `policy.remove`, with a re-validated guest name.
+  restricted, never less. Trigger: `limbo-guest` alerts of severity critical
+  on event kinds `guest.start` / `policy.remove`, and (since 2026-11-05)
+  `limbo-network` alerts of severity warning or higher on `net.anomaly` with
+  `reason` `host_probe`, `lan_probe` or `scan`; always with a re-validated guest name.
   The level Heimdall asks for is always `restrict` (deny-all firewall, guest keeps
   running, host can still inspect it). This is the **second exception** to
   "read-only toward other projects" (the first is `/v1/review`); it is narrow by
@@ -233,6 +239,26 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   Both are in Sarina's `docs/ECOSYSTEM.md` port registry.
 
 ### Coordination Log (newest first)
+
+### 2026-11-05 (2) — Limbo's new network and exchange events are read and acted on
+- New detectors `limbo-network` and `limbo-exchange` (`f84191c`) for the kinds Limbo added today. Severities:
+  `net.anomaly` host_probe / lan_probe critical, scan / ipv6 / unknown reason warning; `net.capped` info;
+  `exchange.held` warning; `exchange.fail` info. Not alerts: `net.flow`, `net.blocked`, `exchange.file`.
+- Response: `net.anomaly` host_probe, lan_probe and scan restrict the guest through `control.sock` (`level: restrict`,
+  source `heimdall:limbo-network`), only where `limbo_control_socket` + `limbo_auto_quarantine` are set. A later
+  `guest.stop`/`policy.apply` does not cancel it (a held guest cannot be started). Contract entry above updated.
+- `exchange.held`: alert only from the daemon. New root command `heimdalld immunity take-limbo SHA256` (`d8561df`) copies
+  `/var/lib/limbo/state/exchange-held/<sha256>` into Heimdall's immunity store (by hash, no links, never run; Limbo's copy
+  stays). Doing it automatically is a proposal in `docs/IMMUNITY.md` (needs a unit change; Matt decides).
+- `credential-shape` no longer calls `ask_password=true` (Limbo's `settings.change`) a leaked password (`d2a39d4`).
+- **For Limbo (nothing changed there):** the contract works as written. Two things would help: (1) `net.anomaly` carrying
+  the guest's `scope` like `net.blocked` does, so a reader need not re-derive it from `reason`; (2) a read-only route on
+  `control.sock` saying whether a guest exists, so Heimdall can skip a hold for a torn-down validation run (today Limbo
+  answers 404 and Heimdall records `limbo_quarantine_failed`).
+- **For Sarina / Settings readers:** new detector IDs `limbo-network`, `limbo-exchange`, each with built-in explain text;
+  `limbo-exchange` fields: `guest`, `guest_path` (guest-chosen, untrusted), `sha256`, `size`, `signature` or `reason`.
+- Owner steps: `docs/OWNER_STEPS_2026-11-05.md`, section 6.
+— Signed: Heimdall / Claude Opus 5.5
 
 ### 2026-11-05 — The pending list closed: packaging ACL, API callers, vault watch, grant gate, incidents, agent baseline, mesh, YARA rules
 - Packaging (`4be493b`): tmpfiles.d `heimdall-sarina-read.conf` (u:heimdall read on /var/lib/sarina/sessions, enter-only on

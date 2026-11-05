@@ -92,3 +92,39 @@ Nothing to do now. When Heimdall holds a file and Limbo has analysed it: write (
   folder Heimdall watches. Details on Sarina's board, 2026-11-05.
 - `sarina-rule-tool | y/n`: give Sarina a tool that sends a YARA draft to Heimdall (it changes her tool list, so it needs
   your yes)? Until then she writes the rule in her analysis and you draft it with step 5.
+
+## 6. Limbo's new events (second session, 2026-11-05)
+
+Heimdall now reads the guest network and file exchange events Limbo started writing today: a guest reaching for this
+computer or the home network is a critical alert, a scan or IPv6 a warning, and a guest trying to hand out a file ClamAV
+knows is a warning. Reaching for this computer, the home network, or scanning also restricts the guest (its network cut;
+only you can release it). Normal guest traffic is never an alert.
+
+```
+cd ~/Documents/Github/Labyrinth_OS/packages/pkgbuilds/heimdall-git && makepkg -f
+sudo pacman -U "$(ls -t heimdall-git-*.pkg.tar.zst | head -1)"
+sudo systemctl restart heimdall
+journalctl -u heimdall -n 30 --no-pager | grep -i limbo
+```
+
+Builds Heimdall from the newest commit (the r60 package above does not have this) and starts it. The log should say
+"Limbo quarantine response enabled" and "watching Limbo event log". This replaces step 1's install if you have not done it yet.
+
+Your config already has `limbo_auto_quarantine: true`, so the restriction is on. To keep the alerts but stop the automatic
+restriction, set it to `false` in `/etc/heimdall/config.json` and restart Heimdall.
+
+When a `limbo-exchange` alert says a file was held, its explanation shows the command that keeps a copy in Heimdall's own
+malware store (root-only, never run; Limbo's copy stays):
+
+```
+sudo heimdalld immunity take-limbo SHA256
+```
+
+### Questions for Matt (Limbo events)
+
+- `limbo-take-auto | y/n`: take each held file into Heimdall's store by itself? It needs one line added to
+  `heimdall.service` (`ReadWritePaths=/var/lib/heimdall-requests`) so the daemon can leave the request for root.
+  Details: `docs/IMMUNITY.md`, "Proposal: take the copy automatically".
+- `limbo-held-restrict | y/n`: should a guest that tried to hand out a known virus also be restricted? Today it is an alert
+  only (the file was already kept back). Saying yes is a one-line change.
+

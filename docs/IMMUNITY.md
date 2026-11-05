@@ -49,9 +49,46 @@ sudo heimdalld immunity release-if-proven SHA256       only with a proof
 sudo heimdalld immunity confirm SHA256                 it is malware: learn it
 sudo heimdalld immunity analyze SHA256                 take it apart in Limbo's sealed machine now
 sudo heimdalld immunity add --reason "why" FILE        hold and learn in one step
+sudo heimdalld immunity take-limbo SHA256              keep a copy of a file Limbo held at a guest's exchange
 sudo heimdalld immunity forget SHA256                  a mistake: remove it and its fingerprint
 heimdalld immunity check FILE                          is this something Heimdall learned? (any user)
 ```
+
+## Files Limbo held at a guest's exchange
+
+When a guest puts a file in its outbox, Limbo scans it with ClamAV before handing it out. A file ClamAV knows is not handed
+out: Limbo moves it to `/var/lib/limbo/state/exchange-held/<sha256>` (root-only) and writes `exchange.held` with the guest,
+the guest's path for it, the SHA-256, the size and the signature. Heimdall raises a `limbo-exchange` warning for it, and the
+alert's explanation names the command that takes a copy into this store:
+
+```
+sudo heimdalld immunity take-limbo SHA256
+```
+
+What it does, and what it never does:
+
+- It is asked for by SHA-256 only. The path is Limbo's folder plus that name; the guest's own path from the event is never
+  used for anything but display.
+- The file is opened without following links, and its content must hash to its name before anything is stored. So only
+  exactly what Limbo held can come in.
+- Nothing is run. The bytes are hashed, compressed into the store (root's only), read for the report, and given to ClamAV.
+- Limbo's copy stays where it is: it is Limbo's evidence.
+- ClamAV knowing it makes a **reference** entry (nothing new to learn). If this computer's ClamAV does not know it, it stays a
+  **suspect** for the owner to `confirm`.
+
+### Proposal: take the copy automatically (not built; needs Matt's yes)
+
+Today the owner runs the command. It could happen by itself, the same way an analysis is queued after a hold:
+
+1. On `exchange.held`, heimdalld (the unprivileged daemon) writes `{"take_limbo": "<sha256>"}` into
+   `/var/lib/heimdall-requests` (the root request queue, mode 1733).
+2. `heimdall-requests.service` (root) runs `TakeFromLimbo` for it, a few per run at most.
+
+Why it is not built: the daemon cannot write there today (its unit has `ProtectSystem=strict` and
+`ReadWritePaths=/var/lib/heimdall`), so it needs `ReadWritePaths=/var/lib/heimdall-requests` added to `heimdall.service`. That
+widens what the daemon can write, which is the owner's call. The request itself is safe whoever writes it: anyone could already
+write to the queue, and this request can only make root copy a file Limbo already holds, checked against its hash, from one
+root-only folder into another. Disk use is bounded by what Limbo holds and by the 256 MiB sample limit.
 
 ## Rules: catching variants (YARA)
 
