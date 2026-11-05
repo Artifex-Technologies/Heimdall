@@ -179,6 +179,15 @@ type Config struct {
 	// AgentBaselineStatePath keeps the AI agent's learned baseline (sessions and tool calls per 15 minutes, the tools it
 	// uses) between restarts; detect.AgentBaselineDetector. Uses baseline_min_samples and baseline_z_threshold.
 	AgentBaselineStatePath string `json:"agent_baseline_state_path"`
+
+	// The mesh (docs/MESH.md): alerts shared with Heimdall on the owner's other computers. MeshListen is one IP address and
+	// port of this computer to receive on (empty: receive nothing); MeshDir holds this computer's key; MeshPeersPath the
+	// owner-enrolled peers (root's file); local alerts of at least MeshMinSeverity are sent. Off unless MeshListen is set or
+	// a peer is enrolled.
+	MeshListen      string `json:"mesh_listen"`
+	MeshDir         string `json:"mesh_dir"`
+	MeshPeersPath   string `json:"mesh_peers_path"`
+	MeshMinSeverity string `json:"mesh_min_severity"`
 }
 
 func Default() Config {
@@ -236,6 +245,10 @@ func Default() Config {
 		BaselineZThreshold: 3.0,
 
 		AgentBaselineStatePath: "/var/lib/heimdall/agent-baseline.json",
+
+		MeshDir:         "/var/lib/heimdall/mesh",
+		MeshPeersPath:   "/etc/heimdall/mesh-peers.json",
+		MeshMinSeverity: "warning",
 	}
 }
 

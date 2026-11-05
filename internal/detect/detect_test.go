@@ -389,3 +389,17 @@ func TestNewFileInAWatchedFolderIsCheckedAgainstPackages(t *testing.T) {
 		t.Fatalf("planted: %+v", got)
 	}
 }
+
+// Heimdall talking to an enrolled mesh peer is expected (info); to anything else it is still critical.
+func TestConnectionDetectorMeshPeer(t *testing.T) {
+	d := &ConnectionDetector{MeshPeer: func(ip string) (string, bool) { return "laptop", ip == "100.64.0.2" }}
+	ev := func(ip string) Event {
+		return Event{Kind: "new_connection", Fields: map[string]string{"process": "heimdalld", "remote_addr": ip, "remote_port": "8931"}}
+	}
+	if f := d.Inspect(ev("100.64.0.2")); len(f) != 1 || f[0].Severity != SeverityInfo || !strings.Contains(f[0].Summary, "laptop") {
+		t.Fatalf("%+v", f)
+	}
+	if f := d.Inspect(ev("203.0.113.7")); len(f) != 1 || f[0].Severity != SeverityCritical {
+		t.Fatalf("%+v", f)
+	}
+}

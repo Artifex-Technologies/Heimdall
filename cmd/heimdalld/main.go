@@ -36,6 +36,7 @@ import (
 	"github.com/Artifex-Technologies/Heimdall/internal/ipintel"
 	"github.com/Artifex-Technologies/Heimdall/internal/kernelaudit"
 	"github.com/Artifex-Technologies/Heimdall/internal/maintenance"
+	"github.com/Artifex-Technologies/Heimdall/internal/mesh"
 	"github.com/Artifex-Technologies/Heimdall/internal/pkgaudit"
 	"github.com/Artifex-Technologies/Heimdall/internal/pkgverify"
 	"github.com/Artifex-Technologies/Heimdall/internal/response"
@@ -82,6 +83,8 @@ func main() {
 		os.Exit(cmdKernelCheck(os.Args[2:]))
 	case "contain":
 		os.Exit(cmdContain(os.Args[2:]))
+	case "mesh": // alerts shared between the owner's own computers (docs/MESH.md)
+		os.Exit(cmdMesh(os.Args[2:]))
 	case "grant": // the one gate for an AI agent asking for more (docs/GRANTS.md)
 		os.Exit(cmdGrant(os.Args[2:]))
 	case "origin":
@@ -127,6 +130,8 @@ Usage:
   heimdalld contain status|now|emergency|release
                                     Stop a compromised AI agent: unload the models, stop and lock Sarina; the last resort clears
                                     the graphics card and restarts (heimdalld contain for details).
+  heimdalld mesh id|init|list|enroll|forget
+                                    Share alerts with Heimdall on your other computers (owner-enrolled keys, off by default).
   heimdalld grant status|approve|deny|tier|revoke|off
                                     The one gate for an AI agent asking for more: hand-offs to other models, access tiers.
   heimdalld version                 Print the version and exit.
@@ -158,7 +163,7 @@ func newDetectors(cfg config.Config) []detect.Detector {
 		detect.NewMaintenanceDetector(),
 		detect.NewResourcePressureDetector(cfg.ResourceMemThresholdPercent, cfg.ResourceLoadThresholdPerCPU),
 		detect.NewNetworkExposureDetector(),
-		detect.NewConnectionDetector(),
+		&detect.ConnectionDetector{MeshPeer: func(ip string) (string, bool) { return mesh.IsPeerHost(cfg.MeshPeersPath, ip) }},
 		detect.NewInboundDetector(),
 		detect.NewPackageVulnerabilityDetector(),
 		detect.NewKernelVulnerabilityDetector(),
@@ -201,8 +206,29 @@ func cmdRun(args []string) int {
 		}
 	}
 
+	outputs := alert.NewMultiSink(sinks...)
+	var base alert.Sink = outputs
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	// the owner's other computers (docs/MESH.md): local alerts of at least mesh_min_severity go to the enrolled peers, and
+	// theirs come in to the outputs only (never to containment or quarantine)
+	if peers, _ := mesh.LoadPeers(cfg.MeshPeersPath); cfg.MeshListen != "" || len(peers) > 0 {
+		id, err := mesh.LoadOrCreate(cfg.MeshDir)
+		if err != nil {
+			logger.Printf("mesh off: %v", err)
+		} else {
+			node := &mesh.Node{ID: id, PeersPath: cfg.MeshPeersPath, Listen: cfg.MeshListen, Next: outputs, Out: outputs,
+				MinSeverity: detect.Severity(cfg.MeshMinSeverity), Log: logger}
+			if err := node.Start(ctx); err != nil {
+				logger.Printf("mesh off: %v", err)
+			} else {
+				base = node
+				logger.Printf("mesh on as %s: %d peer(s)", id.Fingerprint, len(peers))
+			}
+		}
+	}
 	// every alert passes the correlator on its way to the outputs: related alerts become one incident alert (Phase 5)
-	corr := &correlate.Correlator{Next: alert.NewMultiSink(sinks...)}
+	corr := &correlate.Correlator{Next: base}
 	multiSink := alert.Sink(corr)
 	var engineSink alert.Sink = multiSink
 	var resp *response.Responder
@@ -230,8 +256,6 @@ func cmdRun(args []string) int {
 	win := maintenance.NewWatcher(cfg.MaintenancePath)
 	eng.SetMaintenance(win, cfg.MaintenanceSoften)
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	go watchMaintenance(ctx, cfg.MaintenancePath, eng.Handle)
 
 	if cfg.APIAddr != "" {

@@ -28,7 +28,7 @@ func cmdGrant(args []string) int {
 	fs := flag.NewFlagSet("grant", flag.ContinueOnError)
 	dur := fs.Duration("for", time.Hour, "how long an approved hand-off lasts (at most 24h)")
 	action := args[0]
-	if err := fs.Parse(args[1:]); err != nil {
+	if err := fs.Parse(flagsFirst(args[1:])); err != nil {
 		return 2
 	}
 	if os.Geteuid() != 0 {

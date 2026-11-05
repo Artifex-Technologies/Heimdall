@@ -14,7 +14,11 @@ import "fmt"
 //	info      any other process connecting to a destination it has not used before (the record of what talks to where)
 //
 // Connections found on the first run (learning) are recorded only, with no finding.
-type ConnectionDetector struct{}
+type ConnectionDetector struct {
+	// MeshPeer names the enrolled mesh peer at an address (docs/MESH.md): Heimdall talking to the owner's other computers is
+	// expected, not an ecosystem program breaking the loopback rule. Nil: no mesh.
+	MeshPeer func(ip string) (string, bool)
+}
 
 func NewConnectionDetector() *ConnectionDetector { return &ConnectionDetector{} }
 
@@ -42,6 +46,8 @@ func (d *ConnectionDetector) Inspect(e Event) []Finding {
 	case f["blocked"] == "1":
 		sev = SeverityCritical
 		summary = fmt.Sprintf("app %q has its network switched off but %s connected to %s: restart the app so the rule applies", f["app"], f["process"], dest)
+	case f["process"] == "heimdalld" && d.MeshPeer != nil && meshPeer(d.MeshPeer, f["remote_addr"]) != "":
+		summary = fmt.Sprintf("heimdalld exchanged alerts with the enrolled mesh peer %s at %s", meshPeer(d.MeshPeer, f["remote_addr"]), dest)
 	case ecosystemProcs[f["process"]]:
 		sev = SeverityCritical
 		summary = fmt.Sprintf("%s (an ecosystem program) connected off the machine to %s: the rule is loopback only", f["process"], dest)
@@ -52,4 +58,11 @@ func (d *ConnectionDetector) Inspect(e Event) []Finding {
 		return nil // (a listed destination is reported even while learning: the case above comes first)
 	}
 	return []Finding{{DetectorID: d.ID(), Severity: sev, Summary: summary, Event: e}}
+}
+
+func meshPeer(f func(string) (string, bool), ip string) string {
+	if name, ok := f(ip); ok {
+		return name
+	}
+	return ""
 }
