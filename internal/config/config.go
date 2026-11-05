@@ -46,6 +46,9 @@ type Config struct {
 	// send nothing new (internal/api/access.go). Defaults: Sarina's service account and the administrators (wheel).
 	APIUsers  []string `json:"api_users"`
 	APIGroups []string `json:"api_groups"`
+	// GrantRequestsPath is where requests for more (hand-offs to other models, access tiers) wait for the owner
+	// (internal/grants). The owner's decisions are always /etc/heimdall/grants.json, root's to write.
+	GrantRequestsPath string `json:"grant_requests_path"`
 
 	// Burst detector tuning -- see detect.NewBurstDetector.
 	BurstWindowSeconds   int `json:"burst_window_seconds"`
@@ -182,6 +185,7 @@ func Default() Config {
 		APIAddr:              "127.0.0.1:8930",
 		APIUsers:             []string{"sarina"},
 		APIGroups:            []string{"wheel"},
+		GrantRequestsPath:    "/var/lib/heimdall/grant-requests.json",
 		BurstWindowSeconds:   300,
 		BurstThreshold:       20,
 		BurstCooldownSeconds: 300,

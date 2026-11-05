@@ -29,6 +29,7 @@ import (
 	"github.com/Artifex-Technologies/Heimdall/internal/detect"
 	"github.com/Artifex-Technologies/Heimdall/internal/engine"
 	"github.com/Artifex-Technologies/Heimdall/internal/governance"
+	"github.com/Artifex-Technologies/Heimdall/internal/grants"
 	"github.com/Artifex-Technologies/Heimdall/internal/hardening"
 	"github.com/Artifex-Technologies/Heimdall/internal/immunity"
 	"github.com/Artifex-Technologies/Heimdall/internal/ipintel"
@@ -80,6 +81,8 @@ func main() {
 		os.Exit(cmdKernelCheck(os.Args[2:]))
 	case "contain":
 		os.Exit(cmdContain(os.Args[2:]))
+	case "grant": // the one gate for an AI agent asking for more (docs/GRANTS.md)
+		os.Exit(cmdGrant(os.Args[2:]))
 	case "origin":
 		os.Exit(cmdOrigin(os.Args[2:]))
 	case "intel-check":
@@ -123,6 +126,8 @@ Usage:
   heimdalld contain status|now|emergency|release
                                     Stop a compromised AI agent: unload the models, stop and lock Sarina; the last resort clears
                                     the graphics card and restarts (heimdalld contain for details).
+  heimdalld grant status|approve|deny|tier|revoke|off
+                                    The one gate for an AI agent asking for more: hand-offs to other models, access tiers.
   heimdalld version                 Print the version and exit.
 
 See README.md and docs/ARCHITECTURE.md for configuration and design.
@@ -229,6 +234,7 @@ func cmdRun(args []string) int {
 		reviewer := governance.NewReviewer(multiSink)
 		srv := api.NewServer(ring, reviewer)
 		srv.SetAccess(&api.Access{Users: cfg.APIUsers, Groups: cfg.APIGroups})
+		srv.SetGrants(grants.Store{Requests: cfg.GrantRequestsPath, Decisions: grants.DefaultDecisions}, multiSink)
 		srv.SetAudit(func() any { return audit(cfg) })
 		srv.SetQuarantine(func() any {
 			es, err := immunity.Default().Load()

@@ -149,6 +149,10 @@ func For(detector, severity string, fields map[string]string) Text {
 			t.What = tool + " lets someone reach this computer from elsewhere, and it is here without your approval (" + orUnknown(clean(fields["signal"], 30), "seen") + "). Malware often installs a tool like this to keep a way in."
 			t.Do = "If you installed it yourself and want it, approve it: sudo heimdalld remote approve " + orUnknown(clean(fields["provider"], 30), "ID") + ". If not, remove it now and look at what else was installed with it."
 		}
+	case "grant-request":
+		t.What = "An AI agent asks for more than it has: " + orUnknown(clean(fields["kind"], 20), "a grant") + " " + orUnknown(clean(fields["detail"], 40), "") + ". It cannot give this to itself; only you can."
+		t.Done = "Heimdall recorded the request. Nothing changes until you decide."
+		t.Do = "If you asked the agent to do something that needs it, allow it: sudo heimdalld grant approve " + orUnknown(clean(fields["request_id"], 20), "ID") + ". If not, deny it: sudo heimdalld grant deny " + orUnknown(clean(fields["request_id"], 20), "ID") + "."
 	case "integration":
 		t.What = "Heimdall could not use one of the things it works with (" + orUnknown(clean(fields["error_code"], 40), "a component") + ")."
 		t.Do = orUnknown(clean(fields["remedy"], 200), "See Heimdall's log (journalctl -u heimdall).")

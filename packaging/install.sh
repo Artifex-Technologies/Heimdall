@@ -29,6 +29,7 @@ i 644 $p/arch/heimdall-inventory.timer           usr/lib/systemd/system/heimdall
 i 644 docs/CONTAIN.md                            usr/share/doc/heimdall/CONTAIN.md
 i 644 docs/IMMUNITY.md                           usr/share/doc/heimdall/IMMUNITY.md
 i 644 docs/AUDITS.md                             usr/share/doc/heimdall/AUDITS.md
+i 644 docs/GRANTS.md                             usr/share/doc/heimdall/GRANTS.md
 i 644 $p/arch/limbo-integration.conf.example     etc/heimdall/limbo-integration.conf.example
 # read-only journal access, for the firewall and SSH-login watch
 i 644 $p/arch/heimdall-firewall.conf.example     usr/lib/systemd/system/heimdall.service.d/firewall.conf
