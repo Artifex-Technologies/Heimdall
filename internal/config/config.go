@@ -19,6 +19,13 @@ type Config struct {
 	// AgentStatePath keeps how far each session file was read, so a restart does not read (and alert on) old sessions again.
 	AgentStatePath string `json:"agent_state_path"`
 
+	// VaultDirs are the AI agent's note vaults (Sarina's Obsidian vault). Every note is checked at rest, when it appears or
+	// changes (inotify, no polling), so a planted instruction is reported before the agent ever reads it. Empty: off.
+	// Heimdall's account needs read access (an ACL, or the connection drop-in's read capability). VaultStatePath keeps each
+	// note's hash, so a restart reports only what changed.
+	VaultDirs      []string `json:"vault_dirs"`
+	VaultStatePath string   `json:"vault_state_path"`
+
 	// PollIntervalSeconds is how often the agent source rescans
 	// AgentSessionDir.
 	PollIntervalSeconds int `json:"poll_interval_seconds"`
@@ -200,6 +207,7 @@ func Default() Config {
 		PackageAuditStatePath:       "/var/lib/heimdall/package-audit.json",
 		KernelVulns:                 "/var/lib/heimdall/intel/linux-kernel.json",
 		AgentStatePath:              "/var/lib/heimdall/agent-sessions.json",
+		VaultStatePath:              "/var/lib/heimdall/vault-notes.json",
 		KernelAuditStatePath:        "/var/lib/heimdall/kernel-audit.json",
 		HardeningStatePath:          "/var/lib/heimdall/hardening.json",
 		WifiResults:                 "/var/lib/heimdall/wifi/results.jsonl",

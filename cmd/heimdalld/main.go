@@ -13,6 +13,7 @@ import (
 	"github.com/Artifex-Technologies/Heimdall/internal/remoteaccess"
 	"github.com/Artifex-Technologies/Heimdall/internal/safefs"
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/rasource"
+	"github.com/Artifex-Technologies/Heimdall/internal/sources/vaultsource"
 	"log"
 	"os"
 	"os/signal"
@@ -361,6 +362,13 @@ func cmdRun(args []string) int {
 		)
 	}
 
+	if len(cfg.VaultDirs) > 0 {
+		logger.Printf("checking the notes of %d AI agent vault(s) when they change", len(cfg.VaultDirs))
+		vw := &vaultsource.Watcher{Roots: cfg.VaultDirs, StatePath: cfg.VaultStatePath,
+			Issues: func(err error) { logger.Printf("vault watch: %v", err) }}
+		go vw.Run(ctx, eng.Handle)
+	}
+
 	if cfg.AgentSessionDir == "" {
 		<-ctx.Done() // the other sources run in goroutines; keep the process alive
 	} else {
@@ -397,8 +405,8 @@ func cmdScan(args []string) int {
 		fmt.Fprintln(os.Stderr, "heimdalld:", err)
 		return 2
 	}
-	if cfg.AgentSessionDir == "" && cfg.LimboEventLog == "" {
-		fmt.Fprintln(os.Stderr, "heimdalld: neither agent_session_dir nor limbo_event_log is set in config; nothing to scan")
+	if cfg.AgentSessionDir == "" && cfg.LimboEventLog == "" && len(cfg.VaultDirs) == 0 {
+		fmt.Fprintln(os.Stderr, "heimdalld: none of agent_session_dir, limbo_event_log and vault_dirs is set in config; nothing to scan")
 		return 2
 	}
 
@@ -443,6 +451,16 @@ func cmdScan(args []string) int {
 		}
 		if lw.Skipped > 0 {
 			fmt.Fprintf(os.Stderr, "heimdalld: %d unparseable line(s) in the Limbo event log\n", lw.Skipped)
+		}
+	}
+
+	if len(cfg.VaultDirs) > 0 { // an audit checks every note, remembering nothing
+		events, _ := (&vaultsource.Watcher{Roots: cfg.VaultDirs, Issues: func(err error) {
+			fmt.Fprintln(os.Stderr, "heimdalld: warning: vault:", err)
+			scanIncomplete = true
+		}}).Scan()
+		for _, e := range events {
+			eng.Handle(e)
 		}
 	}
 
