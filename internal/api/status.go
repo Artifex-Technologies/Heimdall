@@ -10,6 +10,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net"
 	"net/http"
@@ -28,6 +29,20 @@ type Server struct {
 	reviewer *governance.Reviewer
 	mux      *http.ServeMux
 	audit    func() any
+	access   *Access // nil: no account check (tests of the other guards); heimdalld always sets one
+}
+
+// SetAccess limits every endpoint but /healthz to the accounts a allows (see Access).
+func (s *Server) SetAccess(a *Access) { s.access = a }
+
+type ctxKey int
+
+const peerKey ctxKey = 0
+
+// PeerUID is the account behind a request that passed the access check (ok false when no check ran).
+func PeerUID(r *http.Request) (uint32, bool) {
+	uid, ok := r.Context().Value(peerKey).(uint32)
+	return uid, ok
 }
 
 // SetQuarantine serves GET /v1/quarantine: what Heimdall holds (immunity's index, readable by its group), for Settings and Sarina.
@@ -63,6 +78,14 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if !LoopbackHost(r.Host) || r.Header.Get("Origin") != "" || r.Header.Get("Sec-Fetch-Site") != "" {
 		http.Error(w, "forbidden", http.StatusForbidden)
 		return
+	}
+	if s.access != nil && r.URL.Path != "/healthz" {
+		uid, ok := s.access.Allowed(r)
+		if !ok {
+			http.Error(w, "forbidden: this account may not use Heimdall's API (api_users, api_groups)", http.StatusForbidden)
+			return
+		}
+		r = r.WithContext(context.WithValue(r.Context(), peerKey, uid))
 	}
 	s.mux.ServeHTTP(w, r)
 }

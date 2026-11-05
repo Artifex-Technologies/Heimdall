@@ -227,6 +227,7 @@ func cmdRun(args []string) int {
 	if cfg.APIAddr != "" {
 		reviewer := governance.NewReviewer(multiSink)
 		srv := api.NewServer(ring, reviewer)
+		srv.SetAccess(&api.Access{Users: cfg.APIUsers, Groups: cfg.APIGroups})
 		srv.SetAudit(func() any { return audit(cfg) })
 		srv.SetQuarantine(func() any {
 			es, err := immunity.Default().Load()

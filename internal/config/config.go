@@ -34,6 +34,11 @@ type Config struct {
 	// APIAddr is the loopback address:port the status API binds, per the
 	// ecosystem's loopback-only convention. Empty disables the API.
 	APIAddr string `json:"api_addr"`
+	// APIUsers and APIGroups are the local accounts (and members of the groups) that may use the API besides root and
+	// Heimdall's own account; /healthz stays open to all. The account is read from the kernel's socket table, so clients
+	// send nothing new (internal/api/access.go). Defaults: Sarina's service account and the administrators (wheel).
+	APIUsers  []string `json:"api_users"`
+	APIGroups []string `json:"api_groups"`
 
 	// Burst detector tuning -- see detect.NewBurstDetector.
 	BurstWindowSeconds   int `json:"burst_window_seconds"`
@@ -168,6 +173,8 @@ func Default() Config {
 		PollIntervalSeconds:  5,
 		RingSize:             500,
 		APIAddr:              "127.0.0.1:8930",
+		APIUsers:             []string{"sarina"},
+		APIGroups:            []string{"wheel"},
 		BurstWindowSeconds:   300,
 		BurstThreshold:       20,
 		BurstCooldownSeconds: 300,

@@ -161,3 +161,15 @@ curl -s http://127.0.0.1:8930/healthz
 curl -s -X POST http://127.0.0.1:8930/v1/review -H 'Content-Type: application/json' \
   -d '{"text":"remember the build command","kind":"memory"}'
 ```
+
+## Who may use the API (`403 forbidden: this account may not use Heimdall's API`)
+
+Every endpoint but `/healthz` answers only root, Heimdall's own account, the accounts in `api_users` (default `sarina`) and
+members of the groups in `api_groups` (default `wheel`). Heimdall reads the caller's account from the kernel's socket table
+(`/proc/net/tcp`), so clients send nothing extra. A 403 with this text means the program runs as another account.
+
+- Symptom on Sarina's side: a review that fails open, the doctor row `heimdall` saying the review URL answered 403.
+- Symptom in Settings or the panel: no alerts, while `curl -s 127.0.0.1:8930/healthz` says `ok`.
+- Check: `id` for the account the program runs as; `grep -E 'api_users|api_groups' /etc/heimdall/config.json`.
+- Remedy: add the account to `api_users` (or it to a listed group), then `sudo systemctl restart heimdall`. Do not add
+  accounts that run untrusted code (games, Limbo's guests' helpers, other people's accounts).
