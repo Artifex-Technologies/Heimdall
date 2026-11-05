@@ -68,10 +68,14 @@ internal/
   sources/agentsource/     Polls a Sarina .port_sessions/ directory into Events
   sources/hostsource/      File-integrity + host telemetry watchers (Phase 2)
   sources/netsource/       /proc/net/tcp{,6} connection-exposure watcher (Phase 3)
+  sources/vaultsource/     The agent's vault notes at rest (inotify, no polling)
   governance/              Phase 4: reviews text via the existing detectors, out-of-process
+  grants/                  Phase 4: the one gate for hand-offs and access tiers (owner decides, as root)
+  correlate/               Phase 5: related alerts become incidents (a sink wrapper)
+  mesh/                    Phase 3: alerts shared with the owner's other computers (mutual TLS, enrolled keys)
   engine/                  Runs Events through every Detector, forwards Findings
   alert/                   Finding -> Alert; stdout/file/ring Sinks
-  api/                     Loopback-only HTTP API -- read-only except POST /v1/review
+  api/                     Loopback-only HTTP API; callers identified by the kernel (access.go); writes: review, requests, rule drafts
   config/                  JSON config, all fields optional except agent_session_dir
 docs/
   ARCHITECTURE.md          Engine design + the full 5-phase roadmap
@@ -79,9 +83,8 @@ docs/
 packaging/arch/            PKGBUILD, systemd unit, sysusers -- mirrors Sarina's own layout
 ```
 
-Phases 1-2, Phase 3's connection half, Phase 4's first slice, and Phase
-5's first slice are built — see `docs/ARCHITECTURE.md` for current
-per-phase status, since this file doesn't repeat it and it will drift.
+All five phases are built (2026-11-05) — see `docs/ARCHITECTURE.md` for
+per-phase status and limits, since this file doesn't repeat it and it will drift.
 
 Adding a detector means: a new file in `internal/detect/` implementing
 `Detector`, registered in `cmd/heimdalld/main.go`'s `newDetectors`, and a
@@ -114,8 +117,9 @@ Adding a source means a new package under `internal/sources/` producing
   `docs/ARCHITECTURE.md`'s Phase 4 section for the reasoning and the
   fail-open/fail-closed boundary. This is the **one** deliberate exception;
   it is not a precedent for Heimdall initiating contact with Sarina or
-  gating anything beyond what's explicitly wired up (currently: the
-  memory-write path only).
+  gating anything beyond what's explicitly wired up (the memory-write path,
+  and since 2026-11-05 the grant gate, `docs/GRANTS.md`: Sarina reads the
+  owner's decisions from a root-owned file; Heimdall never writes to Sarina).
 - **Never commit secrets.** No tokens, keys, or real session/alert data —
   a real `alerts.jsonl` may contain exactly the credentials/injections it
   exists to catch.
@@ -208,12 +212,48 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   `tools` count (Sarina commit "Add a per-session tool allowlist"; **requires a
   Sarina that has it**). This is Heimdall initiating contact with Sarina, a first;
   recorded here and in Sarina's `docs/ECOSYSTEM.md` §4c.
-- **Ports owned by this repo:** `8930` (Heimdall status API, loopback-only,
-  read-only). Add it to Sarina's `docs/ECOSYSTEM.md` §5 port registry in
-  the same commit that binds it — done as part of registering this repo,
-  see the Coordination Log below.
+- **Sarina → Heimdall (grant gate, Phase 4): live, off until the owner switches it on.**
+  Sarina files requests (`POST /v1/requests`: `kind` escalation|access_tier, `detail`,
+  `session_id`, `reason`) and reads the owner's answers from `/etc/heimdall/grants.json`
+  (root's; `access_tier` cap and `escalations` with `tier`, `session_id`, `until`), never from
+  HTTP. Sarina side: `go/heimdall/grants.go`, called only from `config.AccessTierFromEnv` and
+  `tiers.Router.attempt` (Sarina commit `123453e`). Changing either JSON shape is a contract
+  change in both repos. `docs/GRANTS.md`.
+- **Heimdall API access (all clients): live.** Every endpoint but `/healthz` answers only root,
+  heimdalld's account, `api_users` (default `sarina`) and members of `api_groups` (default
+  `wheel`), identified from `/proc/net/tcp`; clients send nothing new. Clients today: Sarina
+  (service and CLI), Yggdrasil's panel and Settings, Labyrinth's labyrinth-sarina-checkup and
+  labyrinth-selfcheck (`/healthz`). A new client running as another account needs adding to
+  `api_users`.
+- **Heimdall ↔ Heimdall (mesh, Phase 3): off by default.** Peers POST `/mesh/v1/alerts` over
+  mutual TLS 1.3 (enrolled ed25519 keys only) on `mesh_listen` (suggested port 8931, on the
+  owner's own WireGuard or LAN address, never a wildcard). `docs/MESH.md`.
+- **Ports owned by this repo:** `8930` (Heimdall's API, loopback-only) and
+  `8931` (mesh, off by default; one non-loopback address chosen by the owner).
+  Both are in Sarina's `docs/ECOSYSTEM.md` port registry.
 
 ### Coordination Log (newest first)
+
+### 2026-11-05 — The pending list closed: packaging ACL, API callers, vault watch, grant gate, incidents, agent baseline, mesh, YARA rules
+- Packaging (`4be493b`): tmpfiles.d `heimdall-sarina-read.conf` (u:heimdall read on /var/lib/sarina/sessions, enter-only on
+  /var/lib/sarina) + `heimdall-sarina-access.path`; Labyrinth's `labyrinth-ecosystem-setup` setfacl lines are now redundant
+  but harmless (left alone).
+- API (`e566b9b`): callers identified by the kernel; `api_users`/`api_groups`. No client changed (list in the contract above).
+- Vault watch (`e1c9896`): `vault_dirs`, event kind `vault_note`, source `agent-vault`. Sarina's eval vault-note-injection
+  failures were runs where the planted line never reached her session; diagnosis and a proposal on Sarina's board.
+- Grant gate (`c982b37`, Sarina `123453e`): `internal/grants`, `heimdalld grant`, `POST /v1/requests`, `docs/GRANTS.md`.
+- Incidents + agent baseline (`c47ba1f`): `internal/correlate` (`incident` alerts, `GET /v1/incidents`),
+  `detect.AgentBaselineDetector` (`agent-baseline`); agentsource events carry `tools`. Calibration numbers in ARCHITECTURE.md.
+- Mesh (`564bbbe`): `internal/mesh`, `heimdalld mesh`, `docs/MESH.md` with the second-PC checklist.
+- YARA rules (`b055be9`): `POST /v1/rules/drafts`, `heimdalld immunity rule draft|test|approve|reject`, rules installed as
+  `/var/lib/clamav/heimdall-rule-*.yar`. **For Limbo (nothing changed there):** the triage output already carries strings
+  and YARA matches, which is what a draft needs; useful later: a stable "strings worth a rule" section in
+  `limbo-decompile triage` (unique strings with offsets), so drafts need less guessing. **For Sarina:** a tool to send a
+  draft (needs Matt's yes; until then the owner uses `rule draft`).
+- New alert detectors for readers (Settings, Sarina): `grant-request` (warning), `incident`, `agent-baseline` (info),
+  `mesh` (the peer's severity, fields `peer`, `remote_detector`), `rule-draft` (info). Each has built-in explain text.
+- Owner steps: `docs/OWNER_STEPS_2026-11-05.md`. Package r60 (`b055be9`) built, not installed.
+— Signed: Heimdall / Claude Opus 5.5
 
 ### 2026-10-23 (5) — One home for the network protection; one file list
 - Moved here from Labyrinth_OS (renamed): heimdall-dns-blocklist (was labyrinth-dns-blocklist), heimdall-wifi-guard,

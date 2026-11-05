@@ -48,18 +48,18 @@ happened.
 | [zeek/zeek](https://github.com/zeek/zeek) | Network monitoring | Adapted (framing) | `internal/sources/netsource` (connection state, not packet capture) | 2026-09-26 |
 | [wazuh/wazuh](https://github.com/wazuh/wazuh) | Host FIM/XDR | Adapted | `internal/sources/hostsource/fim.go` (mtime+size precheck before hashing) | 2026-09-26 |
 | [netdata/netdata](https://github.com/netdata/netdata) | Host telemetry | Adapted (design) | `internal/sources/hostsource/telemetry.go` (`/proc`-only, no fork/exec) | 2026-09-26 |
-| [tailscale/tailscale](https://github.com/tailscale/tailscale) | Secure mesh / Go precedent | Adapted (language choice) + Candidate (mesh) | `README.md` (why Go); Phase 3 mesh, not built | 2026-09-25 |
-| [juanfont/headscale](https://github.com/juanfont/headscale) | Self-hosted mesh control plane | Candidate | Phase 3 mesh — see note below, changes that phase's status | 2026-09-26 |
+| [tailscale/tailscale](https://github.com/tailscale/tailscale) | Secure mesh / Go precedent | Adapted (language choice) + Design reference (mesh) | `README.md` (why Go); `docs/MESH.md` (identity pinning, and the parts deliberately left out after the 2026-10 "Tailworm" flaws) | 2026-11-05 |
+| [juanfont/headscale](https://github.com/juanfont/headscale) | Self-hosted mesh control plane | Design reference | Phase 3 mesh (`internal/mesh`): the "your own control" idea, taken further: no control server at all, peers enrolled by the owner | 2026-11-05 |
 | [CrowdStrike/codestrike](https://github.com/CrowdStrike/codestrike) | LLM review bot (not the CrowdStrike EDR product) | Design reference | Phase 4 approval-gate framing | 2026-09-25 |
 | [paperclipai/paperclip](https://github.com/paperclipai/paperclip) | AI-agent fleet governance | Design reference | Phase 4 approval-gate framing | 2026-09-25 |
 | [SenteLabsAI/OpenExecutive](https://github.com/SenteLabsAI/OpenExecutive) | Multi-agent-behind-one-voice | Design reference | Phase 4 approval-gate framing | 2026-09-25 |
 | [n8n-io/n8n](https://github.com/n8n-io/n8n) | Workflow automation | Candidate | Not built — see note below (response-playbook idea) | 2026-09-26 |
 | [letta-ai/letta](https://github.com/letta-ai/letta) | Stateful agent memory | Candidate | Not built — see note below (Phase 5 baseline memory) | 2026-09-26 |
-| [microsoft/graphrag](https://github.com/microsoft/graphrag) | Graph-based correlation | Candidate | Not built — see note below (Phase 5 cross-alert correlation) | 2026-09-26 |
+| [microsoft/graphrag](https://github.com/microsoft/graphrag) | Graph-based correlation | Adapted (idea, no code) | `internal/correlate`: alerts linked by the entities they share into incidents | 2026-11-05 |
 | [onnx/onnx](https://github.com/onnx/onnx) | ML model format | Design reference | Formalizes the format Sarina's own `sarina/ml/` already runs on | 2026-09-26 |
 | [tensorflow/tensorflow](https://github.com/tensorflow/tensorflow) | ML framework | Design reference (explicitly not to vendor) | Phase 5 — see Sarina's own onnxruntime-not-TensorFlow precedent | 2026-09-25 |
 | [google/deepvariant](https://github.com/google/deepvariant) | Genomic variant calling | Methodology-only | Phase 5 — "sequence → fixed-shape representation → small model scores it" | 2026-09-25 |
-| [mortazavilab/TALON](https://github.com/mortazavilab/TALON) | Long-read transcript classification | Methodology-only | Phase 5 — see note below (known/novel-variant/novel classification) | 2026-09-26 |
+| [mortazavilab/TALON](https://github.com/mortazavilab/TALON) | Long-read transcript classification | Methodology-only | Phase 5 — see note below (known/novel-variant/novel classification); also the agent baseline's never-used-before tool | 2026-11-05 |
 
 ## Notes on the newer or less obvious entries
 

@@ -129,6 +129,9 @@ order. `sudo heimdalld kernel-check` lists the holes per kernel.
 | `heimdalld trust init\|status\|mode\|sign\|forget\|restore\|verify\|watch` | The signed list of the agents' behaviour files |
 | `heimdalld contain status\|now\|emergency\|evidence\|release` | Containment |
 | `heimdalld immunity hold\|release\|release-if-proven\|add\|confirm\|list\|forget\|check\|inventory` | Quarantine and immunity |
+| `heimdalld immunity rule list\|show\|draft\|test\|approve\|reject` | YARA rules for held samples, owner-approved (docs/IMMUNITY.md) |
+| `heimdalld grant status\|approve\|deny\|tier\|revoke\|off` | The one gate for an AI agent asking for more (docs/GRANTS.md) |
+| `heimdalld mesh id\|init\|list\|enroll\|forget` | Alerts shared with your other computers, off by default (docs/MESH.md) |
 | `heimdalld kernel-check [--all]` | Known holes per installed kernel |
 | `heimdalld maintenance on\|off\|status` | Maintenance windows |
 | `heimdalld origin IP...` | Where addresses belong (offline) |
@@ -138,7 +141,9 @@ Most changes need root (sudo): the keys, the samples and the locks are root's.
 
 ## The local API
 
-Loopback only (`api_addr`, default `127.0.0.1:8930`); it refuses to bind anything else.
+Loopback only (`api_addr`, default `127.0.0.1:8930`); it refuses to bind anything else. Every endpoint but `/healthz`
+answers only root, Heimdall's account, the accounts in `api_users` (default `sarina`) and the members of `api_groups`
+(default `wheel`); the caller's account is read from the kernel, so clients send no token.
 
 | Endpoint | Description |
 | --- | --- |
@@ -147,6 +152,9 @@ Loopback only (`api_addr`, default `127.0.0.1:8930`); it refuses to bind anythin
 | `GET /v1/audit` | what is open now: package and kernel holes, hardening gaps |
 | `GET /v1/quarantine` | what Heimdall holds, with each file's report |
 | `POST /v1/review` | governance: `{"kind","session_id","text"}` → `{"decision":"allow"\|"deny","reasons":[...]}` |
+| `GET /v1/incidents` | related alerts grouped into incidents, newest first |
+| `POST /v1/requests`, `GET /v1/requests` | an AI agent asks for a hand-off or a higher access tier; only the owner decides (`heimdalld grant`) |
+| `POST /v1/rules/drafts`, `GET /v1/rules/drafts` | YARA rule drafts for held samples; tested and approved by root |
 
 ## Building and packaging
 

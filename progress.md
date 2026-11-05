@@ -19,7 +19,33 @@ closed rather than deleting it -- the history of *why* is worth keeping.
 
 ---
 
-## 2026-09-26 — Building the 5-phase roadmap (IN PROGRESS)
+## 2026-11-05 — The pending list, closed (DONE except what needs Matt or the second PC)
+
+**Ask (Matt):** "complete the pending tasks for Heimdall". The 2026-09-26 list below named Python files that no longer exist
+(the project is Go, and so is Sarina's core); each item was checked against today's code first.
+
+| Item | State | Commit | Tested |
+| --- | --- | --- | --- |
+| Packaging: heimdall's account reads Sarina's sessions | done | `4be493b` | tmpfiles file on a throw-away root (ACL, new 0640 file r-- for heimdall, missing folder not an error) |
+| API auth beyond loopback | done | `e566b9b` | fixture + real loopback socket; policy table. No client changed |
+| Sarina eval vault-note-injection | partly: Heimdall side done | `e1c9896` | inotify live, restarts, links refused. The eval vault is in /tmp, hidden from the service: proposal on Sarina's board |
+| Phase 4: one gate, escalations, access tiers | done (off until Matt switches it on) | `c982b37`, Sarina `123453e` | guard, scope, API; Sarina: auto claude-CLI hand-off refused without approval, runs with it; tier cap |
+| Phase 5: incidents, agent baselines, z threshold | done | `c47ba1f` | replay of 5067 real sessions; journal history; numbers in ARCHITECTURE.md; z stays 3.0 |
+| Phase 3 mesh | done; second-PC test open | `564bbbe` | two live instances on this PC; checklist in docs/MESH.md |
+| YARA rules from Limbo analyses | done (Heimdall side) | `b055be9` | real ClamAV: matches the sample, none of /usr/bin; CLI end to end |
+
+- **What vault-note-injection really measured.** In every failing run since 11-04 the planted line never reached Sarina's
+  session (she only searched, her read used a wrong path, or the session ended early); whenever she read the note, Heimdall
+  alerted within 5 s. Heimdall now also watches vault notes at rest (`vault_dirs`), which catches the note before any read.
+- **Idle cost of the new parts.** Vault watch, mesh listener and senders, correlator, grant and rule endpoints: nothing runs
+  without an event (inotify, channel waits, sink wrappers). Two live instances with the mesh on: 0 CPU ticks in 48 s, 18-20 MB.
+  The API check costs one read of /proc/net/tcp per request.
+- **Owner steps and questions:** `docs/OWNER_STEPS_2026-11-05.md` (install r60, enable the ACL path unit, restart; vault watch;
+  grant gate; mesh later). Package `heimdall-git-0.1.0.r60.gb055be9` built in Labyrinth's pkgbuilds folder, not installed.
+- **Still open:** the second-PC mesh test (Matt); Sarina's eval change and a Sarina tool to send YARA drafts (Matt's yes);
+  Sarina's `TestToolDefinitionFootprint` fails at her HEAD without this work (her board has it).
+
+## 2026-09-26 — Building the 5-phase roadmap (CLOSED 2026-11-05: every item below is done, see the entry above)
 
 **Ask:** build `docs/ARCHITECTURE.md`'s five-phase roadmap incrementally,
 phase by phase, stdlib-only Go, each phase usable and tested before moving
@@ -136,29 +162,12 @@ clean, manually smoke-tested against real or fixture data before moving
 on. Full detail and dates are in `CLAUDE.md`'s Coordination Log; this list
 is deliberately shorter.
 
-### Still to do
+### Still to do (as written on 2026-09-26; each closed 2026-11-05)
 
-- **Phase 3, mesh half.** Tailscale-style cross-machine alert sharing.
-  No longer blocked by the same trust objection (see `headscale` above),
-  but no design work has started -- still not built.
-- **Phase 4, the rest of it.** Escalation-to-Claude-Code and
-  permission-tier requests were the other two examples in the original
-  Phase 4 sketch; neither is wired up. `escalation_runtime.py` doesn't yet
-  have `memory_security.py`'s "exactly one gate" property, so that's a
-  prerequisite before extending governance there, not a drop-in.
-- **Phase 5, the rest of it.** Cross-alert graph correlation
-  (microsoft/graphrag's transferable idea) and applying the same
-  baseline technique to agent-behavior signals, not just host telemetry,
-  are both sketched in `docs/ARCHITECTURE.md` but not started.
-- **`baseline_z_threshold`'s default may want revisiting** per the live
-  finding above -- 3.0 is the conventional starting point, not something
-  tuned against this project's actual telemetry yet.
-- **Known packaging gap:** the systemd service's own Linux user needs
-  cross-user read access to whatever user's Sarina workspace it watches.
-  Flagged in `README.md`, not yet solved. Not exercised by the WSL testing
-  above (that ran as `root`, so the cross-user permission boundary this
-  gap is actually about never came up) -- still open.
-- **Phase 4's `/v1/review` has no auth beyond loopback-only binding.**
-  Consistent with `/v1/alerts` having none either, but worth a second
-  look if this ever needs to run somewhere loopback isn't a strong enough
-  boundary (e.g. a shared multi-tenant host).
+- ~~Phase 3, mesh half~~ CLOSED: `internal/mesh`, docs/MESH.md (`564bbbe`).
+- ~~Phase 4, the rest of it~~ CLOSED: the grant gate (`c982b37`, Sarina `123453e`). The "exactly one gate" prerequisite
+  was met by Sarina's Go core (tiers.Router.attempt, config.AccessTierFromEnv), not by escalation_runtime.py, which is gone.
+- ~~Phase 5, the rest of it~~ CLOSED: incidents and the agent baseline (`c47ba1f`).
+- ~~baseline_z_threshold's default may want revisiting~~ CLOSED: measured on real data; stays 3.0 (the floors decide).
+- ~~Known packaging gap: cross-user read access~~ CLOSED: tmpfiles ACL + path unit (`4be493b`).
+- ~~/v1/review has no auth beyond loopback~~ CLOSED: callers identified by the kernel (`e566b9b`).

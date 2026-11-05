@@ -15,10 +15,10 @@ process boundary rather than an in-process library.
 design has a citation, not just a name-drop** — see
 [`docs/REFERENCES.md`](REFERENCES.md) for the full, tracked ledger of
 every reference used anywhere in this repo, kept up to date independently
-of this file. Phases 1, 2, the connection-monitoring half of 3, a first
-slice of 4 (the memory-write path only), and a first slice of 5 (a
-statistical baseline over host telemetry) are built. The rest is recorded
-so later phases extend these instead of colliding with them — see
+of this file. All five phases are built as of 2026-11-05: Phase 3's mesh
+(`MESH.md`), Phase 4's grant gate for escalations and access tiers
+(`GRANTS.md`), and Phase 5's incidents and agent baseline were the last
+pieces. What each deliberately leaves out is recorded in its section — see
 [`CLAUDE.md`](../CLAUDE.md) before starting any of them, in case the plan
 has since moved in the Coordination Log.
 
@@ -65,9 +65,16 @@ agentsource.Watcher  ->  detect.Detector  ->  engine.Engine  ->  alert.Sink
 - **`internal/api`** is a loopback-only HTTP surface following the same
   "loopback only, no ecosystem service binds a routable interface by
   default" rule Sarina's `docs/ECOSYSTEM.md` already states for its own
-  GUI/service ports. `/healthz` and `/v1/alerts` are read-only; `POST
-  /v1/review` (Phase 4, `internal/governance`) is the one deliberate
-  exception — see that package's doc comment.
+  GUI/service ports. `/healthz`, `/v1/alerts`, `/v1/audit`, `/v1/quarantine`
+  and `/v1/incidents` are read-only; `POST /v1/review` (Phase 4,
+  `internal/governance`), `POST /v1/requests` (the grant gate: it files a
+  request, it can never approve one) and `POST /v1/rules/drafts` (immunity:
+  it keeps a draft, it can never install one) are the deliberate exceptions.
+  Since 2026-11-05 every endpoint but `/healthz` answers only root, Heimdall's
+  own account, `api_users` (default `sarina`) and members of `api_groups`
+  (default `wheel`): the caller's account is read from the kernel's socket
+  table (`/proc/net/tcp`, the client end of the loopback connection), so no
+  client sends a token and none had to change (`internal/api/access.go`).
 
 ## Phase 1 — Agent-behavior monitoring (built)
 
@@ -165,7 +172,7 @@ out).
   detection surface: sustained pressure is exactly the condition under
   which Heimdall's own polls might start lagging.
 
-## Phase 3 — Network monitoring & mesh (connection monitoring built; mesh not)
+## Phase 3 — Network monitoring & mesh (built)
 
 References: [Zeek](https://github.com/zeek/zeek) (turns raw traffic into
 structured, protocol-aware connection logs rather than raw packet dumps —
@@ -217,19 +224,18 @@ change-over-time suppression, and only where the underlying question is
 actually about change (FIM) rather than current state (network exposure,
 message content).
 
-**Not built: the mesh half — but the objection that kept it unplanned has
-weakened.** A shared reputation network / central API like CrowdSec's is a
-fleet-scale answer to a single-operator project and introduces a trust
-question: whose server, what data leaves the machine.
-[headscale](https://github.com/juanfont/headscale) — a self-hosted,
-open-source implementation of Tailscale's own control server — answers
-exactly that question: the same mesh mechanics, but "whose server" is
-"yours." This doesn't move the mesh half to *built*; it means the next
-time this phase comes up, it deserves a real design pass instead of being
-waved off on the same objection as before. See
-[`docs/REFERENCES.md`](REFERENCES.md) for the tracked note.
+**Built 2026-11-05: the mesh half (`internal/mesh`, [`MESH.md`](MESH.md)).**
+The trust question that kept it unplanned (whose server, what data leaves the
+machine) is answered by having no server at all: each instance has an ed25519
+key, the owner enrols peers by fingerprint and IP address in a root-owned
+file on each computer, and instances talk mutual TLS 1.3 directly. The mesh
+carries one thing, alert summaries, and a received alert is only shown, never
+acted on. Designed against the October 2026 "Tailworm" flaws: no SSH, Serve,
+Funnel, relay or coordination-server equivalents exist to have holes. Off by
+default. headscale and Tailscale stay design references (the
+self-hosted-control and identity-pinning ideas), not code.
 
-## Phase 4 — Review & governance layer (built, first slice)
+## Phase 4 — Review & governance layer (built)
 
 References: [CodeStrike](https://github.com/CrowdStrike/codestrike)
 (chain-of-thought LLM review of a diff before it lands),
@@ -285,12 +291,18 @@ Sarina's own "core agent depends on nothing outside the standard library"
 rule — `sentry_governance.py` uses only `urllib.request`), but an actual
 `"decision": "deny"` response is respected, not treated as a suggestion.
 
-**Deliberately narrow scope for this slice.** Only the memory-write path
-is wired up. Escalation-to-Claude-Code and permission-tier requests — the
-other two examples this section originally sketched — are not, and adding
-them means finding their own equivalent of "exactly one gate to reason
-about" in `escalation_runtime.py` first rather than sprinkling consult
-calls across multiple call sites. Not started.
+**Built 2026-11-05: the grant gate for escalations and access tiers
+(`internal/grants`, [`GRANTS.md`](GRANTS.md)).** The old plan waited for
+`escalation_runtime.py` to get one gate; that Python is gone, and Sarina's Go
+core already has the property: every hand-off to another model tier goes
+through `tiers.Router.attempt`, every default permission through
+`config.AccessTierFromEnv`. Both now read the owner's decisions from
+`/etc/heimdall/grants.json`, which only root writes (`heimdalld grant`), and
+Sarina files requests over `POST /v1/requests`. A decision needs root, a
+terminal, and no Sarina process among the deciding command's ancestors, so
+Sarina can ask but never approve. Unlike the memory review, which fails open
+when Heimdall is absent, the gate fails closed: an untrusted or damaged
+decisions file allows nothing.
 
 **Verified end-to-end, not just unit-tested in each repo separately:** a
 real `heimdalld run` process with `api_addr` set, and real Python code in a
@@ -300,7 +312,7 @@ with Heimdall's own detector's exact reason string, and appeared in
 `/v1/alerts` with the session id threaded through correctly. See
 `progress.md` for the full verification log.
 
-## Phase 5 — ML / pattern recognition (first slice built)
+## Phase 5 — ML / pattern recognition (built: baselines and incidents)
 
 References: [TensorFlow](https://github.com/tensorflow/tensorflow),
 [DeepVariant](https://github.com/google/deepvariant), and
@@ -367,17 +379,38 @@ license to add a gigabyte-scale ML dependency to a security daemon meant
 to run at all times. Not currently planned: this slice's simple
 statistics already cover the "learned baseline" idea without one.
 
-**Not built, deliberately scoped out of this slice:** correlating
-findings *across* detectors and sessions (a governance denial + a burst +
-a network exposure event from the same session, close together in time)
-is a graph-shaped problem, not a per-field statistics one —
+**Built 2026-11-05: incidents (`internal/correlate`).** Correlating
+findings across detectors (a governance denial, a burst and a network event
+from the same session, close together) is a graph problem:
 [microsoft/graphrag](https://github.com/microsoft/graphrag)'s graph
-construction (not its LLM-retrieval half) is the tracked reference for
-that, if it's ever built. Also not built: applying the same baseline
-technique to agent-behavior signals (message rate, tool-call mix) rather
-than only host telemetry — a natural extension, not a redesign, once
-there's a clean per-session aggregate signal to track it against (see
-`progress.md`).
+construction, not its LLM half, is the idea taken. Every alert names entities
+(a session, a guest, an address, a file, a pid or program, a tool, a request);
+alerts sharing one within 30 minutes are one incident, a bridging alert merges
+two, and an incident spanning two or more detectors with a warning raises one
+`incident` alert (`GET /v1/incidents` lists them). It is a sink wrapper: no
+work between alerts.
+
+**Built 2026-11-05: the agent's own baseline (`detect.AgentBaselineDetector`).**
+The same Welford statistics over what the agent does: sessions started and
+tool calls made per 15-minute window while active, judged as the window fills,
+plus a tool it has never used before once it has 200 tool calls of history
+(TALON's known-vs-novel idea, applied to tool names). Info severity.
+
+**Calibration with this PC's real data (2026-11-05).** Replaying 5067 real
+Sarina sessions (2026-10-15 to 11-05) through the agent baseline: at z = 3,
+five window findings in three weeks, all during eval runs (34-75 sessions in
+a window against a mean of 8-22); at z = 4 or 5, one. Twenty-six
+never-used-before tools, each one added during development, plus one the
+model invented (`TaskOutput`). Host `baseline-drift` from the journal: 44
+alerts since 10-15, but with today's floors (load 1.5 per CPU, memory 85 %)
+only 5 in 19 days (z 3.0, 4.2, 7.4, 8.0, 8.0). On this 16-CPU machine the
+learned load stddev in those alerts was 0.11-0.48 per CPU; half an hour of
+fresh samples on 11-05 gave load mean 0.08, stddev 0.06 per CPU and memory
+mean 11.3 %, stddev 0.7. Without the floors, z = 3 would have flagged four
+ordinary half-minutes in that half hour; with them, none. So the floor
+decides, not z. `baseline_z_threshold` stays 3.0: raising it to 4 would drop
+only the 3.0 alert, which came during a sustained heavy period, the most
+meaningful of the five.
 
 ## Arch, specifically
 
