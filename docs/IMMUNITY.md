@@ -53,8 +53,37 @@ sudo heimdalld immunity forget SHA256                  a mistake: remove it and 
 heimdalld immunity check FILE                          is this something Heimdall learned? (any user)
 ```
 
-## Limits and the next step
+## Rules: catching variants (YARA)
 
-A fingerprint catches exact copies only. Catching variants needs rules built from what a sample does and contains: the next step
-is a YARA rule drafted from Limbo's analysis (Sarina drafts, the owner approves, ClamAV loads it), tested against the sample and
-against the computer's own programs before it is used.
+A fingerprint catches exact copies only. A rule catches what a sample *contains* (strings, byte patterns), so it also
+catches the variants a fingerprint misses. ClamAV loads YARA rules from its database folder next to its own signatures and
+reports a match as `YARA.<rule name>`.
+
+1. **Drafted.** Sarina reads the held sample's report and Limbo's analysis (triage strings, imports, functions) and drafts a
+   rule: `POST /v1/rules/drafts` with `{"sample_sha256": "...", "rule": "...", "note": "..."}`. The owner can draft one too:
+   `sudo heimdalld immunity rule draft SHA256 FILE`. Heimdall keeps a draft only if it is one rule, named `Heimdall_...`, with
+   a condition, without `import` or `include` (an include would make ClamAV read another file), at most 16 KiB, for a sample
+   Heimdall holds. A `rule-draft` alert names the next command. Drafts live in `/var/lib/heimdall/rule-drafts.json`.
+2. **Tested** (root): `sudo heimdalld immunity rule test ID`. The rule and the sample are put in a fresh root-only folder
+   and ClamAV runs with only that rule loaded (seconds, not the full database). It must match the sample, and it must match
+   none of this computer's own programs (`/usr/bin`, `/usr/local/bin`, `/usr/lib/systemd`; `--fp DIR` to choose). The sample is
+   read, never run. The result is kept with the exact text tested.
+3. **Approved** (the owner): `sudo heimdalld immunity rule approve ID` shows the rule and asks for `yes`. Only a draft whose
+   current text passed its test can be approved, and never from a command an AI agent started (the same guard as the grant
+   gate, `GRANTS.md`). It is installed as `/var/lib/clamav/heimdall-rule-<name>.yar`; every ClamAV scan uses it from then on,
+   and `heimdalld scan-files` scans everything again once.
+4. **Rejected or removed**: `sudo heimdalld immunity rule reject ID` (an approved rule is removed from ClamAV).
+
+`heimdalld immunity rule list` and `rule show ID` show the drafts, who drafted them (the account, read from the kernel), and
+their tests.
+
+Tested on this PC: a rule drafted for a held demo script matched it and none of the 3203 programs in `/usr/bin` (about 40
+seconds), and after approval ClamAV reported the script as `YARA.Heimdall_demo_dropper.UNOFFICIAL`. A rule without strings
+(`condition: true`, "everything") is not loaded by ClamAV, so it matches nothing and fails its test.
+
+## Limits
+
+- A rule is only as good as its strings: one taken from a common library would match harmless programs. The test catches
+  the programs it scans, not every file on every computer; read the rule before approving it.
+- Sarina has no tool yet that sends a draft (her side is noted on her board); until then she writes the rule in her analysis
+  and the owner drafts it with `rule draft`.

@@ -66,6 +66,8 @@ func cmdImmunity(args []string) int {
 	}
 	fail := func(err error) int { fmt.Fprintln(os.Stderr, "heimdalld immunity:", err); return 1 }
 	switch args[0] {
+	case "rule": // YARA rules drafted from Limbo's analyses, approved by the owner (docs/IMMUNITY.md)
+		return cmdRule(args[1:], st)
 	case "add", "suspect":
 		fs := flag.NewFlagSet("immunity "+args[0], flag.ContinueOnError)
 		reason := fs.String("reason", "", "why it is malware (kept with it)")

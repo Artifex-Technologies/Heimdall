@@ -152,6 +152,9 @@ func For(detector, severity string, fields map[string]string) Text {
 	case "agent-baseline":
 		t.What = "The AI agent behaved unlike its usual self: far more sessions or tool calls than normal for it, or a tool it had never used. " + aiAgentNote
 		t.Do = "If you just gave it a big job (or the evals are running), nothing to do. Otherwise look at its latest sessions and at any other alert about them."
+	case "rule-draft":
+		t.What = "A rule that recognises a held malware sample and its variants was drafted (" + orUnknown(clean(fields["rule"], 70), "a YARA rule") + "). It does nothing until you approve it."
+		t.Do = "Test it (it must match the sample and none of this computer's programs), read it, then approve or reject it: sudo heimdalld immunity rule test " + orUnknown(clean(fields["rule_id"], 20), "ID") + "."
 	case "incident":
 		t.What = "Several of Heimdall's alerts are about the same thing (" + orUnknown(clean(fields["keys"], 160), "a session, address or program") + ") within a short time: " + orUnknown(clean(fields["detectors"], 120), "several checks") + ". Each alone may be harmless; together they tell one story."
 		t.Do = "Read these alerts together, oldest first (Settings > Security, or heimdalld's API /v1/incidents). Act on the most serious one."

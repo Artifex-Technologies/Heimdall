@@ -49,6 +49,9 @@ type Config struct {
 	// GrantRequestsPath is where requests for more (hand-offs to other models, access tiers) wait for the owner
 	// (internal/grants). The owner's decisions are always /etc/heimdall/grants.json, root's to write.
 	GrantRequestsPath string `json:"grant_requests_path"`
+	// RuleDraftsPath keeps the YARA rule drafts for held samples (immunity, docs/IMMUNITY.md "Rules") until root tests
+	// them and the owner approves.
+	RuleDraftsPath string `json:"rule_drafts_path"`
 
 	// Burst detector tuning -- see detect.NewBurstDetector.
 	BurstWindowSeconds   int `json:"burst_window_seconds"`
@@ -198,6 +201,7 @@ func Default() Config {
 		APIUsers:             []string{"sarina"},
 		APIGroups:            []string{"wheel"},
 		GrantRequestsPath:    "/var/lib/heimdall/grant-requests.json",
+		RuleDraftsPath:       "/var/lib/heimdall/rule-drafts.json",
 		BurstWindowSeconds:   300,
 		BurstThreshold:       20,
 		BurstCooldownSeconds: 300,

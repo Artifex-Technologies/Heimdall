@@ -265,6 +265,10 @@ func cmdRun(args []string) int {
 		srv.SetGrants(grants.Store{Requests: cfg.GrantRequestsPath, Decisions: grants.DefaultDecisions}, multiSink)
 		srv.SetAudit(func() any { return audit(cfg) })
 		srv.SetIncidents(func() any { return corr.Incidents() })
+		srv.SetRules(immunity.Rules{Path: cfg.RuleDraftsPath, RulesDir: immunity.DefaultRulesDir}, func() []immunity.Entry {
+			es, _ := immunity.Default().Load()
+			return es
+		}, multiSink)
 		srv.SetQuarantine(func() any {
 			es, err := immunity.Default().Load()
 			if err != nil || es == nil {
@@ -675,7 +679,7 @@ func cmdScanFiles(args []string) int {
 	}
 	start := time.Now()
 	st := scan.LoadState(*statePath)
-	st.UseSignatures(scan.FileStamp(immunity.DefaultSignatures))
+	st.UseSignatures(scan.FileStamp(immunity.DefaultSignatures) + immunity.RulesStamp(immunity.DefaultRulesDir))
 	files, err := scan.Collect(fs.Args(), scan.Options{Exclude: scan.Excluder{Patterns: exclude}, MaxBytes: *maxMB << 20, State: st})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "heimdalld scan-files:", err)
