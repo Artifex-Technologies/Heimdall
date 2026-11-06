@@ -20,3 +20,7 @@ Thumbs.db
 
 # Local progress notes
 PROGRESS.md
+
+# Python bytecode
+__pycache__/
+*.pyc
