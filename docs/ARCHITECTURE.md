@@ -447,7 +447,8 @@ contents, and it ignores loopback.
 ## Malware scanning (groundwork)
 
 `internal/scan` is the engine; `heimdalld scan-files [--state F] [--exclude P]... [--max-mb N] PATH...` runs it by hand. It needs ClamAV
-(`pacman -S clamav`, `freshclam` for signatures); without it the command says so and exits 2. Decisions:
+(`pacman -S clamav`, `freshclam` for signatures; on Labyrinth OS, Heimdall's component in Agora and the installer brings ClamAV and
+switches its signature updates on, since 2026-11-05); without it the command says so and exits 2. Decisions:
 
 - **Runs as the user whose files it reads.** A home folder is not readable by the `heimdall` system user (and the unit has ProtectHome), so the
   scan of Downloads is a per-user job (a user service or on demand from Settings), and its findings reach the desktop as notifications.
