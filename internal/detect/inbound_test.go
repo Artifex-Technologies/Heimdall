@@ -1,6 +1,7 @@
 package detect
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -67,5 +68,34 @@ func TestAConnectionToAListedAddressIsCriticalEvenWhileLearning(t *testing.T) {
 	e.Fields["remote_listed"] = ""
 	if got := d.Inspect(e); len(got) != 0 {
 		t.Errorf("an unlisted learning connection alerted: %+v", got)
+	}
+}
+
+func TestATVAnsweringIsNotAPortScan(t *testing.T) {
+	d := NewInboundDetector()
+	t0 := time.Date(2026, 11, 7, 15, 0, 0, 0, time.UTC)
+	udp := func(src, port string, i int) Event {
+		return Event{Kind: "firewall_block", Time: t0.Add(time.Duration(i) * 20 * time.Second),
+			Fields: map[string]string{"src": src, "dst_port": port, "proto": "UDP", "origin": "home network"}}
+	}
+	// a smart TV answering discovery questions: each answer on another temporary port
+	for i := 0; i < 15; i++ {
+		if got := d.Inspect(udp("192.168.1.25", fmt.Sprint(40000+i*997), i)); len(got) != 0 {
+			t.Fatalf("answer %d raised %+v", i, got)
+		}
+	}
+	// the same pattern from the internet, or to low ports, or over TCP, still counts
+	for _, c := range []struct{ src, proto, base string }{{"203.0.113.9", "UDP", "40000"}, {"192.168.1.26", "UDP", "100"}, {"192.168.1.27", "TCP", "40000"}} {
+		var got []Finding
+		for i := 0; i < 10; i++ {
+			var b int
+			fmt.Sscan(c.base, &b)
+			e := udp(c.src, fmt.Sprint(b+i), i)
+			e.Fields["proto"] = c.proto
+			got = append(got, d.Inspect(e)...)
+		}
+		if len(got) != 1 || !strings.Contains(got[0].Summary, "port scan") {
+			t.Errorf("%+v: %+v", c, got)
+		}
 	}
 }

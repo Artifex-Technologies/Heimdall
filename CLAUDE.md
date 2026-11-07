@@ -242,6 +242,15 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-11-07 (3) — Fewer false alarms: TV answers, Limbo's sandbox cables
+- `inbound`: UDP from a private/link-local address to one of this computer's temporary ports (ip_local_port_range) counts as a
+  block, not a port tried: devices answering this computer's own discovery questions (casting, speakers). fwsource events gain
+  `src_port`.
+- `remote-access` tunnels: a Limbo tap `vl-<guest>` plugged into its bridge `lb-<guest>` is Limbo's own and not reported; an
+  unplugged one is looked at again (three times at most), one on another bridge is reported. **For Limbo:** relies on the names
+  in `internal/virt/names.go`; renaming them is a contract change.
+— Signed: Heimdall / Claude Opus 5.5
+
 ### 2026-11-07 (2) — Wi-Fi checks: why is the Wi-Fi slow?
 - `internal/wifihealth` + `heimdalld wifi-health [--speed] [--json]` (any user, about 10 s): signal, band, channel crowding
   (scan list; the router's own extra networks are not counted), resending, router and internet pings (median), power saving,

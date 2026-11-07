@@ -160,7 +160,7 @@ func (w *Watcher) parse(msg, ident string, t time.Time) (detect.Event, bool) {
 		if ip == nil || kv["IN"] == "" { // IN empty: an outgoing packet this computer sent, not a knock
 			return detect.Event{}, false
 		}
-		f := map[string]string{"src": ip.String(), "dst_port": kv["DPT"], "proto": kv["PROTO"], "iface": kv["IN"], "spoofable": "1"}
+		f := map[string]string{"src": ip.String(), "src_port": kv["SPT"], "dst_port": kv["DPT"], "proto": kv["PROTO"], "iface": kv["IN"], "spoofable": "1"}
 		o := w.origin(ip, f)
 		port := kv["DPT"]
 		if port == "" {

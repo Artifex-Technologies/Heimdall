@@ -55,3 +55,46 @@ func TestInstalledToolsAndNewTunnelsAreReported(t *testing.T) {
 		t.Fatalf("a new WireGuard interface: %v", got)
 	}
 }
+
+func TestALimboSandboxCableIsNotATunnel(t *testing.T) {
+	d := t.TempDir()
+	w := New(remoteaccess.Builtin())
+	w.PacmanDir, w.NetDir = filepath.Join(d, "local"), filepath.Join(d, "net")
+	os.MkdirAll(w.PacmanDir, 0o755)
+	touch(t, filepath.Join(w.NetDir, "lo", "uevent"))
+	w.Poll()
+	// the tap appears before Limbo plugs it into its bridge: not reported yet, looked at again
+	touch(t, filepath.Join(w.NetDir, "vl-test", "tun_flags"))
+	os.MkdirAll(filepath.Join(w.NetDir, "lb-test"), 0o755)
+	if ev := w.Poll(); len(ev) != 0 {
+		t.Fatalf("unplugged tap: %+v", ev)
+	}
+	os.Symlink("../lb-test", filepath.Join(w.NetDir, "vl-test", "master"))
+	if ev := w.Poll(); len(ev) != 0 {
+		t.Fatalf("Limbo's own tap: %+v", ev)
+	}
+	// a tap that only borrows the name (on another bridge) is still reported
+	touch(t, filepath.Join(w.NetDir, "vl-other", "tun_flags"))
+	os.Symlink("../br0", filepath.Join(w.NetDir, "vl-other", "master"))
+	touch(t, filepath.Join(w.NetDir, "tun9", "tun_flags"))
+	got := map[string]bool{}
+	for _, e := range w.Poll() {
+		got[e.Fields["iface"]] = true
+	}
+	if !got["vl-other"] || !got["tun9"] {
+		t.Fatalf("a tap on another bridge and an ordinary new tunnel are reported: %v", got)
+	}
+	// a tap that never gets plugged in is reported after three looks
+	touch(t, filepath.Join(w.NetDir, "vl-ghost", "tun_flags"))
+	n := 0
+	for i := 0; i < 5; i++ {
+		for _, e := range w.Poll() {
+			if e.Fields["iface"] == "vl-ghost" {
+				n++
+			}
+		}
+	}
+	if n != 1 {
+		t.Fatalf("vl-ghost reported %d times", n)
+	}
+}

@@ -3,6 +3,7 @@ package detect
 import (
 	"fmt"
 	"net"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -17,6 +18,11 @@ import (
 //	          stopped it, and the address may be forged, so no block is suggested
 //	info      one address blocked many times (BlockThreshold in Window): the firewall did its job; recorded with its origin
 //
+// A UDP packet from the home network to one of this computer's temporary ports is not a probe: it is a device answering a
+// question this computer asked the whole network (a browser looking for screens to cast to, a music app looking for speakers).
+// The firewall cannot match an answer to a broadcast or multicast question, so it blocks it, and each answer lands on another
+// temporary port. Those count as blocks (the info line), never as ports tried: a TV answering is not a port scan.
+//
 // An address is alerted on again only after Cooldown. Heimdall never changes the firewall itself.
 type InboundDetector struct {
 	Window         time.Duration
@@ -24,6 +30,8 @@ type InboundDetector struct {
 	BlockThreshold int
 	ScanPorts      int
 	LoginThreshold int
+	// EphemeralLow and EphemeralHigh are the kernel's temporary port range (net.ipv4.ip_local_port_range).
+	EphemeralLow, EphemeralHigh int
 
 	seen   map[string]*knocks
 	last   map[string]time.Time
@@ -39,8 +47,13 @@ type knocks struct {
 }
 
 func NewInboundDetector() *InboundDetector {
-	return &InboundDetector{Window: 10 * time.Minute, Cooldown: time.Hour, BlockThreshold: 20, ScanPorts: 10, LoginThreshold: 5,
+	d := &InboundDetector{Window: 10 * time.Minute, Cooldown: time.Hour, BlockThreshold: 20, ScanPorts: 10, LoginThreshold: 5,
+		EphemeralLow: 32768, EphemeralHigh: 60999,
 		seen: map[string]*knocks{}, last: map[string]time.Time{}}
+	if b, err := os.ReadFile("/proc/sys/net/ipv4/ip_local_port_range"); err == nil {
+		fmt.Sscan(string(b), &d.EphemeralLow, &d.EphemeralHigh)
+	}
+	return d
 }
 
 func (d *InboundDetector) ID() string { return "inbound" }
@@ -100,7 +113,7 @@ func (d *InboundDetector) Inspect(e Event) []Finding {
 		}
 	} else {
 		k.blocks = append(k.blocks, now)
-		if p := e.Fields["dst_port"]; p != "" && len(k.ports) < 1000 {
+		if p := e.Fields["dst_port"]; p != "" && len(k.ports) < 1000 && !d.discoveryAnswer(e.Fields) {
 			k.ports[p] = now
 		}
 	}
@@ -138,6 +151,22 @@ func (d *InboundDetector) Inspect(e Event) []Finding {
 	}
 	d.last[src] = now
 	return []Finding{{DetectorID: d.ID(), Severity: sev, Summary: summary, Event: Event{Source: e.Source, Time: now, Kind: e.Kind, Text: e.Text, Fields: f}}}
+}
+
+// discoveryAnswer: UDP from a private or link-local address to a temporary port of this computer (see the type's comment).
+func (d *InboundDetector) discoveryAnswer(f map[string]string) bool {
+	if f["proto"] != "UDP" {
+		return false
+	}
+	ip := net.ParseIP(f["src"])
+	if ip == nil || !(ip.IsPrivate() || ip.IsLinkLocalUnicast()) {
+		return false
+	}
+	var port int
+	if _, err := fmt.Sscan(f["dst_port"], &port); err != nil {
+		return false
+	}
+	return port >= d.EphemeralLow && port <= d.EphemeralHigh
 }
 
 func names(m map[string]bool) string {

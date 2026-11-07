@@ -24,11 +24,12 @@ type Watcher struct {
 	pkgSeen   map[string]bool
 	pkgMtime  int64
 	ifaceSeen map[string]bool
+	waited    map[string]int // "vl-" taps not yet on a bridge: how many looks they have had
 	started   bool
 }
 
 func New(c remoteaccess.Catalog) *Watcher {
-	return &Watcher{Catalog: c, PacmanDir: "/var/lib/pacman/local", NetDir: "/sys/class/net"}
+	return &Watcher{Catalog: c, PacmanDir: "/var/lib/pacman/local", NetDir: "/sys/class/net", waited: map[string]int{}}
 }
 
 // PackageName is the name in a pacman database entry ("tailscale-1.104.2-1" -> "tailscale").
@@ -86,6 +87,23 @@ func tunnelKind(dir string) string {
 	return ""
 }
 
+// unplugged: a "vl-" tap on no bridge yet.
+func unplugged(netDir, name string) bool {
+	_, err := os.Lstat(filepath.Join(netDir, name, "master"))
+	return strings.HasPrefix(name, "vl-") && err != nil
+}
+
+// limboGuest reports a Limbo sandbox's tap: named "vl-<guest>" and plugged into the bridge "lb-<guest>" (Limbo's
+// internal/virt/names.go). Making either takes root, which could do far worse than imitate a sandbox.
+func limboGuest(netDir, name string) bool {
+	guest, ok := strings.CutPrefix(name, "vl-")
+	if !ok || guest == "" {
+		return false
+	}
+	master, err := os.Readlink(filepath.Join(netDir, name, "master"))
+	return err == nil && filepath.Base(master) == "lb-"+guest
+}
+
 func (w *Watcher) interfaces() []detect.Event {
 	entries, err := os.ReadDir(w.NetDir)
 	if err != nil {
@@ -102,7 +120,13 @@ func (w *Watcher) interfaces() []detect.Event {
 		if p := w.Catalog.MatchIface(name); p != nil {
 			out = append(out, event("the network interface "+name+" ("+p.Name+") appeared",
 				map[string]string{"provider": p.ID, "provider_name": p.Name, "ra_kind": p.Kind, "signal": "iface", "iface": name}))
-		} else if k := tunnelKind(filepath.Join(w.NetDir, name)); k != "" && w.started {
+		} else if k := tunnelKind(filepath.Join(w.NetDir, name)); k != "" && w.started && limboGuest(w.NetDir, name) {
+			// a Limbo sandbox's network cable (its tap "vl-<guest>" on its bridge "lb-<guest>"): Limbo's own, not a tunnel out
+		} else if k != "" && w.started && unplugged(w.NetDir, name) && w.waited[name] < 3 {
+			// Limbo makes the tap first and plugs it into its bridge a moment later: look again (three times at most)
+			w.waited[name]++
+			delete(now, name)
+		} else if k != "" && w.started {
 			// a tunnel that was already there when Heimdall started is the computer's own; a new one is worth knowing about
 			out = append(out, event("a new "+k+" tunnel interface "+name+" appeared",
 				map[string]string{"signal": "tunnel", "iface": name, "tunnel": k}))
