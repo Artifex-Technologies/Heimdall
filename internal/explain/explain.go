@@ -171,6 +171,10 @@ func For(detector, severity string, fields map[string]string) Text {
 			t.Done = "The file stayed inside the sandbox."
 			t.Do = "Check that ClamAV is running (systemctl status clamav-daemon), then try again."
 		}
+	case "tool-rules":
+		prog := orUnknown(quoted(fields, "script"), orUnknown(quoted(fields, "exe"), "a security tool's program"))
+		t.What = "The program file of a security tool (" + prog + ") is not the one its package installed. Heimdall lets a verified tool scan and connect quietly on a security system; a changed one could be malware using the tool's name."
+		t.Do = "Find out what changed the file (pacman -Qkk, the package's last update, what you ran), then reinstall the package. Until then, do not use the tool."
 	case "remote-access":
 		tool := orUnknown(clean(fields["provider_name"], 60), "a tool")
 		switch {

@@ -22,7 +22,19 @@ type Engine struct {
 	// info, with the window's reason in the summary. Content detectors are never in the list.
 	window   WindowSource
 	softened map[string]bool
+
+	// On a computer full of security tools (Niflheim), what a verified tool does is written as info, and a changed tool is
+	// reported (internal/toolrules). Nil: no tool rules.
+	tools ToolRules
 }
+
+// ToolRules turns one finding into what is written (none, one, or more).
+type ToolRules interface {
+	Apply(f detect.Finding) []detect.Finding
+}
+
+// SetToolRules puts the security-tool rules in force (they run after verification, before maintenance softening).
+func (e *Engine) SetToolRules(r ToolRules) { e.tools = r }
 
 // WindowSource tells whether a maintenance window is open.
 type WindowSource interface {
@@ -51,16 +63,27 @@ func (e *Engine) Handle(ev detect.Event) {
 	for _, d := range e.detectors {
 		for _, f := range d.Inspect(ev) {
 			f = verify.Apply(f)
-			if e.window != nil && e.softened[f.DetectorID] && f.Severity != detect.SeverityInfo && !f.Firm {
-				if w, ok := e.window.Active(); ok {
-					f.Severity = detect.SeverityInfo
-					f.Summary = "[maintenance: " + w.Reason + "] " + f.Summary
-				}
+			if e.tools == nil {
+				e.write(f)
+				continue
 			}
-			a := alert.FromFinding(f)
-			if err := e.sink.Write(a); err != nil && e.logger != nil {
-				e.logger.Printf("heimdalld: alert sink write failed: %v", err)
+			for _, g := range e.tools.Apply(f) {
+				e.write(g)
 			}
 		}
+	}
+}
+
+// write softens a finding during a maintenance window when its detector is listed, and hands it to the sink.
+func (e *Engine) write(f detect.Finding) {
+	if e.window != nil && e.softened[f.DetectorID] && f.Severity != detect.SeverityInfo && !f.Firm {
+		if w, ok := e.window.Active(); ok {
+			f.Severity = detect.SeverityInfo
+			f.Summary = "[maintenance: " + w.Reason + "] " + f.Summary
+		}
+	}
+	a := alert.FromFinding(f)
+	if err := e.sink.Write(a); err != nil && e.logger != nil {
+		e.logger.Printf("heimdalld: alert sink write failed: %v", err)
 	}
 }

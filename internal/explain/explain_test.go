@@ -9,7 +9,7 @@ import (
 func TestEveryDetectorIsExplained(t *testing.T) {
 	ids := []string{"injection-phrase", "credential-shape", "invisible-unicode", "permission-escalation", "session-burst", "file-integrity",
 		"maintenance-window", "resource-pressure", "network-exposure", "connection-watch", "inbound", "package-vulnerability",
-		"kernel-vulnerability", "hardening", "wifi-safety", "lan-watch", "baseline-drift", "limbo-guest", "limbo-network", "limbo-exchange", "integration", "remote-access"}
+		"kernel-vulnerability", "hardening", "wifi-safety", "lan-watch", "baseline-drift", "limbo-guest", "limbo-network", "limbo-exchange", "integration", "remote-access", "tool-rules"}
 	for _, id := range ids {
 		for _, sev := range []string{"info", "warning", "critical"} {
 			x := For(id, sev, nil)

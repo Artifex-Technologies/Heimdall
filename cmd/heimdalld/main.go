@@ -49,6 +49,7 @@ import (
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/limbosource"
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/netsource"
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/wifisource"
+	"github.com/Artifex-Technologies/Heimdall/internal/toolrules"
 	"github.com/Artifex-Technologies/Heimdall/internal/trust"
 )
 
@@ -271,6 +272,7 @@ func cmdRun(args []string) int {
 	eng := engine.New(engineSink, logger, newDetectors(cfg)...)
 	win := maintenance.NewWatcher(cfg.MaintenancePath)
 	eng.SetMaintenance(win, cfg.MaintenanceSoften)
+	setToolRules(eng, cfg, logger)
 
 	go watchMaintenance(ctx, cfg.MaintenancePath, eng.Handle)
 
@@ -482,6 +484,7 @@ func cmdScan(args []string) int {
 	ring := alert.NewRing(cfg.RingSize)
 	cfg.AgentBaselineStatePath = "" // an audit learns nothing into the daemon's baseline
 	eng := engine.New(ring, logger, newDetectors(cfg)...)
+	setToolRules(eng, cfg, logger)
 	scanIncomplete := false // some session file could not be read
 
 	if cfg.AgentSessionDir != "" {
@@ -800,4 +803,19 @@ func (t takeHeld) Write(a alert.Alert) error {
 		}
 	}
 	return t.Next.Write(a)
+}
+
+// setToolRules puts the security-tool rules in force where the system asks for them (/etc/heimdall/security-tools, which
+// Niflheim OS ships): docs/TOOL_RULES.md.
+func setToolRules(eng *engine.Engine, cfg config.Config, logger *log.Logger) {
+	if !toolrules.Enabled() {
+		return
+	}
+	c, err := toolrules.Builtin()
+	if err != nil {
+		logger.Printf("tool rules not in force: %v", err)
+		return
+	}
+	eng.SetToolRules(toolrules.New(c, pkgverify.New(cfg.PacmanDB).Expected))
+	logger.Printf("tool rules in force: %d security tools (%s)", len(c.Tools), toolrules.MarkerPath)
 }

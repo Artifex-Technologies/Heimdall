@@ -120,10 +120,12 @@ func (w *ConnWatcher) blockedApps() map[string]bool {
 }
 
 type owner struct {
-	pid  int
-	comm string
-	app  string
-	exe  string
+	pid    int
+	comm   string
+	app    string
+	exe    string
+	script string // the file an interpreter runs (scriptOf)
+	agent  string // the AI agent among its ancestors (agentAncestor)
 }
 
 // owners maps socket inodes to the process holding them.
@@ -157,7 +159,9 @@ func (w *ConnWatcher) owners(want map[uint64]bool) map[uint64]owner {
 				comm, _ := os.ReadFile(filepath.Join(w.procRoot, d.Name(), "comm"))
 				cg, _ := os.ReadFile(filepath.Join(w.procRoot, d.Name(), "cgroup"))
 				exe, _ := os.Readlink(filepath.Join(w.procRoot, d.Name(), "exe"))
-				o = &owner{pid: pid, comm: strings.TrimSpace(string(comm)), exe: exe}
+				o = &owner{pid: pid, comm: strings.TrimSpace(string(comm)), exe: exe, agent: agentAncestor(w.procRoot, pid)}
+				cwd, _ := os.Readlink(filepath.Join(w.procRoot, d.Name(), "cwd"))
+				o.script = scriptOf(exe, argvOf(w.procRoot, pid), cwd)
 				if m := appSlice.FindStringSubmatch(string(cg)); m != nil {
 					o.app = m[1]
 				}
@@ -224,6 +228,12 @@ func (w *ConnWatcher) Poll() ([]detect.Event, error) {
 			"remote_addr": e.RemoteIP.String(),
 			"remote_port": strconv.Itoa(e.RemotePort),
 			"local_port":  strconv.Itoa(e.LocalPort),
+		}
+		// for the tool rules: which program file (or script) it is, and whether an AI agent started it
+		for k, v := range map[string]string{"exe": o.exe, "script": o.script, "agent": o.agent} {
+			if v != "" {
+				f[k] = v
+			}
 		}
 		text := fmt.Sprintf("%s (pid %d) connected to %s:%d", proc, o.pid, e.RemoteIP, e.RemotePort)
 		if w.Origins != nil {
