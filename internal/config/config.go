@@ -119,6 +119,9 @@ type Config struct {
 
 	// WifiResults is where heimdall-wifi-check writes its verdict on each Wi-Fi network joined; each becomes an alert.
 	WifiResults string `json:"wifi_results"`
+	// LANDir holds the device list of trusted networks (internal/lan, written by heimdall-lan-scan): served to Settings, and each
+	// new device becomes an alert. Empty turns both off.
+	LANDir string `json:"lan_dir"`
 	// ListenWatch alerts when a program starts listening for connections from the network (not loopback).
 	ListenWatch bool `json:"listen_watch"`
 
@@ -231,6 +234,7 @@ func Default() Config {
 		KernelAuditStatePath:        "/var/lib/heimdall/kernel-audit.json",
 		HardeningStatePath:          "/var/lib/heimdall/hardening.json",
 		WifiResults:                 "/var/lib/heimdall/wifi/results.jsonl",
+		LANDir:                      "/var/lib/heimdall/lan",
 		ListenWatch:                 true,
 		Firewall:                    true,
 		FirewallPollIntervalSeconds: 15,

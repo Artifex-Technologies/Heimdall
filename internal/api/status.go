@@ -53,6 +53,14 @@ func (s *Server) SetQuarantine(f func() any) {
 	})
 }
 
+// SetDevices serves GET /v1/lan/devices: the device list of the owner's trusted networks (internal/lan), for Settings.
+func (s *Server) SetDevices(f func() any) {
+	s.mux.HandleFunc("/v1/lan/devices", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(f())
+	})
+}
+
 // SetIncidents serves GET /v1/incidents: related alerts grouped into incidents (internal/correlate), newest first.
 func (s *Server) SetIncidents(f func() any) {
 	s.mux.HandleFunc("/v1/incidents", func(w http.ResponseWriter, _ *http.Request) {

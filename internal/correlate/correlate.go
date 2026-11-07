@@ -48,7 +48,7 @@ type Incident struct {
 	Alerts    []Member       `json:"alerts"`
 
 	keys     map[string]bool
-	reported int // number of detectors when last reported
+	reported int  // number of detectors when last reported
 	real     bool // a member alert was not practice (Sarina's evals mark theirs practice=1)
 }
 

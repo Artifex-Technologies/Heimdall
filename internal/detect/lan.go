@@ -1,10 +1,14 @@
 package detect
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // LANDetector reads the local-network watches: the router of an untrusted Wi-Fi network changing or being imitated (critical:
 // ARP spoofing puts someone between this computer and the internet), and a program starting to listen for connections from the
-// network (warning: the firewall blocks it unless a rule allows it, but it should be known).
+// network (warning: the firewall blocks it unless a rule allows it, but it should be known), and a device new to a trusted home
+// network (warning: the owner wants to know who joins, internal/lan).
 type LANDetector struct{}
 
 func NewLANDetector() *LANDetector { return &LANDetector{} }
@@ -22,6 +26,21 @@ func (d *LANDetector) Inspect(e Event) []Finding {
 		return []Finding{{DetectorID: d.ID(), Severity: SeverityCritical, Event: e, Summary: fmt.Sprintf(
 			"on %q, %s answers with the router's hardware address %s: a sign of ARP spoofing. Disconnect, or make sure the VPN is on",
 			f["ssid"], f["other_ip"], f["expected_mac"])}}
+	case "new_lan_device":
+		what := f["name"]
+		if what == "" {
+			what = "a device"
+		}
+		var about []string
+		if f["vendor"] != "" {
+			about = append(about, "made by "+f["vendor"])
+		} else if f["private_mac"] == "true" {
+			about = append(about, "using a private address (usually a phone, tablet or laptop)")
+		}
+		about = append(about, "at "+f["ip"])
+		return []Finding{{DetectorID: d.ID(), Severity: SeverityWarning, Event: e, Summary: fmt.Sprintf(
+			"a new device joined %q: %s, %s. If you do not know it, look at it in Settings > Wi-Fi & Network > Devices",
+			f["ssid"], what, strings.Join(about, ", "))}}
 	case "new_listener":
 		return []Finding{{DetectorID: d.ID(), Severity: SeverityWarning, Event: e, Summary: fmt.Sprintf(
 			"a program started listening for connections from the network on %s/%s. The firewall blocks it unless a rule allows it; to see which program: sudo ss -tulpn | grep ':%s '",

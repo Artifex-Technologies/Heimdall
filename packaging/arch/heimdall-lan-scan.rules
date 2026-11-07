@@ -1,0 +1,10 @@
+// Settings' "Scan now" on the device list: an administrator at the computer may start the scan without a password. Only this
+// unit, only starting it (it stops by itself), only from an active local session.
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.freedesktop.systemd1.manage-units" &&
+        action.lookup("unit") == "heimdall-lan-scan.service" &&
+        action.lookup("verb") == "start" &&
+        subject.local && subject.active && subject.isInGroup("wheel")) {
+        return polkit.Result.YES;
+    }
+});

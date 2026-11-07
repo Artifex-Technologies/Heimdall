@@ -69,6 +69,8 @@ internal/
   sources/hostsource/      File-integrity + host telemetry watchers (Phase 2)
   sources/netsource/       /proc/net/tcp{,6} connection-exposure watcher (Phase 3)
   sources/vaultsource/     The agent's vault notes at rest (inotify, no polling)
+  sources/lansource/       New devices on a trusted home network (events.jsonl written by `heimdalld lan scan`)
+  lan/                     The device list: neighbour sweep, mDNS, router names, NetBIOS; own unit, trusted networks only
   governance/              Phase 4: reviews text via the existing detectors, out-of-process
   grants/                  Phase 4: the one gate for hand-offs and access tiers (owner decides, as root)
   correlate/               Phase 5: related alerts become incidents (a sink wrapper)
@@ -239,6 +241,18 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   Both are in Sarina's `docs/ECOSYSTEM.md` port registry.
 
 ### Coordination Log (newest first)
+
+### 2026-11-07 — Device list of trusted home networks (Fing-like)
+- `internal/lan` + `heimdalld lan scan|list`, run every 5 minutes by `heimdall-lan-scan.timer` (own sandboxed unit, user
+  heimdall; heimdalld stays off the network). Only on a trusted connection (`/etc/heimdall/wifi-trusted.json`) whose router has
+  the recorded hardware address. Spec: `docs/DEVICES.md`.
+- **For Yggdrasil Settings:** `GET /v1/lan/devices` returns `{networks: [{uuid, ssid, first_scan, last_scan, devices: [{mac, ip,
+  name, names, vendor, model, kind, services, private_mac, first_seen, last_seen}]}], status, status_uuid, status_time}`.
+  `kind` is one of router, this, tv, speaker, printer, phone, computer, console, smart, private, other. "Scan now":
+  `systemctl start --no-block heimdall-lan-scan.service` (polkit rule `50-heimdall-lan-scan.rules`, wheel, active local session).
+- New alert: `lan-watch` warning on event kind `new_lan_device` (fields ssid, ip, mac, vendor, name, model, kind, private_mac).
+  The first scan of a network learns silently. Config: `lan_dir`.
+— Signed: Heimdall / Claude Opus 5.5
 
 ### 2026-11-05 (2) — Limbo's new network and exchange events are read and acted on
 - New detectors `limbo-network` and `limbo-exchange` (`f84191c`) for the kinds Limbo added today. Severities:

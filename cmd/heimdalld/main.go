@@ -35,6 +35,7 @@ import (
 	"github.com/Artifex-Technologies/Heimdall/internal/immunity"
 	"github.com/Artifex-Technologies/Heimdall/internal/ipintel"
 	"github.com/Artifex-Technologies/Heimdall/internal/kernelaudit"
+	"github.com/Artifex-Technologies/Heimdall/internal/lan"
 	"github.com/Artifex-Technologies/Heimdall/internal/maintenance"
 	"github.com/Artifex-Technologies/Heimdall/internal/mesh"
 	"github.com/Artifex-Technologies/Heimdall/internal/pkgaudit"
@@ -44,6 +45,7 @@ import (
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/agentsource"
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/fwsource"
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/hostsource"
+	"github.com/Artifex-Technologies/Heimdall/internal/sources/lansource"
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/limbosource"
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/netsource"
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/wifisource"
@@ -93,6 +95,8 @@ func main() {
 		os.Exit(cmdIntelCheck(os.Args[2:]))
 	case "ipdb-check":
 		os.Exit(cmdIPDBCheck(os.Args[2:]))
+	case "lan": // the device list of trusted home networks (internal/lan)
+		os.Exit(cmdLAN(os.Args[2:]))
 	case "version":
 		fmt.Println("heimdalld " + version)
 	case "-h", "--help", "help":
@@ -134,6 +138,9 @@ Usage:
                                     Share alerts with Heimdall on your other computers (owner-enrolled keys, off by default).
   heimdalld grant status|approve|deny|tier|revoke|off
                                     The one gate for an AI agent asking for more: hand-offs to other models, access tiers.
+  heimdalld lan scan|list [--dir DIR]
+                                    The devices on a trusted home network: maker, name, first and last seen (heimdall-lan-scan
+                                    runs the scan every 5 minutes; it does nothing on a network you have not trusted).
   heimdalld version                 Print the version and exit.
 
 See README.md and docs/ARCHITECTURE.md for configuration and design.
@@ -267,6 +274,15 @@ func cmdRun(args []string) int {
 		srv.SetGrants(grants.Store{Requests: cfg.GrantRequestsPath, Decisions: grants.DefaultDecisions}, multiSink)
 		srv.SetAudit(func() any { return audit(cfg) })
 		srv.SetIncidents(func() any { return corr.Incidents() })
+		if cfg.LANDir != "" {
+			srv.SetDevices(func() any {
+				st, err := lan.Load(filepath.Join(cfg.LANDir, "devices.json"))
+				if err != nil {
+					return &lan.Store{Status: "unreadable"}
+				}
+				return st
+			})
+		}
 		srv.SetRules(immunity.Rules{Path: cfg.RuleDraftsPath, RulesDir: immunity.DefaultRulesDir}, func() []immunity.Entry {
 			es, _ := immunity.Default().Load()
 			return es
@@ -369,6 +385,10 @@ func cmdRun(args []string) int {
 		// while on an untrusted Wi-Fi network, its router is watched for impersonation (reads the kernel's tables only)
 		rw := netsource.NewRouterWatcher(filepath.Join(filepath.Dir(cfg.WifiResults), "current.json"))
 		go rw.Run(ctx, 10*time.Second, eng.Handle)
+	}
+	if cfg.LANDir != "" {
+		lw := &lansource.Watcher{Path: filepath.Join(cfg.LANDir, "events.jsonl"), OffsetPath: filepath.Join(cfg.LANDir, "events.offset")}
+		go lw.Run(ctx, 15*time.Second, func(err error) { logger.Printf("device list: %v", err) }, eng.Handle)
 	}
 	if cfg.ListenWatch {
 		go netsource.NewListenWatcher().Run(ctx, 15*time.Second, eng.Handle)

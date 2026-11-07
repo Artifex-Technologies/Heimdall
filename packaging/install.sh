@@ -45,6 +45,12 @@ i 755 $p/arch/heimdall-wifi-check                usr/bin/heimdall-wifi-check
 i 644 $p/arch/heimdall-wifi-check@.service       usr/lib/systemd/system/heimdall-wifi-check@.service
 i 755 $p/net/dispatcher.d/90-heimdall-wifi       usr/lib/NetworkManager/dispatcher.d/90-heimdall-wifi
 
+# the device list of trusted home networks (every 5 minutes; Settings > Wi-Fi & Network > Devices; docs/DEVICES.md)
+i 644 $p/arch/heimdall-lan-scan.service          usr/lib/systemd/system/heimdall-lan-scan.service
+i 644 $p/arch/heimdall-lan-scan.timer            usr/lib/systemd/system/heimdall-lan-scan.timer
+i 644 $p/arch/heimdall-lan-scan.rules            usr/share/polkit-1/rules.d/50-heimdall-lan-scan.rules
+i 644 docs/DEVICES.md                            usr/share/doc/heimdall/DEVICES.md
+
 # trusted networks, the VPN with its kill switch, and a quiet computer on untrusted networks
 i 755 $p/net/heimdall-wifi-guard                 usr/bin/heimdall-wifi-guard
 i 755 $p/net/dispatcher.d/50-heimdall-wifi-guard usr/lib/NetworkManager/dispatcher.d/50-heimdall-wifi-guard
