@@ -41,9 +41,14 @@ func TestNetworkAnomaliesThatRestrict(t *testing.T) {
 			return a
 		}(), false},
 		{"hostile guest name", netAlert("host_probe", "../x;rm", detect.SeverityCritical), false},
-		{"held file is an alert only", func() alert.Alert {
+		{"a held malware file restricts too (owner, 2026-11-05)", func() alert.Alert {
 			a := netAlert("", "lab", detect.SeverityWarning)
 			a.DetectorID, a.EventKind = "limbo-exchange", "exchange.held"
+			return a
+		}(), true},
+		{"a file that could not be scanned is an alert only", func() alert.Alert {
+			a := netAlert("", "lab", detect.SeverityInfo)
+			a.DetectorID, a.EventKind = "limbo-exchange", "exchange.fail"
 			return a
 		}(), false},
 	}
@@ -62,7 +67,7 @@ func TestNetworkAnomaliesThatRestrict(t *testing.T) {
 				t.Fatalf("quarantine calls=%v want=%v", lim.quarGuest, tc.wantQuar)
 			}
 			if tc.wantQuar {
-				if lim.quarGuest[0] != "lab|heimdall:limbo-network" {
+				if want := "lab|heimdall:" + tc.a.DetectorID; lim.quarGuest[0] != want {
 					t.Fatalf("wrong call: %v", lim.quarGuest)
 				}
 				if lim.explained["q-1"] == "" {

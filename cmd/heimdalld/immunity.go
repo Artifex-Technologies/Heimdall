@@ -320,6 +320,8 @@ type request struct {
 	// Analyze: take a held sample apart in Limbo. Anyone could ask, so only a held sample without an analysis yet is analysed, two
 	// per run at most (each takes a minute or more).
 	Analyze string `json:"analyze"`
+	// TakeLimbo: keep a copy of a file Limbo held (heimdalld queues one per exchange.held); four per run at most.
+	TakeLimbo string `json:"take_limbo"`
 }
 
 // analyzeHeld takes one held sample apart in Limbo, if it has no analysis yet, and tells the owner what it is now ready.
@@ -359,7 +361,7 @@ func runRequests(st immunity.Store) int {
 	}
 	_, contained := contain.ReadMarker(contain.MarkerPath)
 	signed, behaviour := proofFuncs()
-	done, analyzed := 0, 0
+	done, analyzed, taken := 0, 0, 0
 	for _, ent := range ents {
 		p := filepath.Join(RequestDir, ent.Name())
 		// opened without following links (anyone can write here), read at most 4 KiB
@@ -377,6 +379,17 @@ func runRequests(st immunity.Store) int {
 		}
 		var r request
 		if json.Unmarshal(b, &r) != nil {
+			continue
+		}
+		if r.TakeLimbo != "" {
+			if taken < 4 {
+				taken++
+				if e, err := st.TakeFromLimbo(immunity.LimboHeldDir, r.TakeLimbo, immunity.ClamAV); err != nil {
+					fmt.Fprintln(os.Stderr, "heimdalld immunity: not taken from Limbo:", r.TakeLimbo, err)
+				} else {
+					fmt.Printf("taken from Limbo: %s %s\n", e.Status, e.SHA256)
+				}
+			}
 			continue
 		}
 		if r.Analyze != "" {

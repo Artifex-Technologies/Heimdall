@@ -264,6 +264,8 @@ func cmdRun(args []string) int {
 		engineSink = resp
 		logger.Printf("Limbo quarantine response enabled (control socket %s, Sarina advisories: %v)", cfg.LimboControlSocket, cfg.SarinaURL != "")
 	}
+	// a file Limbo held as malware is copied into Heimdall's own store by the root unit (owner, 2026-11-05; docs/IMMUNITY.md)
+	engineSink = takeHeld{Next: engineSink}
 	// a critical finding about the AI agents asks the root unit to contain them (only when switched on in contain.json)
 	engineSink = &contain.Trigger{Next: engineSink, ConfigPath: contain.ConfigPath, RequestPath: contain.RequestPath, MarkerPath: contain.MarkerPath}
 	eng := engine.New(engineSink, logger, newDetectors(cfg)...)
@@ -786,4 +788,16 @@ func runRemote(args []string) int {
 	}
 	fmt.Println("approved:", strings.Join(ids, ", "))
 	return 0
+}
+
+// takeHeld leaves a request for root to keep a copy of each file Limbo held (exchange.held), then passes the alert on.
+type takeHeld struct{ Next alert.Sink }
+
+func (t takeHeld) Write(a alert.Alert) error {
+	if a.DetectorID == "limbo-exchange" && a.EventKind == "exchange.held" && a.Source == "limbo" {
+		if err := immunity.QueueTakeLimbo(immunity.RequestDir, a.Fields["sha256"]); err != nil {
+			log.Printf("could not ask for a copy of the held file %q: %v", a.Fields["sha256"], err)
+		}
+	}
+	return t.Next.Write(a)
 }

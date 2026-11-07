@@ -19,6 +19,8 @@ ProtectSystem=strict
 ProtectHome=read-only
 PrivateTmp=true
 ReadWritePaths=/var/lib/heimdall
+# requests for root (heimdall-requests.service): a copy of each file Limbo held as malware (owner's yes, 2026-11-05)
+ReadWritePaths=-/var/lib/heimdall-requests
 
 # The connection drop-in (heimdall-connwatch.conf.example) gives Heimdall read access over other users' processes and files.
 # These keep a bug in the daemon from turning that into control (2026-10-27 audit): no ptrace or cross-process memory calls,

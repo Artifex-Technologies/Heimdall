@@ -90,3 +90,20 @@ func TestAnalysisIsQueued(t *testing.T) {
 		t.Fatal("a full hash is needed")
 	}
 }
+
+func TestQueueTakeLimbo(t *testing.T) {
+	dir := t.TempDir()
+	sha := strings.Repeat("ab", 32)
+	if err := QueueTakeLimbo(dir, sha); err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(dir, "take-"+sha[:16]+".json"))
+	if err != nil || string(b) != `{"take_limbo":"`+sha+`"}` {
+		t.Fatalf("%s %v", b, err)
+	}
+	for _, bad := range []string{"", "abc", strings.Repeat("AB", 32), strings.Repeat("a", 63) + "/", "../" + strings.Repeat("a", 61)} {
+		if QueueTakeLimbo(dir, bad) == nil {
+			t.Errorf("%q accepted", bad)
+		}
+	}
+}

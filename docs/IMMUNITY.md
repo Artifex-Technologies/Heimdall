@@ -76,19 +76,16 @@ What it does, and what it never does:
 - ClamAV knowing it makes a **reference** entry (nothing new to learn). If this computer's ClamAV does not know it, it stays a
   **suspect** for the owner to `confirm`.
 
-### Proposal: take the copy automatically (not built; needs Matt's yes)
+### Taking the copy automatically (built 2026-11-07, approved 2026-11-05)
 
-Today the owner runs the command. It could happen by itself, the same way an analysis is queued after a hold:
+On each `exchange.held` alert, heimdalld (the unprivileged daemon) leaves `{"take_limbo": "<sha256>"}` in
+`/var/lib/heimdall-requests` (the root request queue, mode 1733), and `heimdall-requests.service` (root) takes the copy, four
+per run at most. For that the daemon's unit can also write the queue (`ReadWritePaths=-/var/lib/heimdall-requests` in
+`heimdall.service`). The request is safe whoever writes it: it can only make root copy a file Limbo already holds, checked
+against its hash, from one root-only folder into another. Disk use is bounded by what Limbo holds and by the 256 MiB sample limit.
 
-1. On `exchange.held`, heimdalld (the unprivileged daemon) writes `{"take_limbo": "<sha256>"}` into
-   `/var/lib/heimdall-requests` (the root request queue, mode 1733).
-2. `heimdall-requests.service` (root) runs `TakeFromLimbo` for it, a few per run at most.
-
-Why it is not built: the daemon cannot write there today (its unit has `ProtectSystem=strict` and
-`ReadWritePaths=/var/lib/heimdall`), so it needs `ReadWritePaths=/var/lib/heimdall-requests` added to `heimdall.service`. That
-widens what the daemon can write, which is the owner's call. The request itself is safe whoever writes it: anyone could already
-write to the queue, and this request can only make root copy a file Limbo already holds, checked against its hash, from one
-root-only folder into another. Disk use is bounded by what Limbo holds and by the 256 MiB sample limit.
+The guest that tried to hand the file out is also restricted (`limbo-exchange` on `exchange.held` triggers the same Limbo
+quarantine as a network probe; approved 2026-11-05).
 
 ## Rules: catching variants (YARA)
 

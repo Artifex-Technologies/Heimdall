@@ -636,15 +636,18 @@ func (r *Responder) triggers(a alert.Alert) bool {
 		// warning or higher, so a maintenance window that softens it to info also stops the response
 		return a.Source == "limbo" && a.EventKind == "net.anomaly" && networkTriggerReasons[a.Fields["reason"]] &&
 			severityRank(a.Severity) >= severityRank(detect.SeverityWarning)
+	case "limbo-exchange":
+		// the guest tried to hand out a file ClamAV knows as malware (Limbo held it): restrict it too (owner, 2026-11-05)
+		return a.Source == "limbo" && a.EventKind == "exchange.held" && severityRank(a.Severity) >= severityRank(detect.SeverityWarning)
 	}
 	return false
 }
 
 // clearedByLater reports whether a later Limbo event (policy re-applied, guest stopped) can make the request unnecessary.
-// Not for a network anomaly: the guest went looking for a way out, and neither a fresh policy nor a stop changes that. A
+// Not for a network anomaly or a held malware file: the guest went looking for a way out, and neither a fresh policy nor a stop changes that. A
 // hold on a stopped guest still matters, because Limbo will not start a guest it holds.
 func (q *request) clearedByLater() bool {
-	return !containsStr(q.kinds, "net.anomaly")
+	return !containsStr(q.kinds, "net.anomaly") && !containsStr(q.kinds, "exchange.held")
 }
 
 func (r *Responder) advise(id string, a alert.Alert) {

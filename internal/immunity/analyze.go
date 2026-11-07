@@ -137,6 +137,29 @@ func (l Limbo) run(s Store, sha string) Analysis {
 const RequestDir = "/var/lib/heimdall-requests"
 
 // QueueAnalysis asks the root unit to analyse a held sample in Limbo (it takes a minute or more, so the hold does not wait for it).
+// QueueTakeLimbo asks the root unit (heimdall-requests.service) to keep a copy of a file Limbo held at a guest's exchange
+// (exchange.held), the same as `heimdalld immunity take-limbo SHA256`. heimdalld leaves it on each held file (owner, 2026-11-05).
+// Safe whoever writes it: root only copies what Limbo holds under that name, checked against the hash.
+func QueueTakeLimbo(dir, sha string) error {
+	if !isHex64(sha) {
+		return errors.New("a full SHA-256 is needed")
+	}
+	b, _ := json.Marshal(map[string]string{"take_limbo": sha})
+	return os.WriteFile(filepath.Join(dir, "take-"+sha[:16]+".json"), b, 0o644)
+}
+
+func isHex64(s string) bool {
+	if len(s) != 64 {
+		return false
+	}
+	for _, c := range s {
+		if !(c >= '0' && c <= '9' || c >= 'a' && c <= 'f') {
+			return false
+		}
+	}
+	return true
+}
+
 func QueueAnalysis(dir, sha string) error {
 	if len(sha) != 64 {
 		return errors.New("a full SHA-256 is needed")
