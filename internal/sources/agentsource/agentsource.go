@@ -37,8 +37,30 @@ import (
 // Messages stay raw because they are plain strings in the old shape and
 // objects in the current one.
 type sessionFile struct {
-	SessionID string            `json:"session_id"`
-	Messages  []json.RawMessage `json:"messages"`
+	SessionID     string            `json:"session_id"`
+	Messages      []json.RawMessage `json:"messages"`
+	RuntimeConfig struct {
+		Cwd string `json:"cwd"`
+	} `json:"runtime_config"`
+}
+
+// PracticeDirs are where Sarina's evals run (evals/run_evals.py works in /tmp/sarina-evals/<case>). A session working there is
+// practice: its files plant injections and fake secrets on purpose. Its alerts are still raised and kept (the evals score
+// them), with the field practice=1 so the desktop does not pop each one up as if it were real.
+var PracticeDirs = []string{"/tmp/sarina-evals"}
+
+// practice reports whether a session working in cwd is one of Sarina's evals.
+func practice(cwd string) bool {
+	if cwd == "" {
+		return false
+	}
+	c := filepath.Clean(cwd)
+	for _, d := range PracticeDirs {
+		if c == d || strings.HasPrefix(c, d+string(filepath.Separator)) {
+			return true
+		}
+	}
+	return false
 }
 
 // messageObject is one transcript entry of the agent session file.
@@ -311,6 +333,7 @@ func (w *Watcher) Poll() ([]detect.Event, error) {
 		if sessionID == "" {
 			sessionID = name
 		}
+		isPractice := practice(sf.RuntimeConfig.Cwd)
 
 		if !known {
 			events = append(events, detect.Event{
@@ -319,7 +342,7 @@ func (w *Watcher) Poll() ([]detect.Event, error) {
 				Time:      info.ModTime(),
 				Kind:      "session_created",
 				Text:      "",
-				Fields:    map[string]string{"file": name},
+				Fields:    practiceField(map[string]string{"file": name}, isPractice),
 			})
 		}
 
@@ -342,6 +365,7 @@ func (w *Watcher) Poll() ([]detect.Event, error) {
 			if len(tools) > 0 {
 				fields["tools"] = strings.Join(tools, ",")
 			}
+			practiceField(fields, isPractice)
 			events = append(events, detect.Event{
 				Source:    "agent-session",
 				SessionID: sessionID,
@@ -429,4 +453,12 @@ func readSession(path string) ([]byte, error) {
 		return nil, notAFile("grew past the size a session may be while being read")
 	}
 	return raw, err
+}
+
+// practiceField marks an event's fields as coming from one of Sarina's evals.
+func practiceField(f map[string]string, isPractice bool) map[string]string {
+	if isPractice {
+		f["practice"] = "1"
+	}
+	return f
 }

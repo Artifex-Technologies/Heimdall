@@ -49,6 +49,7 @@ type Incident struct {
 
 	keys     map[string]bool
 	reported int // number of detectors when last reported
+	real     bool // a member alert was not practice (Sarina's evals mark theirs practice=1)
 }
 
 // Member is one alert of an incident, briefly.
@@ -169,6 +170,7 @@ func (c *Correlator) link(a alert.Alert, keys []string) *Incident {
 		}
 	}
 	into.Detectors[a.DetectorID]++
+	into.real = into.real || a.Fields["practice"] != "1"
 	if rank(string(a.Severity)) > rank(into.Severity) || into.Severity == "" {
 		into.Severity = string(a.Severity)
 	}
@@ -197,6 +199,7 @@ func merge(into, from *Incident) {
 	for d, n := range from.Detectors {
 		into.Detectors[d] += n
 	}
+	into.real = into.real || from.real
 	if rank(from.Severity) > rank(into.Severity) {
 		into.Severity = from.Severity
 	}
@@ -231,9 +234,12 @@ func (c *Correlator) alertFor(inc *Incident) alert.Alert {
 		n += v
 	}
 	summary := fmt.Sprintf("%d related alerts from %d detectors (%s) share %s", n, len(dets), strings.Join(dets, ", "), strings.Join(keys, ", "))
+	fields := map[string]string{"incident_id": inc.ID, "detectors": strings.Join(dets, ","), "keys": strings.Join(inc.Keys, ",")}
+	if !inc.real {
+		fields["practice"] = "1" // every alert in it came from Sarina's evals
+	}
 	return alert.FromFinding(detect.Finding{DetectorID: DetectorID, Severity: detect.Severity(inc.Severity), Summary: summary,
-		Event: detect.Event{Source: "correlation", Kind: "incident", Time: inc.Last,
-			Fields: map[string]string{"incident_id": inc.ID, "detectors": strings.Join(dets, ","), "keys": strings.Join(inc.Keys, ",")}}})
+		Event: detect.Event{Source: "correlation", Kind: "incident", Time: inc.Last, Fields: fields}})
 }
 
 // Incidents returns the live incidents, newest first (for GET /v1/incidents).

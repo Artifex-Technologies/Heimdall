@@ -128,3 +128,19 @@ func TestLimboGuestAlertsBecomeOneIncident(t *testing.T) {
 		t.Fatalf("the guest's path linked to a file on this computer: %s", inc[0].Fields["keys"])
 	}
 }
+
+func TestAnIncidentOfPracticeAlertsIsPractice(t *testing.T) {
+	out := &capture{}
+	c := &Correlator{Next: out, Now: time.Now}
+	p := map[string]string{"practice": "1"}
+	c.Write(al("injection-phrase", detect.SeverityCritical, "eval", p))
+	c.Write(al("credential-shape", detect.SeverityCritical, "eval", p))
+	if got := out.incidents(); len(got) != 1 || got[0].Fields["practice"] != "1" {
+		t.Fatalf("all its alerts were Sarina's evals: %+v", got)
+	}
+	// one real alert joining makes it real
+	c.Write(al("permission-escalation", detect.SeverityWarning, "eval", nil))
+	if got := out.incidents(); len(got) != 2 || got[1].Fields["practice"] != "" {
+		t.Fatalf("a real alert in it: %+v", got)
+	}
+}
