@@ -328,7 +328,9 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   nft table heimdall_wifi_guard, VPN connection "Heimdall VPN" on interface wg-heimdall.
 - packaging/install.sh DESTDIR is the only file list: every PKGBUILD (packaging/arch, Labyrinth's and Niflheim's heimdall-git)
   calls it. A pacman hook (heimdall-install.hook -> heimdall-enable-defaults) switches the service, timers and notifications
-  on at first install only. Tests: python3 -m unittest discover packaging/tests.
+  on at first install only, unless the image has an empty /etc/heimdall/defaults-off (Niflheim OS, decided 2026-11-07: Heimdall
+  stays off there until it has rules for each BlackArch tool); `heimdall-enable-defaults --force` switches it on then.
+  Tests: python3 -m unittest discover packaging/tests.
 
 ### 2026-10-23 (4) — Wi-Fi safety check
 - `packaging/arch/heimdall-wifi-check` (Python, run per connection by `heimdall-wifi-check@.service` from the NetworkManager

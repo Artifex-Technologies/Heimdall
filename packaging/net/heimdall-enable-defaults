@@ -1,6 +1,14 @@
 #!/bin/sh
 # heimdall-enable-defaults: switch on what Heimdall needs, once, when the package is first installed (a pacman hook runs this; it
 # also works offline, in an installer's chroot). Upgrades never run it again, so whatever the owner switched off stays off.
+#
+# An operating system that ships Heimdall but leaves it off at first (Niflheim OS, until Heimdall has its rules for the security
+# tools there) puts an empty /etc/heimdall/defaults-off in its image: then nothing is switched on, and
+# `heimdall-enable-defaults --force` (as root) switches it all on later.
+if [ -e /etc/heimdall/defaults-off ] && [ "${1:-}" != "--force" ]; then
+  echo "heimdall: /etc/heimdall/defaults-off is there, so nothing was switched on (heimdall-enable-defaults --force does it)"
+  exit 0
+fi
 for u in heimdall.service heimdall-intel-update.timer heimdall-dns-blocklist.timer heimdall-contain.path heimdall-requests.path heimdall-inventory.timer heimdall-sarina-access.path heimdall-lan-scan.timer; do
   systemctl enable "$u" >/dev/null 2>&1 || echo "heimdall: could not enable $u" >&2
 done
