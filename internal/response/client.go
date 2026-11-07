@@ -18,6 +18,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"time"
 )
 
@@ -111,6 +112,29 @@ func (c *Client) do(ctx context.Context, method, path string, in, out any) error
 		return json.Unmarshal(raw, out)
 	}
 	return nil
+}
+
+// GuestExists asks Limbo whether a guest is still there (GET /v1/guests/{name} on the control socket, read-only; Limbo
+// dbf2828). known is false when the answer is not one (an older Limbo without the route, or anything unexpected): the
+// caller then goes on as before.
+func (c *Client) GuestExists(ctx context.Context, guest string) (exists, known bool, err error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", c.base+"/v1/guests/"+url.PathEscape(guest), nil)
+	if err != nil {
+		return false, false, err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return false, false, fmt.Errorf("limbo control socket: %w", err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
+	var b struct {
+		Exists *bool `json:"exists"`
+	}
+	if (resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNotFound) && json.Unmarshal(raw, &b) == nil && b.Exists != nil {
+		return *b.Exists, true, nil
+	}
+	return false, false, nil
 }
 
 // QuarantineStatus is a read-only look at what Limbo holds for a guest, from the

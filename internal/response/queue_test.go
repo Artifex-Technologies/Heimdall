@@ -291,6 +291,69 @@ func TestRecheckSkipsOrProceeds(t *testing.T) {
 	}
 }
 
+// goneLimbo is a qLimbo that also answers whether a guest exists.
+type goneLimbo struct {
+	*qLimbo
+	exists, known bool
+}
+
+func (g *goneLimbo) GuestExists(context.Context, string) (bool, bool, error) {
+	return g.exists, g.known, nil
+}
+
+func TestAGuestLimboNoLongerHasIsSkippedNotFailed(t *testing.T) {
+	for _, tc := range []struct {
+		name          string
+		exists, known bool
+		wantSent      bool
+	}{
+		{"gone", false, true, false},
+		{"still there", true, true, true},
+		{"an older Limbo that cannot say", false, false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			next, q := &recSink{}, newQLimbo(false)
+			lim := &goneLimbo{qLimbo: q, exists: tc.exists, known: tc.known}
+			r := &Responder{Next: next, Limbo: lim}
+			r.Write(alertAt("policy.remove", "lab", detect.SeverityCritical, time.Now()))
+			r.Wait()
+			if sent := len(q.guests()) > 0; sent != tc.wantSent {
+				t.Fatalf("sent=%v, want %v", sent, tc.wantSent)
+			}
+			for _, a := range next.integration() {
+				if a.Fields["error_code"] == CodeLimboQuarantineFailed {
+					t.Fatalf("a torn-down guest is not a failure: %+v", a.Fields)
+				}
+				if !tc.wantSent && (a.Fields["error_code"] != CodeQuarantineSkipped || !strings.Contains(a.Fields["reason"], "no longer exists")) {
+					t.Fatalf("skip note %+v", a.Fields)
+				}
+			}
+		})
+	}
+}
+
+func TestTheClientAsksWhetherAGuestExists(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v1/guests/lab":
+			_, _ = w.Write([]byte(`{"name":"lab","exists":true}`))
+		case "/v1/guests/gone":
+			w.WriteHeader(http.StatusNotFound)
+			_, _ = w.Write([]byte(`{"exists":false}`))
+		default: // an older Limbo: no such route
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+	c := NewClientHTTP(srv.URL, srv.Client())
+	for guest, want := range map[string][2]bool{"lab": {true, true}, "gone": {false, true}, "x/old": {false, false}} {
+		exists, known, err := c.GuestExists(context.Background(), guest)
+		if err != nil || [2]bool{exists, known} != want {
+			t.Errorf("%s: exists %v known %v err %v, want %v", guest, exists, known, err, want)
+		}
+	}
+}
+
 func TestRecheckAgainstARealClientListsOnlyHoldingRecords(t *testing.T) {
 	opened := time.Now().UTC().Truncate(time.Second)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

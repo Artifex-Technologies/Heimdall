@@ -105,6 +105,12 @@ type StatusChecker interface {
 	QuarantineStatus(ctx context.Context, guest string) (level string, opened time.Time, found bool, err error)
 }
 
+// GuestChecker is an optional, read-only extension of Quarantiner: whether Limbo still has the guest. known is false
+// when Limbo does not say (an older one); the request then proceeds.
+type GuestChecker interface {
+	GuestExists(ctx context.Context, guest string) (exists, known bool, err error)
+}
+
 // BacklogAdvisor is an optional extension of Advisor that comments on the queue
 // backlog for a human. Its answer is an untrusted note and nothing more.
 type BacklogAdvisor interface {
@@ -366,12 +372,18 @@ func (r *Responder) recheck(q *request) (skip bool, reason string) {
 	if ok && m.seq > q.seq && q.clearedByLater() {
 		return true, m.reason
 	}
+	ctx, cancel := context.WithTimeout(r.ctx, statusTimeout)
+	defer cancel()
+	// A guest Limbo no longer has (a validation run torn down meanwhile) has nothing to hold: skipped, not a failure.
+	if gc, ok := r.Limbo.(GuestChecker); ok {
+		if exists, known, err := gc.GuestExists(ctx, q.guest); err == nil && known && !exists {
+			return true, "the guest no longer exists in Limbo (torn down), so there is nothing to hold"
+		}
+	}
 	sc, ok := r.Limbo.(StatusChecker)
 	if !ok {
 		return false, ""
 	}
-	ctx, cancel := context.WithTimeout(r.ctx, statusTimeout)
-	defer cancel()
 	level, opened, found, err := sc.QuarantineStatus(ctx, q.guest)
 	if err != nil {
 		r.logf("guest %q: quarantine status unknown (%v), proceeding", q.guest, err)
