@@ -50,6 +50,7 @@ i 644 $p/arch/heimdall-lan-scan.service          usr/lib/systemd/system/heimdall
 i 644 $p/arch/heimdall-lan-scan.timer            usr/lib/systemd/system/heimdall-lan-scan.timer
 i 644 $p/arch/heimdall-lan-scan.rules            usr/share/polkit-1/rules.d/50-heimdall-lan-scan.rules
 i 644 docs/DEVICES.md                            usr/share/doc/heimdall/DEVICES.md
+i 644 docs/WIFI_HEALTH.md                        usr/share/doc/heimdall/WIFI_HEALTH.md
 
 # trusted networks, the VPN with its kill switch, and a quiet computer on untrusted networks
 i 755 $p/net/heimdall-wifi-guard                 usr/bin/heimdall-wifi-guard

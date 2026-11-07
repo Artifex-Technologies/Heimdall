@@ -95,6 +95,8 @@ func main() {
 		os.Exit(cmdIntelCheck(os.Args[2:]))
 	case "ipdb-check":
 		os.Exit(cmdIPDBCheck(os.Args[2:]))
+	case "wifi-health": // why the Wi-Fi is slow: signal, channel, other devices, or past the router (internal/wifihealth)
+		os.Exit(cmdWifiHealth(os.Args[2:]))
 	case "lan": // the device list of trusted home networks (internal/lan)
 		os.Exit(cmdLAN(os.Args[2:]))
 	case "version":
@@ -138,6 +140,9 @@ Usage:
                                     Share alerts with Heimdall on your other computers (owner-enrolled keys, off by default).
   heimdalld grant status|approve|deny|tier|revoke|off
                                     The one gate for an AI agent asking for more: hand-offs to other models, access tiers.
+  heimdalld wifi-health [--speed] [--json]
+                                    Why the Wi-Fi is slow: signal, a crowded channel, other devices, or a problem past the router
+                                    (about 10 seconds; --speed adds a speed test).
   heimdalld lan scan|list [--dir DIR]
                                     The devices on a trusted home network: maker, name, first and last seen (heimdall-lan-scan
                                     runs the scan every 5 minutes; it does nothing on a network you have not trusted).

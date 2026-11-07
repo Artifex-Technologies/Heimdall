@@ -242,6 +242,15 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-11-07 (2) — Wi-Fi checks: why is the Wi-Fi slow?
+- `internal/wifihealth` + `heimdalld wifi-health [--speed] [--json]` (any user, about 10 s): signal, band, channel crowding
+  (scan list; the router's own extra networks are not counted), resending, router and internet pings (median), power saving,
+  device count (from `/v1/lan/devices`), optional download test from the pacman mirror. Spec: `docs/WIFI_HEALTH.md`.
+- **For Yggdrasil Settings:** the JSON report: `connected`, `summary`, `verdict` (good|warn|bad), `link` {ssid, band, channel,
+  width, signal_dbm, rx_mbps, tx_mbps}, `findings` [{check, status good|info|warn|bad, title, detail}], `speed` {down_mbps,
+  server, error}. New package dependency: `iw`.
+— Signed: Heimdall / Claude Opus 5.5
+
 ### 2026-11-07 — Device list of trusted home networks (Fing-like)
 - `internal/lan` + `heimdalld lan scan|list`, run every 5 minutes by `heimdall-lan-scan.timer` (own sandboxed unit, user
   heimdall; heimdalld stays off the network). Only on a trusted connection (`/etc/heimdall/wifi-trusted.json`) whose router has
