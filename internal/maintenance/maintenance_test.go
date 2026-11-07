@@ -23,7 +23,7 @@ func TestOpenCapsAndRequiresReason(t *testing.T) {
 func TestWriteReadExpire(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "m.json")
 	now := time.Now()
-	w, _ := Open("zlothra", "kernel update", time.Hour, now)
+	w, _ := Open("alex", "kernel update", time.Hour, now)
 	if err := Write(p, w); err != nil {
 		t.Fatal(err)
 	}

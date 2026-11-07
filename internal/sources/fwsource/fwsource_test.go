@@ -27,7 +27,7 @@ func TestKnocksAreReadFromTheJournal(t *testing.T) {
 			line("kernel", "[UFW BLOCK] IN= OUT=wlan0 SRC=192.168.1.20 DST=203.0.113.9 PROTO=UDP SPT=5353 DPT=5353"), // outgoing: not a knock
 			line("kernel", "usb 1-2: new device"),
 			line("sshd-session", "Failed password for invalid user admin‮ from 198.51.100.7 port 40022 ssh2"),
-			line("sshd", "Accepted publickey for zlothra from 192.168.1.5 port 5000 ssh2"),
+			line("sshd", "Accepted publickey for alex from 192.168.1.5 port 5000 ssh2"),
 			`{"MESSAGE":[1,2,3],"SYSLOG_IDENTIFIER":"kernel","__CURSOR":"s=abc;i=Z"}`,
 		}, "\n")), nil
 	}
