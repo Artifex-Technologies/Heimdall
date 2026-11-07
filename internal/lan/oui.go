@@ -67,7 +67,14 @@ func vendors(path string, macs []string) map[string]string {
 // ShortVendor trims a registered company name to what people call it ("Samsung Electronics Co.,Ltd" -> "Samsung Electronics").
 func ShortVendor(s string) string {
 	s = clean(s)
-	for _, cut := range []string{" Co.,Ltd", " Co., Ltd", " CO.,LTD", " Co.,Ltd.", ",", " Inc.", " Inc", " Corporation", " Corp.",
+	if strings.ToUpper(s) == s && len(s) > 4 { // "ASKEY COMPUTER CORP" -> "Askey Computer Corp"
+		words := strings.Fields(strings.ToLower(s))
+		for i, w := range words {
+			words[i] = strings.ToUpper(w[:1]) + w[1:]
+		}
+		s = strings.Join(words, " ")
+	}
+	for _, cut := range []string{" Co.,Ltd", " Co., Ltd", " CO.,LTD", " Co.,Ltd.", ",", " Inc.", " Inc", " Corporation", " Corporate", " Corp.", " Corp",
 		" Ltd.", " Ltd", " LLC", " GmbH", " Limited", " Technologies", " Technology", " International"} {
 		if i := strings.Index(s, cut); i > 0 {
 			s = s[:i]

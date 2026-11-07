@@ -136,6 +136,9 @@ func TestVendorsAndPrivateAddresses(t *testing.T) {
 	if !PrivateMAC("DA:BB:CC:00:00:01") || PrivateMAC("A8:BB:CC:00:00:01") || !PrivateMAC("02:00:00:00:00:00") {
 		t.Fatal("the locally administered bit is the second-lowest bit of the first byte")
 	}
+	if ShortVendor("ASKEY COMPUTER CORP") != "Askey Computer" || ShortVendor("Intel Corporate") != "Intel" {
+		t.Fatal(ShortVendor("ASKEY COMPUTER CORP"), ShortVendor("Intel Corporate"))
+	}
 	if ShortVendor("Amazon Technologies Inc.") != "Amazon" || ShortVendor("Apple, Inc.") != "Apple" {
 		t.Fatal(ShortVendor("Amazon Technologies Inc."), ShortVendor("Apple, Inc."))
 	}
