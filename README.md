@@ -116,8 +116,14 @@ order. `sudo heimdalld kernel-check` lists the holes per kernel.
   Sarina's advisory. It can tighten a guest but never loosen one. Detectors: `limbo-guest` (a guest started without its
   firewall, or the firewall removed under it), `limbo-network` (a guest reaching for this computer or the home network:
   critical; a scan or IPv6: warning; reaching for this computer, the home network, or scanning also restricts it) and
-  `limbo-exchange` (a guest tried to hand out a file ClamAV knows: warning; `sudo heimdalld immunity take-limbo SHA256` keeps
-  a copy). Normal guest traffic (`net.flow`) is never an alert.
+  `limbo-exchange` (a guest tried to hand out a file ClamAV knows: warning; the guest is restricted and root keeps a copy by
+  itself, or by hand with `sudo heimdalld immunity take-limbo SHA256`). Normal guest traffic (`net.flow`) is never an alert.
+- **Device list ([docs/DEVICES.md](docs/DEVICES.md)).** On a network you trust, `heimdalld lan scan` (every 5 minutes, its own
+  sandboxed unit) lists the devices on it: what each one is, who made it, its name, first and last seen. A device new to the
+  network is a `lan-watch` warning. Settings shows the list under Wi-Fi & Network > Devices.
+- **Wi-Fi checks ([docs/WIFI_HEALTH.md](docs/WIFI_HEALTH.md)).** `heimdalld wifi-health` measures the connection for about ten
+  seconds and names the likely cause of slow Wi-Fi: weak signal, crowded channel, other devices, the router, or the internet
+  provider. `--speed` adds a download test. It changes nothing, and any user may run it.
 - **Verdicts.** Before a finding becomes an alert, `internal/verify` tries to disprove it separately from the detector:
   `confirmed`, `needs_validation` or `rejected` (a documentation example key drops to info). A verdict never raises a severity.
 - **Maintenance windows.** `heimdalld maintenance on --for 2h --reason ...` (root, at most 4 h) turns routine alerts into info

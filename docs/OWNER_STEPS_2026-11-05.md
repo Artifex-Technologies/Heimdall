@@ -1,6 +1,6 @@
 # Owner steps, 2026-11-05
 
-What the 2026-11-05 Heimdall session built needs these steps from Matt (root, or a decision). Each step says what it does.
+What the 2026-11-05 Heimdall session built needs these steps from me (root, or a decision). Each step says what it does.
 Nothing here was run by the session: it installs nothing as root and does not restart the live service.
 
 ## 1. Install the new Heimdall (needed for everything below)
@@ -83,15 +83,16 @@ Nothing to do now. When Heimdall holds a file and Limbo has analysed it: write (
 `sudo heimdalld immunity rule draft SHA256 FILE`, `sudo heimdalld immunity rule test ID`, read it with
 `heimdalld immunity rule show ID`, and `sudo heimdalld immunity rule approve ID` (`docs/IMMUNITY.md`, "Rules").
 
-## Questions for Matt
+## Questions (answered 2026-11-05)
 
-- `vault-watch | y/n`: switch on step 2?
-- `grant-gate | now / after training / no`: when to switch on step 3?
+- `vault-watch | y/n`: switch on step 2? Answer: yes.
+- `grant-gate | now / after training / no`: when to switch on step 3? Answer: after the training nights.
 - `eval-vault | a/b`: Sarina's eval vault-note-injection fails only when she did not read the note. (a) score the Heimdall
   alert only when the planted line reached her session, and fail "read in full" separately; or (b) move the eval vault to a
-  folder Heimdall watches. Details on Sarina's board, 2026-11-05.
+  folder Heimdall watches. Details on Sarina's board, 2026-11-05. Answer: (a).
 - `sarina-rule-tool | y/n`: give Sarina a tool that sends a YARA draft to Heimdall (it changes her tool list, so it needs
-  your yes)? Until then she writes the rule in her analysis and you draft it with step 5.
+  my yes)? Answer: yes. Built on 2026-11-07: Sarina `d225526` adds `draft_yara_rule` beside `reverse_engineer`. Step 5's
+  manual `rule draft` still works; testing and approving a draft stays with me, as root.
 
 ## 6. Limbo's new events (second session, 2026-11-05)
 
@@ -113,18 +114,18 @@ Builds Heimdall from the newest commit (the r60 package above does not have this
 Your config already has `limbo_auto_quarantine: true`, so the restriction is on. To keep the alerts but stop the automatic
 restriction, set it to `false` in `/etc/heimdall/config.json` and restart Heimdall.
 
-When a `limbo-exchange` alert says a file was held, its explanation shows the command that keeps a copy in Heimdall's own
-malware store (root-only, never run; Limbo's copy stays):
+When a `limbo-exchange` alert says a file was held, Heimdall now keeps a copy in its own malware store by itself (root-only,
+never run; Limbo's copy stays; see the answers below). The command still works by hand:
 
 ```
 sudo heimdalld immunity take-limbo SHA256
 ```
 
-### Questions for Matt (Limbo events)
+### Questions (Limbo events; answered 2026-11-05, built 2026-11-07 in `0f80ee0`)
 
-- `limbo-take-auto | y/n`: take each held file into Heimdall's store by itself? It needs one line added to
-  `heimdall.service` (`ReadWritePaths=/var/lib/heimdall-requests`) so the daemon can leave the request for root.
-  Details: `docs/IMMUNITY.md`, "Proposal: take the copy automatically".
-- `limbo-held-restrict | y/n`: should a guest that tried to hand out a known virus also be restricted? Today it is an alert
-  only (the file was already kept back). Saying yes is a one-line change.
+- `limbo-take-auto | y/n`: take each held file into Heimdall's store by itself? Answer: yes. Built: heimdalld leaves the
+  request for `heimdall-requests.service` (root), and `heimdall.service` has `ReadWritePaths=-/var/lib/heimdall-requests`.
+  Details: `docs/IMMUNITY.md`, "Taking the copy automatically". Needs a rebuilt package (as in section 6).
+- `limbo-held-restrict | y/n`: should a guest that tried to hand out a known virus also be restricted? Answer: yes. Built:
+  `exchange.held` restricts the guest like a network probe does, and a later stop does not cancel it.
 

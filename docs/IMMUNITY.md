@@ -94,7 +94,7 @@ catches the variants a fingerprint misses. ClamAV loads YARA rules from its data
 reports a match as `YARA.<rule name>`.
 
 1. **Drafted.** Sarina reads the held sample's report and Limbo's analysis (triage strings, imports, functions) and drafts a
-   rule: `POST /v1/rules/drafts` with `{"sample_sha256": "...", "rule": "...", "note": "..."}`. The owner can draft one too:
+   rule with her `draft_yara_rule` tool: `POST /v1/rules/drafts` with `{"sample_sha256": "...", "rule": "...", "note": "..."}`. The owner can draft one too:
    `sudo heimdalld immunity rule draft SHA256 FILE`. Heimdall keeps a draft only if it is one rule, named `Heimdall_...`, with
    a condition, without `import` or `include` (an include would make ClamAV read another file), at most 16 KiB, for a sample
    Heimdall holds. A `rule-draft` alert names the next command. Drafts live in `/var/lib/heimdall/rule-drafts.json`.
@@ -119,5 +119,5 @@ seconds), and after approval ClamAV reported the script as `YARA.Heimdall_demo_d
 
 - A rule is only as good as its strings: one taken from a common library would match harmless programs. The test catches
   the programs it scans, not every file on every computer; read the rule before approving it.
-- Sarina has no tool yet that sends a draft (her side is noted on her board); until then she writes the rule in her analysis
-  and the owner drafts it with `rule draft`.
+- Sarina sends a draft with her `draft_yara_rule` tool (Sarina `d225526`, beside `reverse_engineer`; approved 2026-11-05).
+  She can only draft: testing and approving stay with the owner, as root. `rule draft` still works by hand.

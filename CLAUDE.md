@@ -5,6 +5,9 @@ Guidance for Claude Code (and any AI agent) working in this repository,
 top-to-bottom before making changes. Append to the **Coordination Log** at
 the bottom whenever you do work another project might depend on.
 
+Push every commit as you make it; don't ask me first. Before pushing, check the
+diff names no host name, network address, SSID or MAC address.
+
 ---
 
 ## 1. What this project is
@@ -31,9 +34,8 @@ It is one of the repos of the Artifex Ecosystem:
 
 Sarina carries the authoritative four-repo integration contract:
 [`Sarina/docs/ECOSYSTEM.md`](https://github.com/Artifex-Technologies/Sarina/blob/main/docs/ECOSYSTEM.md).
-Heimdall's own contract with Sarina is recorded in **§5** below and proposed
-to Sarina's board in the Coordination Log entry at the bottom of this file
-— read Sarina's board before assuming it has been accepted.
+Heimdall's own contracts with Sarina are recorded in **§5** below; Sarina's
+side of each is in its `docs/ECOSYSTEM.md` §4 (session files §4a, review §4b).
 
 **Arch Linux only.** Unlike Sarina, this project does not target
 cross-platform use — see `docs/ARCHITECTURE.md`'s "Arch, specifically"
@@ -65,7 +67,7 @@ cmd/heimdalld/              CLI entry point: run, scan, version subcommands
 internal/
   detect/                 Event/Finding/Detector model + every detector, including
                           stats.go (Welford's algorithm) + baseline.go (Phase 5)
-  sources/agentsource/     Polls a Sarina .port_sessions/ directory into Events
+  sources/agentsource/     Polls Sarina's session folder (/var/lib/sarina/sessions) into Events
   sources/hostsource/      File-integrity + host telemetry watchers (Phase 2)
   sources/netsource/       /proc/net/tcp{,6} connection-exposure watcher (Phase 3)
   sources/vaultsource/     The agent's vault notes at rest (inotify, no polling)
@@ -82,6 +84,8 @@ internal/
 docs/
   ARCHITECTURE.md          Engine design + the full 5-phase roadmap
   REFERENCES.md            Tracked ledger of every external reference project cited anywhere in this repo
+  DEVICES.md               The device list of trusted home networks (heimdalld lan, /v1/lan/devices)
+  WIFI_HEALTH.md           Wi-Fi checks: why the Wi-Fi is slow (heimdalld wifi-health)
 packaging/arch/            PKGBUILD, systemd unit, sysusers -- mirrors Sarina's own layout
 ```
 
@@ -140,40 +144,34 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
    **Cross-repo contracts** below in the same commit.
 3. Append a dated entry to the **Coordination Log**.
 4. Sign entries with project name and model, e.g. `Heimdall / Claude`.
-5. A contract marked **proposed** is not settled — Sarina's session-file
-   shape (§ below) is exactly that right now. Do not build against changes
-   to it until Sarina's board answers.
+5. A contract marked **proposed** is not settled. Do not build against a
+   proposed change until the other repo's board answers.
 
 ### Cross-repo contracts (keep authoritative)
 
-- **Heimdall → Sarina (reads):** **proposed, read-only.**
-  `internal/sources/agentsource` polls Sarina's agent session files,
-  `.port_sessions/agent/<id>.json` (`session_id`, `messages` as objects with
-  `role`/`content`/`tool_calls` — the Go core's file, which Sarina now treats as
-  the contract, as of 2026-10-05); the older flat `messages: []string` shape
-  under `.port_sessions/` is still accepted.
-  Heimdall never writes into this directory and never imports Sarina's code.
-  **This format is Sarina's internal state, not a published contract** —
-  proposed to Sarina's board in the 2026-09-25 Coordination Log entry
-  below, not yet agreed. Sarina changing this shape is not a breaking
-  change on Sarina's side unless/until its board accepts freezing it;
-  until then, Heimdall absorbing a format change here is Heimdall's problem.
+- **Heimdall → Sarina (reads):** **live, read-only** (Sarina `docs/ECOSYSTEM.md` §4a).
+  `internal/sources/agentsource` polls Sarina's agent session files in
+  `/var/lib/sarina/sessions/*.json`, the shared folder the Sarina service writes
+  (`agent_session_dir`; `session_id`, `messages` as objects with
+  `role`/`content`/`tool_calls`). A workspace's `.port_sessions/agent/<id>.json`
+  has the same shape; the older flat `messages: []string` shape under
+  `.port_sessions/` is still accepted. Heimdall never writes into this directory
+  and never imports Sarina's code. Sarina keeps the shape stable on purpose
+  (`sarina doctor`'s `session_contract` check); a change to it needs a log entry on
+  both boards. Sarina writes each file atomically (temp file + rename).
 - **Sarina → Heimdall (governance, Phase 4):** **live, opt-in.**
-  The reverse direction: Sarina's `sarina/sentry_governance.py` calls
-  Heimdall's `POST /v1/review` (`internal/governance` + `internal/api/review.go`)
-  over loopback HTTP, opt-in via `SENTRY_REVIEW_URL` on Sarina's side.
-  `sarina/memory_security.py`'s `scan_memory_text` consults it after its
-  own in-process checks pass; a `"deny"` folds into the same
-  `MemoryScanResult` shape those checks already produce. **Fails open on
-  Heimdall's absence, fails closed on an actual verdict** — see
-  `docs/ARCHITECTURE.md`'s Phase 4 section. Verified end-to-end with a
-  real `heimdalld run` process and real Python code in a Sarina checkout;
-  logged in both repos' 2026-09-26 Coordination Log entries. Marked
-  **live** rather than proposed because both halves are built, tested, and
-  wired together — not because the shape is guaranteed never to move; a
-  breaking change to the request/response JSON still needs updating here
-  and in `sentry_governance.py`'s docstring in the same commit, per the
-  change protocol below.
+  The reverse direction (Sarina `docs/ECOSYSTEM.md` §4b): Sarina's `go/heimdall`
+  calls Heimdall's `POST /v1/review` (`internal/governance` + `internal/api/review.go`)
+  over loopback HTTP, opt-in via `HEIMDALL_REVIEW_URL` on Sarina's side (the old
+  `SENTRY_REVIEW_URL` is still read when the new name is unset). Its only caller is
+  the shared scan gate in `go/guard` (memory writes), after Sarina's own in-process
+  checks pass; a `"deny"` folds into the same blocked result those checks already
+  produce. **Fails open on Heimdall's absence, fails closed on an actual verdict** —
+  see `docs/ARCHITECTURE.md`'s Phase 4 section. First verified end-to-end on
+  2026-09-26 (a real `heimdalld run` and Sarina's then-Python code; both repos'
+  Coordination Logs). The shape is not guaranteed never to move; a breaking change
+  to the request/response JSON needs updating here and in `go/heimdall` in the same
+  commit, per the change protocol below.
 - **Limbo → Heimdall (reads):** **live.** `internal/sources/limbosource`
   tails Limbo's `events.jsonl` (spec: `Limbo/docs/EVENTS.md`: one JSON object per
   line with `time`, `kind`, `guest`, and a flat string-valued `detail`).
@@ -187,8 +185,9 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   writes to the file. Limbo adding kinds or detail keys is backwards compatible;
   renaming or removing them is a contract change needing `CONTRACT:` and an
   update here. Verified against logs from real Limbo runs on a real hypervisor.
-  Known gap: `limbo up` runs as root and writes the log mode 0600, so the heimdalld
-  user cannot read it until the packaging grants access.
+  Access: the live log (`/var/lib/limbo/state/events.jsonl`) is `root:limbo-heimdall`
+  mode 0640, and the service gets the `limbo-heimdall` group from the drop-in
+  `packaging/arch/limbo-integration.conf.example` (the old 0600 gap is closed).
 - **Heimdall → Limbo (control): live, restrict-only.** The owner decided
   (2026-10-04) that Heimdall may cut a guest's network, and that a human must
   approve any verdict. `internal/response` calls Limbo's `control.sock`
@@ -199,7 +198,8 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   restricted, never less. Trigger: `limbo-guest` alerts of severity critical
   on event kinds `guest.start` / `policy.remove`, and (since 2026-11-05)
   `limbo-network` alerts of severity warning or higher on `net.anomaly` with
-  `reason` `host_probe`, `lan_probe` or `scan`; always with a re-validated guest name.
+  `reason` `host_probe`, `lan_probe` or `scan`, and (since 2026-11-07, `0f80ee0`) `limbo-exchange`
+  alerts of severity warning or higher on `exchange.held`; always with a re-validated guest name.
   The level Heimdall asks for is always `restrict` (deny-all firewall, guest keeps
   running, host can still inspect it). This is the **second exception** to
   "read-only toward other projects" (the first is `/v1/review`); it is narrow by
@@ -242,6 +242,13 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-11-07 (4) — Docs brought up to date (no code change)
+- Answered: the 2026-10-06 (3) question "are session files written atomically?" Yes: Sarina's
+  `go/session/session.go` `Save` writes a temp file and renames it into place. The 5 s settle window stays as a guard.
+- The Sarina contracts in §5 now say what is live (session files §4a, review via `go/heimdall` and `HEIMDALL_REVIEW_URL`);
+  the Limbo log 0600 gap is closed (0640, group `limbo-heimdall`).
+— Signed: Heimdall / Claude Opus 5.5
+
 ### 2026-11-07 (3) — Fewer false alarms: TV answers, Limbo's sandbox cables
 - `inbound`: UDP from a private/link-local address to one of this computer's temporary ports (ip_local_port_range) counts as a
   block, not a port tried: devices answering this computer's own discovery questions (casting, speakers). fwsource events gain
@@ -281,7 +288,8 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   `guest.stop`/`policy.apply` does not cancel it (a held guest cannot be started). Contract entry above updated.
 - `exchange.held`: alert only from the daemon. New root command `heimdalld immunity take-limbo SHA256` (`d8561df`) copies
   `/var/lib/limbo/state/exchange-held/<sha256>` into Heimdall's immunity store (by hash, no links, never run; Limbo's copy
-  stays). Doing it automatically is a proposal in `docs/IMMUNITY.md` (needs a unit change; Matt decides).
+  stays). Doing it automatically was a proposal in `docs/IMMUNITY.md`; I approved it on 2026-11-05 and it is
+  built (`0f80ee0`, limbo-take-auto).
 - `credential-shape` no longer calls `ask_password=true` (Limbo's `settings.change`) a leaked password (`d2a39d4`).
 - **For Limbo (nothing changed there):** the contract works as written. Two things would help: (1) `net.anomaly` carrying
   the guest's `scope` like `net.blocked` does, so a reader need not re-derive it from `reason`; (2) a read-only route on
@@ -307,7 +315,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   `/var/lib/clamav/heimdall-rule-*.yar`. **For Limbo (nothing changed there):** the triage output already carries strings
   and YARA matches, which is what a draft needs; useful later: a stable "strings worth a rule" section in
   `limbo-decompile triage` (unique strings with offsets), so drafts need less guessing. **For Sarina:** a tool to send a
-  draft (needs Matt's yes; until then the owner uses `rule draft`).
+  draft (built: Sarina `d225526`, `draft_yara_rule`; approved 2026-11-05).
 - New alert detectors for readers (Settings, Sarina): `grant-request` (warning), `incident`, `agent-baseline` (info),
   `mesh` (the peer's severity, fields `peer`, `remote_detector`), `rule-draft` (info). Each has built-in explain text.
 - Owner steps: `docs/OWNER_STEPS_2026-11-05.md`. Package r60 (`b055be9`) built, not installed.
@@ -359,7 +367,8 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   -> `heimdall:<detector>`; env var `SENTRY_SARINA_TOKEN` -> `HEIMDALL_SARINA_TOKEN`;
   Limbo group `limbo-sentry` -> `limbo-heimdall` (must match Limbo's sysusers file).
 - Unchanged because Sarina owns them: `SENTRY_REVIEW_URL`, `sentry_governance.py`,
-  `consult_sentry`. Sarina still needs its own rename.
+  `consult_sentry`. Sarina still needs its own rename. (Done since: Sarina's `go/heimdall`
+  reads `HEIMDALL_REVIEW_URL`, with `SENTRY_REVIEW_URL` as the fallback.)
 - Existing deployments must rename the group and the token env var.
 — Signed: Heimdall / Claude Sonnet 5.5
 

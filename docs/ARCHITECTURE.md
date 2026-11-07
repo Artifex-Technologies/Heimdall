@@ -49,8 +49,8 @@ agentsource.Watcher  ->  detect.Detector  ->  engine.Engine  ->  alert.Sink
   phases add sources without touching existing detectors, and add
   detectors without touching existing sources.
 - **`internal/sources/*`** are the only packages that know a specific
-  format. `agentsource` knows the shape of a Sarina `.port_sessions/<id>.json`
-  file; `hostsource` knows `/proc/meminfo`, `/proc/loadavg`, and how to
+  format. `agentsource` knows the shape of a Sarina session file
+  (`/var/lib/sarina/sessions/<id>.json`); `hostsource` knows `/proc/meminfo`, `/proc/loadavg`, and how to
   hash a watched file; `netsource` knows `/proc/net/tcp{,6}`'s column
   layout and the kernel's hex address encoding. None of the three knows
   the others exist, and detectors know none of them.
@@ -78,8 +78,9 @@ agentsource.Watcher  ->  detect.Detector  ->  engine.Engine  ->  alert.Sink
 
 ## Phase 1 — Agent-behavior monitoring (built)
 
-Watches one Sarina workspace's `.port_sessions/` directory and raises an
-alert on:
+Watches Sarina's session folder (`agent_session_dir`: `/var/lib/sarina/sessions`,
+which the Sarina service writes; a workspace's `.port_sessions/agent/` has the
+same shape) and raises an alert on:
 
 | Detector | Catches | Ported from |
 | --- | --- | --- |
@@ -256,21 +257,21 @@ moving it here is architectural, not redundancy: the agent being secured
 should not be the sole process that decides its own action is fine.
 
 **Built: `internal/governance` + `POST /v1/review`, consulted from
-Sarina's `sarina/memory_security.py`.** Every memory write Sarina's own
-`scan_memory_text` already gates (interactive `memory_add`/`memory_replace`
-and `memory_review.py`'s automated proposals — "both call sites route
-through the same function so there is exactly one gate to reason about",
-per that file's own docstring) now also gets an out-of-process second
+Sarina's shared scan gate (`go/guard`, through `go/heimdall`).** Every memory
+write Sarina's own gate already checks (`guard.Memory()`: interactive memory
+writes and automated memory proposals go through the same gate, so there is
+exactly one gate to reason about) now also gets an out-of-process second
 opinion from Heimdall, *after* Sarina's in-process checks pass. `governance.Reviewer`
 runs the same three content detectors Phase 1 already has
 (`injection-phrase`, `credential-shape`, `invisible-unicode`) against the
 proposed text and returns `{"decision": "allow"|"deny", "reasons": [...]}`;
-a deny folds into the exact same `MemoryScanResult(blocked=True, reason=...)`
-shape the in-process checks already produce, so nothing downstream of
-`scan_memory_text` needed to change. Every consultation — allowed or
-denied — is also recorded as an alert (`source: "governance-review"`), so
-it shows up in `/v1/alerts` and `alert_log_path` like anything else Heimdall
-detects.
+a deny folds into the same blocked result the in-process checks already
+produce, so nothing downstream of the gate needed to change. Every
+consultation — allowed or denied — is also recorded as an alert
+(`source: "governance-review"`), so it shows up in `/v1/alerts` and
+`alert_log_path` like anything else Heimdall detects. (The first version,
+2026-09-26, was Sarina's legacy Python `sarina/memory_security.py`; the Go
+core replaced it.)
 
 **Why out-of-process is the actual point, not a formality.** Sarina's own
 in-process check and Heimdall's copy currently run the identical three
@@ -278,17 +279,15 @@ pattern lists — today, if one catches something the other would too. The
 value isn't redundancy against a bug in the regex; it's that Heimdall's copy
 runs in a separate OS process Sarina cannot reach into, so a compromised or
 sufficiently manipulated agent session that somehow disabled or bypassed
-its own `memory_security.py` (e.g. via a monkeypatch a sufficiently clever
-injection talked it into) still can't touch Heimdall's independent copy.
+its own gate still can't touch Heimdall's independent copy.
 
 **Deliberately fail-open on absence, fail-closed on an actual verdict.**
-`sarina/sentry_governance.py`'s `consult_sentry` returns `None` — not an
-exception, not a block — when `SENTRY_REVIEW_URL` is unset or Heimdall is
-unreachable; `scan_memory_text` then falls back to its own in-process
-result exactly as before this integration existed. Heimdall is optional
-infrastructure with no hard dependency in either direction (matches
-Sarina's own "core agent depends on nothing outside the standard library"
-rule — `sentry_governance.py` uses only `urllib.request`), but an actual
+Sarina's `heimdall.Consult` returns nothing — not an error, not a block —
+when `HEIMDALL_REVIEW_URL` is unset (the old name `SENTRY_REVIEW_URL` is still
+read when the new one is unset) or Heimdall is unreachable; the gate then
+falls back to its own in-process result exactly as before this integration
+existed. Heimdall is optional infrastructure with no hard dependency in either
+direction (`go/heimdall` uses only the Go standard library), but an actual
 `"decision": "deny"` response is respected, not treated as a suggestion.
 
 **Built 2026-11-05: the grant gate for escalations and access tiers

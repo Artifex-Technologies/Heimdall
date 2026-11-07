@@ -99,7 +99,7 @@ already open connection; a client without an enrolled key failed in the TLS hand
 used 0 CPU ticks (less than 10 ms) in 48 seconds and about 18-20 MB of memory. The unit tests also
 cover a stranger's key, a client with no key, a wrong key at an enrolled address, loops and the limits.
 
-## Checklist for the second PC (Matt)
+## Checklist for the second PC (mine to do)
 
 1. Install the new Heimdall package on both PCs (it carries `heimdalld mesh`).
 2. Decide the network both share. If they are not on the same home network, set up plain WireGuard first (REMOTE_ACCESS.md,

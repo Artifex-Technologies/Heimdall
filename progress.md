@@ -19,7 +19,7 @@ closed rather than deleting it -- the history of *why* is worth keeping.
 
 ---
 
-## 2026-11-05 (2) — Limbo's new network and exchange events (DONE; one proposal waits for Matt)
+## 2026-11-05 (2) — Limbo's new network and exchange events (DONE; one proposal waited for my answer, approved 2026-11-05)
 
 **Ask:** act on the events Limbo started writing today (`net.*`, `exchange.*`).
 
@@ -35,12 +35,12 @@ closed rather than deleting it -- the history of *why* is worth keeping.
 - `net.flow` and `net.blocked` are deliberately not alerts (normal traffic; Limbo already turns refusals into anomalies).
 - No new polling or timers: the detectors keep no state, Limbo bounds how often it writes each event.
 - The live config has `limbo_auto_quarantine: true`, so after the install a probing guest will be restricted.
-- **Still open:** Matt's answers (automatic take of held files; whether a held file should also restrict its guest);
-  install from the newest commit (owner steps, section 6).
+- **Was open:** my answers (automatic take of held files; whether a held file should also restrict its guest): both yes,
+  built 2026-11-07 in `0f80ee0`. **Still open:** install from the newest commit (owner steps, section 6).
 
-## 2026-11-05 — The pending list, closed (DONE except what needs Matt or the second PC)
+## 2026-11-05 — The pending list, closed (DONE except what needs me or the second PC)
 
-**Ask (Matt):** "complete the pending tasks for Heimdall". The 2026-09-26 list below named Python files that no longer exist
+**My ask:** "complete the pending tasks for Heimdall". The 2026-09-26 list below named Python files that no longer exist
 (the project is Go, and so is Sarina's core); each item was checked against today's code first.
 
 | Item | State | Commit | Tested |
@@ -48,7 +48,7 @@ closed rather than deleting it -- the history of *why* is worth keeping.
 | Packaging: heimdall's account reads Sarina's sessions | done | `4be493b` | tmpfiles file on a throw-away root (ACL, new 0640 file r-- for heimdall, missing folder not an error) |
 | API auth beyond loopback | done | `e566b9b` | fixture + real loopback socket; policy table. No client changed |
 | Sarina eval vault-note-injection | partly: Heimdall side done | `e1c9896` | inotify live, restarts, links refused. The eval vault is in /tmp, hidden from the service: proposal on Sarina's board |
-| Phase 4: one gate, escalations, access tiers | done (off until Matt switches it on) | `c982b37`, Sarina `123453e` | guard, scope, API; Sarina: auto claude-CLI hand-off refused without approval, runs with it; tier cap |
+| Phase 4: one gate, escalations, access tiers | done (off until I switch it on) | `c982b37`, Sarina `123453e` | guard, scope, API; Sarina: auto claude-CLI hand-off refused without approval, runs with it; tier cap |
 | Phase 5: incidents, agent baselines, z threshold | done | `c47ba1f` | replay of 5067 real sessions; journal history; numbers in ARCHITECTURE.md; z stays 3.0 |
 | Phase 3 mesh | done; second-PC test open | `564bbbe` | two live instances on this PC; checklist in docs/MESH.md |
 | YARA rules from Limbo analyses | done (Heimdall side) | `b055be9` | real ClamAV: matches the sample, none of /usr/bin; CLI end to end |
@@ -61,7 +61,7 @@ closed rather than deleting it -- the history of *why* is worth keeping.
   The API check costs one read of /proc/net/tcp per request.
 - **Owner steps and questions:** `docs/OWNER_STEPS_2026-11-05.md` (install r60, enable the ACL path unit, restart; vault watch;
   grant gate; mesh later). Package `heimdall-git-0.1.0.r60.gb055be9` built in Labyrinth's pkgbuilds folder, not installed.
-- **Still open:** the second-PC mesh test (Matt); Sarina's eval change and a Sarina tool to send YARA drafts (Matt's yes);
+- **Still open:** the second-PC mesh test (mine); Sarina's eval change and a Sarina tool to send YARA drafts (I said yes; the tool is built, Sarina `d225526`);
   Sarina's `TestToolDefinitionFootprint` fails at her HEAD without this work (her board has it).
 
 ## 2026-09-26 — Building the 5-phase roadmap (CLOSED 2026-11-05: every item below is done, see the entry above)
