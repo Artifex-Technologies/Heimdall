@@ -23,7 +23,7 @@ type Engine struct {
 	window   WindowSource
 	softened map[string]bool
 
-	// On a computer full of security tools (Niflheim), what a verified tool does is written as info, and a changed tool is
+	// On a computer full of security tools (LykanOS), what a verified tool does is written as info, and a changed tool is
 	// reported (internal/toolrules). Nil: no tool rules.
 	tools ToolRules
 }

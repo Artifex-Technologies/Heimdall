@@ -806,7 +806,7 @@ func (t takeHeld) Write(a alert.Alert) error {
 }
 
 // setToolRules puts the security-tool rules in force where the system asks for them (/etc/heimdall/security-tools, which
-// Niflheim OS ships): docs/TOOL_RULES.md.
+// LykanOS ships): docs/TOOL_RULES.md.
 func setToolRules(eng *engine.Engine, cfg config.Config, logger *log.Logger) {
 	if !toolrules.Enabled() {
 		return

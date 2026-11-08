@@ -1,6 +1,6 @@
 # Heimdall without Sarina
 
-Sarina is optional on Labyrinth OS (an Agora download), and Niflheim OS may not ship her at all. This page says what Heimdall does
+Sarina is optional on Labyrinth OS (an Agora download), and LykanOS may not ship her at all. This page says what Heimdall does
 on a computer without her, what used to be missing, and what still needs her. Written 2026-10-25 from every place the code mentions
 Sarina (`grep -rni sarina`, about 170 lines in 30 files).
 

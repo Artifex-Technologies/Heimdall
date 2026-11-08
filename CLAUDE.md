@@ -25,7 +25,7 @@ It is one of the repos of the Artifex Ecosystem:
 | --- | --- |
 | `Sarina` | local-model agent (optional on Labyrinth OS, bundled in the owner's build) |
 | `Labyrinth_OS` | Arch-based privacy and security desktop distro |
-| `Chymaera_OS` | Niflheim OS (formerly Chymaera OS): Arch-based cybersecurity distro |
+| `LykanOS` | LykanOS (formerly Niflheim OS and Chymaera OS): Arch-based cybersecurity distro |
 | `Yggdrasil` | the desktop environment both distros use |
 | `Limbo` | disposable sandboxes and quarantine for guests |
 | `Argus_App` | fork of qFlipper; desktop operator console (Qt6/QML) |
@@ -349,7 +349,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   heimdall-wifi-notify, their units, NetworkManager confs and dispatcher hooks (packaging/net/), tests (packaging/tests/).
   Paths: /etc/heimdall/{dns-allow.txt,wifi-trusted.json,wifi-guard.json}, /var/lib/heimdall-dns, /run/heimdall-wifi-guard,
   nft table heimdall_wifi_guard, VPN connection "Heimdall VPN" on interface wg-heimdall.
-- packaging/install.sh DESTDIR is the only file list: every PKGBUILD (packaging/arch, Labyrinth's and Niflheim's heimdall-git)
+- packaging/install.sh DESTDIR is the only file list: every PKGBUILD (packaging/arch, Labyrinth's and LykanOS's heimdall-git)
   calls it. A pacman hook (heimdall-install.hook -> heimdall-enable-defaults) switches the service, timers and notifications
   on at first install only. Tests: python3 -m unittest discover packaging/tests.
 

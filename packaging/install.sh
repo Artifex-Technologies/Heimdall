@@ -1,6 +1,6 @@
 #!/bin/sh
 # packaging/install.sh DESTDIR: install Heimdall (an already built ./heimdalld) and everything that comes with it into DESTDIR.
-# Every package recipe (Labyrinth's and Niflheim's heimdall-git, packaging/arch/PKGBUILD) calls this one script, so the list of
+# Every package recipe (Labyrinth's and LykanOS's heimdall-git, packaging/arch/PKGBUILD) calls this one script, so the list of
 # files lives in one place: change it here and every system gets it.
 set -eu
 d=${1:?usage: packaging/install.sh DESTDIR}

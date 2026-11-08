@@ -1,6 +1,6 @@
 # Heimdall
 
-The security agent of the **Artifex Ecosystem**. It runs on Labyrinth OS and on Niflheim OS (formerly Chymaera OS). It
+The security agent of the **Artifex Ecosystem**. It runs on Labyrinth OS and on LykanOS (formerly Niflheim OS and Chymaera OS). It
 watches [Sarina](https://github.com/Artifex-Technologies/Sarina), the local AI agent, from outside Sarina's process. It also watches
 the computer itself: its connections, Wi-Fi, packages and kernels, settings, and the files that arrive. When something is wrong
 it raises an alert a person (or another tool) can act on. When an AI agent is compromised it can stop it.
@@ -177,7 +177,7 @@ The tests are offline and use only the standard library: no Sarina, no model, no
 
 `packaging/install.sh DESTDIR` installs everything (the daemon, the updaters, the Wi-Fi check and guard, the DNS block list, the
 containment, request and inventory units, and the docs). Every package recipe calls it (`packaging/arch/PKGBUILD`, Labyrinth's
-and Niflheim's `heimdall-git`), so the file list lives in one place. On a fresh install a pacman hook switches on the service,
+and LykanOS's `heimdall-git`), so the file list lives in one place. On a fresh install a pacman hook switches on the service,
 its timers and the path units, never again on upgrades.
 
 The service is sandboxed (`ProtectSystem=strict`, `ProtectHome=read-only`). The optional connection-watch drop-in

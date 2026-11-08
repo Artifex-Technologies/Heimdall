@@ -80,7 +80,7 @@ func TestTheCatalogIsWhole(t *testing.T) {
 	}
 	for _, core := range []string{"nmap", "masscan", "hydra", "sqlmap", "metasploit", "burpsuite", "hashcat", "john", "aircrack-ng", "responder"} {
 		if !seen[core] {
-			t.Errorf("Niflheim's core tool %s has no rule", core)
+			t.Errorf("LykanOS's core tool %s has no rule", core)
 		}
 	}
 }

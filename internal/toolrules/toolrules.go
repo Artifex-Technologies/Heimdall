@@ -1,4 +1,4 @@
-// Package toolrules is Heimdall's answer to a computer full of security tools (Niflheim OS): a scanner's thousand new
+// Package toolrules is Heimdall's answer to a computer full of security tools (LykanOS): a scanner's thousand new
 // destinations are what it is for, a password cracker that suddenly connects somewhere is not, and a scanner whose program
 // file someone changed is exactly what an attacker would hide behind. The rules (tool-rules.json, docs/TOOL_RULES.md) are in
 // force only where /etc/heimdall/security-tools exists.
@@ -30,7 +30,7 @@ import (
 	"github.com/Artifex-Technologies/Heimdall/internal/detect"
 )
 
-// MarkerPath turns the rules on (Niflheim's image ships it; Labyrinth's does not).
+// MarkerPath turns the rules on (LykanOS's image ships it; Labyrinth's does not).
 const MarkerPath = "/etc/heimdall/security-tools"
 
 //go:embed tool-rules.json

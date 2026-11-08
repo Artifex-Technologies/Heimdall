@@ -1,5 +1,5 @@
 {
- "about": "Heimdall's rules for security tools (docs/TOOL_RULES.md). In force only where /etc/heimdall/security-tools exists (Niflheim OS). expects: the detectors whose findings are what the tool does (softened to info, and only for its verified program); quiet: its new destinations are summarised, not listed one by one; offline: it has no business on the network, so a connection is a warning.",
+ "about": "Heimdall's rules for security tools (docs/TOOL_RULES.md). In force only where /etc/heimdall/security-tools exists (LykanOS). expects: the detectors whose findings are what the tool does (softened to info, and only for its verified program); quiet: its new destinations are summarised, not listed one by one; offline: it has no business on the network, so a connection is a warning.",
  "tools": [
   {"id": "nmap", "name": "Nmap", "packages": ["nmap"], "expects": ["connection-watch"], "quiet": true},
   {"id": "masscan", "name": "masscan", "packages": ["masscan"], "expects": ["connection-watch"], "quiet": true},

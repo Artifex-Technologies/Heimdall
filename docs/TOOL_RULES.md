@@ -1,6 +1,6 @@
 # Tool rules: Heimdall on a computer full of security tools
 
-Written 2026-11-07 for Niflheim OS, where Heimdall is installed but off until it "has a rule for each BlackArch tool, so it
+Written 2026-11-07 for LykanOS, where Heimdall is installed but off until it "has a rule for each BlackArch tool, so it
 neither stops them working nor gets turned against the system through them" (my decision that day).
 
 ## The problem
@@ -12,7 +12,7 @@ tool's name: a changed `nmap` doing "what nmap does" is the perfect cover.
 
 ## What the rules do
 
-In force only where `/etc/heimdall/security-tools` exists (Niflheim's image ships it; Labyrinth's does not). The catalog is
+In force only where `/etc/heimdall/security-tools` exists (LykanOS's image ships it; Labyrinth's does not). The catalog is
 `internal/toolrules/tool-rules.json`, built into Heimdall: for each tool its packages, the detectors whose findings are its
 normal work (`expects`), whether its new destinations are only summarised (`quiet`), and whether it has no business on the
 network at all (`offline`).
@@ -37,14 +37,14 @@ other arguments are never read (password crackers take passwords there); only th
 
 - Detectors without a process: Wi-Fi checks (aircrack-ng's monitor mode, deauthentication seen nearby), listeners on ports
   outside the ecosystem's own, malware scans of payloads a tool writes (msfvenom's output is malware by design). Each needs
-  its own rule, and testing with the tool on a Niflheim system.
-- Tools beyond Niflheim's core list (`profile/packages.x86_64`): a package not in the catalog gets no rule, so its findings
+  its own rule, and testing with the tool on a LykanOS system.
+- Tools beyond LykanOS's core list (`profile/packages.x86_64`): a package not in the catalog gets no rule, so its findings
   stay as they are. Adding one is a catalog line and a test.
 - Command-and-control frameworks (Sliver, Merlin): Heimdall's remote-access catalog calls them implants, critical, never
-  approvable. On Niflheim the operator's own server is legitimate; telling it from an implant needs a rule of its own.
+  approvable. On LykanOS the operator's own server is legitimate; telling it from an implant needs a rule of its own.
 
-## Switching Heimdall on in Niflheim
+## Switching Heimdall on in LykanOS
 
 Not yet (my decision stands until the rules are tested with the tools): `sudo heimdall-enable-defaults --force && sudo
-systemctl start heimdall`, after checking in a Niflheim VM that scans, brute-force runs and Metasploit sessions produce the
+systemctl start heimdall`, after checking in a LykanOS VM that scans, brute-force runs and Metasploit sessions produce the
 summarised info lines above and nothing critical.
