@@ -9,8 +9,16 @@ if [ -e /etc/heimdall/defaults-off ] && [ "${1:-}" != "--force" ]; then
   echo "heimdall: /etc/heimdall/defaults-off is there, so nothing was switched on (heimdall-enable-defaults --force does it)"
   exit 0
 fi
-for u in heimdall.service heimdall-intel-update.timer heimdall-dns-blocklist.timer heimdall-contain.path heimdall-requests.path heimdall-inventory.timer heimdall-sarina-access.path heimdall-lan-scan.timer; do
+UNITS="heimdall.service heimdall-intel-update.timer heimdall-dns-blocklist.timer heimdall-contain.path heimdall-requests.path heimdall-inventory.timer heimdall-sarina-access.path heimdall-lan-scan.timer"
+for u in $UNITS; do
   systemctl enable "$u" >/dev/null 2>&1 || echo "heimdall: could not enable $u" >&2
 done
+# on a running system (Agora, an OS's first login) they start now too, not only at the next start (a VM test, 2026-11-08: Heimdall
+# installed and stayed off); an installer's chroot only enables them
+if [ -d /run/systemd/system ] && ! systemd-detect-virt --chroot --quiet; then
+  for u in $UNITS; do
+    systemctl start "$u" >/dev/null 2>&1 || echo "heimdall: could not start $u" >&2
+  done
+fi
 systemctl --global enable heimdall-wifi-notify.path >/dev/null 2>&1 || echo "heimdall: could not enable heimdall-wifi-notify.path" >&2
 exit 0
