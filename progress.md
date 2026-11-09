@@ -19,6 +19,32 @@ closed rather than deleting it -- the history of *why* is worth keeping.
 
 ---
 
+## 2026-11-09 — Running light, phase 0 of the Rust port (DONE in code; install is mine)
+
+**My ask:** make heimdalld much cheaper to run (I game and run a local model at the same time), from the measurement study's
+findings, with tests and a side-by-side proof. The design carries into the Rust port (`docs/ARCHITECTURE.md`, "Running light").
+
+| Item | State | Commit | Tested / measured |
+| --- | --- | --- | --- |
+| IP databases mapped, not read into the heap | done | `f8ea8e2` | same answers and errors as before; a file cut short under the mapping is an error, not a crash; old mapping released after an update |
+| Text detectors: case-folded once, literal prefilter | done | `8b46c76` | differential test, old vs new on ~53,000 texts: identical; 29-37x less work on ordinary text |
+| Sessions by inotify, full look every 10 min, state written only on change | done | `2bf2ef1` | settle window, permissions fixed, folder gone and back; 15.9 ms every 5 s -> 11.4 ms every 10 min |
+| One shared /proc/net/tcp read; socket owners looked for once | done | `783c3a6` | churn test equal to a walk every look; 5.7 ms -> 4.6 us a look with nothing new |
+| One journalctl --follow with a cursor | done | `d556cb9` | fake journalctl: restart after the last entry, cursor kept; 0.028 % -> 0.009 % of a core |
+| Long audits wait while a game runs | done | `685c2dd` | fake game-time tool; missing tool runs as before |
+| CPUWeight/IOWeight/Nice in the units | done | `be29415` | systemd-analyze verify; heimdall-contain left at full priority on purpose |
+
+- Side by side, old and new heimdalld on the same synthetic load (table in `docs/ARCHITECTURE.md`): idle CPU 0.579 % ->
+  0.046 % of a core, context switches 10.2/s -> 2.1/s, PSS 118.7 -> 23.5 MB. With activity and planted events (injection,
+  key, zero-width space, password, Limbo guest without policy, FIM change, vault note, port off loopback, new listener):
+  0.538 % -> 0.075 %, 12.2/s -> 5.3/s, 120.3 -> 24.7 MB. Alerts: 77 and 77, identical once the time is dropped.
+- How the run was made (so the Rust port can repeat it): both daemons and a load generator in one `unshare -rn` network
+  namespace with a dummy interface (203.0.113.1, 198.51.100.1), so only made-up connections are seen; 6,629 session files,
+  25 FIM files, 40 MB of generated MaxMind-format databases; host-load alerts switched off by config in both; 240 s after a
+  45 s warm-up at nice 15; CPU from /proc/PID/stat, context switches summed over /proc/PID/task, PSS from smaps_rollup;
+  alerts.jsonl compared as multisets with `time` dropped. The scripts stayed outside the repo.
+- **Open:** install and restart (owner steps in the Coordination Log entry of 2026-11-09); the live numbers on my PC after that.
+
 ## 2026-11-05 (2) — Limbo's new network and exchange events (DONE; one proposal waited for my answer, approved 2026-11-05)
 
 **Ask:** act on the events Limbo started writing today (`net.*`, `exchange.*`).

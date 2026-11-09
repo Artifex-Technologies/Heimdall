@@ -67,9 +67,10 @@ cmd/heimdalld/              CLI entry point: run, scan, version subcommands
 internal/
   detect/                 Event/Finding/Detector model + every detector, including
                           stats.go (Welford's algorithm) + baseline.go (Phase 5)
-  sources/agentsource/     Polls Sarina's session folder (/var/lib/sarina/sessions) into Events
+  sources/agentsource/     Sarina's session folder (/var/lib/sarina/sessions) into Events (inotify; a full look every 10 min)
   sources/hostsource/      File-integrity + host telemetry watchers (Phase 2)
-  sources/netsource/       /proc/net/tcp{,6} connection-exposure watcher (Phase 3)
+  sources/netsource/       /proc/net/tcp{,6} (one shared read: Tables): port exposure, connection log, new listeners (Phase 3)
+  gametime/                Heimdall's long audits wait while a game runs (Yggdrasil's yggdrasil-gametime status)
   sources/vaultsource/     The agent's vault notes at rest (inotify, no polling)
   sources/lansource/       New devices on a trusted home network (events.jsonl written by `heimdalld lan scan`)
   lan/                     The device list: neighbour sweep, mDNS, router names, NetBIOS; own unit, trusted networks only
@@ -150,7 +151,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 ### Cross-repo contracts (keep authoritative)
 
 - **Heimdall → Sarina (reads):** **live, read-only** (Sarina `docs/ECOSYSTEM.md` §4a).
-  `internal/sources/agentsource` polls Sarina's agent session files in
+  `internal/sources/agentsource` reads Sarina's agent session files in
   `/var/lib/sarina/sessions/*.json`, the shared folder the Sarina service writes
   (`agent_session_dir`; `session_id`, `messages` as objects with
   `role`/`content`/`tool_calls`). A workspace's `.port_sessions/agent/<id>.json`
@@ -237,11 +238,43 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 - **Heimdall ↔ Heimdall (mesh, Phase 3): off by default.** Peers POST `/mesh/v1/alerts` over
   mutual TLS 1.3 (enrolled ed25519 keys only) on `mesh_listen` (suggested port 8931, on the
   owner's own WireGuard or LAN address, never a wildcard). `docs/MESH.md`.
+- **Heimdall → Yggdrasil (game time): live, optional (2026-11-09).** Before each package audit, kernel audit and hardening
+  check, heimdalld runs `/usr/bin/yggdrasil-gametime status` (`internal/gametime`): exit 0 means a game runs (the job waits,
+  asks again every 5 minutes, and logs one line with the reason from the first stdout line, `A game is running: REASON.`);
+  exit 1 means none. A missing tool, any other exit, or no answer within 10 s means run as before. Changing the exit codes
+  or that first line is a contract change for both repos. Watching (alerts, detectors, the responder) never asks.
 - **Ports owned by this repo:** `8930` (Heimdall's API, loopback-only) and
   `8931` (mesh, off by default; one non-loopback address chosen by the owner).
   Both are in Sarina's `docs/ECOSYSTEM.md` port registry.
 
 ### Coordination Log (newest first)
+
+### 2026-11-09 — Running light: phase 0 of the Rust port
+- heimdalld was 0.95 % of a core and 71 MB on my PC. Fixed in the Go code (the design carries into the Rust port,
+  `docs/ARCHITECTURE.md` "Running light"): IP databases mapped, not read into the heap (`f8ea8e2`); the text detectors'
+  patterns run only where a literal they need is present, findings byte-identical by a differential test (`8b46c76`);
+  Sarina's sessions by inotify with a full look every 10 minutes, the state file written only on change (`2bf2ef1`); one
+  shared read of `/proc/net/tcp{,6}` and socket owners looked for once (`783c3a6`); one `journalctl --follow` with the same
+  cursor file instead of a start every 15 s (`d556cb9`); the long audits wait while a game runs (`685c2dd`); CPUWeight=20,
+  IOWeight=20, Nice=10 in the units, heimdall-contain left at full priority (`be29415`).
+- Side by side on the same synthetic load: idle 0.579 % -> 0.046 % of a core, 10.2 -> 2.1 context switches a second, PSS
+  118.7 -> 23.5 MB; with activity 0.538 % -> 0.075 %. The 77 alerts of the activity run (planted injection, credential,
+  invisible character, Limbo guest, FIM change, vault note, port exposure, new listener, connections) are identical.
+- **For Sarina (nothing to change):** the session contract is unchanged. A save is now read at once: the rename of
+  `go/session` Save (temp file + rename, `IN_MOVED_TO`) is what Heimdall is told about; a file written in place is read when
+  it is closed. The settle window (5 s) stays for anything else.
+- **For Yggdrasil:** heimdalld calls `yggdrasil-gametime status` before its 6-hourly audits (contract above). Its row in
+  `docs/GAME_TIME.md` ("never waits") stays true for watching; the audits inside the daemon now wait like the chores.
+- **For readers of the config:** no field added or removed. `poll_interval_seconds` is now the least time between two reads
+  of a busy session (and the poll interval while the folder cannot be watched); `firewall_poll_interval_seconds` is how long
+  to wait before starting journalctl again if it ends.
+- Owner steps (not done by the session: no install, no restart): build `heimdall-git` from `main`
+  (`cd ~/Documents/Github/Labyrinth_OS/packages/pkgbuilds/heimdall-git && makepkg -f`), `sudo pacman -U` the newest package,
+  then `sudo systemctl daemon-reload && sudo systemctl restart heimdall` (the units changed). Check:
+  `systemctl show heimdall -p CPUWeight -p IOWeight -p Nice` (20, 20, 10), `journalctl -u heimdall -n 30 --no-pager` (the
+  sessions line says "read when the kernel says a session changed"), `pgrep -a journalctl` (one `--follow` while the
+  firewall watch is on).
+— Signed: Heimdall / Claude Opus 5.5
 
 ### 2026-11-07 (6) — Tool rules for security systems (Niflheim)
 - `internal/toolrules` (catalog `tool-rules.json`, 29 tools) and `Engine.SetToolRules`: in force only where

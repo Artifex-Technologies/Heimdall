@@ -126,9 +126,12 @@ Heimdall's side is harmless.
 
 ## Reading Sarina's session files
 
-Heimdall polls every `poll_interval`; a problem never stops the poll, files that
-can be read are still scanned, and each distinct problem is reported once per
-file version (a persistent directory error once until it clears).
+Heimdall reads a session when the kernel says it changed (inotify), looks at the
+whole folder every 10 minutes, and polls every `poll_interval` only while the
+folder cannot be watched (missing or unreadable). A problem never stops the
+reading, files that can be read are still scanned, and each distinct problem is
+reported once per file version (a persistent directory error once until it
+clears). A file whose permissions are fixed is read again at once.
 
 | Failure mode | Code | Symptom | How Heimdall detects it | Remedy |
 | --- | --- | --- | --- | --- |
@@ -137,7 +140,7 @@ file version (a persistent directory error once until it clears).
 | File is invalid JSON and has been unmodified for more than 5 s (damaged, or not Sarina's format) | `agent_session_malformed` | that session is not scanned | JSON decode error on a settled file | inspect the file; Sarina rewrites it on its next turn |
 | A pipe, device, symbolic link or file over 32 MiB is named like a session (the folder is writable by more than Sarina) | `agent_session_not_a_file` | that entry is not read; the reader is not stalled or filled | file type and size checked on the open file, without following links | find out who made it (`ls -l`); remove it if it is not Sarina's |
 | Message in a shape Heimdall cannot decode (a number, content as an array of parts, ...) | `agent_session_unknown_shape` | those messages are not scanned; the rest are | message is neither string nor `{role,content,tool_calls}` | Sarina's format changed: compare `docs/spec/01-agent-core.md` section 4.2 with `agentsource` and report to Sarina's board |
-| Session file being written while read | none | none | invalid JSON on a file modified within 5 s: silently retried next poll | none needed |
+| Session file being written while read | none | none | invalid JSON on a file modified within 5 s: silently looked at again one `poll_interval` later | none needed |
 
 `heimdalld scan` treats any of these as an incomplete audit: it prints
 `heimdalld: warning: <code>: ...` and exits 2 even with no findings.

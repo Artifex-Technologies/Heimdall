@@ -34,10 +34,10 @@ of a fleet:
 (produces Events)   (Events -> Findings)        (Findings -> Alerts)
 
 agentsource.Watcher  ->  detect.Detector  ->  engine.Engine  ->  alert.Sink
-  (Phase 1: polls          (injection,          (runs every          (stdout,
+  (Phase 1: reads          (injection,          (runs every          (stdout,
    Sarina's session          credential,          detector over        JSONL file,
-   files)                    unicode,             each Event in        in-memory ring
-                             escalation,          order)               for the API)
+   files as the kernel       unicode,             each Event in        in-memory ring
+   reports changes)          escalation,          order)               for the API)
                              burst)
 ```
 
@@ -98,11 +98,39 @@ session transcript contains, not only memory proposals. If Sarina's list
 changes, update this one too — see the port-of-record note in
 `internal/detect/injection.go` and `credential.go`.
 
-**Why polling, not `fsnotify` or `inotify`:** a single operator's session
-directory sees at most a few writes a minute. `os.Stat` in a loop is one
-syscall per file per poll interval — not worth a dependency at this scale.
-Phase 2's FIM watcher polls for the same reason, at a similarly small
-scale (a fixed, short, explicit path list, not a filesystem walk).
+**inotify, not polling (since 2026-11-09):** the first version polled, on
+the reasoning that a single operator's folder sees a few writes a minute and
+`os.Stat` per file is cheap. The folder turned out to hold thousands of
+sessions (6,629 on my PC), so every 5 s cost a glob, 6,629 `stat`s and a
+re-marshalled state file: 15.9 ms of CPU and 9.6 MB of garbage per poll.
+Now the kernel's inotify (stdlib `syscall`, no `fsnotify` dependency, as
+`vaultsource` already did) says which file was closed after writing, renamed
+into place (how Sarina saves), created, or had its permissions changed, on the
+folder and its `agent/` folder, and only that file is read
+(`agentsource/watch.go`). A save is read at once; a file that keeps changing
+at most once per `poll_interval_seconds`. The settle window stays: a file that
+is not valid JSON yet is looked at again one interval later and reported as
+damaged once it has not changed for 5 s. The whole folder is looked at on
+start, after the kernel's event queue overflowed, when `agent/` appears, and
+every 10 minutes in case an event was missed; while the folder cannot be
+watched (missing, unreadable, no inotify) it is polled every interval as
+before. The state file of read positions is written only when one changed.
+Phase 2's FIM watcher still polls: a short, explicit list of files, one `stat`
+each every 30 s.
+
+**The text detectors run a pattern only where it can match (2026-11-09).**
+Each `injection-phrase` and `credential-shape` pattern has the words it cannot
+match without (`injectionLiterals`, `credentialLiterals`); the text is
+case-folded once (ASCII, plus the long s and the Kelvin sign, the two letters
+Go's `(?i)` folds onto ASCII ones) and a pattern runs, on the original text,
+only when one of its words is there. `invisible-unicode` skips ASCII bytes
+without decoding them and decodes `\u` escapes only when the text has one.
+Findings are byte-identical: `prefilter_test.go` keeps the old code and runs
+both on every file and line of this repository and on generated attacks
+(random matches of every pattern, random case and fold letters, JSON-escaped,
+with invisible and broken characters mixed in), about 53,000 texts. About 30
+times less work on ordinary text; `RedactCredentials`, applied to every
+alert, about 50 times.
 
 **`session-burst` is a leaky bucket, not a timestamp list.** The first
 version kept every `session_created` timestamp in a slice and re-pruned it
@@ -207,6 +235,16 @@ not once per poll while it persists) lives in the source
 (`netsource.PortWatcher`), the same split Phase 2's `FIMWatcher` uses, with
 the detector (`NetworkExposureDetector`) staying a thin, stateless
 translator.
+
+**One read of the tables for every watcher (2026-11-09):** this check, the
+connection log and the new-listener check each used to read and parse
+`/proc/net/tcp{,6}` on their own clock. `netsource.Tables` reads them once per
+interval (the shortest any of them asks for: 10 s with the connection log,
+else 15 s) and hands the same read to each; a watcher with a longer interval
+looks at every read that is at least that far, less half an interval, after
+its last. Each keeps its behaviour (this check and the listener check learn on
+their first look). The API's caller check (`internal/api/access.go`) still
+reads the table itself: it needs the socket of the request being answered.
 
 **Unlike FIM, this state is not persisted to disk, and that's deliberate,
 not an oversight** — verified by testing both side by side on real Arch
@@ -437,6 +475,13 @@ contents, and it ignores loopback.
   `app_network_policy`) connects (the rule is not in force, usually the app needs a restart), **critical** when Sarina,
   Heimdall or Limbo connect off the machine (the ecosystem rule is loopback only), **warning** for ollama (model downloads),
   **info** for any other new destination.
+- A socket's owner is looked for once (2026-11-09). Reading the link of every open file of every process every 10 s was most
+  of the watcher's cost (5.7 ms a look on a desktop's worth of processes, more on a busy one). Owners are kept by socket inode,
+  unfound ones too (a process Heimdall cannot look into does not cause a walk every look), and forgotten when the connection
+  closes. `/proc/<pid>/fd` is walked only when a socket appears that has not been looked for, starting with the processes that
+  hold the most connections (a browser opens the next one too) and stopping once every new socket is found. A socket two
+  processes share (after a fork) is named after the first one found. A churn test checks the events are the same as with a
+  walk every look.
 - Seeing other users' processes needs `CAP_SYS_PTRACE` and `CAP_DAC_READ_SEARCH`, both read-only here:
   `packaging/arch/heimdall-connwatch.conf.example`. Without it connections are logged with the process shown as `unknown`.
 - Config: `conn_watch` (default true), `conn_poll_interval_seconds` (10), `conn_state_path`, `app_network_policy`.
@@ -492,3 +537,51 @@ per guest), so nothing here counts or times anything: no polling beyond the exis
 **Held files.** `sudo heimdalld immunity take-limbo SHA256` copies a file Limbo held into Heimdall's immunity store
 (`IMMUNITY.md`). Doing it automatically is a proposal there, because the daemon cannot write to root's request queue today.
 
+## Running light (phase 0 of the Rust port, 2026-11-09)
+
+I game and run a local AI model on the same computer, and want every bit of it for them. A measurement study found where
+heimdalld's 0.95 % of a core and 71 MB went on my PC; these are the fixes in the Go code, and the design the Rust port keeps.
+
+- **Event-driven where the kernel can say what changed.** Sarina's sessions (inotify, a full look every 10 minutes), vault
+  notes (inotify), the journal (one `journalctl --follow`, `fwsource`). Polling is left only where nothing can tell
+  (`/proc/net`, `/proc/meminfo`, the FIM list), each at its interval, and `/proc/net/tcp{,6}` is read once for all three
+  network watchers (`netsource.Tables`).
+- **Work only for what is new.** A socket's owner is looked for once (`ConnWatcher.owned`); a session file is read only when
+  it changed; the state files are written only when something changed.
+- **Big read-only data is mapped, not copied.** The IP databases are `mmap`ed read-only (`ipintel.Open`): the pages a lookup
+  touches are the kernel's page cache, shared and reclaimable, not heimdalld's heap (they were about 40 MB of it). The
+  reader's checks are unchanged; a file cut short in place while mapped faults, and `debug.SetPanicOnFault` turns that into
+  an error from the lookup, as for any damaged file. An update renames a new file over the old one, so the mapping of the
+  old one stays valid until the Resolver reopens and nothing uses it (a cleanup unmaps it).
+- **Cheap checks before expensive ones.** The text detectors' patterns run only on text holding a word they cannot match
+  without (Phase 1 section).
+- **Long audits wait for games; watching never does.** The package audit, the kernel audit and the hardening checks (each
+  every 6 hours) ask Yggdrasil's game time first (`internal/gametime`: `/usr/bin/yggdrasil-gametime status` exits 0 while a
+  game runs). During a game the job logs one line and asks again every 5 minutes. Without the tool they run as before.
+  Alerts, every detector, the sources and the Limbo responder keep running during games.
+- **The smallest share when the computer is busy.** `heimdall.service` has `CPUWeight=20`, `IOWeight=20`, `Nice=10`; the
+  other units likewise, except `heimdall-contain` (stopping a compromised agent must be quick).
+
+**Measured** (the old and the new daemon side by side on the same synthetic load, in a network namespace of their own: 6,629
+session files, 25 watched files, 40 MB of synthetic IP databases, the connection, listener and port watchers; 240 s after a
+45 s warm-up, at nice 15; "activity" adds connections opening and closing and planted events: an injection and a key in a
+tool result, a zero-width space in a growing session, a password in an old-shape session, a Limbo guest started without a
+policy, a changed watched file, a poisoned vault note, a port bound off loopback and a new listener):
+
+| | before | after |
+| --- | --- | --- |
+| idle: CPU | 0.579 % of a core | 0.046 % (12.6 times less) |
+| idle: context switches | 10.2 a second | 2.1 a second |
+| idle: PSS | 118.7 MB (110.2 MB heap and other anonymous memory) | 23.5 MB (14.9 MB) |
+| activity: CPU | 0.538 % of a core | 0.075 % (7.2 times less) |
+| activity: context switches | 12.2 a second | 5.3 a second |
+| activity: PSS | 120.3 MB | 24.7 MB |
+| activity: alerts | 77 | 77, identical once the time each was raised is dropped |
+
+Of the 40 MB of mapped IP databases, 168 kB were resident after the run's lookups. The study's own run on my PC measured
+0.60 % of a core and 72.5 MB PSS before, 0.16 % and 32 MB with a prototype of the first and third fixes only.
+
+Single parts, by benchmark (i9-9900K, nice 15): a look at 6,629 sessions 15.9 ms and 9.6 MB of garbage every 5 s before,
+now a full look every 10 minutes (11.4 ms) and 0.56 µs plus the file for a save; socket owners 5.7 ms every 10 s before,
+4.6 µs when nothing is new, 0.76 ms for a new connection; the text detectors about 30 times less work on ordinary text;
+`journalctl` 4.2 ms CPU per start, 4 starts a minute before, the follower 0.009 % of a core.
