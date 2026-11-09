@@ -12,7 +12,10 @@ ExecStart=/usr/bin/heimdalld lan scan
 StateDirectory=heimdall heimdall/lan
 StateDirectoryMode=0750
 TimeoutStartSec=1min
+# keeps running during games (an intruder does not wait for one to end), with a small share when the computer is busy
 Nice=10
+CPUWeight=20
+IOWeight=20
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true

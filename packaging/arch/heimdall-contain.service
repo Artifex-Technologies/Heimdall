@@ -7,3 +7,5 @@ Type=oneshot
 # root: stopping Sarina, unloading the models and, as the last resort, resetting the graphics card need it. It acts only when
 # /etc/heimdall/contain.json switches automatic containment on; the request file only says why.
 ExecStart=/usr/bin/heimdalld contain run-request
+# Deliberately no Nice=, CPUWeight= or IOWeight= (2026-11-09): stopping a compromised agent must be quick even while a game
+# and the model keep the computer busy.

@@ -13,6 +13,10 @@ RuntimeDirectory=heimdall-wifi
 RuntimeDirectoryMode=0755
 RuntimeDirectoryPreserve=yes
 TimeoutStartSec=3min
+# a check of the network just joined: it never waits, but takes a small share when the computer is busy
+Nice=10
+CPUWeight=20
+IOWeight=20
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true

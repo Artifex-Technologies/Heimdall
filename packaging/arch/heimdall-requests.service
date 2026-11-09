@@ -9,3 +9,7 @@ Type=oneshot
 ExecStart=/usr/bin/heimdalld immunity run-requests
 # an analysis in Limbo takes a minute or more (a fresh guest per file, at most two per run)
 TimeoutStartSec=40min
+# its own work (checking the proof, copying files) takes a small share when the computer is busy; the guest runs under Limbo
+Nice=10
+CPUWeight=20
+IOWeight=20

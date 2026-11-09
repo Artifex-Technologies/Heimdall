@@ -9,6 +9,10 @@ Type=oneshot
 User=heimdall
 Group=heimdall
 ExecStart=/usr/bin/heimdall-intel-update
+# a background download and check: the smallest share of a busy computer (it also waits for games, Yggdrasil's game time)
+Nice=10
+CPUWeight=20
+IOWeight=20
 StateDirectory=heimdall
 NoNewPrivileges=true
 ProtectSystem=strict

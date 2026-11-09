@@ -11,6 +11,14 @@ ExecStart=/usr/bin/heimdalld run --config /etc/heimdall/config.json
 Restart=on-failure
 RestartSec=5
 
+# Games and the local AI model come first. These only matter when the processor or disk is busy: then heimdalld gets a
+# smaller share (CPUWeight and IOWeight against the other system services, the model's among them; Nice for its own
+# processes and their disk priority), and its detections arrive a little later. Nothing is paused. Its long audits also
+# wait while a game runs (internal/gametime).
+CPUWeight=20
+IOWeight=20
+Nice=10
+
 StateDirectory=heimdall
 StateDirectoryMode=0750
 
