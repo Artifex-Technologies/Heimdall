@@ -442,7 +442,7 @@ func cmdRun(args []string) int {
 	if cfg.AgentSessionDir == "" {
 		<-ctx.Done() // the other sources run in goroutines; keep the process alive
 	} else {
-		logger.Printf("watching %s (poll every %s)", cfg.AgentSessionDir, cfg.PollInterval())
+		logger.Printf("watching %s (read when the kernel says a session changed, at most every %s per busy session; all of it every 10 minutes)", cfg.AgentSessionDir, cfg.PollInterval())
 		watcher := agentsource.NewWatcher(cfg.AgentSessionDir)
 		if cfg.AgentStatePath != "" {
 			watcher = agentsource.NewWatcherWithState(cfg.AgentSessionDir, cfg.AgentStatePath)

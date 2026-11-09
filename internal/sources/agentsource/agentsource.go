@@ -11,14 +11,13 @@
 // .port_sessions/) is still accepted so existing fixtures and old files keep
 // working.
 //
-// Polling, not fsnotify: a single operator's session directory sees at most
-// a few writes a minute, and stdlib os.Stat is one syscall per file per
-// poll -- not worth a dependency for this scale. Revisit if a future phase
-// needs to watch thousands of files (host-wide FIM).
+// The kernel says when a session changes (inotify, watch.go): nothing runs while Sarina is idle, and a save is read at
+// once. A full look at the folder (Poll) is made at the start, every 10 minutes in case an event was missed, and every poll
+// interval only while the folder cannot be watched. The folder holds thousands of sessions (6,629 on the owner's PC,
+// 2026-11-09), and looking at all of them every 5 seconds cost 16.5 ms of CPU and 9.8 MB of garbage each time.
 package agentsource
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -207,7 +206,7 @@ type savedState struct {
 	Messages int       `json:"messages"`
 }
 
-// Watcher polls one directory of Sarina session files.
+// Watcher reads one directory of Sarina session files.
 type Watcher struct {
 	dir      string
 	seen     map[string]fileState
@@ -216,12 +215,15 @@ type Watcher struct {
 	// statePath keeps how far each session was read, so a restart goes on from there instead of reading (and alerting on)
 	// every old session again. Empty: kept in memory only (a one-off scan).
 	statePath string
-	saved     string
+	dirty     bool // seen changed since the state file was written
 	baseline  bool // the next poll only records where the sessions are (no events)
+	// unsettled are files that were not valid JSON and changed less than settleTime ago: probably still being written, so
+	// they are looked at again (Run does that one poll interval later).
+	unsettled map[string]bool
 }
 
 func NewWatcher(dir string) *Watcher {
-	return &Watcher{dir: dir, seen: make(map[string]fileState), reported: make(map[string]bool)}
+	return &Watcher{dir: dir, seen: make(map[string]fileState), reported: make(map[string]bool), unsettled: make(map[string]bool)}
 }
 
 // NewWatcherWithState is NewWatcher that remembers, across restarts, how far each session was read (in statePath).
@@ -233,7 +235,6 @@ func NewWatcherWithState(dir, statePath string) *Watcher {
 		for k, v := range st {
 			w.seen[k] = fileState{modTime: v.ModTime, messageCount: v.Messages}
 		}
-		w.saved = string(b)
 	} else if os.IsNotExist(err) {
 		// no position kept yet (this version's first start): the sessions already there were read by the Heimdall that ran
 		// before, so reading starts after them instead of alerting on all of them again. A new install has none.
@@ -242,8 +243,9 @@ func NewWatcherWithState(dir, statePath string) *Watcher {
 	return w
 }
 
+// saveState writes the state file when a session's position changed since it was last written.
 func (w *Watcher) saveState() {
-	if w.statePath == "" {
+	if w.statePath == "" || !w.dirty {
 		return
 	}
 	st := make(map[string]savedState, len(w.seen))
@@ -251,12 +253,12 @@ func (w *Watcher) saveState() {
 		st[k] = savedState{ModTime: v.modTime, Messages: v.messageCount}
 	}
 	b, err := json.Marshal(st)
-	if err != nil || string(b) == w.saved {
+	if err != nil {
 		return
 	}
 	tmp := w.statePath + ".tmp"
 	if os.WriteFile(tmp, b, 0o600) == nil && os.Rename(tmp, w.statePath) == nil {
-		w.saved = string(b)
+		w.dirty = false
 	}
 }
 
@@ -277,7 +279,7 @@ func (w *Watcher) report(i Issue, mod time.Time) {
 	w.issues = append(w.issues, i)
 }
 
-// Poll scans the directory once and returns Events for anything new since
+// Poll looks at every session file once and returns Events for anything new since
 // the last call: a session_created Event for a file seen for the first
 // time, and a message Event for each message beyond what was already
 // processed (covering both a brand-new file and one that grew).
@@ -300,124 +302,115 @@ func (w *Watcher) Poll() ([]detect.Event, error) {
 
 	var events []detect.Event
 	for _, path := range matches {
-		info, err := os.Stat(path)
-		if err != nil {
-			continue // file removed between Glob and Stat; skip this cycle
-		}
-		name := filepath.Base(path)
-		key := path // the same file name can exist in both locations
-		prior, known := w.seen[key]
-		if known && !info.ModTime().After(prior.modTime) {
-			continue // unchanged since last poll
-		}
-
-		raw, err := readSession(path)
-		if err != nil {
-			if nf, ok := err.(notAFile); ok {
-				w.report(Issue{CodeNotAFile, path, string(nf), "nothing but Sarina's session files belongs here; a pipe or a huge file can stall or exhaust a reader, so check who made it (ls -l " + path + ")"}, info.ModTime())
-				continue
-			}
-			w.report(Issue{CodeUnreadable, path, err.Error(), "make the file readable by heimdalld's user (ls -l " + path + ")"}, info.ModTime())
-			continue // retry next poll
-		}
-		var sf sessionFile
-		if err := json.Unmarshal(raw, &sf); err != nil {
-			// Possibly a write in progress: only a file that has stopped changing
-			// is reported, and either way it is retried next poll.
-			if time.Since(info.ModTime()) > settleTime {
-				w.report(Issue{CodeMalformed, path, err.Error(), "the session file is damaged or not Sarina's format; its contents are NOT being scanned"}, info.ModTime())
-			}
-			continue
-		}
-		sessionID := sf.SessionID
-		if sessionID == "" {
-			sessionID = name
-		}
-		isPractice := practice(sf.RuntimeConfig.Cwd)
-
-		if !known {
-			events = append(events, detect.Event{
-				Source:    "agent-session",
-				SessionID: sessionID,
-				Time:      info.ModTime(),
-				Kind:      "session_created",
-				Text:      "",
-				Fields:    practiceField(map[string]string{"file": name}, isPractice),
-			})
-		}
-
-		startAt := 0
-		if known {
-			startAt = prior.messageCount
-		}
-		for i := startAt; i < len(sf.Messages); i++ {
-			role, text, tools, ok := decodeMessageTools(sf.Messages[i])
-			if !ok {
-				if !readable(sf.Messages[i]) {
-					w.report(Issue{CodeUnknownShape, path, fmt.Sprintf("message %d has a shape Heimdall cannot decode", i), "Sarina's session format may have changed; check docs/spec/01-agent-core.md section 4.2 against agentsource"}, info.ModTime())
-				}
-				continue
-			}
-			fields := map[string]string{"file": name}
-			if role != "" {
-				fields["role"] = role
-			}
-			if len(tools) > 0 {
-				fields["tools"] = strings.Join(tools, ",")
-			}
-			practiceField(fields, isPractice)
-			events = append(events, detect.Event{
-				Source:    "agent-session",
-				SessionID: sessionID,
-				Time:      info.ModTime(),
-				Kind:      "message",
-				Text:      text,
-				Fields:    fields,
-			})
-		}
-
-		w.seen[key] = fileState{modTime: info.ModTime(), messageCount: len(sf.Messages)}
+		events = append(events, w.checkFile(path)...)
 	}
+	return w.finish(events), nil
+}
+
+// checkFiles looks at the given session files only (the ones the kernel said changed) and returns Events as Poll does.
+func (w *Watcher) checkFiles(paths []string) []detect.Event {
+	var events []detect.Event
+	for _, path := range paths {
+		events = append(events, w.checkFile(path)...)
+	}
+	return w.finish(events)
+}
+
+// finish drops the events of a first look that only records positions, and writes the state file when it changed.
+func (w *Watcher) finish(events []detect.Event) []detect.Event {
 	if w.baseline {
 		w.baseline = false
 		events = nil
 	}
 	w.saveState()
-	return events, nil
+	return events
 }
 
-// Run polls on an interval until ctx is done, delivering every Event from
-// each cycle to emit in order. Poll errors (e.g. the directory not existing
-// yet) are non-fatal -- Heimdall should keep trying rather than exit, since
-// the directory may simply not have been created until Sarina's first run.
-func (w *Watcher) Run(ctx context.Context, interval time.Duration, onErr func(error), emit func(detect.Event)) {
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	lastErr := ""
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			events, err := w.Poll()
-			// A persistent directory problem is reported once, not every poll.
-			if err != nil && err.Error() != lastErr && onErr != nil {
-				onErr(err)
-			}
-			lastErr = ""
-			if err != nil {
-				lastErr = err.Error()
-			}
-			for _, i := range w.Issues() {
-				if onErr != nil {
-					onErr(i)
-				}
-			}
-			for _, e := range events {
-				emit(e)
-			}
-		}
+// checkFile reads one session file if it changed since it was last read, and returns the Events for what is new in it.
+func (w *Watcher) checkFile(path string) []detect.Event {
+	delete(w.unsettled, path)
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil // removed since it was listed (or since the kernel said it changed)
 	}
+	name := filepath.Base(path)
+	key := path // the same file name can exist in both locations
+	prior, known := w.seen[key]
+	if known && !info.ModTime().After(prior.modTime) {
+		return nil // unchanged since it was last read
+	}
+
+	var events []detect.Event
+	raw, err := readSession(path)
+	if err != nil {
+		if nf, ok := err.(notAFile); ok {
+			w.report(Issue{CodeNotAFile, path, string(nf), "nothing but Sarina's session files belongs here; a pipe or a huge file can stall or exhaust a reader, so check who made it (ls -l " + path + ")"}, info.ModTime())
+			return nil
+		}
+		w.report(Issue{CodeUnreadable, path, err.Error(), "make the file readable by heimdalld's user (ls -l " + path + ")"}, info.ModTime())
+		return nil // read again when it changes (its permissions too) or at the next full look
+	}
+	var sf sessionFile
+	if err := json.Unmarshal(raw, &sf); err != nil {
+		// Possibly a write in progress: only a file that has stopped changing
+		// is reported; until then it is looked at again.
+		if time.Since(info.ModTime()) > settleTime {
+			w.report(Issue{CodeMalformed, path, err.Error(), "the session file is damaged or not Sarina's format; its contents are NOT being scanned"}, info.ModTime())
+		} else {
+			w.unsettled[path] = true
+		}
+		return nil
+	}
+	sessionID := sf.SessionID
+	if sessionID == "" {
+		sessionID = name
+	}
+	isPractice := practice(sf.RuntimeConfig.Cwd)
+
+	if !known {
+		events = append(events, detect.Event{
+			Source:    "agent-session",
+			SessionID: sessionID,
+			Time:      info.ModTime(),
+			Kind:      "session_created",
+			Text:      "",
+			Fields:    practiceField(map[string]string{"file": name}, isPractice),
+		})
+	}
+
+	startAt := 0
+	if known {
+		startAt = prior.messageCount
+	}
+	for i := startAt; i < len(sf.Messages); i++ {
+		role, text, tools, ok := decodeMessageTools(sf.Messages[i])
+		if !ok {
+			if !readable(sf.Messages[i]) {
+				w.report(Issue{CodeUnknownShape, path, fmt.Sprintf("message %d has a shape Heimdall cannot decode", i), "Sarina's session format may have changed; check docs/spec/01-agent-core.md section 4.2 against agentsource"}, info.ModTime())
+			}
+			continue
+		}
+		fields := map[string]string{"file": name}
+		if role != "" {
+			fields["role"] = role
+		}
+		if len(tools) > 0 {
+			fields["tools"] = strings.Join(tools, ",")
+		}
+		practiceField(fields, isPractice)
+		events = append(events, detect.Event{
+			Source:    "agent-session",
+			SessionID: sessionID,
+			Time:      info.ModTime(),
+			Kind:      "message",
+			Text:      text,
+			Fields:    fields,
+		})
+	}
+
+	w.seen[key] = fileState{modTime: info.ModTime(), messageCount: len(sf.Messages)}
+	w.dirty = true
+	return events
 }
 
 type notAFile string

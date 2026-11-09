@@ -26,8 +26,9 @@ type Config struct {
 	VaultDirs      []string `json:"vault_dirs"`
 	VaultStatePath string   `json:"vault_state_path"`
 
-	// PollIntervalSeconds is how often the agent source rescans
-	// AgentSessionDir.
+	// PollIntervalSeconds is, for the agent source, the least time between two reads of a session that keeps changing, the
+	// settle window's retry, and how often AgentSessionDir is rescanned while it cannot be watched with inotify (missing or
+	// unreadable). While it is watched, a save is read at once and the whole folder every 10 minutes.
 	PollIntervalSeconds int `json:"poll_interval_seconds"`
 
 	// AlertLogPath, if set, appends one JSON object per line per alert.
