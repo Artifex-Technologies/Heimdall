@@ -7,6 +7,9 @@
 //
 // Reading the journal needs the systemd-journal group (packaging/heimdall-firewall.conf.example). Without it the source
 // reports itself unavailable once and stops.
+//
+// One journalctl --follow runs for as long as heimdalld does (started again from the last entry read if it ends), instead of
+// a new journalctl every 15 seconds: each start opened and searched every journal file again (2026-11-09).
 package fwsource
 
 import (
@@ -20,52 +23,42 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Artifex-Technologies/Heimdall/internal/detect"
 	"github.com/Artifex-Technologies/Heimdall/internal/ipintel"
 )
 
-// Watcher polls the journal from where it left off (a cursor file in Heimdall's state folder).
+// Watcher follows the journal from where it left off (a cursor file in Heimdall's state folder).
 type Watcher struct {
 	CursorPath string
 	Origins    *ipintel.Resolver
 	Threats    *ipintel.Lists
-	journalctl string
-	// run is how journalctl is started (a test replaces it).
-	run func(ctx context.Context, args ...string) ([]byte, error)
+	journalctl string // the program (a test puts a fake one here)
 }
 
 func NewWatcher(cursorPath string, origins *ipintel.Resolver) *Watcher {
-	w := &Watcher{CursorPath: cursorPath, Origins: origins, journalctl: "journalctl"}
-	w.run = func(ctx context.Context, args ...string) ([]byte, error) {
-		cmd := exec.CommandContext(ctx, w.journalctl, args...)
-		cmd.Env = []string{"PATH=/usr/bin:/bin", "LANG=C"}
-		var errb strings.Builder
-		cmd.Stderr = &errb
-		out, err := cmd.Output()
-		if err != nil && len(out) == 0 {
-			return nil, fmt.Errorf("%v: %s", err, strings.TrimSpace(errb.String()))
-		}
-		return out, nil
-	}
-	return w
+	return &Watcher{CursorPath: cursorPath, Origins: origins, journalctl: "journalctl"}
 }
 
 // ErrNoAccess means the journal could not be read (Heimdall is not in the systemd-journal group).
 var ErrNoAccess = errors.New("cannot read the system journal (add the systemd-journal group, see heimdall-firewall.conf.example)")
 
-const maxPerPoll = 5000 // a flood is counted from what is read; the rest waits for the next poll
+// saveAfter is how long after an entry its cursor is written: a burst of knocks is one write, and a crash replays at most
+// this much (the entries were already passed on; none is ever skipped).
+const saveAfter = time.Second
 
-func (w *Watcher) args() []string {
-	a := []string{"-o", "json", "--no-pager", "-q", "-n", fmt.Sprint(maxPerPoll),
+// args follows the journal after cursor ("" on a first run: only the last 10 minutes, not the whole history).
+func (w *Watcher) args(cursor string) []string {
+	a := []string{"-o", "json", "--no-pager", "-q", "--follow",
 		// SYSLOG_IDENTIFIER is whatever the writer says (logger -t sshd works for anyone), so the SSH lines must also come from
 		// root: _UID is set by journald itself and cannot be forged
 		"_TRANSPORT=kernel", "+", "SYSLOG_IDENTIFIER=sshd", "_UID=0", "+", "SYSLOG_IDENTIFIER=sshd-session", "_UID=0"}
-	if c := w.cursor(); c != "" {
-		return append(a, "--after-cursor="+c)
+	if cursor != "" {
+		return append(a, "--after-cursor="+cursor)
 	}
-	return append(a, "--since=-10min") // first run: not the whole history, only what is recent
+	return append(a, "--since=-10min")
 }
 
 // cursor is where the last poll stopped (journalctl's own --cursor-file cannot be combined with --since, so it is kept here).
@@ -89,54 +82,31 @@ func (w *Watcher) saveCursor(c string) error {
 	return os.Rename(tmp, w.CursorPath)
 }
 
-// Poll reads the new journal entries and returns one event per knock.
-func (w *Watcher) Poll(ctx context.Context) ([]detect.Event, error) {
-	out, err := w.run(ctx, w.args()...)
-	if err != nil {
-		if strings.Contains(err.Error(), "No journal files were opened") || strings.Contains(err.Error(), "ermission") {
-			return nil, ErrNoAccess
-		}
-		return nil, err
+// entry reads one journal line: the knock in it, if any, and its cursor ("" when it has none).
+func (w *Watcher) entry(line []byte) (ev detect.Event, cursor string, ok bool) {
+	var e struct {
+		Message string `json:"MESSAGE"`
+		Ident   string `json:"SYSLOG_IDENTIFIER"`
+		TS      string `json:"__REALTIME_TIMESTAMP"`
+		Cursor  string `json:"__CURSOR"`
 	}
-	var events []detect.Event
-	last := ""
-	sc := bufio.NewScanner(strings.NewReader(string(out)))
-	sc.Buffer(make([]byte, 64<<10), 1<<20)
-	for sc.Scan() {
-		var e struct {
-			Message string `json:"MESSAGE"`
-			Ident   string `json:"SYSLOG_IDENTIFIER"`
-			TS      string `json:"__REALTIME_TIMESTAMP"`
-			Cursor  string `json:"__CURSOR"`
+	if json.Unmarshal(line, &e) != nil {
+		// MESSAGE given as a byte array (not text): not a line this source reads, but reading moves past it
+		var c struct {
+			Cursor string `json:"__CURSOR"`
 		}
-		if json.Unmarshal(sc.Bytes(), &e) != nil {
-			// MESSAGE given as a byte array (not text): not a line this source reads, but reading moves past it
-			var c struct {
-				Cursor string `json:"__CURSOR"`
-			}
-			if json.Unmarshal(sc.Bytes(), &c) == nil && c.Cursor != "" {
-				last = c.Cursor
-			}
-			continue
+		if json.Unmarshal(line, &c) == nil {
+			return detect.Event{}, c.Cursor, false
 		}
-		if e.Cursor != "" {
-			last = e.Cursor
-		}
-		t := time.Now()
-		var us int64
-		if _, err := fmt.Sscan(e.TS, &us); err == nil && us > 0 {
-			t = time.UnixMicro(us)
-		}
-		if ev, ok := w.parse(e.Message, e.Ident, t); ok {
-			events = append(events, ev)
-		}
+		return detect.Event{}, "", false
 	}
-	if last != "" {
-		if err := w.saveCursor(last); err != nil {
-			return events, err
-		}
+	t := time.Now()
+	var us int64
+	if _, err := fmt.Sscan(e.TS, &us); err == nil && us > 0 {
+		t = time.UnixMicro(us)
 	}
-	return events, nil
+	ev, ok = w.parse(e.Message, e.Ident, t)
+	return ev, e.Cursor, ok
 }
 
 var (
@@ -219,26 +189,137 @@ func sanitize(s string) string {
 	return s
 }
 
-// Run polls until ctx ends. onUnavailable is called once (and the source stops) when the journal cannot be read.
-func (w *Watcher) Run(ctx context.Context, interval time.Duration, onUnavailable func(error), onErr func(error), emit func(detect.Event)) {
-	t := time.NewTicker(interval)
-	defer t.Stop()
-	for {
-		events, err := w.Poll(ctx)
-		if errors.Is(err, ErrNoAccess) {
-			onUnavailable(err)
+// Run follows the journal until ctx ends, with one journalctl --follow; if it ends, it is started again after restart,
+// from the last entry read. The cursor of the last entry read is written to CursorPath shortly after it (saveAfter) and
+// when Run returns, so a restart of heimdalld goes on after it. onUnavailable is called once (and the source stops) when
+// the journal cannot be read.
+func (w *Watcher) Run(ctx context.Context, restart time.Duration, onUnavailable func(error), onErr func(error), emit func(detect.Event)) {
+	c := &cursorState{w: w, onErr: onErr}
+	c.at = w.cursor()
+	c.saved = c.at
+	defer c.save()
+	lastErr := ""
+	for ctx.Err() == nil {
+		read, stderr, err := w.follow(ctx, c, emit)
+		c.save()
+		if ctx.Err() != nil {
 			return
 		}
-		if err != nil {
-			onErr(err)
+		if read == 0 && (strings.Contains(stderr, "No journal files were opened") || strings.Contains(stderr, "ermission")) {
+			onUnavailable(ErrNoAccess)
+			return
 		}
-		for _, e := range events {
-			emit(e)
+		if msg := fmt.Sprintf("journalctl ended (%v: %s); following again in %s", err, strings.TrimSpace(stderr), restart); msg != lastErr {
+			onErr(errors.New(msg)) // the same trouble again and again is said once
+			lastErr = msg
 		}
 		select {
 		case <-ctx.Done():
-			return
-		case <-t.C:
+		case <-time.After(restart):
 		}
 	}
+}
+
+// cursorState is the last entry read and the last one written to the cursor file.
+type cursorState struct {
+	w         *Watcher
+	onErr     func(error)
+	at, saved string
+}
+
+func (c *cursorState) save() {
+	if c.at == c.saved {
+		return
+	}
+	if err := c.w.saveCursor(c.at); err != nil {
+		c.onErr(err)
+		return
+	}
+	c.saved = c.at
+}
+
+// follow runs one journalctl --follow from c.at, passing each knock to emit, until it ends or ctx does. It returns how many
+// lines were read and what journalctl said on stderr (the start of it).
+func (w *Watcher) follow(ctx context.Context, c *cursorState, emit func(detect.Event)) (int, string, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, w.journalctl, w.args(c.at)...)
+	cmd.Env = []string{"PATH=/usr/bin:/bin", "LANG=C"}
+	errb := &headBuffer{max: 4 << 10}
+	cmd.Stderr = errb
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		return 0, "", err
+	}
+	if err := cmd.Start(); err != nil {
+		return 0, "", err
+	}
+	lines := make(chan []byte, 64)
+	go func() {
+		defer close(lines)
+		sc := bufio.NewScanner(out)
+		sc.Buffer(make([]byte, 64<<10), 1<<20)
+		for sc.Scan() {
+			select {
+			case lines <- append([]byte(nil), sc.Bytes()...):
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	flush := time.NewTimer(time.Hour)
+	flush.Stop()
+	defer flush.Stop()
+	armed, read := false, 0
+	for {
+		select {
+		case line, ok := <-lines:
+			if !ok {
+				err := cmd.Wait()
+				return read, errb.String(), err
+			}
+			read++
+			ev, cursor, isKnock := w.entry(line)
+			if isKnock {
+				emit(ev)
+			}
+			if cursor != "" {
+				c.at = cursor
+				if !armed {
+					flush.Reset(saveAfter)
+					armed = true
+				}
+			}
+		case <-flush.C:
+			armed = false
+			c.save()
+		case <-ctx.Done():
+			cancel()
+			for range lines { // the reader ends once journalctl is gone
+			}
+			return read, errb.String(), cmd.Wait()
+		}
+	}
+}
+
+// headBuffer keeps the first max bytes written to it (journalctl's complaints are short; a flood of them is not kept).
+type headBuffer struct {
+	mu  sync.Mutex
+	b   []byte
+	max int
+}
+
+func (h *headBuffer) Write(p []byte) (int, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if room := h.max - len(h.b); room > 0 {
+		h.b = append(h.b, p[:min(room, len(p))]...)
+	}
+	return len(p), nil
+}
+
+func (h *headBuffer) String() string {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return string(h.b)
 }

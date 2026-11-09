@@ -407,15 +407,21 @@ func cmdRun(args []string) int {
 	}
 	go tables.Run(ctx, eng.Handle)
 
+	fwDone := make(chan struct{}) // closed once the firewall watch has written its cursor and stopped
 	if cfg.Firewall {
-		logger.Printf("watching the firewall and SSH logins in the journal (poll every %s)", cfg.FirewallPollInterval())
+		logger.Printf("following the firewall and SSH logins in the journal (journalctl started again %s after it ends)", cfg.FirewallPollInterval())
 		fw := fwsource.NewWatcher(cfg.FirewallCursorPath, origins)
 		fw.Threats = threats
-		go fw.Run(ctx, cfg.FirewallPollInterval(),
-			func(err error) { logger.Printf("firewall watch unavailable, disabling: %v", err) },
-			func(err error) { logger.Printf("firewall watch error: %v", err) },
-			eng.Handle,
-		)
+		go func() {
+			defer close(fwDone)
+			fw.Run(ctx, cfg.FirewallPollInterval(),
+				func(err error) { logger.Printf("firewall watch unavailable, disabling: %v", err) },
+				func(err error) { logger.Printf("firewall watch error: %v", err) },
+				eng.Handle,
+			)
+		}()
+	} else {
+		close(fwDone)
 	}
 
 	if cfg.LimboEventLog != "" {
@@ -465,6 +471,10 @@ func cmdRun(args []string) int {
 	logger.Println("shutting down")
 	if resp != nil && !resp.Shutdown(3*time.Second) {
 		logger.Println("abandoned in-flight Limbo quarantine or advisory calls")
+	}
+	select { // the journal cursor is written on the way out, so the next start neither reads entries twice nor skips any
+	case <-fwDone:
+	case <-time.After(2 * time.Second):
 	}
 	return 0
 }

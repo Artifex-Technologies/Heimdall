@@ -128,7 +128,8 @@ type Config struct {
 
 	// Firewall watches the journal for packets ufw blocked and failed SSH logins, and alerts when one address adds up
 	// (internal/detect/inbound.go). Needs the systemd-journal group (packaging/arch/heimdall-firewall.conf.example);
-	// without it the source turns itself off with one log line. FirewallCursorPath remembers where reading stopped.
+	// without it the source turns itself off with one log line. FirewallCursorPath remembers where reading stopped. One
+	// journalctl --follow reads it; FirewallPollIntervalSeconds is how long to wait before starting it again if it ends.
 	Firewall                    bool   `json:"firewall"`
 	FirewallPollIntervalSeconds int    `json:"firewall_poll_interval_seconds"`
 	FirewallCursorPath          string `json:"firewall_cursor_path"`
