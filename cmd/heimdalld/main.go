@@ -334,13 +334,13 @@ func cmdRun(args []string) int {
 		}, eng.Handle)
 	}
 
+	// one read of /proc/net/tcp{,6} per interval, shared by the port, connection and listener watchers (netsource.Tables)
+	tables := netsource.NewTables()
 	if len(cfg.NetPorts) > 0 {
 		logger.Printf("watching %d ecosystem port(s) for non-loopback exposure (poll every %s)", len(cfg.NetPorts), cfg.NetPollInterval())
-		ports := netsource.NewPortWatcher(cfg.NetPorts)
-		go ports.Run(ctx, cfg.NetPollInterval(),
+		tables.Ports(netsource.NewPortWatcher(cfg.NetPorts), cfg.NetPollInterval(),
 			func(err error) { logger.Printf("network exposure watch unavailable, disabling: %v", err) },
 			func(err error) { logger.Printf("network exposure poll error: %v", err) },
-			eng.Handle,
 		)
 	}
 
@@ -381,10 +381,9 @@ func cmdRun(args []string) int {
 		cw.RemoteAccess = &remoteaccess.Identifier{Catalog: remoteaccess.Builtin()}
 		cw.Origins = origins
 		cw.Threats = threats
-		go cw.Run(ctx, cfg.ConnPollInterval(),
+		tables.Connections(cw, cfg.ConnPollInterval(),
 			func(err error) { logger.Printf("connection watch unavailable, disabling: %v", err) },
 			func(err error) { logger.Printf("connection watch error: %v", err) },
-			eng.Handle,
 		)
 	}
 
@@ -400,12 +399,13 @@ func cmdRun(args []string) int {
 		go lw.Run(ctx, 15*time.Second, func(err error) { logger.Printf("device list: %v", err) }, eng.Handle)
 	}
 	if cfg.ListenWatch {
-		go netsource.NewListenWatcher().Run(ctx, 15*time.Second, eng.Handle)
+		tables.Listeners(netsource.NewListenWatcher(), 15*time.Second)
 		// remote-access tools by what is installed and which tunnel interfaces exist (docs/REMOTE_ACCESS.md)
 		ra := remoteaccess.Builtin()
 		go rasource.New(ra).Run(ctx, 15*time.Second, eng.Handle)
 		log.Printf("watching for %d remote-access tools (installed packages and tunnel interfaces every 15s, connections by program)", len(ra.Providers))
 	}
+	go tables.Run(ctx, eng.Handle)
 
 	if cfg.Firewall {
 		logger.Printf("watching the firewall and SSH logins in the journal (poll every %s)", cfg.FirewallPollInterval())

@@ -155,11 +155,17 @@ func (w *ListenWatcher) ephemeral() (lo, hi int) {
 	return lo, hi
 }
 
-func (w *ListenWatcher) listening() []string {
+// listening lists what listens off loopback: TCP from tcp (a read of /proc/net/tcp and tcp6), UDP read here.
+func (w *ListenWatcher) listening(tcp []socketEntry) []string {
 	var out []string
+	for _, e := range tcp {
+		if !e.LocalIP.IsLoopback() && e.State == tcpListen {
+			out = append(out, fmt.Sprintf("tcp/%d", e.LocalPort))
+		}
+	}
 	lo, hi := w.ephemeral()
-	for _, f := range []struct{ file, proto string }{{"net/tcp", "tcp"}, {"net/tcp6", "tcp"}, {"net/udp", "udp"}, {"net/udp6", "udp"}} {
-		fh, err := os.Open(filepath.Join(w.procRoot, f.file))
+	for _, file := range []string{"net/udp", "net/udp6"} {
+		fh, err := os.Open(filepath.Join(w.procRoot, file))
 		if err != nil {
 			continue
 		}
@@ -169,21 +175,24 @@ func (w *ListenWatcher) listening() []string {
 			if e.LocalIP.IsLoopback() {
 				continue
 			}
-			if f.proto == "tcp" && e.State != tcpListen {
-				continue
-			}
-			if f.proto == "udp" && (e.State != 0x07 || !e.RemoteIP.IsUnspecified() || expectedUDP[e.LocalPort] || (e.LocalPort >= lo && e.LocalPort <= hi)) {
+			if e.State != 0x07 || !e.RemoteIP.IsUnspecified() || expectedUDP[e.LocalPort] || (e.LocalPort >= lo && e.LocalPort <= hi) {
 				continue // a connected UDP socket is a client, not a listener
 			}
-			out = append(out, fmt.Sprintf("%s/%d", f.proto, e.LocalPort))
+			out = append(out, fmt.Sprintf("udp/%d", e.LocalPort))
 		}
 	}
 	sort.Strings(out)
 	return out
 }
 
+// Poll reads the TCP tables itself; in heimdalld, Tables shares its read (observe).
 func (w *ListenWatcher) Poll() []detect.Event {
-	now := w.listening()
+	tcp, _ := readTables([]string{filepath.Join(w.procRoot, "net/tcp"), filepath.Join(w.procRoot, "net/tcp6")})
+	return w.observe(tcp)
+}
+
+func (w *ListenWatcher) observe(tcp []socketEntry) []detect.Event {
+	now := w.listening(tcp)
 	var events []detect.Event
 	for _, k := range now {
 		if w.known[k] {
@@ -200,19 +209,4 @@ func (w *ListenWatcher) Poll() []detect.Event {
 	}
 	w.learned = true
 	return events
-}
-
-func (w *ListenWatcher) Run(ctx context.Context, interval time.Duration, emit func(detect.Event)) {
-	t := time.NewTicker(interval)
-	defer t.Stop()
-	for {
-		for _, e := range w.Poll() {
-			emit(e)
-		}
-		select {
-		case <-ctx.Done():
-			return
-		case <-t.C:
-		}
-	}
 }

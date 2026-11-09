@@ -13,12 +13,10 @@ package netsource
 
 import (
 	"bufio"
-	"context"
 	"encoding/hex"
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -164,27 +162,15 @@ func newPortWatcherWithPaths(ports []int, procPaths []string) *PortWatcher {
 // failure on an individual file, which Poll otherwise tolerates (e.g. tcp6
 // missing because IPv6 is disabled is not an error).
 func (w *PortWatcher) Poll() ([]detect.Event, error) {
-	var entries []socketEntry
-	var lastErr error
-	opened := 0
-	for _, path := range w.procPaths {
-		f, err := os.Open(path)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		opened++
-		parsed, err := ParseProcNetTCP(f)
-		f.Close()
-		if err != nil {
-			continue
-		}
-		entries = append(entries, parsed...)
+	entries, err := readTables(w.procPaths)
+	if err != nil {
+		return nil, err
 	}
-	if opened == 0 {
-		return nil, lastErr
-	}
+	return w.observe(entries), nil
+}
 
+// observe checks one read of the socket tables (Tables shares a read between the watchers).
+func (w *PortWatcher) observe(entries []socketEntry) []detect.Event {
 	now := time.Now()
 	var events []detect.Event
 	currentBinds := make(map[int]bool)
@@ -233,42 +219,5 @@ func (w *PortWatcher) Poll() ([]detect.Event, error) {
 
 	w.flaggedBinds = currentBinds
 	w.flaggedPeers = currentPeers
-	return events, nil
-}
-
-// Run polls on an interval until ctx is done. Like TelemetryWatcher.Run,
-// it logs once and stops instead of retrying forever if /proc doesn't
-// exist on this platform at all.
-func (w *PortWatcher) Run(ctx context.Context, interval time.Duration, onUnavailable func(error), onErr func(error), emit func(detect.Event)) {
-	if _, err := w.Poll(); err != nil {
-		if os.IsNotExist(err) {
-			if onUnavailable != nil {
-				onUnavailable(err)
-			}
-			return
-		}
-		if onErr != nil {
-			onErr(err)
-		}
-	}
-
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			events, err := w.Poll()
-			if err != nil {
-				if onErr != nil {
-					onErr(err)
-				}
-				continue
-			}
-			for _, e := range events {
-				emit(e)
-			}
-		}
-	}
+	return events
 }
