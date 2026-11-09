@@ -105,6 +105,9 @@ func (s System) Check() []Gap {
 type Watcher struct {
 	Sys       System
 	StatePath string
+	// Hold, when set, is asked before each run and returns once it may go (heimdalld: not while a game runs, see
+	// internal/gametime); false ends Run.
+	Hold func(ctx context.Context) bool
 }
 
 func (w *Watcher) Poll() []detect.Event {
@@ -133,16 +136,17 @@ func (w *Watcher) Poll() []detect.Event {
 }
 
 func (w *Watcher) Run(ctx context.Context, interval time.Duration, emit func(detect.Event)) {
-	t := time.NewTicker(interval)
-	defer t.Stop()
 	for {
+		if w.Hold != nil && !w.Hold(ctx) {
+			return
+		}
 		for _, e := range w.Poll() {
 			emit(e)
 		}
 		select {
 		case <-ctx.Done():
 			return
-		case <-t.C:
+		case <-time.After(interval):
 		}
 	}
 }

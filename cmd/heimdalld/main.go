@@ -29,6 +29,7 @@ import (
 	"github.com/Artifex-Technologies/Heimdall/internal/correlate"
 	"github.com/Artifex-Technologies/Heimdall/internal/detect"
 	"github.com/Artifex-Technologies/Heimdall/internal/engine"
+	"github.com/Artifex-Technologies/Heimdall/internal/gametime"
 	"github.com/Artifex-Technologies/Heimdall/internal/governance"
 	"github.com/Artifex-Technologies/Heimdall/internal/grants"
 	"github.com/Artifex-Technologies/Heimdall/internal/hardening"
@@ -357,21 +358,26 @@ func cmdRun(args []string) int {
 	} else {
 		logger.Printf("no threat lists yet (heimdall-intel-update fetches them)")
 	}
+	// the long audits wait while a game runs (Yggdrasil's game time); watching never does
+	games := &gametime.Gate{Log: logger.Printf}
 	if cfg.SecurityTracker != "" {
-		pw := &pkgaudit.Watcher{TrackerPath: cfg.SecurityTracker, PacmanDB: cfg.PacmanDB, StatePath: cfg.PackageAuditStatePath}
+		pw := &pkgaudit.Watcher{TrackerPath: cfg.SecurityTracker, PacmanDB: cfg.PacmanDB, StatePath: cfg.PackageAuditStatePath,
+			Hold: func(ctx context.Context) bool { return games.Wait(ctx, "the package audit") }}
 		every := time.Duration(max(cfg.PackageAuditIntervalHours, 1)) * time.Hour
 		logger.Printf("matching installed packages against the security tracker (every %s)", every)
 		go pw.Run(ctx, every, func(err error) { logger.Printf("package audit: %v", err) }, eng.Handle)
 	}
 
 	if cfg.KernelVulns != "" {
-		kw := &kernelaudit.Watcher{ListPath: cfg.KernelVulns, ModulesDir: "/usr/lib/modules", StatePath: cfg.KernelAuditStatePath}
+		kw := &kernelaudit.Watcher{ListPath: cfg.KernelVulns, ModulesDir: "/usr/lib/modules", StatePath: cfg.KernelAuditStatePath,
+			Hold: func(ctx context.Context) bool { return games.Wait(ctx, "the kernel audit") }}
 		every := time.Duration(max(cfg.PackageAuditIntervalHours, 1)) * time.Hour
 		go kw.Run(ctx, every, func(err error) { logger.Printf("kernel audit: %v", err) }, eng.Handle)
 	}
 
 	if cfg.HardeningStatePath != "" {
-		hw := &hardening.Watcher{StatePath: cfg.HardeningStatePath}
+		hw := &hardening.Watcher{StatePath: cfg.HardeningStatePath,
+			Hold: func(ctx context.Context) bool { return games.Wait(ctx, "the hardening checks") }}
 		go hw.Run(ctx, time.Duration(max(cfg.PackageAuditIntervalHours, 1))*time.Hour, eng.Handle)
 	}
 

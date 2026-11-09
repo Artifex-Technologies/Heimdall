@@ -15,6 +15,9 @@ import (
 // version changes). The first check after start reports what is open, so a vulnerable package is never silently assumed known.
 type Watcher struct {
 	TrackerPath, PacmanDB, StatePath string
+	// Hold, when set, is asked before each run and returns once it may go (heimdalld: not while a game runs, see
+	// internal/gametime); false ends Run.
+	Hold func(ctx context.Context) bool
 }
 
 func (w *Watcher) Poll() ([]detect.Event, error) {
@@ -57,10 +60,12 @@ func (w *Watcher) Poll() ([]detect.Event, error) {
 	return events, nil
 }
 
+// Run checks now and then every interval after the last check ended, until ctx is done.
 func (w *Watcher) Run(ctx context.Context, interval time.Duration, onErr func(error), emit func(detect.Event)) {
-	t := time.NewTicker(interval)
-	defer t.Stop()
 	for {
+		if w.Hold != nil && !w.Hold(ctx) {
+			return
+		}
 		events, err := w.Poll()
 		if err != nil && !os.IsNotExist(err) {
 			onErr(err)
@@ -71,7 +76,7 @@ func (w *Watcher) Run(ctx context.Context, interval time.Duration, onErr func(er
 		select {
 		case <-ctx.Done():
 			return
-		case <-t.C:
+		case <-time.After(interval):
 		}
 	}
 }
