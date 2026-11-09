@@ -14,13 +14,18 @@ import (
 	"math"
 	"net"
 	"os"
+	"runtime"
+	"runtime/debug"
+	"syscall"
 )
 
 var metaMarker = []byte("\xab\xcd\xefMaxMind.com")
 
-// DB is one opened database file, held in memory (the free country+ASN files are tens of megabytes).
+// DB is one opened database file. Open maps the file instead of reading it into the heap (the free country+ASN files are
+// tens of megabytes, and a lookup touches a few pages of them).
 type DB struct {
 	buf        []byte
+	mapped     bool // buf is a read-only mapping of the file (Open), not memory of its own (FromBytes)
 	nodeCount  uint
 	recordSize uint
 	ipVersion  uint
@@ -31,8 +36,34 @@ type DB struct {
 	BuildEpoch uint64
 }
 
-// Open reads and checks a database file.
+// Open maps a database file read-only and checks it. The mapping is the kernel's page cache of the file: only the pages
+// lookups touch are resident, they are shared rather than copied into heimdalld's heap, and under memory pressure the kernel
+// can drop them and read them again (about 40 MB of the daemon's memory before, 2026-11-09). heimdall-intel-update replaces
+// a file by renaming a new one over it, so a mapping keeps the old file until the Resolver opens the new one and the old DB is
+// no longer used (its mapping is released then). A file that cannot be mapped (empty, or on a file system without mmap) is
+// read as before.
 func Open(path string) (*DB, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if st.Mode().IsRegular() && st.Size() > 0 && st.Size() == int64(int(st.Size())) {
+		if b, err := syscall.Mmap(int(f.Fd()), 0, int(st.Size()), syscall.PROT_READ, syscall.MAP_SHARED); err == nil {
+			db, err := fromBytes(b, true)
+			if err != nil {
+				_ = syscall.Munmap(b)
+				return nil, err
+			}
+			// the mapping is released once nothing uses this DB any more (a Lookup keeps it alive while it runs)
+			runtime.AddCleanup(db, func(b []byte) { _ = syscall.Munmap(b) }, b)
+			return db, nil
+		}
+	}
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -42,6 +73,31 @@ func Open(path string) (*DB, error) {
 
 // FromBytes uses an in-memory database.
 func FromBytes(b []byte) (*DB, error) {
+	return fromBytes(b, false)
+}
+
+// errCutShort is what reading a mapped file that was shortened under the mapping gives (the kernel's SIGBUS, turned into
+// an error): the file was damaged in place, which an update by rename never does.
+var errCutShort = errors.New("the database file was cut short while in use")
+
+// faultGuard runs deferred where a mapped file is read. A file shortened in place after it was mapped makes the kernel
+// signal a fault when a page past its new end is read; with debug.SetPanicOnFault that is a panic of this goroutine, turned
+// here into errCutShort, so a damaged file is refused as any other damaged file is instead of stopping heimdalld.
+func faultGuard(err *error) {
+	if r := recover(); r != nil {
+		if _, ok := r.(interface{ Addr() uintptr }); ok {
+			*err = errCutShort
+			return
+		}
+		panic(r)
+	}
+}
+
+func fromBytes(b []byte, mapped bool) (db *DB, err error) {
+	if mapped {
+		defer debug.SetPanicOnFault(debug.SetPanicOnFault(true))
+		defer faultGuard(&err)
+	}
 	i := bytes.LastIndex(b, metaMarker)
 	if i < 0 {
 		return nil, errors.New("not an IP database (no metadata marker)")
@@ -55,7 +111,7 @@ func FromBytes(b []byte) (*DB, error) {
 	if !ok {
 		return nil, errors.New("metadata is not a map")
 	}
-	db := &DB{buf: b}
+	db = &DB{buf: b, mapped: mapped}
 	db.nodeCount = uint(toU64(meta["node_count"]))
 	db.recordSize = uint(toU64(meta["record_size"]))
 	db.ipVersion = uint(toU64(meta["ip_version"]))
@@ -107,7 +163,12 @@ func (db *DB) record(node, bit uint) (uint, error) {
 }
 
 // Lookup returns the record for an address (nil when the database has none for it).
-func (db *DB) Lookup(ip net.IP) (map[string]any, error) {
+func (db *DB) Lookup(ip net.IP) (m map[string]any, err error) {
+	if db.mapped {
+		defer runtime.KeepAlive(db) // the mapping stays until this lookup is done with it
+		defer debug.SetPanicOnFault(debug.SetPanicOnFault(true))
+		defer faultGuard(&err)
+	}
 	bits := ip.To16()
 	node := uint(0)
 	nbits := 128
@@ -124,7 +185,6 @@ func (db *DB) Lookup(ip net.IP) (map[string]any, error) {
 	}
 	for k := 0; k < nbits && node < db.nodeCount; k++ {
 		bit := uint(bits[k/8]>>(7-uint(k%8))) & 1
-		var err error
 		if node, err = db.record(node, bit); err != nil {
 			return nil, err
 		}
@@ -144,7 +204,7 @@ func (db *DB) Lookup(ip net.IP) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	m, _ := v.(map[string]any)
+	m, _ = v.(map[string]any)
 	return m, nil
 }
 
