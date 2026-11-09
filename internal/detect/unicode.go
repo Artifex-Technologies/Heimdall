@@ -4,8 +4,10 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 	"unicode"
 	"unicode/utf16"
+	"unicode/utf8"
 )
 
 // invisibleCodepoints mirrors memory_security.py's _INVISIBLE_CODEPOINTS:
@@ -77,16 +79,28 @@ func decodeEscapes(text string) string {
 }
 
 func (d *UnicodeDetector) Inspect(e Event) []Finding {
-	for _, text := range []string{e.Text, decodeEscapes(e.Text)} {
-		if f := d.inspect(e, text); f != nil {
-			return f
+	if f := d.inspect(e, e.Text); f != nil {
+		return f
+	}
+	// only text with a \u escape decodes to anything new; without one the second look would see the same text again
+	if strings.Contains(e.Text, `\u`) {
+		if decoded := decodeEscapes(e.Text); decoded != e.Text {
+			return d.inspect(e, decoded)
 		}
 	}
 	return nil
 }
 
 func (d *UnicodeDetector) inspect(e Event, text string) []Finding {
-	for _, r := range text {
+	for i := 0; i < len(text); {
+		// no ASCII character is invisible or formatting (TestNoASCIICharacterIsFlagged), so only the rest is decoded; an
+		// invalid byte decodes to U+FFFD, one byte at a time, as ranging over the string does
+		if text[i] < utf8.RuneSelf {
+			i++
+			continue
+		}
+		r, size := utf8.DecodeRuneInString(text[i:])
+		i += size
 		if invisibleCodepoints[r] || isBidiOverride(r) || isIsolate(r) || isTagBlock(r) || unicode.Is(unicode.Cf, r) {
 			return []Finding{{
 				DetectorID: d.ID(),

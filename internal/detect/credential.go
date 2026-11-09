@@ -27,6 +27,28 @@ var credentialPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)\bbearer\s+[0-9A-Za-z._~+/\-]{24,}=*`),
 }
 
+// credentialLiterals are, pattern by pattern, the words each cannot match without (prefilter.go); same order as
+// credentialPatterns.
+var credentialLiterals = []literals{
+	{false, []string{"-----BEGIN "}},
+	{false, []string{"ssh-"}},
+	{false, []string{"AKIA"}},
+	{false, []string{"ghp_"}},
+	{false, []string{"xox"}},
+	{true, []string{"key"}},
+	{true, []string{"password"}},
+	{true, []string{"secret"}},
+	{false, []string{"sk-"}},
+	{false, []string{"github_pat_"}},
+	{false, []string{"gho_", "ghu_", "ghs_", "ghr_"}},
+	{false, []string{"AIza"}},
+	{false, []string{"k_live_"}},
+	{false, []string{"npm_"}},
+	{false, []string{"hf_"}},
+	{false, []string{"eyJ"}},
+	{true, []string{"bearer"}},
+}
+
 // CredentialDetector flags Event text that looks like a leaked secret --
 // most often a sign that a tool call read a file it shouldn't have, or that
 // a session transcript is unsafe to keep around unredacted.
@@ -48,7 +70,12 @@ func CredentialMatches(text string) []string {
 // RedactCredentials keeps the first 4 characters of every credential-shaped piece of text and drops the rest, so an alert
 // can say what was found and where without carrying the secret itself into the alert log, the journal or the API.
 func RedactCredentials(text string) string {
-	for _, pattern := range credentialPatterns {
+	folded := foldText(text)
+	for i, pattern := range credentialPatterns {
+		if !credentialLiterals[i].in(text, folded) {
+			continue
+		}
+		before := text
 		text = pattern.ReplaceAllStringFunc(text, func(m string) string {
 			keep := 4
 			if len(m) < keep {
@@ -56,12 +83,19 @@ func RedactCredentials(text string) string {
 			}
 			return m[:keep] + "…[redacted]"
 		})
+		if text != before {
+			folded = foldText(text) // the next patterns look at the redacted text
+		}
 	}
 	return text
 }
 
 func (d *CredentialDetector) Inspect(e Event) []Finding {
-	for _, pattern := range credentialPatterns {
+	folded := foldText(e.Text)
+	for i, pattern := range credentialPatterns {
+		if !credentialLiterals[i].in(e.Text, folded) {
+			continue
+		}
 		if pattern.MatchString(e.Text) {
 			return []Finding{{
 				DetectorID: d.ID(),

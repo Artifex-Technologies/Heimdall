@@ -23,6 +23,22 @@ var injectionPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)\b(notes?|messages?|instructions?) (to|for) (the )?(ai|assistant|agent|llm|language model)\s*:`),
 }
 
+// injectionLiterals are, pattern by pattern, the words each cannot match without (prefilter.go); same order as
+// injectionPatterns.
+var injectionLiterals = []literals{
+	{true, []string{"ignore "}},
+	{true, []string{"disregard "}},
+	{true, []string{"you are now"}},
+	{true, []string{"instruction"}},
+	{true, []string{"act as if"}},
+	{true, []string{"override "}},
+	{true, []string{"do not "}},
+	{true, []string{"informing", "telling", "notifying"}},
+	{true, []string{"system prompt"}},
+	{true, []string{"notice", "message", "instruction", "directive"}},
+	{true, []string{"note", "message", "instruction"}},
+}
+
 // InjectionDetector flags Event text that reads as an attempt to redirect
 // the agent's instructions -- a prompt-injection or memory-poisoning
 // attempt riding in on tool output, a file read, or a session message.
@@ -33,7 +49,11 @@ func NewInjectionDetector() *InjectionDetector { return &InjectionDetector{} }
 func (d *InjectionDetector) ID() string { return "injection-phrase" }
 
 func (d *InjectionDetector) Inspect(e Event) []Finding {
-	for _, pattern := range injectionPatterns {
+	folded := foldText(e.Text)
+	for i, pattern := range injectionPatterns {
+		if !injectionLiterals[i].in(e.Text, folded) {
+			continue
+		}
 		if match := pattern.FindString(e.Text); match != "" {
 			return []Finding{{
 				DetectorID: d.ID(),
