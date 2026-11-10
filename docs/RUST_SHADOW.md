@@ -9,9 +9,10 @@ What the shadow daemon watches: Sarina's sessions and vault notes (inotify), Lim
 (`fim_paths`), host telemetry, the maintenance window, the /proc/net watchers (ecosystem ports, connections with the IP
 databases and threat lists, new listeners), the journal (firewall blocks, SSH logins; one `journalctl --follow`), the
 Wi-Fi results and router watch, the trusted network's device events and remote-access tools (packages, tunnels, programs),
-through every detector, the verifier, the explanations, the tool rules and maintenance softening. **Not yet** (logged at
-start; the comparison leaves their detectors out): the 6-hourly package, kernel and hardening audits, trust, the
-correlator's incidents.
+the 6-hourly package, kernel and hardening audits (on a thread of their own, waiting while a game runs; since 2026-11-10),
+through every detector, the verifier, the explanations, the tool rules, maintenance softening and the correlator's incidents
+(since 2026-11-10). **Not yet** (logged at start): trust. The audits run at each daemon's own start and then every 6 hours,
+so the comparison counts their alerts within 7 hours of either end of the window as edge alerts (`--audit-edge-hours`).
 
 The journal needs the `systemd-journal` group, as the Go daemon has it from its firewall drop-in: copy that drop-in too
 (step 4 below copies every drop-in of `heimdall.service`).
@@ -44,7 +45,7 @@ sudo install -Dm640 -o root -g heimdall /tmp/shadow-config.json /etc/heimdall/sh
 
 # 3. its state: a copy of the Go daemon's positions, so it starts where the Go daemon is (no flood of old sessions)
 sudo install -d -o heimdall -g heimdall -m 0750 /var/lib/heimdall-rs
-for f in agent-sessions.json vault-notes.json agent-baseline.json fim.json limbo-offset; do
+for f in agent-sessions.json vault-notes.json agent-baseline.json fim.json limbo-offset package-audit.json kernel-audit.json hardening.json; do
   sudo test -e /var/lib/heimdall/$f && sudo install -o heimdall -g heimdall -m 0600 /var/lib/heimdall/$f /var/lib/heimdall-rs/$f
 done
 # (fim.json and limbo-offset: only if /etc/heimdall/config.json names them there; check fim_state_path, limbo_state_path)

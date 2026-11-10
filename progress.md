@@ -19,7 +19,7 @@ closed rather than deleting it -- the history of *why* is worth keeping.
 
 ---
 
-## 2026-11-10 — The Rust port: step 1 DONE, step 2 DONE except the audits, shadow mode prepared
+## 2026-11-10 — The Rust port: steps 1 and 2 DONE, step 3 begun (the correlator); the shadow week runs
 
 **My ask:** port the always-on daemon to Rust, phase 1 of the plan, keeping the phase-0 design; proof by shared fixtures,
 a differential run and the Go state files. Plan and numbers: `docs/RUST_PORT.md`.
@@ -36,16 +36,23 @@ a differential run and the Go state files. Plan and numbers: `docs/RUST_PORT.md`
 | Shadow mode prepared (unit, config and compare scripts, steps) | done, not started | `docs/RUST_SHADOW.md`; guard test (refuses Go state paths) |
 | Step 2b: /proc/net (ports, connections + mapped IP databases + threat lists + remote access by name and Go build info, listeners), journal follower, Wi-Fi results and router, device list, remote-access packages/tunnels | done | network-mode harness (unshare -rn, 40 MB made-up IP databases): 74/74 alerts identical with activity; origins of 316 addresses equal to Go's; fuzz targets mmdb, journal_line |
 | Look-alike letters (ſ, Kelvin sign) no longer hide a word, Go and Rust (owner approved) | done | committed corpus: 4 gained, 1 lost (its ASCII twin never matched), 117 findings on 126 new texts; 0 differences Go/Rust on 2,046 and 77,159 texts |
-| Step 2c: the 6-hourly package, kernel and hardening audits behind game time | open | |
-| Step 3: API, responder, correlate, governance, grants; step 4: mesh, trust | open | |
+| Shadow fix: Wi-Fi/LAN offsets in the shadow's own folder, a lasting problem logged once an hour (`bb02695`) | done | read-only results folder test; shadow offsets from Go's |
+| Step 2c: the 6-hourly package, kernel and hardening audits on their own thread, behind game time; Go's state files | done | audits.json: 3,030 vercmp pairs, 2,599 CVSS vectors, 70 scenarios / 212 steps / 906 events and state files byte for byte; 9 game-time answers; pacman's vercmp as oracle; 3 fuzz targets, 2 Kani harnesses; side by side with audits on: alerts identical (see RUST_PORT.md) |
+| Step 3: the correlator (in the shadow daemon; `incident` now compared) | done | correlate.json: 25 sequences, 2,074 alerts, 337 incident alerts and the /v1/incidents bodies byte for byte |
+| Step 3: governance, the API (own thread, loopback HTTP/1.1, callers from /proc/net/tcp; /healthz, /v1/alerts, /v1/review, /v1/incidents, /v1/requests), grants (file requests, read decisions) | done, not wired (shadow serves no API) | api.json: 64 requests through the Go server, statuses and bodies equal; real-socket caller test; fuzz target http_request |
+| Step 3: /v1/audit, /v1/lan/devices, /v1/quarantine, /v1/rules/drafts; the API in a non-shadow `run`; the Limbo responder; step 4: mesh, trust | open | |
 
-- **Resume:** step 2c, the audits: `internal/pkgaudit` (pkgaudit.go + vercmp.go, Arch's security tracker against pacman's
-  database), `internal/kernelaudit` (kernelaudit.go + watch.go), `internal/hardening`, each every
-  `package_audit_interval_hours` and each waiting while `internal/gametime` (`/usr/bin/yggdrasil-gametime status`, exit 0 =
-  a game runs; ask again every 5 minutes) says a game runs; run them on a thread of their own (they can take a while) and
-  hand the events to the loop through a pipe it polls. Their state files (`package-audit.json`, `kernel-audit.json`,
-  `hardening.json`) are Go's. Then remove the "not ported yet" line in `daemon.rs` and add their detectors to
-  `rust/parity/shadow-compare.py`'s COMPARED set. The shadow week can start before that (the comparison leaves the audits out).
+- **Resume:** step 3, the rest. (1) The four remaining endpoints in `src/api.rs` (each a case in
+  `internal/parity/api.go` first): /v1/audit (`cmd/heimdalld/audit.go`: packages, kernels, hardening now, from
+  `src/audit/`), /v1/lan/devices (`internal/lan` Load of `devices.json`), /v1/quarantine (immunity's index), /v1/rules/drafts
+  (`internal/immunity` Rules.Load/Draft; POST only for a held sample). (2) Wire the API into `daemon.rs` for a non-shadow
+  `run`: add `Msg::Alert(Alert)` and a channel+pipe source like `audit::AuditSource` so `Api.alerts` reaches
+  `eng.write_alert` on the loop; `api::serve(&cfg.api_addr, Api{ring, incidents, reviewer, grants:
+  Store{requests: cfg.grant_requests_path, decisions: grants::DEFAULT_DECISIONS}, access: Access::new(cfg.api_users,
+  cfg.api_groups)})`; keep shadow mode without an API. (3) `internal/response` (responder: queue by severity, one per guest,
+  Limbo client over control.sock with `GET /v1/guests/{name}`, the Sarina advisor with `tool_allowlist: []` and the
+  tool-count check) on top of `src/quarantine.rs`; never in shadow mode; fixtures from `internal/response`'s tests with a
+  fake Limbo socket. (4) Step 4: mesh (mutual TLS 1.3, rustls; ed25519 keys), trust.
 
 ## 2026-11-09 — Running light, phase 0 of the Rust port (DONE in code; install is mine)
 

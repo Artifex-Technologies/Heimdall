@@ -259,6 +259,23 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-11-10 (4) — Rust port: the shadow daemon's read-only error fixed; step 2c (the audits); step 3: correlator, API, grants
+- Shadow fix (`bb02695`): the Wi-Fi results and device-list sources kept their offsets next to the results, in the Go
+  daemon's folder, which the shadow unit makes read-only ("read-only file system" every few seconds). The shadow daemon now
+  keeps them beside its own alert log, starting from the Go daemon's; any lasting problem is logged once an hour.
+- Step 2c: the package, kernel and hardening audits in Rust, on a second thread, waiting while a game runs (the game-time
+  contract with Yggdrasil is unchanged: same tool, same exit codes, same first line), with Go's state files. Step 3: the
+  correlator (incident alerts) runs in the shadow daemon; governance, the API with its caller check (/healthz, /v1/alerts,
+  /v1/review, /v1/incidents, /v1/requests) and grants are ported and proved against the Go server, not yet served (the
+  shadow daemon serves no API). **For API clients (Sarina, Settings, Labyrinth's checks):** nothing changes; the Go daemon
+  serves the API until the switch, and the Rust one answers the same bodies.
+- **For Yggdrasil:** nothing to change; `yggdrasil-gametime status` is asked by both daemons during the shadow week (at
+  most once per audit round each). **For readers of the alert log:** nothing changes; the shadow daemon writes its own log.
+- Shadow week changes (owner): `shadow-compare.py` now compares `package-vulnerability`, `kernel-vulnerability`,
+  `hardening` and `incident` (audits within 7 hours of the window's ends are edge alerts); step 3 of `docs/RUST_SHADOW.md`
+  also copies `package-audit.json`, `kernel-audit.json`, `hardening.json`.
+— Signed: Heimdall / Claude Opus 5.5
+
 ### 2026-11-10 (3) — A findings change I approved: look-alike letters no longer hide a word; Rust step 2b
 - **Findings change (approved by me, "Yes! Definitely yes."), Go and Rust in the same commit.** The case-insensitive text
   patterns (injection-phrase, credential-shape) run on a copy of the text with the long s (U+017F) and the Kelvin sign

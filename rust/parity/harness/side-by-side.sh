@@ -6,6 +6,7 @@
 #     MODE steady: nothing happens; activity: the planted events of loadgen.py.
 #     --network: the /proc/net watchers too, inside a network namespace of its own (run the script under `unshare -rn`;
 #     made-up addresses only), with 40 MB of made-up IP databases.
+#   AUDITS=1: the 6-hourly audits too (made-up tracker, pacman database and kernel list; see setup-env.py).
 #   GO_BIN, RS_BIN: the two daemons (default: built from this checkout). WARM, WINDOW: seconds (45, 240).
 # Measured over WINDOW after WARM: CPU (own + children), context switches of all threads, PSS, RSS.
 set -u
@@ -25,7 +26,7 @@ GO_BIN=${GO_BIN:-$out/heimdalld}
 RS_BIN=${RS_BIN:-$root/rust/target/release/heimdalld-rs}
 [ -x "$GO_BIN" ] || (cd "$root" && nice -n 15 go build -o "$GO_BIN" ./cmd/heimdalld)
 [ -x "$RS_BIN" ] || "$root/rust/scripts/nicecargo.sh" build --release --offline --quiet
-python3 -I "$here/setup-env.py" "$env" $net >/dev/null
+python3 -I "$here/setup-env.py" "$env" $net ${AUDITS:+--audits} >/dev/null
 if [ -n "$net" ]; then # 40 MB of made-up IP databases, as in phase 0 (mapped, not read into the heap)
 	mkdir -p "$env/ipdb"
 	(cd "$here/genmmdb" && nice -n 15 go run . country "$env/ipdb/dbip-country-lite.mmdb" 20 && nice -n 15 go run . asn "$env/ipdb/dbip-asn-lite.mmdb" 20) >/dev/null
@@ -58,6 +59,7 @@ hz=$(getconf CLK_TCK)
 		awk -v name=$1 -v a=$((a - ${A0[$2]})) -v b=$((b - ${B0[$2]})) -v n=$((n - ${N0[$2]})) -v w=$((w - ${W0[$2]})) -v hz=$hz -v win=${WINDOW:-240} 'BEGIN {
       printf "%s: CPU %.3f %% of a core (threads %.1f ms; children %d ticks), %d context switches = %.2f/s\n", name, (a + b) / hz / win * 100, n / 1e6, b, w, w / win }'
 		grep -E '^(Pss|Pss_Anon|Pss_File):' /proc/$2/smaps_rollup | awk -v name=$1 '{printf "%s %s %s kB  ", name, $1, $2} END{print ""}'
+		echo "$1 since start: CPU $(awk "{print \$14+\$15}" /proc/$2/stat) ticks"
 		grep -E '^(VmRSS|RssAnon|RssFile|VmHWM|Threads):' /proc/$2/status | tr -s ' \t' ' ' | tr '\n' ' ' | sed "s/^/$1 /"
 		echo
 	done
@@ -65,5 +67,4 @@ hz=$(getconf CLK_TCK)
 kill $pg $pr $lg 2>/dev/null
 wait $pg $pr 2>/dev/null
 cat "$out/results.txt"
-# incidents come from the correlator, not ported yet (step 3)
-python3 -I "$here/../compare-alerts.py" "$env/go/alerts.jsonl" "$env/rust/alerts.jsonl" --ignore-detector incident
+python3 -I "$here/../compare-alerts.py" "$env/go/alerts.jsonl" "$env/rust/alerts.jsonl"

@@ -1,18 +1,21 @@
 """The synthetic environment for a side-by-side run of two heimdalld daemons (made-up data only). A cleaned copy of the
 phase-0 harness (docs/ARCHITECTURE.md "Running light"), for the Go daemon and its Rust port.
 
-    python3 -I setup-env.py ENV_DIR [--network]
+    python3 -I setup-env.py ENV_DIR [--network] [--audits]
 
 ENV_DIR/sessions: 6,629 session files plus 482 lock files and an agent/ folder with 12 sessions (as on the owner's PC: the
 count, not the content); fim/: 25 files of 8000 bytes; limbo/events.jsonl; vault/ with three notes; go/ and rust/: each
 daemon's own config and state. The host's own load and memory are not synthetic, so their alerts are switched off in both.
 Without --network the /proc/net watchers are off in both; with it they are on, as in phase 0 (run inside `unshare -rn`,
-see side-by-side.sh). The journal and the 6-hourly audits are off in both either way.
+see side-by-side.sh). The journal is off in both. With --audits the 6-hourly audits run (at each daemon's start): a made-up
+pacman database of 1,500 packages and a made-up security tracker of 6,000 advisories, a made-up kernel list of 9,000 CVEs
+against the kernels in /usr/lib/modules, and the hardening checks of this computer's settings (both daemons read the same).
 """
-import json, os, shutil, sys
+import json, os, random, shutil, sys
 
 env = sys.argv[1]
 network = "--network" in sys.argv
+audits = "--audits" in sys.argv
 if os.path.exists(env):
     shutil.rmtree(env)
 S = os.path.join(env, "sessions")
@@ -38,6 +41,55 @@ os.makedirs(os.path.join(env, "vault", "notes"))
 for i in range(3):
     with open(os.path.join(env, "vault", "notes", "n%d.md" % i), "w") as f:
         f.write("# Note %d\n\nShopping list and plans for the weekend.\n" % i)
+
+if audits:
+    rng = random.Random(5)
+    db = os.path.join(env, "pacman", "local")
+    vers = {}
+    for i in range(1500):
+        name = "pkg%04d" % i
+        v = "%d.%d.%d-%d" % (rng.randint(0, 9), rng.randint(0, 30), rng.randint(0, 99), rng.randint(1, 3))
+        if rng.random() < 0.1:
+            v += ".1"
+        vers[name] = v
+        d = os.path.join(db, name + "-" + v)
+        os.makedirs(d)
+        with open(os.path.join(d, "desc"), "w") as f:
+            f.write("%%NAME%%\n%s\n\n%%VERSION%%\n%s\n\n%%BASE%%\n%s\n\n%%DESC%%\nmade up\n\n" % (name, v, name if i % 7 else "base%03d" % (i // 7)))
+    groups = []
+    for i in range(6000):
+        # about 1 in 200 advisories names an installed package (dozens of findings, as on a real computer a while unupdated)
+        pk = ["pkg%04d" % rng.randrange(1500) if rng.random() < 0.005 else "gone%04d" % rng.randrange(9999) for _ in range(rng.randint(1, 3))]
+        g = {"name": "AVG-%d" % i, "packages": pk, "status": rng.choice(["Fixed", "Fixed", "Fixed", "Vulnerable", "Not affected", "Unknown"]),
+             "severity": rng.choice(["Critical", "High", "Medium", "Low", "Unknown"]), "type": "arbitrary code execution",
+             "affected": "", "fixed": "", "issues": ["CVE-2026-%05d" % rng.randrange(99999) for _ in range(rng.randint(1, 4))], "advisories": []}
+        base = vers.get(pk[0], "1.0.0-1")
+        if g["status"] == "Vulnerable" and rng.random() < 0.5:
+            g["affected"] = base
+        else:
+            g["fixed"] = "%d.%d.%d-%d" % (rng.randint(0, 9), rng.randint(0, 30), rng.randint(0, 99), rng.randint(1, 3))
+        groups.append(g)
+    with open(os.path.join(env, "arch-security.json"), "w") as f:
+        json.dump(groups, f)
+    vulns = []
+    for i in range(9000):
+        ranges = []
+        for _ in range(rng.randint(1, 6)):
+            maj = rng.choice([5, 6, 6, 6, 7, 7])
+            mi = rng.randint(0, 19)
+            r = {"introduced": "%d.%d.0" % (maj, mi)}
+            if rng.random() < 0.85:
+                r["fixed"] = "%d.%d.%d" % (maj, mi + rng.randint(0, 1), rng.randint(1, 120))
+            ranges.append(r)
+        v = {"id": "CVE-2026-%05d" % i, "summary": "made-up kernel bug %d in a driver nobody has" % i, "ranges": ranges}
+        if rng.random() < 0.7:
+            v["score"] = round(rng.uniform(2, 9.8), 1)
+            v["vector"] = "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H"
+        if rng.random() < 0.01:
+            v["exploited"] = True
+        vulns.append(v)
+    with open(os.path.join(env, "linux-kernel.json"), "w") as f:
+        json.dump({"generated": "2026-11-09T00:00:00Z", "source": "made up", "vulns": vulns}, f)
 
 for name in ("go", "rust"):
     d = os.path.join(env, name)
@@ -66,12 +118,13 @@ for name in ("go", "rust"):
         "app_network_policy": os.path.join(d, "no-policy.json"),
         "ip_databases": [os.path.join(env, "ipdb", "dbip-country-lite.mmdb"), os.path.join(env, "ipdb", "dbip-asn-lite.mmdb")],
         "threat_list_dir": os.path.join(d, "intel"),
-        # the audits are off in both until the port has them (the Go daemon's hardening check reads this computer's settings)
-        "security_tracker": "",
+        # the audits only with --audits (the hardening checks read this computer's settings)
+        "security_tracker": os.path.join(env, "arch-security.json") if audits else "",
+        "pacman_db": os.path.join(env, "pacman", "local") if audits else "/var/lib/pacman/local",
         "package_audit_state_path": os.path.join(d, "pkg.json"),
-        "kernel_vulns": "",
+        "kernel_vulns": os.path.join(env, "linux-kernel.json") if audits else "",
         "kernel_audit_state_path": os.path.join(d, "kern.json"),
-        "hardening_state_path": "",
+        "hardening_state_path": os.path.join(d, "hardening.json") if audits else "",
         "wifi_results": os.path.join(d, "wifi", "results.jsonl") if network else "",
         "lan_dir": os.path.join(d, "lan") if network else "",
         "listen_watch": network,

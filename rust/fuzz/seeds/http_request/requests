@@ -1,0 +1,5 @@
+POST /v1/requests HTTP/1.1
+Host: [::1]:8930
+Content-Length: 40
+
+{"kind":"access_tier","detail":"2","x":1}

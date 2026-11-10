@@ -235,6 +235,21 @@ pub fn parse_float(s: &str) -> Option<f64> {
     Some(v)
 }
 
+/// Go's `strings.ToLower`: each character by its simple lowercase mapping. Rust's `str::to_lowercase` differs in two places:
+/// it writes the dotted capital I (U+0130) as two characters where Go writes `i`, and it writes a word-final capital sigma as
+/// final sigma where Go writes σ.
+pub fn to_lower(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        let mut l = c.to_lowercase();
+        match (l.next(), l.next()) {
+            (Some(one), None) => out.push(one),
+            _ => out.push('i'), // U+0130, the only character whose lowercase is longer than one
+        }
+    }
+    out
+}
+
 /// Go's `strconv.Atoi`: decimal, optional sign, no spaces, within int64.
 pub fn atoi(s: &str) -> Option<i64> {
     let t = s.strip_prefix(['+', '-']).unwrap_or(s);

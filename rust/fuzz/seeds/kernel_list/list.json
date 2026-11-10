@@ -1,0 +1,1 @@
+{"generated": "2026-11-01T00:00:00Z", "source": "made up", "vulns": [{"id": "CVE-2026-53359", "summary": "Januscape", "score": 8.8, "ranges": [{"introduced": "6.13.0", "fixed": "6.18.38"}, {"introduced": "6.19.0", "fixed": "7.1.3"}], "exploited": true}, {"id": "CVE-open", "ranges": [{"introduced": "0"}]}]}

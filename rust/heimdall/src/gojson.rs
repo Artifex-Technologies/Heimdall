@@ -47,7 +47,8 @@ const MAX_DEPTH: usize = 10_000;
 pub fn parse(b: &[u8]) -> Result<Value, Error> {
     let mut p = Parser { b, i: 0, depth: 0 };
     p.ws();
-    let v = p.value()?;
+    // a document cut short is Go's "unexpected end of JSON input", whatever was being read
+    let v = p.value().map_err(|e| if p.i >= b.len() { Error("unexpected end of JSON input".into()) } else { e })?;
     p.ws();
     if p.i != b.len() {
         return err(format!("invalid character {} after top-level value", p.describe()));
@@ -59,7 +60,12 @@ pub fn parse(b: &[u8]) -> Result<Value, Error> {
 pub fn parse_first(b: &[u8]) -> Result<Value, Error> {
     let mut p = Parser { b, i: 0, depth: 0 };
     p.ws();
-    p.value()
+    // the decoder reads a stream: one cut short is Go's io.ErrUnexpectedEOF (an empty one io.EOF)
+    p.value().map_err(|e| match p.i >= b.len() {
+        true if b.iter().all(u8::is_ascii_whitespace) => Error("EOF".into()),
+        true => Error("unexpected EOF".into()),
+        false => e,
+    })
 }
 
 struct Parser<'a> {
@@ -610,6 +616,49 @@ pub fn write_value(out: &mut String, v: &Value) {
             out.push('}');
         }
     }
+}
+
+/// Go's `json.MarshalIndent(v, "", indent)` layout: one member or element per line, `": "` after a key, empty arrays and
+/// objects as `[]` and `{}`.
+pub fn write_indented(out: &mut String, v: &Value, indent: &str) {
+    fn go(out: &mut String, v: &Value, indent: &str, depth: usize) {
+        let nl = |out: &mut String, d: usize| {
+            out.push('\n');
+            for _ in 0..d {
+                out.push_str(indent);
+            }
+        };
+        match v {
+            Value::Array(items) if !items.is_empty() => {
+                out.push('[');
+                for (i, it) in items.iter().enumerate() {
+                    if i > 0 {
+                        out.push(',');
+                    }
+                    nl(out, depth + 1);
+                    go(out, it, indent, depth + 1);
+                }
+                nl(out, depth);
+                out.push(']');
+            }
+            Value::Object(m) if !m.is_empty() => {
+                out.push('{');
+                for (i, (k, it)) in m.iter().enumerate() {
+                    if i > 0 {
+                        out.push(',');
+                    }
+                    nl(out, depth + 1);
+                    write_str(out, k);
+                    out.push_str(": ");
+                    go(out, it, indent, depth + 1);
+                }
+                nl(out, depth);
+                out.push('}');
+            }
+            other => write_value(out, other),
+        }
+    }
+    go(out, v, indent, 0)
 }
 
 /// Go's encoding of a float64 (`strconv.AppendFloat(f, 'f' or 'e', -1, 64)` with Go's cut-over at 1e21 and 1e-6).

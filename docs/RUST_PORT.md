@@ -15,8 +15,8 @@ contract.
 | Step | What | State |
 | --- | --- | --- |
 | 1 | detect, engine, alert, verify, explain, tool rules, maintenance, config, the agent-baseline state file | **done** (2026-11-10) |
-| 2 | the sources, event-driven, on one thread (`heimdalld-rs run --shadow`) | **done except the audits**: sessions (inotify + 10-minute look), vault (inotify), Limbo, FIM (+ pacman's database), telemetry, the maintenance window, /proc/net (ports, connections with the mapped IP databases, threat lists and remote-access recognition by name and Go build info, listeners), the journal (one `journalctl --follow`, the cursor file), the Wi-Fi results and router, the device list, remote-access packages and tunnels. Open: the 6-hourly package/kernel/hardening audits behind game time |
-| 3 | the API, the Limbo responder, correlate, governance, grants | the restrict-only rules are done and proved (`src/quarantine.rs`) |
+| 2 | the sources, event-driven, on one thread (`heimdalld-rs run --shadow`) | **done**: sessions (inotify + 10-minute look), vault (inotify), Limbo, FIM (+ pacman's database), telemetry, the maintenance window, /proc/net (ports, connections with the mapped IP databases, threat lists and remote-access recognition by name and Go build info, listeners), the journal (one `journalctl --follow`, the cursor file), the Wi-Fi results and router, the device list, remote-access packages and tunnels; the 6-hourly package, kernel and hardening audits on a thread of their own, behind game time (2c, 2026-11-10) |
+| 3 | the API, the Limbo responder, correlate, governance, grants | done: the correlator (`src/correlate.rs`, in the shadow daemon), governance (`src/governance.rs`), the API (`src/api.rs`: its own thread, plain HTTP/1.1 on loopback, callers from /proc/net/tcp; /healthz, /v1/alerts, /v1/review, /v1/incidents, /v1/requests), grants (`src/grants.rs`: requests filed, decisions read), the restrict-only rules (`src/quarantine.rs`). Open: the API's /v1/audit, /v1/lan/devices, /v1/quarantine, /v1/rules/drafts; the API wired into a non-shadow `run`; the Limbo responder |
 | 4 | mesh and trust | open |
 
 ## Layout
@@ -33,6 +33,10 @@ rust/
     src/pkgverify.rs          pacman's database (which package owns a file, its recorded SHA-256)
     src/ipintel.rs            the MaxMind DB reader over a read-only mapping, origins, threat lists
     src/remoteaccess.rs       the remote-access catalog (Go's file) and Go build-info reading
+    src/audit/                the 6-hourly audits: vercmp, pkg (Arch's tracker), kernel (the kernel CVE list), hardening,
+                              gametime (Yggdrasil's game time), and the thread that runs them (events to the loop by pipe)
+    src/correlate.rs          related alerts become incidents (a sink wrapper)
+    src/governance.rs, api.rs, grants.rs   POST /v1/review; the loopback API and its caller check; the grant requests
     src/fuzzing.rs            the fuzz targets' bodies
     tests/                    parity (the Go fixtures), regex_corpus, properties, fuzz_smoke
   fuzz/                       cargo-fuzz targets (nightly) and their seed corpus
@@ -136,13 +140,37 @@ and words.
   never loosens; a hold only rises; JSON strings round-trip; agreement with serde_json on valid documents; RFC 3339 round
   trips; Go's reading of bytes.
 - **Fuzzing** (`rust/fuzz`, cargo-fuzz, nightly): targets `json`, `config`, `rule_file`, `event_line`, `alert_line`, `text`,
-  `session_file`, `limbo_line`, `mmdb`, `journal_line`, each with a seed corpus. Their bodies (`src/fuzzing.rs`) also run in `tests/fuzz_smoke.rs` on stable (3,000 random and
+  `session_file`, `limbo_line`, `mmdb`, `journal_line`, `tracker`, `kernel_list`, `gametime`, `http_request`, each with a seed corpus. Their bodies (`src/fuzzing.rs`) also run in `tests/fuzz_smoke.rs` on stable (3,000 random and
   structured inputs per target, every seed and its prefixes), so they run on every `cargo test`.
 - **Origins and threat lists**: `functions.json` holds Go's answers for 316 addresses in two made-up 1 MB IP databases
   (`testdata/parity/synthetic-*.mmdb`, from the harness's `genmmdb`) and a threat list; the Rust reader agrees on all.
 - **Kani** (`src/quarantine.rs`, `#[cfg(kani)]`): `a_request_never_loosens`, `a_hold_only_rises`, `requests_are_restrict`.
   The same rules are tested exhaustively over every level and a spread of times without Kani. Kani is not installed on the
   build machine; run with `cargo kani -p heimdall`.
+- **The audits (step 2c)**: `testdata/parity/audits.json` (`internal/parity/audits.go`, the Go tests of pkgaudit, vercmp,
+  kernelaudit, hardening and gametime plus generated cases) runs in `tests/audits.rs`: 3,030 version pairs, 2,599 CVSS
+  vectors (every base-metric combination), 11 kernel versions; the three watchers over the same file trees step by step
+  (23 package scenarios / 72 steps / 597 events, 15 kernel / 45 / 100, 32 hardening / 95 / 209, with missing, broken and
+  odd files: CRLF, a 70,000-byte line, keys in other case, the dotted capital I, unreadable settings): every event and every
+  state file byte for byte, every error the same (and Go's "file missing, say nothing"); 9 game-time answers (exit codes,
+  control characters, a reason cut at 160 bytes inside a character, bad bytes). Properties (`tests/audit_properties.rs`):
+  vercmp is antisymmetric and agrees with **pacman's own `vercmp`** on 300 random pairs per run, kernel versions order
+  totally, a reported hole is always one a newer kernel fixes and never one fixed on the kernel's own line, a package is
+  reported only when installed and older than the fix. Fuzz targets `tracker`, `kernel_list`, `gametime`. Kani
+  (`src/audit/vercmp.rs`): `vercmp_is_antisymmetric`, `vercmp_answers_minus_one_zero_or_one` (versions up to 4 bytes); the
+  same claim exhaustively over every version of up to 3 characters from `01a.-:` without Kani.
+- **The correlator (step 3)**: `testdata/parity/correlate.json` (`internal/parity/correlate.go`: the 5 Go tests of
+  internal/correlate and 20 generated sequences, two of them past the caps of 200 incidents, 64 keys and 50 members) runs in
+  `tests/step3.rs`: 2,074 alerts written with a clock, every line passed on byte for byte (337 incident alerts) and the
+  body of GET /v1/incidents after each sequence.
+- **The API, governance and grants (step 3)**: `testdata/parity/api.json` (`internal/parity/api.go`: the Go tests of
+  internal/api, guard, access, review and grants, and more: 64 requests through the Go server) runs in `tests/step3.rs`,
+  each request as raw HTTP through the Rust reader: every status the same, every body byte for byte (request ids and times
+  the server makes up normalised) except where Go's JSON decoder error text is in it (there the first words), and the same
+  alerts raised. Go's "unexpected end of JSON input" / "unexpected EOF" for a cut document are now the port's too. A real
+  loopback socket: the test's own account is identified from /proc/net/tcp and let in, an unknown caller refused, a
+  non-loopback `api_addr` refused at bind. Fuzz target `http_request`: from an account that may not use the API, no bytes
+  get anything but /healthz answered with 200, and none raises an alert.
 
 ## Measured (2026-11-10)
 
@@ -186,6 +214,25 @@ listener):
 Idle CPU is even: most of it is the kernel producing /proc/net/tcp{,6} every 10 seconds, the same for both. (A first run
 had Rust at 0.046 %; reading /proc/net with ASCII splitting instead of the Unicode table brought it to Go's.)
 
+With the audits on in both (`AUDITS=1 side-by-side.sh activity`, 2026-11-10: a made-up pacman database of 1,500 packages,
+a security tracker of 6,000 advisories, a kernel list of 9,000 CVEs against this computer's kernels, the hardening checks
+of this computer's settings; each daemon's first round at its start; 240 s after a 75 s warm-up; the correlator on in
+both):
+
+| | Go | Rust |
+| --- | --- | --- |
+| CPU in the window | 0.013 % of a core (36.0 ms) | 0.008 % (20.6 ms) |
+| CPU since start (the audit round included) | 23 ticks | 13 ticks |
+| context switches | 2.83 a second | 0.26 a second |
+| PSS after the round | 26.6 MB | **6.5 MB** |
+| peak while the round reads the files (VmHWM) | 56.1 MB | 35.8 MB |
+| threads | 21 | 2 (the loop, the audits) |
+| alerts | 34 | 34, identical once the time is dropped (21 package, 2 kernel, 3 hardening, 1 incident, 7 others) |
+
+Found on the way: with one glibc arena for both threads (`M_ARENA_MAX=1`), the session folder's first look and the audit
+round fragmented the same heap and 16.6 MB stayed; the audit thread keeps its own arena and hands it back with
+`malloc_trim` after each round (6.3 MB measured alone).
+
 ## Differences from Go, on purpose
 
 - A detector that panics on some input loses that event (logged), not the daemon (`engine.rs`). In Go a panic in a detector
@@ -195,8 +242,24 @@ had Rust at 0.046 %; reading /proc/net with ASCII splitting instead of the Unico
 - A damaged `agent-baseline.json` (one that is valid JSON but holds a bad value) is read as far as Go would read it in most
   cases; where Go stops at the damage and keeps what came before, the port keeps the other entries. A file that is not JSON
   is a fresh start in both.
+- The audits run on one thread one after the other (Go: three goroutines at once), so while a game runs one "waits until
+  the game is over" line is logged, not three. Their events are the same.
+- Go sorts package findings and an incident's merged members with `sort.Slice`, which is not stable: past 12 entries,
+  equal ones (one package in two advisories of the same severity; two alerts of the same nanosecond) may come in another
+  order. The port sorts stably. The findings are the same; only the order of equals may differ.
+- A pacman database entry or a kernel folder whose name is not UTF-8: Go keeps the bytes in the "already reported" key, but
+  its JSON writer turns them into U+FFFD, so Go reports that finding again on every round; the port keys it by what was
+  written and reports it once. An empty state path writes no state (Go writes a stray `.tmp` in its working folder).
+- The API answers one request per connection (`Connection: close`) and wants a `Content-Length` body (a chunked one is
+  refused with 411); Go's server keeps connections open and reads chunked bodies. Heimdall's clients (Sarina's Go client,
+  Python's urllib, Settings) send a length and open a connection per request. Alerts the API raises reach the outputs a
+  moment later, through the daemon's loop (Go writes them before answering).
 
 ## Findings on the way (not changed)
+
+- Go's `pkgaudit.Vercmp` (and so the port) differs from pacman on an empty release: "1-" against "1-0" is 0 for Go and -1
+  for pacman, which compares "" with "0". Found by the oracle property; pacman never writes a version ending in "-", so it
+  changes nothing in practice.
 
 - `internal/detect/detect_test.go`, `TestUnicodeDetectorSeesEscapedCharactersInsideToolResults`: its texts hold the
   characters themselves, not the `\uXXXX` escapes its comment describes, so the escape path is not tested there. The

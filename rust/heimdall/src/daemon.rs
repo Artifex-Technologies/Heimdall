@@ -1,7 +1,8 @@
-//! `heimdalld-rs run --shadow`: the daemon on one thread. Every source, the engine and the alert writers share one loop that
-//! sleeps in poll(2) until a source's descriptor is readable, a source's time comes, or SIGTERM/SIGINT arrives (a signalfd).
+//! `heimdalld-rs run --shadow`: the daemon on one thread (and one more for the 6-hourly audits, `audit`). Every source, the
+//! engine, the correlator and the alert writers share one loop that sleeps in poll(2) until a source's descriptor is
+//! readable, a source's time comes, or SIGTERM/SIGINT arrives (a signalfd).
 //!
-//! Shadow mode (the only mode until the responder, the API, the correlator, mesh and trust are ported): the real sources,
+//! Shadow mode (the only mode until the responder, the API, mesh and trust are ported): the real sources,
 //! its own alert log and state files, no responses of any kind (no Limbo hold, no containment request, no copy of a held
 //! file, nothing sent to a mesh peer, no API). It refuses to start with any state or log path in the Go daemon's folder,
 //! so the two never write the same file. docs/RUST_SHADOW.md.
@@ -120,7 +121,7 @@ impl std::io::Write for Stdout {
 /// Runs the daemon until SIGTERM or SIGINT. Exit code as the Go daemon's.
 pub fn run(cfg: Config, shadow: bool) -> i32 {
     if !shadow {
-        log("only shadow mode for now (the Limbo responder, the API, the correlator, mesh and trust are not ported yet): run --shadow");
+        log("only shadow mode for now (the Limbo responder, the API, mesh and trust are not ported yet): run --shadow");
         return 2;
     }
     if let Err(bad) = check_shadow(&cfg) {
@@ -169,7 +170,10 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
         approved: Some(Box::new(move |id: &str| approvals.approved(id))),
         ephemeral: None,
     };
-    let mut eng = Engine::new(Box::new(MultiSink { sinks }), detect::daemon_detectors(&cfg, deps));
+    // every alert passes the correlator on its way to the outputs: related alerts become one incident alert (Go: correlate)
+    let corr = crate::correlate::Correlator::new(Box::new(MultiSink { sinks }));
+    let incidents = corr.state.clone();
+    let mut eng = Engine::new(Box::new(corr), detect::daemon_detectors(&cfg, deps));
     eng.set_maintenance(maintenance::Watcher::new(&cfg.maintenance_path), &cfg.maintenance_soften);
     if toolrules::enabled() {
         match toolrules::builtin() {
@@ -291,8 +295,36 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
         }
         srcs.push(Box::new(j));
     }
-    if !cfg.security_tracker.is_empty() || !cfg.kernel_vulns.is_empty() || !cfg.hardening_state_path.is_empty() {
-        log("not ported yet, so not run here (the Go daemon still does): the package, kernel and hardening audits");
+    // the long audits, on a thread of their own; they wait while a game runs (Yggdrasil's game time), watching never does
+    let every = Duration::from_secs(3600 * cfg.package_audit_interval_hours.max(1) as u64);
+    let audits = crate::audit::Audits {
+        packages: (!cfg.security_tracker.is_empty()).then(|| crate::audit::pkg::Watcher {
+            tracker_path: cfg.security_tracker.clone(),
+            pacman_db: cfg.pacman_db.clone(),
+            state_path: cfg.package_audit_state_path.clone(),
+        }),
+        kernel: (!cfg.kernel_vulns.is_empty()).then(|| crate::audit::kernel::Watcher {
+            list_path: cfg.kernel_vulns.clone(),
+            modules_dir: "/usr/lib/modules".into(),
+            state_path: cfg.kernel_audit_state_path.clone(),
+            running: String::new(),
+        }),
+        hardening: (!cfg.hardening_state_path.is_empty()).then(|| crate::audit::hardening::Watcher {
+            sys: crate::audit::hardening::System { root: String::new() },
+            state_path: cfg.hardening_state_path.clone(),
+        }),
+        every,
+        // the harness's made-up game-time tool
+        gate: crate::audit::gametime::Gate { path: std::env::var("HEIMDALL_GAMETIME").unwrap_or_default(), retry: Duration::ZERO },
+    };
+    if audits.packages.is_some() {
+        log(&format!("matching installed packages against the security tracker (every {})", crate::gotext::duration(every.as_nanos() as i64)));
+    }
+    if !audits.is_empty() {
+        match crate::audit::AuditSource::start(audits) {
+            Ok(a) => srcs.push(Box::new(a)),
+            Err(e) => log(&format!("the audits could not start: {e}")),
+        }
     }
 
     let session_dir = cfg.agent_session_dir.clone();
@@ -390,7 +422,7 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
         s.stop(&mut out);
         dispatch(&mut eng, out);
     }
-    drop(ring);
+    drop((ring, incidents)); // for the API
     0
 }
 

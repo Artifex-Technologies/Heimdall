@@ -223,7 +223,8 @@ fn the_go_fixtures_give_the_same_alerts() {
     let (mut steps, mut alerts, mut failures) = (0, 0, Vec::new());
     for path in files {
         let name = path.file_name().unwrap().to_string_lossy().to_string();
-        if name == "functions.json" || !name.ends_with(".json") {
+        // functions, the audits, the correlator and the API have their own formats and tests (audits.rs, step3.rs)
+        if matches!(name.as_str(), "functions.json" | "audits.json" | "correlate.json" | "api.json") || !name.ends_with(".json") {
             continue;
         }
         let doc = gojson::parse(&std::fs::read(&path).unwrap()).unwrap();

@@ -5,7 +5,10 @@
 //! taking no responses).
 
 pub mod alert;
+pub mod api;
+pub mod audit;
 pub mod config;
+pub mod correlate;
 pub mod daemon;
 pub mod detect;
 pub mod engine;
@@ -16,6 +19,8 @@ pub mod gojson;
 pub mod gonet;
 pub mod gotext;
 pub mod gotime;
+pub mod governance;
+pub mod grants;
 pub mod ipintel;
 pub mod maintenance;
 pub mod pkgverify;

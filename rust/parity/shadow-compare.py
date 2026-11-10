@@ -1,9 +1,10 @@
 """Compares a week of the Go daemon's alerts with the shadow daemon's (docs/RUST_SHADOW.md).
 
-    python3 -I shadow-compare.py GO_ALERTS RS_ALERTS [--since RFC3339] [--until RFC3339]
+    python3 -I shadow-compare.py GO_ALERTS RS_ALERTS [--since RFC3339] [--until RFC3339] [--audit-edge-hours 7]
 
 Only alerts raised in the window and by detectors whose sources the Rust port has ported are compared (as multisets, time
-dropped; alerts within a minute of either end of the window may be on one side only and are listed apart). Detectors that
+dropped; alerts within a minute of either end of the window, or for the audits within --audit-edge-hours, may be on one side
+only and are listed apart). Detectors that
 learn from the host's own load are timing-dependent (each daemon samples /proc at its own moment) and are counted, not
 compared. Exit 0: no difference in the compared detectors.
 """
@@ -12,22 +13,32 @@ from datetime import datetime, timedelta
 
 COMPARED = {"injection-phrase", "credential-shape", "invisible-unicode", "permission-escalation", "session-burst", "file-integrity",
             "maintenance-window", "agent-baseline", "limbo-guest", "limbo-network", "limbo-exchange", "tool-rules",
-            "network-exposure", "connection-watch", "inbound", "lan-watch", "wifi-safety", "remote-access"}
+            "network-exposure", "connection-watch", "inbound", "lan-watch", "wifi-safety", "remote-access",
+            "package-vulnerability", "kernel-vulnerability", "hardening", "incident"}
 TIMING = {"resource-pressure", "baseline-drift"}
+# the 6-hourly audits run at each daemon's own start and every package_audit_interval_hours after it, so one daemon may report
+# a new finding up to that long before the other: near either end of the window their alerts count as edge alerts
+AUDITS = {"package-vulnerability", "kernel-vulnerability", "hardening"}
 
 args = sys.argv[1:]
 
 
-def opt(name):
+def opt_raw(name):
     if name in args:
         i = args.index(name)
         v = args[i + 1]
         del args[i:i + 2]
-        return datetime.fromisoformat(v.replace("Z", "+00:00"))
+        return v
     return None
 
 
+def opt(name):
+    v = opt_raw(name)
+    return datetime.fromisoformat(v.replace("Z", "+00:00")) if v else None
+
+
 since, until = opt("--since"), opt("--until")
+audit_edge = timedelta(hours=float(opt_raw("--audit-edge-hours") or 7))
 go_path, rs_path = args
 
 
@@ -49,7 +60,7 @@ def load(path):
             timing[d] += 1
             continue
         if d not in COMPARED:
-            # integration alerts about the session files are the sources' own; the rest (responder, correlator) is not ported
+            # integration alerts about the session files are the sources' own; the rest (the responder) is not ported
             if d == "integration" and a.get("fields", {}).get("error_code", "").startswith("agent_session_"):
                 pass
             else:
@@ -57,7 +68,8 @@ def load(path):
                 continue
         a.pop("time")
         key = json.dumps(a, sort_keys=True, ensure_ascii=False)
-        near = (since and t < since + timedelta(minutes=1)) or (until and t > until - timedelta(minutes=1))
+        margin = audit_edge if d in AUDITS else timedelta(minutes=1)
+        near = (since and t < since + margin) or (until and t > until - margin)
         (edge if near else keep)[key] += 1
     return keep, edge, timing, other
 

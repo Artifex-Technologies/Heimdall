@@ -594,5 +594,7 @@ leniency, Go's `%q`, Unicode tables generated from Go and Go's ASCII meaning of 
 tests are exported as fixtures both languages run (`internal/parity`, `testdata/parity`), and the regex and engine
 differentials compare the two on hundreds of thousands of inputs. The text detectors' patterns are a typed rule file there
 (`rust/heimdall/rules/text.json`), checked at load, kept equal to the patterns here by a Go test. Step 1 (detectors, engine,
-alerts, config) is done, and of step 2 the file sources on one thread (5.5 MB beside this daemon's 24 MB); the /proc/net and journal sources are next, then shadow mode beside this daemon (`docs/RUST_SHADOW.md`), then the API,
-responder, correlator and grants, then mesh and trust. Plan, decisions and numbers: `docs/RUST_PORT.md`.
+alerts, config) and step 2 (every source on one thread, the 6-hourly audits on a second, behind game time) are done, and of
+step 3 the correlator, governance, the API with its caller check and grants; the shadow week beside this daemon runs on my
+PC (`docs/RUST_SHADOW.md`). Next: the last API endpoints and the Limbo responder, then mesh and trust. Plan, decisions and
+numbers: `docs/RUST_PORT.md`.

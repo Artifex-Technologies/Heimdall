@@ -127,3 +127,74 @@ pub fn text(data: &[u8]) {
         assert_eq!(Time::parse_rfc3339(&t.rfc3339_nano()), Some(t));
     }
 }
+
+/// Arch's security tracker (all.json) and one pacman `desc` file: read as Go reads them, then matched; pacman's version
+/// comparison stays antisymmetric on whatever versions come out.
+pub fn tracker(data: &[u8]) {
+    use crate::audit::{pkg, vercmp};
+    let (name, ver, _) = pkg::parse_desc(data);
+    let mut inst = std::collections::BTreeMap::new();
+    if !name.is_empty() && !ver.is_empty() {
+        inst.insert(name.to_vec(), ver.to_vec());
+    }
+    if let Ok(groups) = gojson::unmarshal(data, Vec::<pkg::Group>::new()) {
+        for f in pkg::check(&groups, &inst) {
+            assert!(inst.contains_key(f.package.as_bytes()) || inst.contains_key(format!("base:{}", f.package).as_bytes()));
+        }
+    }
+    let half = data.len() / 2;
+    let (a, b) = (&data[..half], &data[half..]);
+    assert_eq!(vercmp::vercmp(a, b), -vercmp::vercmp(b, a), "antisymmetric");
+    assert_eq!(vercmp::vercmp(a, a), 0);
+}
+
+/// The kernel list (`heimdalld intel-check kernel`'s file): read, then checked against a few kernels.
+pub fn kernel_list(data: &[u8]) {
+    use crate::audit::kernel;
+    let _ = kernel::cvss3(&gotext::lossy(data));
+    if let Ok(f) = gojson::unmarshal(data, kernel::File::default()) {
+        for k in ["6.18.42-1-lts", "0", "", "7.3.0-4-cachyos"] {
+            let (holes, fix_all) = kernel::check(&f, k);
+            assert_eq!(holes.is_empty(), fix_all.is_empty());
+            for h in &holes {
+                assert!(kernel::compare(&kernel::version(k), &kernel::version(&h.fixed_in)) < 0, "a hole is fixed later");
+            }
+        }
+    }
+}
+
+/// The game-time tool's output: the reason is one short line.
+pub fn gametime(data: &[u8]) {
+    let r = crate::audit::gametime::reason(data);
+    assert!(r.len() <= 160 + 3 * 3 + 3, "{}", r.len());
+    assert!(!r.contains('\n'));
+}
+
+/// One HTTP request to the API from an account that may not use it: whatever the bytes, nothing but /healthz is ever
+/// answered with 200, and no alert is raised.
+pub fn http_request(data: &[u8]) {
+    use crate::api::{read_request, Access, Api};
+    use std::sync::{Arc, Mutex};
+    let Ok(r) = read_request(&mut &data[..]) else { return };
+    let mut access = Access::new(Vec::new(), Vec::new());
+    access.passwd = "/nonexistent".into();
+    let raised = Arc::new(Mutex::new(0usize));
+    let r2 = raised.clone();
+    let api = Api {
+        ring: Arc::new(Mutex::new(crate::alert::Ring::new(10))),
+        incidents: Arc::default(),
+        reviewer: Some(Mutex::new(Default::default())),
+        grants: None,
+        access: Some(access),
+        alerts: Box::new(move |_| *r2.lock().unwrap() += 1),
+    };
+    // an account that is neither root nor this process's (nor in the empty lists)
+    // SAFETY: getuid has no preconditions.
+    let other = unsafe { libc::getuid() }.wrapping_add(4242).max(1);
+    let resp = api.handle(&r, Ok(other));
+    if r.path != "/healthz" {
+        assert_ne!(resp.status, 200, "{} {}", r.method, r.path);
+    }
+    assert_eq!(*raised.lock().unwrap(), 0);
+    let _ = crate::api::query_get(&r.query, "n");
+}

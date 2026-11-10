@@ -1,0 +1,1 @@
+[{"name": "AVG-2909", "packages": ["php"], "status": "Fixed", "severity": "Critical", "fixed": "8.4.27-1", "issues": ["CVE-2026-109618"]}, {"name": "AVG-3", "packages": ["libfoo"], "status": "Vulnerable", "severity": "Medium", "affected": "1.0-1"}]

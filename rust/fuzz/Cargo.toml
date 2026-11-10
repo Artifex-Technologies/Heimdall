@@ -86,3 +86,31 @@ path = "fuzz_targets/journal_line.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "tracker"
+path = "fuzz_targets/tracker.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "kernel_list"
+path = "fuzz_targets/kernel_list.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "gametime"
+path = "fuzz_targets/gametime.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "http_request"
+path = "fuzz_targets/http_request.rs"
+test = false
+doc = false
+bench = false

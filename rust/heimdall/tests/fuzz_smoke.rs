@@ -17,6 +17,10 @@ const TARGETS: &[(&str, Target)] = &[
     ("limbo_line", fuzzing::limbo_line),
     ("mmdb", fuzzing::mmdb),
     ("journal_line", fuzzing::journal_line),
+    ("tracker", fuzzing::tracker),
+    ("kernel_list", fuzzing::kernel_list),
+    ("gametime", fuzzing::gametime),
+    ("http_request", fuzzing::http_request),
 ];
 
 #[test]
