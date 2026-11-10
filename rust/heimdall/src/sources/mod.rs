@@ -3,10 +3,13 @@
 //! pipe), and the loop sleeps in one poll(2) until the first of them. Nothing runs while nothing happens.
 
 pub mod agent;
+pub mod files;
 pub mod fim;
 pub mod inotify;
+pub mod journal;
 pub mod limbo;
 pub mod maintenance;
+pub mod net;
 pub mod telemetry;
 pub mod vault;
 

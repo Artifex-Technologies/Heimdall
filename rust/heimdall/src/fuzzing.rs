@@ -89,6 +89,30 @@ pub fn limbo_line(data: &[u8]) {
     }
 }
 
+/// A MaxMind DB file (heimdall-intel-update downloads them): opened, then looked up at addresses that walk the tree.
+pub fn mmdb(data: &[u8]) {
+    let Ok(db) = crate::ipintel::Db::from_bytes(data.to_vec()) else { return };
+    for ip in ["203.0.113.9", "1.2.3.4", "2001:db8::1", "::ffff:198.51.100.7", "255.255.255.254"] {
+        let _ = db.lookup(&ip.parse().expect("an address"));
+    }
+    if data.len() >= 4 {
+        let ip = std::net::IpAddr::from([data[0], data[1], data[2], data[3]]);
+        if let Ok(Some(m)) = db.lookup(&ip) {
+            let _ = crate::ipintel::Origin::from_record(&m).text();
+        }
+    }
+}
+
+/// One `journalctl -o json` line, as the firewall watch reads it.
+pub fn journal_line(data: &[u8]) {
+    let mut p = crate::sources::journal::Parser { origins: None, threats: None };
+    let (e, _) = p.entry(data);
+    if let Some(e) = e {
+        assert!(crate::gonet::parse_ip(e.f("src")).is_some());
+    }
+    let _ = crate::ipintel::parse_list("fuzz", data);
+}
+
 /// Text from outside: Go's reading of bytes, the text detectors' helpers and RFC 3339 times.
 pub fn text(data: &[u8]) {
     let s = gotext::lossy(data);

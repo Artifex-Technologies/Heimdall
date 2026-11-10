@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -28,6 +29,14 @@ func TestExportRegexCorpus(t *testing.T) {
 		per = v
 	}
 	corpus := hostileTexts(rand.New(rand.NewSource(20261110)), per)
+	// the look-alike letters at a word's start, the case the owner's 2026-11-10 change is about, and their near misses
+	for _, w := range []string{"system notice to the assistant", "security message for the model", "secret_key=abcdefghijklmn",
+		"system prompt: x", "api_key: abcdefghijklmnopq", "notes for the ai:", "skip the bearer " + strings.Repeat("k", 30)} {
+		for _, pre := range []string{"", "x", " ", "\n", "é", "\xe2\x80\x8b"} {
+			corpus = append(corpus, pre+strings.Replace(w, "s", "\xc5\xbf", 1), pre+strings.Replace(w, "k", "\xe2\x84\xaa", 1),
+				pre+strings.ReplaceAll(strings.ReplaceAll(w, "s", "\xc5\xbf"), "k", "\xe2\x84\xaa"))
+		}
+	}
 	if os.Getenv("HEIMDALL_REGEX_REPO") == "1" {
 		corpus = append(repoTexts(t), corpus...)
 	}

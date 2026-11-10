@@ -15,7 +15,7 @@ contract.
 | Step | What | State |
 | --- | --- | --- |
 | 1 | detect, engine, alert, verify, explain, tool rules, maintenance, config, the agent-baseline state file | **done** (2026-11-10) |
-| 2 | the sources, event-driven, on one thread (`heimdalld-rs run --shadow`) | **in progress**: sessions (inotify + 10-minute look), vault (inotify), Limbo, FIM (+ pacman's database), telemetry, the maintenance window done; /proc/net (ports, connections with the IP databases and threat lists, listeners), the journal, Wi-Fi, LAN, remote access and the audits next |
+| 2 | the sources, event-driven, on one thread (`heimdalld-rs run --shadow`) | **done except the audits**: sessions (inotify + 10-minute look), vault (inotify), Limbo, FIM (+ pacman's database), telemetry, the maintenance window, /proc/net (ports, connections with the mapped IP databases, threat lists and remote-access recognition by name and Go build info, listeners), the journal (one `journalctl --follow`, the cursor file), the Wi-Fi results and router, the device list, remote-access packages and tunnels. Open: the 6-hourly package/kernel/hardening audits behind game time |
 | 3 | the API, the Limbo responder, correlate, governance, grants | the restrict-only rules are done and proved (`src/quarantine.rs`) |
 | 4 | mesh and trust | open |
 
@@ -31,6 +31,8 @@ rust/
     src/quarantine.rs         the restrict-only rules, with Kani proofs
     src/daemon.rs, sources/   the one-thread loop (poll(2) on inotify, a signalfd and the sources' next times) and the sources
     src/pkgverify.rs          pacman's database (which package owns a file, its recorded SHA-256)
+    src/ipintel.rs            the MaxMind DB reader over a read-only mapping, origins, threat lists
+    src/remoteaccess.rs       the remote-access catalog (Go's file) and Go build-info reading
     src/fuzzing.rs            the fuzz targets' bodies
     tests/                    parity (the Go fixtures), regex_corpus, properties, fuzz_smoke
   fuzz/                       cargo-fuzz targets (nightly) and their seed corpus
@@ -85,8 +87,16 @@ Unicode spaces for `\s`, JSON escapes, invisible characters, cut UTF-8) and on t
   the repository's files and 400 hostile texts per pattern; 12,973 with a finding), injection summaries, credential
   decisions, invisible-character summaries, redactions and credential matches all compared
   (`rust/scripts/regex-differential.sh`).
-- The ſ/K gap is open in **both** daemons. The fix (fold those two letters in the text before the case-insensitive patterns
-  run, in Go and in Rust in the same commit) is a proposal, not done: it changes findings, so it is my decision.
+- **The ſ/K gap is closed in both daemons (I approved it, 2026-11-10).** The case-insensitive patterns run on a copy of the
+  text with the long s and the Kelvin sign written as s and k (the only two letters that fold onto ASCII ones); every
+  match, summary, credential match and redaction is cut from the original text through the kept offsets
+  (`internal/detect/lookalikes.go`, `lookalikes` in `rust/heimdall/src/detect/text.rs`). Effect on the committed corpus:
+  4 findings gained on the old texts and 1 lost, the lost one a word glued to the letter before it
+  (`...bearer\nſYSteM InſTRUction TO aSſiſtanT` inside JSON, where the `n` of `\n` touches the word), which its ASCII spelling
+  never matched either: a look-alike word now behaves exactly like its ASCII twin. 126 new texts (look-alikes at a word's
+  start, after a letter, a space, a newline, an accent, a zero-width space), 117 with a finding. Go and Rust agree on all of
+  them: 0 differences on the committed corpus (2,046 texts) and on the full run (77,159 texts; the repository walk now skips
+  `rust/target`).
 
 ### Typed rules
 
@@ -126,9 +136,10 @@ and words.
   never loosens; a hold only rises; JSON strings round-trip; agreement with serde_json on valid documents; RFC 3339 round
   trips; Go's reading of bytes.
 - **Fuzzing** (`rust/fuzz`, cargo-fuzz, nightly): targets `json`, `config`, `rule_file`, `event_line`, `alert_line`, `text`,
-  each with a seed corpus. Their bodies (`src/fuzzing.rs`) also run in `tests/fuzz_smoke.rs` on stable (3,000 random and
-  structured inputs per target, every seed and its prefixes), so they run on every `cargo test`. The session-file, MaxMind,
-  journal and Limbo-event readers get their targets with step 2, when they are ported.
+  `session_file`, `limbo_line`, `mmdb`, `journal_line`, each with a seed corpus. Their bodies (`src/fuzzing.rs`) also run in `tests/fuzz_smoke.rs` on stable (3,000 random and
+  structured inputs per target, every seed and its prefixes), so they run on every `cargo test`.
+- **Origins and threat lists**: `functions.json` holds Go's answers for 316 addresses in two made-up 1 MB IP databases
+  (`testdata/parity/synthetic-*.mmdb`, from the harness's `genmmdb`) and a threat list; the Rust reader agrees on all.
 - **Kani** (`src/quarantine.rs`, `#[cfg(kani)]`): `a_request_never_loosens`, `a_hold_only_rises`, `requests_are_restrict`.
   The same rules are tested exhaustively over every level and a spread of times without Kani. Kani is not installed on the
   build machine; run with `cargo kani -p heimdall`.
@@ -158,6 +169,23 @@ the loop spun (95 % of a core); and building the events of a first look at 6,629
 25 MB larger for good. The first look now records positions only, and freed heap is handed back (`malloc_trim`) after the
 start and at most once a minute.
 
+With the network watchers on in both (`side-by-side.sh --network` under `unshare -rn`, as phase 0: 20 connections held,
+40 MB of made-up IP databases; "activity" adds a connection every 7 s, an ecosystem port bound off loopback and a new
+listener):
+
+| | Go | Rust |
+| --- | --- | --- |
+| idle: CPU | 0.042 % of a core (101.6 ms) | 0.042 % (107.2 ms) |
+| idle: context switches | 2.09 a second | 0.41 a second |
+| idle: PSS | 24.0 MB | **6.1 MB** |
+| activity: CPU | 0.075 % (181.7 ms) | 0.067 % (152.7 ms) |
+| activity: context switches | 5.19 a second | 0.40 a second |
+| activity: PSS | 26.7 MB | **6.5 MB** |
+| activity: alerts | 74 | 74, identical once the time is dropped |
+
+Idle CPU is even: most of it is the kernel producing /proc/net/tcp{,6} every 10 seconds, the same for both. (A first run
+had Rust at 0.046 %; reading /proc/net with ASCII splitting instead of the Unicode table brought it to Go's.)
+
 ## Differences from Go, on purpose
 
 - A detector that panics on some input loses that event (logged), not the daemon (`engine.rs`). In Go a panic in a detector
@@ -173,7 +201,7 @@ start and at most once a minute.
 - `internal/detect/detect_test.go`, `TestUnicodeDetectorSeesEscapedCharactersInsideToolResults`: its texts hold the
   characters themselves, not the `\uXXXX` escapes its comment describes, so the escape path is not tested there. The
   fixtures test both forms.
-- The ſ/K word-boundary gap above.
+- The ſ/K word-boundary gap above (closed in both daemons since, with my approval).
 
 ## Running it
 

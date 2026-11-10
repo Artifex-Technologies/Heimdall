@@ -1,7 +1,10 @@
 package parity
 
 import (
+	"fmt"
+	"math/rand"
 	"net"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -9,6 +12,7 @@ import (
 	"github.com/Artifex-Technologies/Heimdall/internal/config"
 	"github.com/Artifex-Technologies/Heimdall/internal/detect"
 	"github.com/Artifex-Technologies/Heimdall/internal/explain"
+	"github.com/Artifex-Technologies/Heimdall/internal/ipintel"
 )
 
 // Functions is the fixture of single functions both languages must agree on (testdata/parity/functions.json): redaction,
@@ -23,6 +27,16 @@ type Functions struct {
 	Explain  []ExplainCase  `json:"explain"`
 	// DetectorOrder is the daemon's detector list, in order (cmd/heimdalld checks newDetectors against Detectors).
 	DetectorOrder []string `json:"detector_order"`
+	// Origins: lookups in the synthetic IP databases (testdata/parity/synthetic-*.mmdb, made by
+	// rust/parity/harness/genmmdb) and a threat list, as the connection watch and the journal name an address.
+	Origins []OriginCase `json:"origins"`
+}
+
+type OriginCase struct {
+	IP     string            `json:"ip"`
+	Text   string            `json:"text"`
+	Fields map[string]string `json:"fields"`
+	Listed bool              `json:"listed"`
 }
 
 type InOut struct {
@@ -61,6 +75,20 @@ type ExplainCase struct {
 // internal/explain/explain_test.go and more inputs).
 func AllFunctions() Functions {
 	f := Functions{Format: "heimdall-parity-functions/1"}
+	dir := filepath.Join("..", "..", "testdata", "parity")
+	res := ipintel.NewResolver(filepath.Join(dir, "synthetic-country.mmdb"), filepath.Join(dir, "synthetic-asn.mmdb"))
+	list, _ := ipintel.ParseList("drop", []byte("# made up\n203.0.113.0/25 ; x\n198.51.100.7\n10.0.0.0/8\n2001:db8::/32\n{\"cidr\":\"192.0.2.128/26\"}\n"))
+	rng := rand.New(rand.NewSource(7))
+	ips := []string{"203.0.113.9", "203.0.113.200", "198.51.100.7", "192.0.2.1", "192.0.2.130", "10.1.2.3", "127.0.0.1", "100.64.0.2",
+		"224.0.0.251", "255.255.255.255", "::1", "fe80::1", "2001:db8::5", "::ffff:203.0.113.9", "0.0.0.0", "ff05::1"}
+	for i := 0; i < 300; i++ {
+		ips = append(ips, fmt.Sprintf("%d.%d.%d.%d", 1+rng.Intn(222), rng.Intn(256), rng.Intn(256), rng.Intn(256)))
+	}
+	for _, s := range ips {
+		ip := net.ParseIP(s)
+		o := res.Lookup(ip)
+		f.Origins = append(f.Origins, OriginCase{IP: s, Text: o.String(), Fields: o.Fields("remote_"), Listed: list.Contains(ip)})
+	}
 	for _, d := range Detectors(config.Default(), Deps{}) {
 		f.DetectorOrder = append(f.DetectorOrder, d.ID())
 	}

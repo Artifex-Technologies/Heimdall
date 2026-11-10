@@ -31,15 +31,14 @@ impl Detector for InjectionDetector {
 
     fn inspect(&mut self, e: &Event) -> Vec<Finding> {
         let folded = rules::fold(&e.text);
+        let la = lookalikes(&e.text);
         for r in self.rules.of("injection-phrase") {
             if !r.may_match(&e.text, &folded) {
                 continue;
             }
-            if let Some(m) = r.re.find(&e.text) {
-                if m.as_str().is_empty() {
-                    continue; // Go's FindString: an empty match reads as no match
-                }
-                let summary = format!("text reads as an instruction override rather than task content (\"{}\")", m.as_str());
+            // Go's FindString: an empty match reads as no match
+            if let Some(&(a, z)) = spans(r, &e.text, &la, 1).first().filter(|(a, z)| z > a) {
+                let summary = format!("text reads as an instruction override rather than task content (\"{}\")", &e.text[a..z]);
                 return vec![Finding::new(self.id(), Severity::Critical, summary, e)];
             }
         }
@@ -71,8 +70,9 @@ impl Detector for CredentialDetector {
 
     fn inspect(&mut self, e: &Event) -> Vec<Finding> {
         let folded = rules::fold(&e.text);
+        let la = lookalikes(&e.text);
         for r in self.rules.of("credential-shape") {
-            if r.may_match(&e.text, &folded) && r.re.is_match(&e.text) {
+            if r.may_match(&e.text, &folded) && r.re.is_match(on(r, &e.text, &la)) {
                 return vec![Finding::new(self.id(), Severity::Critical, "text contains what looks like a credential or secret".into(), e)];
             }
         }
@@ -83,8 +83,9 @@ impl Detector for CredentialDetector {
 /// Every piece of text with a credential's shape, at most 20 per pattern (Go's FindAllString(text, 20)), for the verifier.
 pub fn credential_matches(text: &str) -> Vec<String> {
     let mut out = Vec::new();
+    let la = lookalikes(text);
     for r in rules::builtin().of("credential-shape") {
-        out.extend(r.re.find_iter(text).take(20).map(|m| m.as_str().to_owned()));
+        out.extend(spans(r, text, &la, 20).into_iter().map(|(a, z)| text[a..z].to_owned()));
     }
     out
 }
@@ -99,18 +100,75 @@ pub fn redact_credentials(text: &str) -> String {
         if !r.may_match(&text, &folded) {
             continue;
         }
-        let replaced = r.re.replace_all(&text, |c: &regex::Captures<'_>| {
-            let m = c.get(0).map_or("", |m| m.as_str());
-            format!("{}…[redacted]", gotext::byte_prefix(m, 4))
-        });
-        if let std::borrow::Cow::Owned(s) = replaced {
-            if s != *text {
-                folded = rules::fold(&s).into_owned(); // the next patterns look at the redacted text
-                text = std::borrow::Cow::Owned(s);
-            }
+        // matched on the look-alike copy for a case-insensitive pattern, always cut from the original text
+        let la = lookalikes(&text);
+        let found = spans(r, &text, &la, usize::MAX);
+        if found.is_empty() {
+            continue;
+        }
+        let mut s = String::with_capacity(text.len());
+        let mut last = 0;
+        for (a, z) in found {
+            s.push_str(&text[last..a]);
+            s.push_str(&format!("{}…[redacted]", gotext::byte_prefix(&text[a..z], 4)));
+            last = z;
+        }
+        s.push_str(&text[last..]);
+        if s != *text {
+            folded = rules::fold(&s).into_owned(); // the next patterns look at the redacted text
+            text = std::borrow::Cow::Owned(s);
         }
     }
     text.into_owned()
+}
+
+/// The text with the long s (U+017F) and the Kelvin sign (U+212A) written as "s" and "k", and for each of its bytes (and its
+/// end) the offset in the original; None when the text has neither. Go's case-insensitive matching folds these two onto
+/// s and k, but its word boundary and word class are ASCII, so a long s first ("system notice to the assistant" with one)
+/// slipped past the word-boundary patterns. The case-insensitive patterns run on this copy, and every match is cut from
+/// the original (approved by the owner on 2026-11-10; the Go daemon does the same, internal/detect/lookalikes.go).
+pub fn lookalikes(s: &str) -> Option<(String, Vec<usize>)> {
+    if !s.contains(['\u{17F}', '\u{212A}']) {
+        return None;
+    }
+    let mut out = String::with_capacity(s.len());
+    let mut at = Vec::with_capacity(s.len() + 1);
+    for (i, c) in s.char_indices() {
+        match c {
+            '\u{17F}' => {
+                out.push('s');
+                at.push(i);
+            }
+            '\u{212A}' => {
+                out.push('k');
+                at.push(i);
+            }
+            c => {
+                out.push(c);
+                at.extend((0..c.len_utf8()).map(|k| i + k));
+            }
+        }
+    }
+    at.push(s.len());
+    Some((out, at))
+}
+
+/// What a rule runs on: the look-alike copy for a case-insensitive rule, the text otherwise.
+fn on<'a>(r: &rules::Rule, text: &'a str, la: &'a Option<(String, Vec<usize>)>) -> &'a str {
+    match la {
+        Some((norm, _)) if r.folded => norm,
+        _ => text,
+    }
+}
+
+/// A rule's matches (at most `limit`) as spans of the original text.
+fn spans(r: &rules::Rule, text: &str, la: &Option<(String, Vec<usize>)>, limit: usize) -> Vec<(usize, usize)> {
+    let hay = on(r, text, la);
+    let back = |a: usize, z: usize| match la {
+        Some((_, at)) if r.folded => (at[a], at[z]),
+        _ => (a, z),
+    };
+    r.re.find_iter(hay).take(limit).map(|m| back(m.start(), m.end())).collect()
 }
 
 /// Flags invisible, bidi-override, isolate or tag characters, in the text as it is and with JSON `\uXXXX` escapes decoded

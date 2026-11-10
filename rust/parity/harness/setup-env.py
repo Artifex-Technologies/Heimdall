@@ -6,8 +6,8 @@ phase-0 harness (docs/ARCHITECTURE.md "Running light"), for the Go daemon and it
 ENV_DIR/sessions: 6,629 session files plus 482 lock files and an agent/ folder with 12 sessions (as on the owner's PC: the
 count, not the content); fim/: 25 files of 8000 bytes; limbo/events.jsonl; vault/ with three notes; go/ and rust/: each
 daemon's own config and state. The host's own load and memory are not synthetic, so their alerts are switched off in both.
-Without --network the /proc/net watchers, the journal and the audits are off in both (the Rust port's step 2 has not
-ported them yet); with it they are on, as in phase 0 (run inside `unshare -rn`, see side-by-side.sh).
+Without --network the /proc/net watchers are off in both; with it they are on, as in phase 0 (run inside `unshare -rn`,
+see side-by-side.sh). The journal and the 6-hourly audits are off in both either way.
 """
 import json, os, shutil, sys
 
@@ -66,11 +66,12 @@ for name in ("go", "rust"):
         "app_network_policy": os.path.join(d, "no-policy.json"),
         "ip_databases": [os.path.join(env, "ipdb", "dbip-country-lite.mmdb"), os.path.join(env, "ipdb", "dbip-asn-lite.mmdb")],
         "threat_list_dir": os.path.join(d, "intel"),
-        "security_tracker": os.path.join(d, "intel", "arch-security.json") if network else "",
+        # the audits are off in both until the port has them (the Go daemon's hardening check reads this computer's settings)
+        "security_tracker": "",
         "package_audit_state_path": os.path.join(d, "pkg.json"),
-        "kernel_vulns": os.path.join(d, "intel", "linux-kernel.json") if network else "",
+        "kernel_vulns": "",
         "kernel_audit_state_path": os.path.join(d, "kern.json"),
-        "hardening_state_path": os.path.join(d, "hard.json") if network else "",
+        "hardening_state_path": "",
         "wifi_results": os.path.join(d, "wifi", "results.jsonl") if network else "",
         "lan_dir": os.path.join(d, "lan") if network else "",
         "listen_watch": network,

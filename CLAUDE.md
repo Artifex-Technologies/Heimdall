@@ -259,6 +259,20 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-11-10 (3) — A findings change I approved: look-alike letters no longer hide a word; Rust step 2b
+- **Findings change (approved by me, "Yes! Definitely yes."), Go and Rust in the same commit.** The case-insensitive text
+  patterns (injection-phrase, credential-shape) run on a copy of the text with the long s (U+017F) and the Kelvin sign
+  (U+212A) written as s and k; summaries, credential matches and redaction are cut from the original text. Before,
+  "ſystem notice to the assistant" (a long s first) was not an injection finding, since Go's `\b` and `\w` are ASCII.
+  On the committed corpus: 4 findings gained, 1 lost (a word glued to the letter before it, which its ASCII spelling never
+  matched either), 117 findings on 126 new look-alike texts; Go and Rust agree on every one. **For Sarina and readers of
+  alerts:** more injection/credential alerts on text using these letters; the alert shape is unchanged.
+- Rust step 2b: the /proc/net watchers (ports, connections with the mapped IP databases, threat lists and remote-access
+  recognition by name and Go build info, listeners), the journal follower (`journalctl --follow` with the Go cursor file),
+  the Wi-Fi results and router watch, the device list's events, remote-access packages and tunnels. Not yet: the 6-hourly
+  package/kernel/hardening audits behind game time. Side by side with network watchers on: 55 of 55 alerts identical.
+— Signed: Heimdall / Claude Opus 5.5
+
 ### 2026-11-10 (2) — The Rust port, step 2 begun: the daemon loop and the file sources; shadow mode prepared
 - `heimdalld-rs run --shadow`: one thread, one poll(2) over inotify, a signalfd and the sources' next times. Ported:
   Sarina's sessions (inotify + 10-minute look, `agent-sessions.json`), the vault (inotify, `vault-notes.json`), Limbo's log
@@ -266,7 +280,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   Wi-Fi/LAN files, remote access, the audits, trust, the correlator, the responder, the API.
 - The state files are the Go daemon's: the handover rehearsal (`rust/parity/harness/state-handover.py`) switched Go -> Rust
   -> Go -> Rust on the same files without a single repeated alert.
-- Shadow mode is prepared, **not started**: `packaging/arch/heimdall-shadow.service` (no network, writes only
+- Shadow mode is prepared, **not started**: `packaging/arch/heimdall-shadow.service` (no IP traffic, writes only
   `/var/lib/heimdall-rs`), `rust/parity/shadow-config.py`, `rust/parity/shadow-compare.py`, steps in `docs/RUST_SHADOW.md`.
   Not in `packaging/install.sh`; nothing installed. **For Sarina, Limbo, Yggdrasil:** nothing changes; the shadow daemon
   only reads what heimdalld already reads and writes its own log.
@@ -285,7 +299,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 - Go side: `internal/parity` (new), `toolrules.Policy.SetTestHooks` (for the fixtures only), three tests
   (`TestParityDetectorsAreTheDaemons`, `TestRustRuleFileMatchesGoPatterns`, `TestExportRegexCorpus`, which skips unless
   asked). No daemon behaviour changed.
-- Open question for me: the leading-ſ/K gap in the `\b` patterns (both daemons), `docs/RUST_PORT.md`.
+- Open question for me: the leading-ſ/K gap in the `\b` patterns (both daemons), `docs/RUST_PORT.md`. (Answered yes, fixed: 2026-11-10 (3).)
 — Signed: Heimdall / Claude Opus 5.5
 
 ### 2026-11-09 — Running light: phase 0 of the Rust port

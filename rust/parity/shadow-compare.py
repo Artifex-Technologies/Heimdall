@@ -11,7 +11,8 @@ import collections, json, sys
 from datetime import datetime, timedelta
 
 COMPARED = {"injection-phrase", "credential-shape", "invisible-unicode", "permission-escalation", "session-burst", "file-integrity",
-            "maintenance-window", "agent-baseline", "limbo-guest", "limbo-network", "limbo-exchange", "tool-rules"}
+            "maintenance-window", "agent-baseline", "limbo-guest", "limbo-network", "limbo-exchange", "tool-rules",
+            "network-exposure", "connection-watch", "inbound", "lan-watch", "wifi-safety", "remote-access"}
 TIMING = {"resource-pressure", "baseline-drift"}
 
 args = sys.argv[1:]

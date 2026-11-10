@@ -30,8 +30,8 @@ PrivateTmp=true
 ReadWritePaths=/var/lib/heimdall-rs
 ReadOnlyPaths=-/var/lib/heimdall
 
-# Shadow mode takes no responses and serves no API: no network at all, not even loopback.
-PrivateNetwork=yes
+# Shadow mode takes no responses and serves no API: no IP traffic at all, not even loopback. (Not PrivateNetwork: the
+# connection, port and listener watchers read the computer's own /proc/net, which a private namespace would hide.)
 IPAddressDeny=any
 RestrictAddressFamilies=AF_UNIX
 

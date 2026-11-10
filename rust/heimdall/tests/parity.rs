@@ -319,6 +319,31 @@ fn the_go_functions_give_the_same_answers() {
         n += 1;
     }
     assert!(n > 80);
+    // where addresses belong: the synthetic IP databases through the mapped reader, and a threat list
+    let dir = fixtures();
+    let mut res = heimdall::ipintel::Resolver::new(&[
+        dir.join("synthetic-country.mmdb").to_string_lossy().into_owned(),
+        dir.join("synthetic-asn.mmdb").to_string_lossy().into_owned(),
+    ]);
+    let list = heimdall::ipintel::parse_list(
+        "drop",
+        b"# made up\n203.0.113.0/25 ; x\n198.51.100.7\n10.0.0.0/8\n2001:db8::/32\n{\"cidr\":\"192.0.2.128/26\"}\n",
+    )
+    .unwrap();
+    let mut n = 0;
+    for c in arr(obj(&doc, "origins")) {
+        let ip: std::net::IpAddr = s(obj(c, "ip")).parse().unwrap();
+        let o = res.lookup(&ip);
+        assert_eq!(o.text(), s(obj(c, "text")), "{ip}");
+        let want: BTreeMap<String, String> = match obj(c, "fields") {
+            Some(Value::Object(m)) => m.iter().map(|(k, v)| (k.clone(), s(Some(v)))).collect(),
+            _ => BTreeMap::new(),
+        };
+        assert_eq!(o.fields("remote_").into_iter().collect::<BTreeMap<_, _>>(), want, "{ip}");
+        assert_eq!(list.contains(&ip), obj(c, "listed") == Some(&Value::Bool(true)), "{ip}");
+        n += 1;
+    }
+    assert!(n > 300);
     // the daemon's detectors, in the Go daemon's order
     let order: Vec<String> = arr(obj(&doc, "detector_order")).iter().map(|v| s(Some(v))).collect();
     let ours: Vec<String> = detect::daemon_detectors(&Config::default(), Deps { ephemeral: Some((1, 2)), ..Default::default() })

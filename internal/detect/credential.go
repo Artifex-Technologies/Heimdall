@@ -1,6 +1,9 @@
 package detect
 
-import "regexp"
+import (
+	"regexp"
+	"strings"
+)
 
 // credentialPatterns mirrors Sarina's memory_security.py credential-shape
 // list: secrets that should never end up embedded in a session transcript,
@@ -61,8 +64,14 @@ func (d *CredentialDetector) ID() string { return "credential-shape" }
 // CredentialMatches returns every piece of text that has a credential's shape (for a verifier that checks each one).
 func CredentialMatches(text string) []string {
 	var out []string
-	for _, pattern := range credentialPatterns {
-		out = append(out, pattern.FindAllString(text, 20)...)
+	norm, at := lookalikes(text)
+	for i, pattern := range credentialPatterns {
+		for _, loc := range pattern.FindAllStringIndex(foldedText(credentialLiterals[i], text, norm), 20) {
+			if credentialLiterals[i].folded {
+				loc[0], loc[1] = span(at, loc[0], loc[1])
+			}
+			out = append(out, text[loc[0]:loc[1]])
+		}
 	}
 	return out
 }
@@ -76,13 +85,28 @@ func RedactCredentials(text string) string {
 			continue
 		}
 		before := text
-		text = pattern.ReplaceAllStringFunc(text, func(m string) string {
+		cut := func(m string) string {
 			keep := 4
 			if len(m) < keep {
 				keep = len(m)
 			}
 			return m[:keep] + "…[redacted]"
-		})
+		}
+		if norm, at := lookalikes(text); at != nil && credentialLiterals[i].folded {
+			// matched on the look-alike copy, cut from the original
+			var b strings.Builder
+			last := 0
+			for _, loc := range pattern.FindAllStringIndex(norm, -1) {
+				a, z := span(at, loc[0], loc[1])
+				b.WriteString(text[last:a])
+				b.WriteString(cut(text[a:z]))
+				last = z
+			}
+			b.WriteString(text[last:])
+			text = b.String()
+		} else {
+			text = pattern.ReplaceAllStringFunc(text, cut)
+		}
 		if text != before {
 			folded = foldText(text) // the next patterns look at the redacted text
 		}
@@ -92,11 +116,12 @@ func RedactCredentials(text string) string {
 
 func (d *CredentialDetector) Inspect(e Event) []Finding {
 	folded := foldText(e.Text)
+	norm, _ := lookalikes(e.Text)
 	for i, pattern := range credentialPatterns {
 		if !credentialLiterals[i].in(e.Text, folded) {
 			continue
 		}
-		if pattern.MatchString(e.Text) {
+		if pattern.MatchString(foldedText(credentialLiterals[i], e.Text, norm)) {
 			return []Finding{{
 				DetectorID: d.ID(),
 				Severity:   SeverityCritical,

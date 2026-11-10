@@ -19,7 +19,7 @@ closed rather than deleting it -- the history of *why* is worth keeping.
 
 ---
 
-## 2026-11-10 — The Rust port, step 1 (DONE), step 2 begun (file sources done, shadow mode prepared)
+## 2026-11-10 — The Rust port: step 1 DONE, step 2 DONE except the audits, shadow mode prepared
 
 **My ask:** port the always-on daemon to Rust, phase 1 of the plan, keeping the phase-0 design; proof by shared fixtures,
 a differential run and the Go state files. Plan and numbers: `docs/RUST_PORT.md`.
@@ -34,15 +34,18 @@ a differential run and the Go state files. Plan and numbers: `docs/RUST_PORT.md`
 | agent-baseline.json read and written as Go does | done | fixture scenario with restarts |
 | Step 2a: one-thread loop; sessions, vault, Limbo, FIM (+pacman db), telemetry, maintenance window | done | sources tests; handover rehearsal (no repeated alert either way); side by side: 7/7 alerts identical; PSS 5.4-5.5 MB vs Go 21.7-24.0 MB, CPU about half |
 | Shadow mode prepared (unit, config and compare scripts, steps) | done, not started | `docs/RUST_SHADOW.md`; guard test (refuses Go state paths) |
-| Step 2b: /proc/net (ports, connections + IP databases + threat lists + remote access, listeners), journal, Wi-Fi/LAN, rasource, audits | open | |
+| Step 2b: /proc/net (ports, connections + mapped IP databases + threat lists + remote access by name and Go build info, listeners), journal follower, Wi-Fi results and router, device list, remote-access packages/tunnels | done | network-mode harness (unshare -rn, 40 MB made-up IP databases): 74/74 alerts identical with activity; origins of 316 addresses equal to Go's; fuzz targets mmdb, journal_line |
+| Look-alike letters (ſ, Kelvin sign) no longer hide a word, Go and Rust (owner approved) | done | committed corpus: 4 gained, 1 lost (its ASCII twin never matched), 117 findings on 126 new texts; 0 differences Go/Rust on 2,046 and 77,159 texts |
+| Step 2c: the 6-hourly package, kernel and hardening audits behind game time | open | |
 | Step 3: API, responder, correlate, governance, grants; step 4: mesh, trust | open | |
 
-- **Resume:** step 2b, `internal/sources/netsource` (tables.go: one shared /proc/net read; netsource.go ports;
-  lan.go listeners and router; conn.go with procinfo.go, `internal/ipintel` mmap'd MaxMind reader + origin + threat lists,
-  `internal/remoteaccess` identify), then fwsource (one `journalctl --follow` with the cursor file), wifisource, lansource,
-  rasource, pkgaudit/kernelaudit/hardening behind gametime. Each as a `sources::Source` on the loop in `rust/heimdall/src/
-  daemon.rs`, with a fuzz target for each parser (MaxMind reader, journal lines), then the network mode of
-  `rust/parity/harness/side-by-side.sh` (`--network`, under `unshare -rn`). Then the shadow week (owner).
+- **Resume:** step 2c, the audits: `internal/pkgaudit` (pkgaudit.go + vercmp.go, Arch's security tracker against pacman's
+  database), `internal/kernelaudit` (kernelaudit.go + watch.go), `internal/hardening`, each every
+  `package_audit_interval_hours` and each waiting while `internal/gametime` (`/usr/bin/yggdrasil-gametime status`, exit 0 =
+  a game runs; ask again every 5 minutes) says a game runs; run them on a thread of their own (they can take a while) and
+  hand the events to the loop through a pipe it polls. Their state files (`package-audit.json`, `kernel-audit.json`,
+  `hardening.json`) are Go's. Then remove the "not ported yet" line in `daemon.rs` and add their detectors to
+  `rust/parity/shadow-compare.py`'s COMPARED set. The shadow week can start before that (the comparison leaves the audits out).
 
 ## 2026-11-09 — Running light, phase 0 of the Rust port (DONE in code; install is mine)
 

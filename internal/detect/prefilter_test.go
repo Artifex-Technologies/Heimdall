@@ -16,11 +16,20 @@ import (
 	"unicode/utf8"
 )
 
-// The text detectors as they were before the literal prefilter (2026-11-09), kept to prove the prefilter changes nothing.
+// The text detectors as they were before the literal prefilter (2026-11-09), kept to prove the prefilter changes nothing;
+// since 2026-11-10 with the look-alike copy for the case-insensitive patterns (lookalikes.go), which the prefilter must not
+// change either.
 
 func oldInjectionInspect(d *InjectionDetector, e Event) []Finding {
-	for _, pattern := range injectionPatterns {
-		if match := pattern.FindString(e.Text); match != "" {
+	norm, at := lookalikes(e.Text)
+	for i, pattern := range injectionPatterns {
+		text, offs := e.Text, []int(nil)
+		if injectionLiterals[i].folded {
+			text, offs = norm, at
+		}
+		if loc := pattern.FindStringIndex(text); loc != nil && loc[1] > loc[0] {
+			a, b := span(offs, loc[0], loc[1])
+			match := e.Text[a:b]
 			return []Finding{{DetectorID: d.ID(), Severity: SeverityCritical,
 				Summary: "text reads as an instruction override rather than task content (\"" + match + "\")", Event: e}}
 		}
@@ -29,8 +38,9 @@ func oldInjectionInspect(d *InjectionDetector, e Event) []Finding {
 }
 
 func oldCredentialInspect(d *CredentialDetector, e Event) []Finding {
-	for _, pattern := range credentialPatterns {
-		if pattern.MatchString(e.Text) {
+	norm, _ := lookalikes(e.Text)
+	for i, pattern := range credentialPatterns {
+		if pattern.MatchString(foldedText(credentialLiterals[i], e.Text, norm)) {
 			return []Finding{{DetectorID: d.ID(), Severity: SeverityCritical,
 				Summary: "text contains what looks like a credential or secret", Event: e}}
 		}
@@ -39,14 +49,26 @@ func oldCredentialInspect(d *CredentialDetector, e Event) []Finding {
 }
 
 func oldRedactCredentials(text string) string {
-	for _, pattern := range credentialPatterns {
-		text = pattern.ReplaceAllStringFunc(text, func(m string) string {
+	for i, pattern := range credentialPatterns {
+		cut := func(m string) string {
 			keep := 4
 			if len(m) < keep {
 				keep = len(m)
 			}
 			return m[:keep] + "…[redacted]"
-		})
+		}
+		norm, at := lookalikes(text)
+		if at == nil || !credentialLiterals[i].folded {
+			text = pattern.ReplaceAllStringFunc(text, cut)
+			continue
+		}
+		out, last := "", 0
+		for _, loc := range pattern.FindAllStringIndex(norm, -1) {
+			a, z := span(at, loc[0], loc[1])
+			out += text[last:a] + cut(text[a:z])
+			last = z
+		}
+		text = out + text[last:]
 	}
 	return text
 }

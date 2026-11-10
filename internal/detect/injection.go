@@ -50,11 +50,18 @@ func (d *InjectionDetector) ID() string { return "injection-phrase" }
 
 func (d *InjectionDetector) Inspect(e Event) []Finding {
 	folded := foldText(e.Text)
+	norm, at := lookalikes(e.Text)
 	for i, pattern := range injectionPatterns {
 		if !injectionLiterals[i].in(e.Text, folded) {
 			continue
 		}
-		if match := pattern.FindString(e.Text); match != "" {
+		text, offs := e.Text, []int(nil)
+		if injectionLiterals[i].folded {
+			text, offs = norm, at
+		}
+		if loc := pattern.FindStringIndex(text); loc != nil && loc[1] > loc[0] {
+			a, b := span(offs, loc[0], loc[1])
+			match := e.Text[a:b]
 			return []Finding{{
 				DetectorID: d.ID(),
 				Severity:   SeverityCritical,

@@ -70,8 +70,19 @@ proptest! {
     fn the_prefiltered_injection_detector_is_the_plain_one(text in prop_oneof![near_rule_text(), ".{0,120}"]) {
         let e = Event { text: text.clone(), ..Default::default() };
         let got = InjectionDetector::new().inspect(&e).first().map(|f| f.summary.clone());
-        let plain = rules::builtin().of("injection-phrase").find_map(|r| r.re.find(&text).filter(|m| !m.as_str().is_empty()))
-            .map(|m| format!("text reads as an instruction override rather than task content (\"{}\")", m.as_str()));
+        // every pattern tried on the look-alike copy (the case-insensitive ones) and the match cut from the original
+        let la = detect::lookalikes(&text);
+        let plain = rules::builtin().of("injection-phrase").find_map(|r| {
+            let (hay, at) = match (&la, r.folded) {
+                (Some((n, at)), true) => (n.as_str(), Some(at)),
+                _ => (text.as_str(), None),
+            };
+            r.re.find(hay).filter(|m| !m.as_str().is_empty()).map(|m| match at {
+                Some(at) => text[at[m.start()]..at[m.end()]].to_string(),
+                None => m.as_str().to_string(),
+            })
+        })
+        .map(|m| format!("text reads as an instruction override rather than task content (\"{m}\")"));
         prop_assert_eq!(got, plain);
     }
 

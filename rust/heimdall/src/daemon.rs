@@ -197,16 +197,73 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
         };
         srcs.push(Box::new(sources::agent::AgentSource::new(w, secs(cfg.poll_interval()))));
     }
-    for (what, on) in [
-        ("the port, connection and listener watches (/proc/net)", !cfg.net_ports.is_empty() || cfg.conn_watch || cfg.listen_watch),
-        ("the firewall and SSH log (journal)", cfg.firewall),
-        ("the Wi-Fi results and router watch", !cfg.wifi_results.is_empty()),
-        ("the trusted network's device list", !cfg.lan_dir.is_empty()),
-        ("the package, kernel and hardening audits", !cfg.security_tracker.is_empty() || !cfg.kernel_vulns.is_empty()),
-    ] {
-        if on {
-            log(&format!("not ported yet, so not watched here (the Go daemon still does): {what}"));
+    // one read of /proc/net/tcp{,6} per interval, shared by the port, connection and listener watchers
+    let mut tables = sources::net::Tables::new("/proc");
+    if !cfg.net_ports.is_empty() {
+        log(&format!(
+            "watching {} ecosystem port(s) for non-loopback exposure (poll every {})",
+            cfg.net_ports.len(),
+            crate::gotext::duration(cfg.net_poll_interval())
+        ));
+        tables.ports(sources::net::PortWatcher::new(&cfg.net_ports), secs(cfg.net_poll_interval()));
+    }
+    let mut origins = crate::ipintel::Resolver::new(&cfg.ip_databases);
+    if origins.available() {
+        log("naming where remote addresses belong from the offline IP database");
+    } else {
+        log("no IP database yet: remote addresses show no origin (heimdall-intel-update fetches one)");
+    }
+    let mut threats = crate::ipintel::Lists::new(&cfg.threat_list_dir);
+    match threats.count() {
+        (0, _) => log("no threat lists yet (heimdall-intel-update fetches them)"),
+        (n, e) => log(&format!("checking connections against {n} threat list(s), {e} entries")),
+    }
+    if cfg.conn_watch {
+        log(&format!("logging connections per process (poll every {})", crate::gotext::duration(cfg.conn_poll_interval())));
+        let mut cw = sources::net::ConnWatcher::new("/proc", &cfg.conn_state_path, &cfg.app_network_policy);
+        cw.origins = Some(origins);
+        cw.threats = Some(threats);
+        cw.remote_access = Some(crate::remoteaccess::Identifier::new(crate::remoteaccess::Catalog::builtin()));
+        tables.connections(cw, secs(cfg.conn_poll_interval()));
+    }
+    if !cfg.wifi_results.is_empty() {
+        srcs.push(Box::new(sources::files::LinesSource::wifi(&cfg.wifi_results)));
+        let dir = std::path::Path::new(&cfg.wifi_results).parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+        srcs.push(Box::new(sources::files::RouterSource::new(&format!("{dir}/current.json"), "/proc")));
+    }
+    if !cfg.lan_dir.is_empty() {
+        srcs.push(Box::new(sources::files::LinesSource::lan(&cfg.lan_dir)));
+    }
+    if cfg.listen_watch {
+        tables.listeners(sources::net::ListenWatcher::new("/proc"), Duration::from_secs(15));
+        let ra = crate::remoteaccess::Catalog::builtin();
+        log(&format!(
+            "watching for {} remote-access tools (installed packages and tunnel interfaces every 15s, connections by program)",
+            ra.providers.len()
+        ));
+        srcs.push(Box::new(sources::files::RaSource::new(ra, &cfg.pacman_db, "/sys/class/net")));
+    }
+    if !tables.is_empty() {
+        srcs.push(Box::new(tables));
+    }
+    if cfg.firewall {
+        log(&format!(
+            "following the firewall and SSH logins in the journal (journalctl started again {} after it ends)",
+            crate::gotext::duration(cfg.firewall_poll_interval())
+        ));
+        let parser = sources::journal::Parser {
+            origins: Some(crate::ipintel::Resolver::new(&cfg.ip_databases)),
+            threats: Some(crate::ipintel::Lists::new(&cfg.threat_list_dir)),
+        };
+        let restart = Duration::from_nanos(cfg.firewall_poll_interval() as u64);
+        let mut j = sources::journal::JournalSource::new(&cfg.firewall_cursor_path, parser, restart);
+        if let Ok(p) = std::env::var("HEIMDALL_JOURNALCTL") {
+            j = j.with_program(&p); // the harness's made-up journal
         }
+        srcs.push(Box::new(j));
+    }
+    if !cfg.security_tracker.is_empty() || !cfg.kernel_vulns.is_empty() || !cfg.hardening_state_path.is_empty() {
+        log("not ported yet, so not run here (the Go daemon still does): the package, kernel and hardening audits");
     }
 
     let session_dir = cfg.agent_session_dir.clone();

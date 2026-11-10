@@ -5,13 +5,18 @@ no containment request, no copy of a held file, nothing to a mesh peer) and serv
 as it is and stays in charge. After a week, `shadow-compare.py` compares the two alert logs. Plan and proofs so far:
 `docs/RUST_PORT.md`.
 
-What the shadow daemon watches today (step 2 in progress): Sarina's sessions (inotify), her vault notes (inotify), Limbo's
-event log, the FIM list (`fim_paths`), host telemetry and the maintenance window, through every detector, the verifier,
-the explanations, the tool rules and maintenance softening. **Not yet** (it logs each at start, and the comparison leaves
-their detectors out): the /proc/net watchers (ports, connections, listeners), the journal (firewall, SSH), the Wi-Fi and LAN
-files, remote-access tools, the package/kernel/hardening audits, trust, the correlator's incidents.
+What the shadow daemon watches: Sarina's sessions and vault notes (inotify), Limbo's event log, the FIM list
+(`fim_paths`), host telemetry, the maintenance window, the /proc/net watchers (ecosystem ports, connections with the IP
+databases and threat lists, new listeners), the journal (firewall blocks, SSH logins; one `journalctl --follow`), the
+Wi-Fi results and router watch, the trusted network's device events and remote-access tools (packages, tunnels, programs),
+through every detector, the verifier, the explanations, the tool rules and maintenance softening. **Not yet** (logged at
+start; the comparison leaves their detectors out): the 6-hourly package, kernel and hardening audits, trust, the
+correlator's incidents.
 
-Safety: the unit runs as `heimdall` with no network at all (`PrivateNetwork=yes`), writes only `/var/lib/heimdall-rs`, and
+The journal needs the `systemd-journal` group, as the Go daemon has it from its firewall drop-in: copy that drop-in too
+(step 4 below copies every drop-in of `heimdall.service`).
+
+Safety: the unit runs as `heimdall` with no IP traffic at all (`IPAddressDeny=any`, only Unix sockets), writes only `/var/lib/heimdall-rs`, and
 `/var/lib/heimdall` is read-only to it; `heimdalld-rs` itself also refuses a config with any state or log path in
 `/var/lib/heimdall/`. Stopping it changes nothing for the Go daemon.
 
@@ -41,7 +46,8 @@ done
 # 4. the unit, with the same read access as the Go daemon (its drop-ins: Limbo's group, the connection read rights)
 sudo install -Dm644 packaging/arch/heimdall-shadow.service /etc/systemd/system/heimdall-shadow.service
 sudo mkdir -p /etc/systemd/system/heimdall-shadow.service.d
-sudo cp /etc/systemd/system/heimdall.service.d/limbo.conf /etc/systemd/system/heimdall-shadow.service.d/ 2>/dev/null || true
+sudo cp /etc/systemd/system/heimdall.service.d/*.conf /etc/systemd/system/heimdall-shadow.service.d/ 2>/dev/null || true
+sudo cp /usr/lib/systemd/system/heimdall.service.d/*.conf /etc/systemd/system/heimdall-shadow.service.d/ 2>/dev/null || true
 sudo systemctl daemon-reload
 sudo systemctl start heimdall-shadow
 date -u +%Y-%m-%dT%H:%M:%SZ > ~/heimdall-shadow-start.txt   # the comparison's start

@@ -72,3 +72,17 @@ path = "fuzz_targets/limbo_line.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "mmdb"
+path = "fuzz_targets/mmdb.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "journal_line"
+path = "fuzz_targets/journal_line.rs"
+test = false
+doc = false
+bench = false

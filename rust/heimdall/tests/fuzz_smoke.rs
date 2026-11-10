@@ -15,6 +15,8 @@ const TARGETS: &[(&str, Target)] = &[
     ("text", fuzzing::text),
     ("session_file", fuzzing::session_file),
     ("limbo_line", fuzzing::limbo_line),
+    ("mmdb", fuzzing::mmdb),
+    ("journal_line", fuzzing::journal_line),
 ];
 
 #[test]

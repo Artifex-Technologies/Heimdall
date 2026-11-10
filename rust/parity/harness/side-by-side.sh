@@ -5,7 +5,7 @@
 #   rust/parity/harness/side-by-side.sh MODE OUT_DIR [--network]
 #     MODE steady: nothing happens; activity: the planted events of loadgen.py.
 #     --network: the /proc/net watchers too, inside a network namespace of its own (run the script under `unshare -rn`;
-#     made-up addresses only). Not yet for the Rust port (step 2 has not ported them).
+#     made-up addresses only), with 40 MB of made-up IP databases.
 #   GO_BIN, RS_BIN: the two daemons (default: built from this checkout). WARM, WINDOW: seconds (45, 240).
 # Measured over WINDOW after WARM: CPU (own + children), context switches of all threads, PSS, RSS.
 set -u
@@ -26,6 +26,10 @@ RS_BIN=${RS_BIN:-$root/rust/target/release/heimdalld-rs}
 [ -x "$GO_BIN" ] || (cd "$root" && nice -n 15 go build -o "$GO_BIN" ./cmd/heimdalld)
 [ -x "$RS_BIN" ] || "$root/rust/scripts/nicecargo.sh" build --release --offline --quiet
 python3 -I "$here/setup-env.py" "$env" $net >/dev/null
+if [ -n "$net" ]; then # 40 MB of made-up IP databases, as in phase 0 (mapped, not read into the heap)
+	mkdir -p "$env/ipdb"
+	(cd "$here/genmmdb" && nice -n 15 go run . country "$env/ipdb/dbip-country-lite.mmdb" 20 && nice -n 15 go run . asn "$env/ipdb/dbip-asn-lite.mmdb" 20) >/dev/null
+fi
 
 start=$(date +%s)
 python3 -I "$here/loadgen.py" "$mode" "$env" $((start + 3)) $net &
