@@ -44,6 +44,31 @@ fn written_paths(cfg: &Config) -> Vec<(&'static str, &str)> {
     ]
 }
 
+/// Keeps a source's problem that stays from filling the journal: the same line is logged once an hour at most (a new or
+/// changed line at once).
+#[derive(Default)]
+pub struct LogOnce {
+    last: std::collections::HashMap<String, Instant>,
+}
+
+impl LogOnce {
+    pub const AGAIN_AFTER: Duration = Duration::from_secs(3600);
+
+    /// True when `line` should be logged now.
+    pub fn first(&mut self, line: &str, now: Instant) -> bool {
+        if let Some(t) = self.last.get(line) {
+            if now.duration_since(*t) < Self::AGAIN_AFTER {
+                return false;
+            }
+        }
+        if self.last.len() >= 512 {
+            self.last.retain(|_, t| now.duration_since(*t) < Self::AGAIN_AFTER);
+        }
+        self.last.insert(line.to_string(), now);
+        true
+    }
+}
+
 /// Refuses a shadow config that would share a file with the Go daemon.
 pub fn check_shadow(cfg: &Config) -> Result<(), Vec<String>> {
     let mut bad = Vec::new();
@@ -226,13 +251,17 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
         cw.remote_access = Some(crate::remoteaccess::Identifier::new(crate::remoteaccess::Catalog::builtin()));
         tables.connections(cw, secs(cfg.conn_poll_interval()));
     }
+    // the Wi-Fi results and the device list keep their offsets next to the results, in the Go daemon's folder; the shadow
+    // daemon keeps its own beside its alert log (starting from the Go daemon's, read-only)
+    let own_dir = std::path::Path::new(&cfg.alert_log_path).parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
+    let offsets = |s: sources::files::LinesSource| if own_dir.is_empty() { s } else { s.offset_in(&own_dir) };
     if !cfg.wifi_results.is_empty() {
-        srcs.push(Box::new(sources::files::LinesSource::wifi(&cfg.wifi_results)));
+        srcs.push(Box::new(offsets(sources::files::LinesSource::wifi(&cfg.wifi_results))));
         let dir = std::path::Path::new(&cfg.wifi_results).parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
         srcs.push(Box::new(sources::files::RouterSource::new(&format!("{dir}/current.json"), "/proc")));
     }
     if !cfg.lan_dir.is_empty() {
-        srcs.push(Box::new(sources::files::LinesSource::lan(&cfg.lan_dir)));
+        srcs.push(Box::new(offsets(sources::files::LinesSource::lan(&cfg.lan_dir))));
     }
     if cfg.listen_watch {
         tables.listeners(sources::net::ListenWatcher::new("/proc"), Duration::from_secs(15));
@@ -268,11 +297,16 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
 
     let session_dir = cfg.agent_session_dir.clone();
     let quiet_missing_dir = !sarina_installed(&cfg);
-    let dispatch = |eng: &mut Engine, msgs: Vec<Msg>| {
+    let mut repeats = LogOnce::default();
+    let mut dispatch = |eng: &mut Engine, msgs: Vec<Msg>| {
         for m in msgs {
             match m {
                 Msg::Event(e) | Msg::LimboEvent(e) => eng.handle(&e),
-                Msg::Log(l) => log(&l),
+                Msg::Log(l) => {
+                    if repeats.first(&l, Instant::now()) {
+                        log(&l);
+                    }
+                }
                 Msg::Issue(i) => {
                     // no session folder because Sarina is not installed: nothing is wrong, nothing to read yet
                     if quiet_missing_dir
@@ -363,6 +397,18 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_problem_that_stays_is_logged_once_an_hour() {
+        let mut l = LogOnce::default();
+        let t = Instant::now();
+        assert!(l.first("wifi results: read-only file system", t));
+        for s in 1..360 {
+            assert!(!l.first("wifi results: read-only file system", t + Duration::from_secs(10 * s)));
+        }
+        assert!(l.first("device list: read-only file system", t + Duration::from_secs(5)), "another line at once");
+        assert!(l.first("wifi results: read-only file system", t + LogOnce::AGAIN_AFTER));
+    }
 
     #[test]
     fn a_shadow_config_never_shares_a_file_with_the_go_daemon() {

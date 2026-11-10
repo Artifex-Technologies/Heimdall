@@ -16,6 +16,12 @@ correlator's incidents.
 The journal needs the `systemd-journal` group, as the Go daemon has it from its firewall drop-in: copy that drop-in too
 (step 4 below copies every drop-in of `heimdall.service`).
 
+The Wi-Fi results and the device list are read from where the Go daemon reads them; their offsets (which the Go daemon keeps
+next to them, in its own read-only folder) the shadow daemon keeps beside its alert log (`wifi-results.offset`,
+`lan-events.offset`), starting from the Go daemon's offsets the first time. A problem that stays is logged once an hour, not
+on every look. (Fixed 2026-11-10: the first build tried to write the offsets next to the results and logged "read-only file
+system" every few seconds.)
+
 Safety: the unit runs as `heimdall` with no IP traffic at all (`IPAddressDeny=any`, only Unix sockets), writes only `/var/lib/heimdall-rs`, and
 `/var/lib/heimdall` is read-only to it; `heimdalld-rs` itself also refuses a config with any state or log path in
 `/var/lib/heimdall/`. Stopping it changes nothing for the Go daemon.

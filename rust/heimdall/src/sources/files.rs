@@ -10,15 +10,19 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Read, Seek, SeekFrom};
 use std::time::{Duration, Instant};
 
-/// Complete lines of a JSON-lines file after the offset kept in `offset_path` (both Go watchers' way: the offset file is a
-/// decimal number, the file read again from the top when it shrank, at most 4 MiB a look).
-fn new_lines(path: &str, offset_path: &str) -> std::io::Result<(Vec<Vec<u8>>, Option<u64>)> {
+/// Reads a kept offset (a decimal number; anything else is 0, as in Go).
+fn read_offset(path: &str) -> Option<u64> {
+    std::fs::read_to_string(path).ok().map(|s| crate::gotext::trim_space(&s).parse().unwrap_or(0))
+}
+
+/// Complete lines of a JSON-lines file after `off` (both Go watchers' way: the file read again from the top when it shrank,
+/// at most 4 MiB a look) and the offset after them; None when the file is not there.
+fn new_lines(path: &str, mut off: u64) -> std::io::Result<(Vec<Vec<u8>>, Option<u64>)> {
     let mut f = match std::fs::File::open(path) {
         Ok(f) => f,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok((Vec::new(), None)),
         Err(e) => return Err(e),
     };
-    let mut off: u64 = std::fs::read_to_string(offset_path).ok().and_then(|s| crate::gotext::trim_space(&s).parse().ok()).unwrap_or(0);
     if f.metadata().is_ok_and(|m| m.len() < off) {
         off = 0;
     }
@@ -158,39 +162,68 @@ pub fn lan_line(line: &[u8]) -> Option<Event> {
     })
 }
 
-/// A JSON-lines file read every interval (the Wi-Fi results, the device list's events).
+/// A JSON-lines file read every interval (the Wi-Fi results, the device list's events). The offset is kept in a file (Go's
+/// name, next to the results), and in memory too, so a file that cannot be written never makes a line come twice.
 pub struct LinesSource {
     name: &'static str,
     path: String,
     offset_path: String,
+    /// Where the first offset is read when `offset_path` holds none yet (shadow mode: the Go daemon's, read-only).
+    start_path: String,
+    off: Option<u64>,
     parse: fn(&[u8]) -> Option<Event>,
     interval: Duration,
     next: Instant,
     label: &'static str,
+    /// The last problem logged, so one that stays is logged once, not on every look.
+    last_err: Option<String>,
 }
 
 impl LinesSource {
-    pub fn wifi(path: &str) -> LinesSource {
+    fn new(name: &'static str, path: String, offset: String, parse: fn(&[u8]) -> Option<Event>, secs: u64, label: &'static str) -> Self {
         LinesSource {
-            name: "wifi",
-            path: path.into(),
-            offset_path: format!("{path}.offset"),
-            parse: wifi_line,
-            interval: Duration::from_secs(10),
+            name,
+            path,
+            start_path: offset.clone(),
+            offset_path: offset,
+            off: None,
+            parse,
+            interval: Duration::from_secs(secs),
             next: Instant::now(),
-            label: "wifi results",
+            label,
+            last_err: None,
         }
     }
+
+    pub fn wifi(path: &str) -> LinesSource {
+        LinesSource::new("wifi", path.into(), format!("{path}.offset"), wifi_line, 10, "wifi results")
+    }
+
     pub fn lan(dir: &str) -> LinesSource {
-        LinesSource {
-            name: "lan",
-            path: format!("{dir}/events.jsonl"),
-            offset_path: format!("{dir}/events.offset"),
-            parse: lan_line,
-            interval: Duration::from_secs(15),
-            next: Instant::now(),
-            label: "device list",
+        LinesSource::new("lan", format!("{dir}/events.jsonl"), format!("{dir}/events.offset"), lan_line, 15, "device list")
+    }
+
+    /// Shadow mode: the offset is kept in `state_dir` (the shadow daemon's own folder; the results' folder is the Go daemon's
+    /// and read-only to it), starting from the Go daemon's offset the first time, so old lines are not raised again.
+    pub fn offset_in(mut self, state_dir: &str) -> LinesSource {
+        let file = if self.name == "wifi" { "wifi-results.offset" } else { "lan-events.offset" };
+        self.offset_path = format!("{}/{file}", state_dir.trim_end_matches('/'));
+        self
+    }
+
+    pub fn offset_path(&self) -> &str {
+        &self.offset_path
+    }
+
+    fn problem(&mut self, msg: Option<String>, out: &mut Vec<Msg>) {
+        if msg == self.last_err {
+            return;
         }
+        match &msg {
+            Some(m) => out.push(Msg::Log(format!("{}: {m}", self.label))),
+            None => out.push(Msg::Log(format!("{}: working again", self.label))),
+        }
+        self.last_err = msg;
     }
 }
 
@@ -203,17 +236,98 @@ impl Source for LinesSource {
     }
     fn run(&mut self, now: Instant, out: &mut Vec<Msg>) {
         self.next = now + self.interval;
-        match new_lines(&self.path, &self.offset_path) {
+        let start = match self.off {
+            Some(o) => o,
+            None => read_offset(&self.offset_path).or_else(|| read_offset(&self.start_path)).unwrap_or(0),
+        };
+        match new_lines(&self.path, start) {
             Ok((lines, off)) => {
                 out.extend(lines.iter().filter_map(|l| (self.parse)(l)).map(Msg::Event));
+                let mut err = None;
                 if let Some(off) = off {
+                    self.off = Some(off);
                     if let Err(e) = crate::state::write_mode(&self.offset_path, off.to_string().as_bytes(), 0o600) {
-                        out.push(Msg::Log(format!("{}: {}", self.label, super::go_errno(&e))));
+                        err = Some(format!("cannot keep the offset in {}: {}", self.offset_path, super::go_errno(&e)));
                     }
                 }
+                self.problem(err, out);
             }
-            Err(e) => out.push(Msg::Log(format!("{}: {}", self.label, super::go_errno(&e)))),
+            Err(e) => self.problem(Some(super::go_errno(&e)), out),
         }
+    }
+}
+
+#[cfg(test)]
+mod lines_tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+
+    fn tmp(name: &str) -> String {
+        let d = std::env::temp_dir().join(format!("heimdall-lines-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        d.to_string_lossy().into_owned()
+    }
+
+    fn line(ip: &str) -> String {
+        format!("{{\"time\":\"2026-11-10T10:00:00Z\",\"ssid\":\"home\",\"device\":{{\"ip\":\"{ip}\",\"mac\":\"02:00:00:00:00:01\"}}}}\n")
+    }
+
+    fn events(out: &[Msg]) -> Vec<String> {
+        out.iter().filter_map(|m| if let Msg::Event(e) = m { Some(e.f("ip").to_string()) } else { None }).collect()
+    }
+
+    fn logs(out: &[Msg]) -> usize {
+        out.iter().filter(|m| matches!(m, Msg::Log(_))).count()
+    }
+
+    #[test]
+    fn a_read_only_results_folder_raises_a_line_once_and_logs_once() {
+        let root = tmp("ro");
+        let dir = format!("{root}/lan");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(format!("{dir}/events.jsonl"), line("192.0.2.10")).unwrap();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+        let root_writes_anyway = std::fs::write(format!("{dir}/probe"), b"").is_ok();
+        let mut s = LinesSource::lan(&dir);
+        let mut all = Vec::new();
+        for _ in 0..5 {
+            s.run(Instant::now(), &mut all);
+        }
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(events(&all).len() <= 1, "{all:?}");
+        if !root_writes_anyway {
+            assert_eq!(events(&all), vec!["192.0.2.10"], "raised once although its offset cannot be written");
+            assert_eq!(logs(&all), 1, "logged once, not on every look: {all:?}");
+        }
+    }
+
+    #[test]
+    fn shadow_mode_keeps_its_offset_in_its_own_folder_starting_from_go_s() {
+        let root = tmp("shadow");
+        let dir = format!("{root}/lan");
+        let own = format!("{root}/rs");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::create_dir_all(&own).unwrap();
+        let old = line("192.0.2.10");
+        std::fs::write(format!("{dir}/events.jsonl"), format!("{old}{}", line("192.0.2.11"))).unwrap();
+        // the Go daemon has read the first line
+        std::fs::write(format!("{dir}/events.offset"), old.len().to_string()).unwrap();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+        let mut s = LinesSource::lan(&dir).offset_in(&own);
+        let mut out = Vec::new();
+        s.run(Instant::now(), &mut out);
+        assert_eq!(events(&out), vec!["192.0.2.11"]);
+        assert_eq!(logs(&out), 0, "{out:?}");
+        let kept = std::fs::read_to_string(format!("{own}/lan-events.offset")).unwrap();
+        assert_eq!(kept, std::fs::metadata(format!("{dir}/events.jsonl")).unwrap().len().to_string());
+        assert_eq!(std::fs::read_to_string(format!("{dir}/events.offset")).unwrap(), old.len().to_string(), "Go's file untouched");
+        // a restart starts from its own offset, not from Go's
+        let mut s = LinesSource::lan(&dir).offset_in(&own);
+        let mut out = Vec::new();
+        s.run(Instant::now(), &mut out);
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(out.is_empty(), "{out:?}");
     }
 }
 
