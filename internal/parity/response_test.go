@@ -45,6 +45,21 @@ func TestResponseFixtureMatchesTheGoDaemon(t *testing.T) {
 	if c := find("Limbo hangs"); count(c.Steps[0].Out, "limbo_quarantine_timeout") != 1 {
 		t.Errorf("hangs: %v", c.Steps[0].Out)
 	}
+	if c := find("sarina: an opinion attached to a new hold"); count(c.Steps[0].Requests, `"source":"sarina"`) != 1 || len(c.Steps[0].Sarina) != 3 {
+		t.Errorf("advisory: %v %v", c.Steps[0].Requests, c.Steps[0].Sarina)
+	}
+	if c := find("sarina: tools nonzero"); count(c.Steps[0].Sarina, "/chat") != 0 || count(c.Steps[0].Sarina, "DELETE") != 1 {
+		t.Errorf("tools: the evidence must not be sent, the session must be closed: %v", c.Steps[0].Sarina)
+	}
+	if c := find("sarina: busy: a third advisory is skipped"); count(c.Steps[0].Out, `"error_code":"sarina_busy"`) != 1 {
+		t.Errorf("busy: %v", c.Steps[0].Out)
+	}
+	if c := find("sarina: a slow model times out, the chat is not repeated"); count(c.Steps[0].Sarina, "/chat") != 1 || count(c.Steps[0].Out, "sarina_timeout") != 1 {
+		t.Errorf("timeout: %v", c.Steps[0].Sarina)
+	}
+	if c := find("sarina: a backlog note"); count(c.Steps[0].Out, "quarantine_backlog_advisory") != 1 {
+		t.Errorf("backlog note: %v", c.Steps[0].Out)
+	}
 	path := filepath.Join(dir(t), "response.json")
 	if *update {
 		b, err := json.MarshalIndent(f, "", " ")

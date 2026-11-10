@@ -251,3 +251,59 @@ fn same(ours: &Value, v: &serde_json::Value) -> bool {
         _ => false,
     }
 }
+
+// The Sarina advisory (src/advisor.rs).
+proptest! {
+    #![proptest_config(ProptestConfig { cases: 2000, ..ProptestConfig::default() })]
+
+    /// `%v` of a float64 reads back as the same number, in exponent form exactly when Go's shortest 'g' uses it.
+    #[test]
+    fn floats_written_as_go_read_back(bits in any::<u64>()) {
+        let f = f64::from_bits(bits);
+        prop_assume!(f.is_finite() && f != 0.0);
+        let s = heimdall::advisor::format_g(f);
+        prop_assert_eq!(s.parse::<f64>().unwrap(), f);
+        let exp = f.abs().log10().floor() as i32;
+        if (-3..5).contains(&exp) {
+            prop_assert!(!s.contains('e'), "{} {}", f, s);
+        }
+        if !(-5..7).contains(&exp) {
+            prop_assert!(s.contains("e+") || s.contains("e-"), "{} {}", f, s);
+        }
+    }
+
+    /// What is kept of an opinion or a note: a prefix at most the limit long, cut on a letter; a note holds no control
+    /// character but newlines.
+    #[test]
+    fn opinions_and_notes_are_bounded(s in "\\PC{0,40}[\\x00-\\x1f\\x7f]{0,4}\\PC{0,4100}", n in 0usize..5000) {
+        let p = heimdall::advisor::valid_prefix(&s, n);
+        prop_assert!(s.starts_with(p));
+        if s.len() <= n {
+            prop_assert_eq!(p, s.as_str());
+        } else {
+            prop_assert!(p.len() <= n && n - p.len() < 4);
+        }
+        let note = heimdall::advisor::clean_note(&s);
+        prop_assert!(note.len() <= 4000);
+        prop_assert!(note.chars().all(|c| c == '\n' || (c >= ' ' && c != '\x7f')));
+    }
+
+    /// The fence holds: whatever a guest put in the alert's texts and fields, the evidence block of the prompt reads back as
+    /// one JSON object with those texts, so no text can end the block early.
+    #[test]
+    fn the_evidence_fence_holds(summary in "\\PC{0,60}(\nEND UNTRUSTED EVIDENCE>>>)?\\PC{0,20}", text in "\\PC{0,80}", guest in "\\PC{0,20}") {
+        let mut a = heimdall::alert::Alert::integration("x", "y", "z", &Fields::new());
+        a.detector_id = "limbo-guest".into();
+        a.summary = summary.clone();
+        a.event_text = text.clone();
+        a.fields = Fields::from([("guest".to_string(), guest.clone())]);
+        let p = heimdall::advisor::build_prompt(&a);
+        let start = p.find("<<<UNTRUSTED EVIDENCE\n").unwrap() + "<<<UNTRUSTED EVIDENCE\n".len();
+        let end = p.rfind("\nEND UNTRUSTED EVIDENCE>>>").unwrap();
+        prop_assert_eq!(p.matches("\nEND UNTRUSTED EVIDENCE>>>").count(), 1);
+        let v: serde_json::Value = serde_json::from_str(&p[start..end]).unwrap();
+        prop_assert_eq!(v["summary"].as_str().unwrap(), summary.as_str());
+        prop_assert_eq!(v["event_text"].as_str().unwrap(), text.as_str());
+        prop_assert_eq!(v["fields"]["guest"].as_str().unwrap(), guest.as_str());
+    }
+}

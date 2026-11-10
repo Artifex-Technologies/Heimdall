@@ -79,7 +79,8 @@ pub struct Ctx {
 
 fn mismatch(v: &Value, t: &Ty, field: &str, top: &str) -> Error {
     let what = match v {
-        Value::Number(n) => format!("number {n}"),
+        // Go names the number only when it failed to read into a number type ("number 0.5" into int; "number" into string)
+        Value::Number(n) if matches!(t, Ty::Int | Ty::Uint32 | Ty::Float) => format!("number {n}"),
         other => gojson::kind(other).to_string(),
     };
     let ty = type_name(t);

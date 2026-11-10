@@ -4,6 +4,7 @@
 //! The Go daemon stays installed until the switch; this one runs beside it in shadow mode first (writing its own alert log,
 //! taking no responses).
 
+pub mod advisor;
 pub mod alert;
 pub mod api;
 pub mod audit;

@@ -204,3 +204,9 @@ pub fn http_request(data: &[u8]) {
     assert_eq!(*raised.lock().unwrap(), 0);
     let _ = crate::api::query_get(&r.query, "n");
 }
+
+/// A reply from sarina-service (the advisory): every status and body becomes Go's code with a remedy, the service's own
+/// words bounded, and nothing but a 2xx reads as an answer.
+pub fn sarina_reply(data: &[u8]) {
+    crate::advisor::fuzz_reply(data);
+}

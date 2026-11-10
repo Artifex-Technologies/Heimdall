@@ -259,6 +259,15 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-11-10 (5) — Rust port: the Sarina advisory
+- The Rust daemon in charge now asks Sarina for an opinion on each new Limbo hold, as the Go one does (`rust/heimdall/src/
+  advisor.rs`): `POST /v1/sessions` with `tool_allowlist: []` (nothing sent unless the reply says `tools: 0`), the chat with
+  the same fenced prompt, the session closed on every path, the same error codes. Proved request for request against the
+  Go advisor on a scripted service (`testdata/parity/response.json`, 90 requests to Sarina). Never in shadow mode.
+- **For Sarina:** nothing to change; the session API, the `tool_allowlist` field and the `tools` count are used exactly as
+  before. One difference: one request per connection (`Connection: close`).
+— Signed: Heimdall / Claude Opus 5.5
+
 ### 2026-11-10 (6) — Rust port: the switch planned (docs/RUST_SWITCH.md); takeHeld ported
 - After the switch `/usr/bin/heimdalld` is the Rust binary and the Go one stays as `/usr/lib/heimdall/heimdalld-go` for the
   one-shot commands; the Rust binary hands them over with the same arguments and exit code. **For Labyrinth, LykanOS,

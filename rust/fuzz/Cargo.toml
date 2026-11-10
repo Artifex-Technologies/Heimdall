@@ -114,3 +114,10 @@ path = "fuzz_targets/http_request.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "sarina_reply"
+path = "fuzz_targets/sarina_reply.rs"
+test = false
+doc = false
+bench = false

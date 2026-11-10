@@ -32,7 +32,7 @@ A plan, not done. The Go daemon stays in charge until every item under "Before" 
    | Go daemon part | Needed when | Rust state |
    | --- | --- | --- |
    | the Limbo responder | `limbo_control_socket` set and `limbo_auto_quarantine` true | **ported** (`src/response.rs`) |
-   | the Sarina advisory on a new hold | the above and `sarina_url` set | open (`internal/response/advisor.go`) |
+   | the Sarina advisory on a new hold | the above and `sarina_url` set | **ported** (`src/advisor.rs`) |
    | containment requests (`contain.Trigger`) | `/etc/heimdall/contain.json` switches it on | open (`internal/contain`) |
    | the request to copy files Limbo held (`takeHeld`) | always, in charge (owner decision 2026-11-05) | **ported** (`immunity::TakeHeld`) |
    | mesh | `mesh_listen` set or peers enrolled | open (step 4) |
@@ -53,8 +53,8 @@ A plan, not done. The Go daemon stays in charge until every item under "Before" 
        integration-chain.sh | sudo bash -s
    ```
 
-   Until the Sarina advisory is ported, the chain's six advisory checks ("an advisory from Sarina was attached" through
-   "the evidence reached the model fenced as untrusted") fail with the Rust binary; every other check must pass.
+   With the Sarina advisory ported, every check of the chain must pass with the Rust binary, the six advisory checks ("an
+   advisory from Sarina was attached" through "the evidence reached the model fenced as untrusted") included.
 4. `cd rust && scripts/nicecargo.sh test --offline` and `go test ./...` pass at the commit the package is built from.
 
 ## The package change (heimdall-git; both PKGBUILDs call `packaging/install.sh`)
@@ -129,8 +129,8 @@ The state files are the same for both daemons, so going back loses nothing and r
 
 - [ ] Shadow week: "NO DIFFERENCE"; CPU and PSS of both daemons in `progress.md`
 - [ ] Every row of the table under "Before" that is needed on this computer is ported
-- [ ] `integration-quarantine.sh` passes; `integration-chain.sh` with the Rust binary passes (but the advisory checks
-      while the advisory is not ported)
+- [ ] `integration-quarantine.sh` passes; `integration-chain.sh` with the Rust binary passes (every check, the six
+      advisory checks included)
 - [ ] Rust and Go test suites pass at the commit
 - [ ] Package change committed (PKGBUILD makedepends, build, install.sh, packaging test); Coordination Log entry for
       Labyrinth, LykanOS, Sarina, Limbo, Yggdrasil (nothing for them to change)

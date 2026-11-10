@@ -8,8 +8,8 @@
 //! log path in the Go daemon's folder, so the two never write the same file. docs/RUST_SHADOW.md.
 //!
 //! In charge (no `--shadow`, for the switch): the same, plus the API on `api_addr` and the Limbo responder (`response.rs`;
-//! never in shadow mode) and the request to copy files Limbo held. Not ported yet: the Sarina advisory on a hold,
-//! containment requests, mesh, trust (docs/RUST_PORT.md).
+//! never in shadow mode) with the Sarina advisory on a new hold (`advisor.rs`), and the request to copy files Limbo held.
+//! Not ported yet: containment requests, mesh, trust (docs/RUST_PORT.md).
 
 use crate::alert::{Alert, MultiSink, Ring, Sink, WriterSink};
 use crate::config::Config;
@@ -223,6 +223,25 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
     let mut responder: Option<crate::response::Handle> = None;
     let mut responder_inbox: Option<sources::Inbox> = None;
     if !shadow && !cfg.limbo_control_socket.is_empty() && cfg.limbo_auto_quarantine {
+        // Sarina's opinion on each new hold (Go: response.IfInstalled{Inner: NewSarina(...)}); a URL that is not loopback stops
+        // the daemon as in Go
+        let mut advisor: Option<Box<dyn crate::advisor::Advisor>> = None;
+        if !cfg.sarina_url.is_empty() {
+            let token = if cfg.sarina_token.is_empty() { std::env::var("HEIMDALL_SARINA_TOKEN").unwrap_or_default() } else { cfg.sarina_token.clone() };
+            match crate::advisor::Sarina::new(&cfg.sarina_url, &token, &cfg.sarina_cwd) {
+                Ok(s) => {
+                    let c2 = cfg.clone();
+                    advisor = Some(Box::new(crate::advisor::IfInstalled { inner: Box::new(s), installed: Box::new(move || sarina_installed(&c2)) }));
+                }
+                // an https URL: Go would speak TLS to it; this daemon goes on without the advisory instead of stopping
+                Err(e) if e.contains("only http://") => log(&format!("Sarina advisories off: {e}")),
+                Err(e) => {
+                    log(&e);
+                    return 2;
+                }
+            }
+        }
+        let advising = advisor.is_some();
         match sources::Inbox::new("limbo-responder") {
             Ok((inbox, outbox)) => {
                 let settings = crate::response::Settings {
@@ -241,6 +260,7 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
                 let (r, h) = crate::response::Responder::new(
                     engine_sink,
                     Box::new(crate::response::Client { socket: cfg.limbo_control_socket.clone() }),
+                    advisor,
                     settings,
                     Box::new(move |a| {
                         outbox.send(Msg::Alert(a));
@@ -250,10 +270,7 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
                 engine_sink = Box::new(r);
                 responder = Some(h);
                 responder_inbox = Some(inbox);
-                log(&format!("Limbo quarantine response enabled (control socket {}, Sarina advisories: false)", cfg.limbo_control_socket));
-                if !cfg.sarina_url.is_empty() {
-                    log("Sarina advisories on quarantines are not ported yet: each new hold carries Heimdall's own explanation only");
-                }
+                log(&format!("Limbo quarantine response enabled (control socket {}, Sarina advisories: {advising})", cfg.limbo_control_socket));
             }
             Err(e) => log(&format!("Limbo quarantine response off: {e}")),
         }

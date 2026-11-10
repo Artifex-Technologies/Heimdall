@@ -16,7 +16,7 @@ contract.
 | --- | --- | --- |
 | 1 | detect, engine, alert, verify, explain, tool rules, maintenance, config, the agent-baseline state file | **done** (2026-11-10) |
 | 2 | the sources, event-driven, on one thread (`heimdalld-rs run --shadow`) | **done**: sessions (inotify + 10-minute look), vault (inotify), Limbo, FIM (+ pacman's database), telemetry, the maintenance window, /proc/net (ports, connections with the mapped IP databases, threat lists and remote-access recognition by name and Go build info, listeners), the journal (one `journalctl --follow`, the cursor file), the Wi-Fi results and router, the device list, remote-access packages and tunnels; the 6-hourly package, kernel and hardening audits on a thread of their own, behind game time (2c, 2026-11-10) |
-| 3 | the API, the Limbo responder, correlate, governance, grants | done: the correlator (`src/correlate.rs`, in the shadow daemon), governance (`src/governance.rs`), the API (`src/api.rs`: its own thread, plain HTTP/1.1 on loopback, callers from /proc/net/tcp; /healthz, /v1/alerts, /v1/review, /v1/incidents, /v1/requests, /v1/audit, /v1/lan/devices, /v1/quarantine, /v1/rules/drafts), grants (`src/grants.rs`: requests filed, decisions read), the restrict-only rules (`src/quarantine.rs`). the API served by `run` without `--shadow` (its alerts reach the loop as `Msg::Alert`; shadow mode serves none). the Limbo responder (`src/response.rs`, in charge only). the request to copy files Limbo held (`immunity::TakeHeld`); one-shot commands handed to the Go binary when it is installed beside (`main.rs`). Open: the Sarina advisory on a new hold (Go: `internal/response/advisor.go`), containment requests (`internal/contain` Trigger) |
+| 3 | the API, the Limbo responder, correlate, governance, grants | done: the correlator (`src/correlate.rs`, in the shadow daemon), governance (`src/governance.rs`), the API (`src/api.rs`: its own thread, plain HTTP/1.1 on loopback, callers from /proc/net/tcp; /healthz, /v1/alerts, /v1/review, /v1/incidents, /v1/requests, /v1/audit, /v1/lan/devices, /v1/quarantine, /v1/rules/drafts), grants (`src/grants.rs`: requests filed, decisions read), the restrict-only rules (`src/quarantine.rs`). the API served by `run` without `--shadow` (its alerts reach the loop as `Msg::Alert`; shadow mode serves none). the Limbo responder (`src/response.rs`, in charge only). the request to copy files Limbo held (`immunity::TakeHeld`); one-shot commands handed to the Go binary when it is installed beside (`main.rs`). The Sarina advisory on a new hold and the backlog note (`src/advisor.rs`, in charge only, 2026-11-10). Open: containment requests (`internal/contain` Trigger) |
 | 4 | mesh and trust | open (design in progress.md, Resume) |
 | switch | the Rust binary as `heimdalld`, the Go one kept for the one-shot commands | plan: `docs/RUST_SWITCH.md` |
 
@@ -42,6 +42,7 @@ rust/
     src/immunity.rs           what is held (immunity's index) and the YARA rule drafts
     src/audit/report.rs       GET /v1/audit (Go: internal/auditreport)
     src/response.rs           the Limbo responder: the queue, the re-check (on quarantine.rs), the control-socket client
+    src/advisor.rs            the Sarina advisory on a new hold and the backlog note (Go: internal/response/advisor.go)
     src/fuzzing.rs            the fuzz targets' bodies
     tests/                    parity (the Go fixtures), regex_corpus, properties, fuzz_smoke
   fuzz/                       cargo-fuzz targets (nightly) and their seed corpus
@@ -210,6 +211,24 @@ and words.
   `limbo_auto_quarantine` set raises the critical alert for a guest started without a policy and never connects to the
   socket; in charge it sends the restrict request. Found on the way: Go's message for a broken JSON literal
   ("invalid character 'o' in literal null (expecting 'u')") is now the reader's too.
+- **The Sarina advisory (step 3, 2026-11-10)**: the same fixture, now **77 cases, 80 steps, 752 Limbo requests, 90
+  requests to a scripted fake sarina-service** on loopback TCP beside the fake Limbo (`internal/parity/response.go`
+  `addSarinaCases`, the Go Responder with `IfInstalled{NewSarina(...)}` and its real HTTP client; `tests/response.rs` the
+  Rust one): the cases of `internal/response/failure_test.go` and `response_test.go` and more: the opinion attached as
+  advisory `sarina` beside Heimdall's own, with a token, not installed, a repeat or refused hold (not asked), 401/403/404/
+  400/500/503 on the session and on the chat, `detail` as text, number, null, list and object (Go's `fmt.Sprint`:
+  `map[m:map[] n:1e+21 why:[a 1.5 true <nil>]]`), a detail cut at 200 bytes, replies not JSON, cut, without or with a bad
+  `session_id`, `tools` missing, null, 70, 0.5 and "0", keys in other case, an empty or missing opinion, a reply over 1 MB,
+  `backend_error`, an opinion of 100,000 letters cut on a letter, escapes, Sarina down, a dropped connection retried once
+  and twice, a slow model timing out (the chat not repeated, the session still closed), a third consultation while two
+  run (`sarina_busy`), and the backlog note (its prompt, control characters stripped, only control characters, failing,
+  not installed). Every request Sarina saw (method, path, the Authorization header, the body byte for byte, the prompt
+  included), every Limbo request and every alert are Go's; stable over repeated runs. `tests/run.rs`: the real binary in
+  charge with `sarina_url` asks the fake service (session, chat, close) and attaches both advisories; in shadow mode
+  nothing reaches it. Properties: `%v` of a float64 reads back, the evidence fence holds whatever the guest wrote (the
+  block always reads back as one JSON object with the texts), opinions and notes are bounded and cut on a letter. Fuzz
+  target `sarina_reply`. Found on the way: a JSON number read into a string field was reported as Go's `number 5`; Go
+  says `number` (fixed in `gostruct::mismatch`).
 - **Measured in charge (2026-11-10, release build, the same made-up config, 20 s idle)**: in charge (API and responder)
   4.2 MB PSS, 2 threads (the loop, the API; a responder thread exists only while a call runs), 0 CPU ticks; shadow mode
   4.1 MB, 1 thread, 0 ticks.
@@ -297,6 +316,10 @@ round fragmented the same heap and 16.6 MB stayed; the audit thread keeps its ow
   Python's urllib, Settings) send a length and open a connection per request. Alerts the API raises reach the outputs a
   moment later, through the daemon's loop (Go writes them before answering).
 
+- The Sarina advisory speaks plain HTTP/1.1 to `sarina_url`, one request per connection; an `https://` URL turns the
+  advisory off with a log line (Go would speak TLS to it; sarina-service listens on plain HTTP on loopback). A consultation
+  in flight at shutdown runs to its end within the grace (Go cancels it and records a `sarina_unreachable` "context
+  canceled" alert).
 - The responder's calls to Limbo block their own thread (Go: a goroutine with a context). At shutdown Go cancels calls in
   flight; here a call runs to its end and whatever it returns after the cancel is treated as Go's cancelled call
   (abandoned, nothing more sent). The queue's watcher sleeps while nothing waits (Go ticks every second once the

@@ -11,8 +11,11 @@
 //! - Lateness, failures, skips and what was not sent at shutdown become `integration` alerts with stable codes.
 //! - Never in shadow mode: the daemon builds a responder only when it is in charge (daemon.rs).
 //!
-//! Not ported yet: the Sarina advisory (Go: Advisor, `sarina_url`); Heimdall's own explanation is attached as Go does.
+//! - On a new hold: Heimdall's own explanation, and (with `sarina_url`) Sarina's opinion (`advisor.rs`), at most 2
+//!   consultations at once (a third is `sarina_busy`, never queued behind a slow model); while requests back up, one
+//!   untrusted note on the backlog. Both are advisories a human reads; neither changes a hold.
 
+use crate::advisor::{self, Advisor};
 use crate::alert::{Alert, Sink};
 use crate::event::{Event, Fields, Severity};
 use crate::gostruct::{self, Field, Ty, Val};
@@ -33,6 +36,7 @@ pub const CODE_BACKLOG: &str = "limbo_quarantine_backlog";
 pub const CODE_OVERFLOW: &str = "limbo_quarantine_overflow";
 pub const CODE_SKIPPED: &str = "quarantine_skipped";
 pub const CODE_NOT_COMPLETED: &str = "quarantine_not_completed_at_shutdown";
+pub const CODE_BACKLOG_ADVISORY: &str = "quarantine_backlog_advisory";
 
 const MAX_QUARANTINES: usize = 8;
 const STATUS_TIMEOUT: Duration = Duration::from_secs(3);
@@ -128,10 +132,10 @@ pub struct Client {
     pub socket: String,
 }
 
-struct Reply {
-    status: u16,
-    status_text: String,
-    body: Vec<u8>,
+pub(crate) struct Reply {
+    pub(crate) status: u16,
+    pub(crate) status_text: String,
+    pub(crate) body: Vec<u8>,
 }
 
 impl Client {
@@ -202,7 +206,7 @@ impl Client {
 use crate::gojson;
 
 /// The whole response is in: the head and a body of its Content-Length, or a chunked body's last chunk.
-fn complete(raw: &[u8]) -> bool {
+pub(crate) fn complete(raw: &[u8]) -> bool {
     let Some(end) = raw.windows(4).position(|w| w == b"\r\n\r\n") else { return false };
     let head = String::from_utf8_lossy(&raw[..end]).to_ascii_lowercase();
     let body = &raw[end + 4..];
@@ -217,7 +221,7 @@ fn complete(raw: &[u8]) -> bool {
     false
 }
 
-fn parse_reply(raw: &[u8], limit: usize) -> Option<Reply> {
+pub(crate) fn parse_reply(raw: &[u8], limit: usize) -> Option<Reply> {
     let end = raw.windows(4).position(|w| w == b"\r\n\r\n")?;
     let head = std::str::from_utf8(&raw[..end]).ok()?;
     let mut lines = head.split("\r\n");
@@ -414,12 +418,18 @@ struct State {
     /// running threads (calls, explanations): Go's WaitGroup
     busy: usize,
     monitor: bool,
+    /// Sarina consultations running (Go: slots, at most 2)
+    advising: usize,
 }
+
+/// How many Sarina consultations may run at once (Go: maxAdvisories).
+const MAX_ADVISORIES: usize = 2;
 
 struct Shared {
     st: Mutex<State>,
     cv: Condvar,
     limbo: Box<dyn Limbo>,
+    advisor: Option<Box<dyn Advisor>>,
     out: Box<dyn Fn(Alert) + Send + Sync>,
     log: Box<dyn Fn(&str) + Send + Sync>,
     cfg: Settings,
@@ -446,11 +456,12 @@ impl Responder {
     pub fn new(
         next: Box<dyn Sink>,
         limbo: Box<dyn Limbo>,
+        advisor: Option<Box<dyn Advisor>>,
         cfg: Settings,
         out: Box<dyn Fn(Alert) + Send + Sync>,
         log: Box<dyn Fn(&str) + Send + Sync>,
     ) -> (Responder, Handle) {
-        let sh = Arc::new(Shared { st: Mutex::new(State::default()), cv: Condvar::new(), limbo, out, log, cfg });
+        let sh = Arc::new(Shared { st: Mutex::new(State::default()), cv: Condvar::new(), limbo, advisor, out, log, cfg });
         (Responder { next, sh: sh.clone() }, Handle(sh))
     }
 }
@@ -759,6 +770,110 @@ fn call(sh: &Arc<Shared>, q: Req) {
             lock(sh).busy -= 1;
         }
     }
+    // only the first alert for an incident asks Sarina; repeats just re-assert the hold
+    if res.created && sh.advisor.is_some() {
+        let mut st = lock(sh);
+        if st.advising < MAX_ADVISORIES {
+            st.advising += 1;
+            st.busy += 1;
+            drop(st);
+            let (s2, id, a) = (sh.clone(), res.id.clone(), a.clone());
+            let spawned = std::thread::Builder::new().name("sarina-advice".into()).spawn(move || {
+                advise(&s2, &id, &a);
+                let mut st = lock(&s2);
+                st.advising -= 1;
+                st.busy -= 1;
+                s2.cv.notify_all();
+            });
+            if spawned.is_err() {
+                let mut st = lock(sh);
+                st.advising -= 1;
+                st.busy -= 1;
+            }
+        } else {
+            drop(st);
+            // never queued behind slow model calls; the human still has the evidence
+            sarina_failed(
+                sh,
+                &res.id,
+                &guest,
+                advisor::CODE_BUSY,
+                "skipped the Sarina advisory: other advisories are still running",
+                "wait for them to finish; the quarantine itself is unaffected",
+            );
+        }
+    }
+}
+
+/// A failed Sarina consultation in the alert stream (Go: integrationAlert); the hold and its evidence stand.
+fn sarina_failed(sh: &Shared, id: &str, guest: &str, code: &str, msg: &str, remedy: &str) {
+    (sh.log)(&format!("sarina advisory for {id} failed: {code}: {msg} (remedy: {remedy})"));
+    let f = Fields::from([("quarantine".to_string(), id.to_string()), ("guest".to_string(), guest.to_string())]);
+    (sh.out)(Alert::integration(code, msg, remedy, &f));
+}
+
+fn panic_text(p: &(dyn std::any::Any + Send)) -> String {
+    p.downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| p.downcast_ref::<String>().cloned()).unwrap_or_default()
+}
+
+/// Asks Sarina about a new hold and attaches the answer as advisory "sarina" (Go: advise).
+fn advise(sh: &Shared, id: &str, a: &Alert) {
+    let Some(adv) = sh.advisor.as_ref() else { return };
+    let guest = a.fields.get("guest").cloned().unwrap_or_default();
+    let by = Instant::now() + Duration::from_secs(180);
+    let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| adv.advise(a, by)));
+    let text = match r {
+        Err(p) => {
+            // advisory work must never take the daemon down
+            sarina_failed(sh, id, &guest, "sarina_error", &format!("advisor panicked: {}", panic_text(&*p)), "report this as a Heimdall bug");
+            return;
+        }
+        Ok(Err(e)) => {
+            sarina_failed(sh, id, &guest, &e.code, &e.msg, &e.remedy);
+            return;
+        }
+        Ok(Ok(t)) => t,
+    };
+    if text.is_empty() {
+        return;
+    }
+    if let Err(e) = sh.limbo.advise(id, "sarina", &text, by) {
+        (sh.log)(&format!("could not attach advisory to {id}: {e}"));
+    }
+}
+
+/// One untrusted note about the backlog, recorded as its own alert; it changes nothing (Go: adviseBacklog).
+fn advise_backlog(sh: &Shared, summary: &str, at: &str) {
+    let Some(adv) = sh.advisor.as_ref() else { return };
+    let by = Instant::now() + Duration::from_secs(180);
+    let text = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| adv.advise_backlog(summary, by))) {
+        Err(p) => {
+            (sh.log)(&format!("backlog advisor panicked: {}", panic_text(&*p)));
+            return;
+        }
+        Ok(Err(e)) => {
+            failure(sh, "", &e.code, &format!("backlog advisory failed: {}", e.msg), &e.remedy, &[]);
+            return;
+        }
+        Ok(Ok(t)) => advisor::clean_note(&t),
+    };
+    if gotext::trim_space(&text).is_empty() {
+        return;
+    }
+    failure(
+        sh,
+        "",
+        CODE_BACKLOG_ADVISORY,
+        &format!("Sarina's note on the quarantine backlog raised at {at} (untrusted; it changed nothing)"),
+        "read it as a hint only; the backlog alert has the facts",
+        &[("advisory", text), ("untrusted", "true".into())],
+    );
+}
+
+/// Go: Duration.Round(time.Second).String().
+fn round_s(d: Duration) -> String {
+    let s = (d.as_nanos() + 500_000_000) / 1_000_000_000;
+    gotext::duration((s * 1_000_000_000) as i64)
 }
 
 /// Makes lateness visible while requests wait (Go: monitor and sweep). It sleeps while nothing waits.
@@ -813,6 +928,42 @@ fn monitor(sh: &Arc<Shared>) {
                 "check that Limbo is responding (systemctl status limbo, limbo_quarantine_timeout alerts); restrict the most severe guests by hand",
                 &[("backlog", backlog.len().to_string()), ("guests", guests.clone()), ("in_flight", running.to_string())],
             );
+            // one untrusted note from Sarina, only when a consultation slot is free (never waits for a model)
+            if sh.advisor.is_some() {
+                let mut summary = format!(
+                    "{} quarantine requests waiting, {running} in flight (at most {MAX_QUARANTINES} run at once). Waiting, in service order:\n",
+                    backlog.len()
+                );
+                for q in backlog.iter().take(20) {
+                    summary.push_str(&format!(
+                        "- {} severity={} triggers={} waited={}\n",
+                        q.guest,
+                        q.primary.severity.as_str(),
+                        q.kinds.join(","),
+                        round_s(now.duration_since(q.enqueued))
+                    ));
+                }
+                let at = Time::now().utc().truncate(1_000_000_000).rfc3339_nano();
+                let mut st = lock(sh);
+                if !st.closing && st.advising < MAX_ADVISORIES {
+                    st.advising += 1;
+                    st.busy += 1;
+                    drop(st);
+                    let s2 = sh.clone();
+                    let spawned = std::thread::Builder::new().name("sarina-backlog".into()).spawn(move || {
+                        advise_backlog(&s2, &summary, &at);
+                        let mut st = lock(&s2);
+                        st.advising -= 1;
+                        st.busy -= 1;
+                        s2.cv.notify_all();
+                    });
+                    if spawned.is_err() {
+                        let mut st = lock(sh);
+                        st.advising -= 1;
+                        st.busy -= 1;
+                    }
+                }
+            }
         }
         st = lock(sh);
     }

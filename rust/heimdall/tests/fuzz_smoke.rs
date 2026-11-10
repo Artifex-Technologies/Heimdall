@@ -21,6 +21,7 @@ const TARGETS: &[(&str, Target)] = &[
     ("kernel_list", fuzzing::kernel_list),
     ("gametime", fuzzing::gametime),
     ("http_request", fuzzing::http_request),
+    ("sarina_reply", fuzzing::sarina_reply),
 ];
 
 #[test]

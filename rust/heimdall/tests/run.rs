@@ -113,8 +113,31 @@ fn fake_limbo(sock: &str) -> std::sync::Arc<std::sync::Mutex<Vec<String>>> {
     seen
 }
 
+/// A fake sarina-service on loopback TCP: a tool-less session and an opinion; returns its URL and what it was asked.
+fn fake_sarina() -> (String, std::sync::Arc<std::sync::Mutex<Vec<String>>>) {
+    let seen: std::sync::Arc<std::sync::Mutex<Vec<String>>> = Default::default();
+    let s2 = seen.clone();
+    let ln = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}", ln.local_addr().unwrap());
+    std::thread::spawn(move || {
+        for conn in ln.incoming() {
+            let Ok(mut c) = conn else { return };
+            let Ok(r) = heimdall::api::read_request(&mut c) else { continue };
+            s2.lock().unwrap().push(format!("{} {}", r.method, r.path));
+            let body = match r.method.as_str() {
+                "POST" if r.path == "/v1/sessions" => r#"{"session_id":"s-1","tools":0}"#,
+                "POST" => r#"{"final_output":"UNKNOWN: made-up opinion","stop_reason":"completed"}"#,
+                _ => "{}",
+            };
+            let _ = write!(c, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}", body.len());
+        }
+    });
+    (url, seen)
+}
+
 /// The Limbo responder acts only in charge: in shadow mode a guest started without a firewall policy raises the critical
-/// alert and nothing reaches Limbo's socket; in charge the same raises the alert and a restrict request.
+/// alert and nothing reaches Limbo's socket or Sarina; in charge the same raises the alert, a restrict request, and Sarina's
+/// opinion attached to the new hold beside Heimdall's own explanation.
 #[test]
 fn the_responder_never_acts_in_shadow_mode() {
     let dir = std::env::temp_dir().join(format!("heimdall-resp-run-{}", std::process::id()));
@@ -128,6 +151,9 @@ fn the_responder_never_acts_in_shadow_mode() {
     cfg["limbo_poll_interval_seconds"] = 1.into();
     cfg["limbo_control_socket"] = format!("{d}/limbo.sock").into();
     cfg["limbo_auto_quarantine"] = true.into();
+    let (sarina_url, asked) = fake_sarina();
+    cfg["sarina_url"] = sarina_url.into();
+    cfg["sarina_installed"] = "".into();
     std::fs::write(format!("{d}/config.json"), cfg.to_string()).unwrap();
     std::fs::write(format!("{d}/events.jsonl"), "").unwrap();
     let seen = fake_limbo(&format!("{d}/limbo.sock"));
@@ -148,6 +174,7 @@ fn the_responder_never_acts_in_shadow_mode() {
     let (code, err) = stop(c);
     assert_eq!(code, 0, "{err}");
     assert!(seen.lock().unwrap().is_empty(), "shadow mode called Limbo: {:?}", seen.lock().unwrap());
+    assert!(asked.lock().unwrap().is_empty(), "shadow mode asked Sarina: {:?}", asked.lock().unwrap());
     assert!(!err.contains("Limbo quarantine response enabled"), "{err}");
 
     let c = start(&d, false);
@@ -155,9 +182,11 @@ fn the_responder_never_acts_in_shadow_mode() {
     start_guest("held");
     wait_for("the hold request", || seen.lock().unwrap().iter().any(|r| r == "POST /v1/quarantine"));
     assert!(alerted("held"));
+    wait_for("both advisories", || seen.lock().unwrap().iter().filter(|r| *r == "POST /v1/quarantine/q1/advisory").count() == 2);
+    assert_eq!(*asked.lock().unwrap(), ["POST /v1/sessions", "POST /v1/sessions/s-1/chat", "DELETE /v1/sessions/s-1"]);
     let (code, err) = stop(c);
     assert_eq!(code, 0, "{err}");
-    assert!(err.contains("Limbo quarantine response enabled"), "{err}");
+    assert!(err.contains("Sarina advisories: true"), "{err}");
     let _ = std::fs::remove_dir_all(&dir);
 }
 

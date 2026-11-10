@@ -45,10 +45,11 @@ a differential run and the Go state files. Plan and numbers: `docs/RUST_PORT.md`
 | Step 3: the Limbo responder (`src/response.rs` on `src/quarantine.rs`; in charge only) | done; the Sarina advisory on a new hold is not ported | response.json: 31 cases, 33 steps, 444 requests, 152 alerts through the Go Responder and the Rust one, each with its real client against the same scripted fake Limbo on a Unix socket: requests and alerts equal; tests/run.rs: the real binary in shadow mode raises the alert and never touches the socket, in charge it sends the hold |
 | takeHeld (the request to copy a file Limbo held), in charge; one-shot commands handed to the Go binary (`/usr/lib/heimdall/heimdalld-go`, HEIMDALL_GO) | done | unit test (file name and bytes as Go's QueueTakeLimbo); tests/run.rs: arguments and exit code passed through, Rust's own commands stay Rust's |
 | Switch-over plan (unit, package, rollback, checklist) | written, not done | `docs/RUST_SWITCH.md` |
-| Step 3: the Sarina advisory, containment requests; step 4: mesh, trust | open | below |
+| Step 3: the Sarina advisory on a new hold and the backlog note (`src/advisor.rs`, in charge only) | done | response.json now 77 cases / 80 steps / 752 Limbo requests / 90 Sarina requests through Go's Responder + real HTTP client and the Rust one against the same scripted fake sarina-service (TCP) and fake Limbo: requests (prompt and token included) and alerts equal; tests/run.rs: in charge asks and attaches, shadow asks nothing; 3 properties, fuzz target sarina_reply |
+| Step 3: containment requests; step 4: mesh, trust | open | below |
 
 - **Resume (in this order; the switch waits for each item `docs/RUST_SWITCH.md` "Before" marks as needed here):**
-  1. **The Sarina advisory** (`internal/response/advisor.go`, 304 lines) into `src/response.rs`: after a hold with
+  1. ~~**The Sarina advisory**~~ DONE (`src/advisor.rs`, see the table). Was: (`internal/response/advisor.go`, 304 lines) into `src/response.rs`: after a hold with
      `created`, at most 2 at once (else `sarina_busy`), `POST /v1/sessions` with `tool_allowlist: []`, refuse unless the
      reply's `tools` is 0 (`sarina_contract_tools_nonzero`), chat with `BuildPrompt` (untrusted framing), one retry only on
      a refused/dropped connection, DELETE the session on every path, the codes and remedies of `ErrorInfo`, the reply clipped

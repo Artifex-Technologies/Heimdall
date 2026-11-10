@@ -58,6 +58,13 @@ func NewSarina(baseURL, token, cwd string) (*Sarina, error) {
 	return &Sarina{base: strings.TrimRight(baseURL, "/"), token: token, cwd: cwd, http: &http.Client{Timeout: 150 * time.Second}, retryDelay: defaultRetryDelay}, nil
 }
 
+// SetTestHooks sets the HTTP timeout and the wait before the one retry, so the parity fixture (internal/parity) can run
+// the timeout and retry cases in milliseconds. The daemon never calls it.
+func (s *Sarina) SetTestHooks(timeout, retryDelay time.Duration) {
+	s.http.Timeout = timeout
+	s.retryDelay = retryDelay
+}
+
 // Error codes for a failed Sarina consultation. They are stable: scripts and
 // docs/INTEGRATION-FAILURES.md refer to them by name.
 const (
