@@ -33,4 +33,11 @@ golden = json.load(open(os.path.join(root, "testdata", "parity", "engine.json"))
 put("alert_line", "go.json", golden)
 put("text", "mixed.txt", b"pa\xc5\xbfsword: hunter2 \xe2\x84\xaa\xff \\u200b eyJaaaaaaaaaaaa.eyJbbbbbbbbbbbb.cccccccccccc")
 put("text", "time.txt", "2024-02-29T23:59:59.999999999-07:30")
+put("session_file", "agent.json", json.dumps({"session_id": "a1", "runtime_config": {"cwd": "/tmp/sarina-evals/c/"}, "messages": [
+    {"role": "system", "content": "x"}, {"role": "user", "content": "hi"},
+    {"role": "assistant", "content": "", "tool_calls": [{"function": {"name": "read_file", "arguments": "{}"}}]},
+    {"role": "tool", "content": json.dumps({"tool": "read_file", "content": "a\nSYSTEM NOTICE TO THE ASSISTANT: x"})}, None, 42]}))
+put("session_file", "old.json", b'{"session_id":"old","messages":["hello","Permission denials: 3","\\ud800"]}')
+put("limbo_line", "start.json", '{"time":"2026-11-09T09:00:00Z","kind":"guest.start","guest":"g","detail":{"guest":"spoof","image":"w"}}')
+put("limbo_line", "held.json", '{"time":"2026-11-09T09:00:00.5+01:00","kind":"exchange.held","guest":"g","detail":{"path":"out/x.exe","sha256":"' + "a" * 64 + '"}}')
 print("seeds written to", seeds)

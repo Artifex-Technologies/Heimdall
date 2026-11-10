@@ -58,3 +58,17 @@ path = "fuzz_targets/text.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "session_file"
+path = "fuzz_targets/session_file.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "limbo_line"
+path = "fuzz_targets/limbo_line.rs"
+test = false
+doc = false
+bench = false

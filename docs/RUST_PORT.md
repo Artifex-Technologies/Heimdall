@@ -15,7 +15,7 @@ contract.
 | Step | What | State |
 | --- | --- | --- |
 | 1 | detect, engine, alert, verify, explain, tool rules, maintenance, config, the agent-baseline state file | **done** (2026-11-10) |
-| 2 | the sources, event-driven (sessions, Limbo, vault, FIM, telemetry, /proc/net, journal, Wi-Fi, LAN, remote access) | next |
+| 2 | the sources, event-driven, on one thread (`heimdalld-rs run --shadow`) | **in progress**: sessions (inotify + 10-minute look), vault (inotify), Limbo, FIM (+ pacman's database), telemetry, the maintenance window done; /proc/net (ports, connections with the IP databases and threat lists, listeners), the journal, Wi-Fi, LAN, remote access and the audits next |
 | 3 | the API, the Limbo responder, correlate, governance, grants | the restrict-only rules are done and proved (`src/quarantine.rs`) |
 | 4 | mesh and trust | open |
 
@@ -29,6 +29,8 @@ rust/
     src/gotext, gojson.rs, gotime.rs, gonet.rs   Go's behaviour where Rust's differs (below)
     src/event.rs, detect/, verify.rs, explain.rs, toolrules.rs, maintenance.rs, engine.rs, alert.rs, config.rs
     src/quarantine.rs         the restrict-only rules, with Kani proofs
+    src/daemon.rs, sources/   the one-thread loop (poll(2) on inotify, a signalfd and the sources' next times) and the sources
+    src/pkgverify.rs          pacman's database (which package owns a file, its recorded SHA-256)
     src/fuzzing.rs            the fuzz targets' bodies
     tests/                    parity (the Go fixtures), regex_corpus, properties, fuzz_smoke
   fuzz/                       cargo-fuzz targets (nightly) and their seed corpus
@@ -106,11 +108,18 @@ and words.
   same files: **1,986 steps, 147 alert lines, byte for byte identical**, every assertion holding. `functions.json` adds
   redaction, `%q`, durations, IP parsing, the running statistics, 115 explanations and the detector order (a Go test
   keeps `cmd/heimdalld`'s `newDetectors` equal to it).
-- **The engine differential** (`rust/parity/engine-differential.sh`): 214,012 synthetic events of every kind
+- **The engine differential** (`rust/parity/engine-differential.sh`): 302,359 synthetic events of every kind
   (`gen-events.py`: planted attacks, hostile text, bursts, knocks in runs, Limbo sequences, telemetry outliers, the agent's
   tools over many windows) through the Go engine (`rust/gotools/replay`) and the Rust one: **105,568 alerts, identical**
-  with the time dropped, with a maintenance window closed and open. Go 3.95 s CPU and 18.2 MB peak RSS, Rust 2.08 s and
-  12.2 MB for the run (the steady-state daemon comparison needs step 2).
+  with the time dropped, with a maintenance window closed and open. Go 3.86 s CPU and 16.8 MB peak (VmHWM), Rust 2.06 s
+  and 6.6 MB for the run. (The first measurement of this said 12.2 MB for Rust: getrusage counts the forked Python
+  before the exec; `measure.py` now reads the child's own VmHWM.)
+- **The state handover** (`rust/parity/harness/state-handover.py`), the switch rehearsed on made-up data: Go starts
+  fresh, Rust takes over Go's state files (sessions, vault, Limbo offset, FIM, agent baseline), planted events, Go takes
+  over Rust's files, planted again, Rust takes over. **Neither daemon alerted again on what the other had read**, and each
+  raised the planted ones (injection, credential, invisible character, Limbo guest, file change).
+- **The daemons side by side** (`rust/parity/harness/side-by-side.sh`, the cleaned phase-0 harness; /proc/net, journal and
+  audits off in both while they are not ported): see "Measured" below.
 - **Properties** (`tests/properties.rs`, proptest, 2,000 cases each): the prefilter never hides a match; the prefiltered
   injection detector equals trying every pattern; redaction is stable; fold is Go's; the invisible-character detector's
   bounds; the burst detector's cooldown; one inbound alert per address per cooldown; Welford against two-pass; restrict
@@ -123,6 +132,31 @@ and words.
 - **Kani** (`src/quarantine.rs`, `#[cfg(kani)]`): `a_request_never_loosens`, `a_hold_only_rises`, `requests_are_restrict`.
   The same rules are tested exhaustively over every level and a spread of times without Kani. Kani is not installed on the
   build machine; run with `cargo kani -p heimdall`.
+
+## Measured (2026-11-10)
+
+The Go heimdalld (with phase 0) and heimdalld-rs side by side on the same synthetic load (`side-by-side.sh`: 6,629 session
+files and 482 lock files, 12 agent sessions, 25 watched files, a vault, Limbo's log; 240 s after a 45 s warm-up at nice 15;
+the /proc/net watchers, the journal and the audits off in **both**, since the port has not got them yet; "activity" adds
+the planted events: injection and key in a tool result, a zero-width space in a growing session, a password in an
+old-shape session, a Limbo guest without policy, a changed watched file, a poisoned vault note):
+
+| | Go | Rust |
+| --- | --- | --- |
+| idle: CPU | 0.004 % of a core (9.5 ms) | 0.0008 % (1.9 ms) |
+| idle: context switches | 1.69 a second | 0.23 a second |
+| idle: PSS | 21.7 MB (13.6 MB anonymous) | **5.4 MB** (3.4 MB) |
+| activity: CPU | 0.029 % (68.8 ms) | 0.013 % (34.5 ms) |
+| activity: context switches | 3.88 a second | 0.27 a second |
+| activity: PSS | 24.0 MB | **5.5 MB** |
+| threads | 19-21 | 1 |
+| activity: alerts | 7 | 7, identical once the time is dropped |
+
+Go's figures here are lower than phase 0's (0.046 % idle) because the network watchers are off in both. Two things found
+by these runs and fixed before the numbers: a source that said "due now" by asking the clock again was never reached and
+the loop spun (95 % of a core); and building the events of a first look at 6,629 sessions only to drop them left the heap
+25 MB larger for good. The first look now records positions only, and freed heap is handed back (`malloc_trim`) after the
+start and at most once a minute.
 
 ## Differences from Go, on purpose
 

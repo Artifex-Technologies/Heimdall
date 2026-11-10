@@ -19,7 +19,7 @@ closed rather than deleting it -- the history of *why* is worth keeping.
 
 ---
 
-## 2026-11-10 — The Rust port, step 1 (DONE; steps 2-4 open)
+## 2026-11-10 — The Rust port, step 1 (DONE), step 2 begun (file sources done, shadow mode prepared)
 
 **My ask:** port the always-on daemon to Rust, phase 1 of the plan, keeping the phase-0 design; proof by shared fixtures,
 a differential run and the Go state files. Plan and numbers: `docs/RUST_PORT.md`.
@@ -32,11 +32,17 @@ a differential run and the Go state files. Plan and numbers: `docs/RUST_PORT.md`
 | Regex semantics decided (Go's ASCII classes kept) | done | 0 differences on 727,312 texts; Rust's own classes would differ (4 more, 2 fewer on 1,920) |
 | Restrict-only rules (quarantine level) | done | 3 Kani harnesses (not run: Kani not installed), exhaustive tests, 2 properties |
 | agent-baseline.json read and written as Go does | done | fixture scenario with restarts |
-| Sources (step 2), shadow mode unit, API/responder/correlate (3), mesh/trust (4) | open | |
+| Step 2a: one-thread loop; sessions, vault, Limbo, FIM (+pacman db), telemetry, maintenance window | done | sources tests; handover rehearsal (no repeated alert either way); side by side: 7/7 alerts identical; PSS 5.4-5.5 MB vs Go 21.7-24.0 MB, CPU about half |
+| Shadow mode prepared (unit, config and compare scripts, steps) | done, not started | `docs/RUST_SHADOW.md`; guard test (refuses Go state paths) |
+| Step 2b: /proc/net (ports, connections + IP databases + threat lists + remote access, listeners), journal, Wi-Fi/LAN, rasource, audits | open | |
+| Step 3: API, responder, correlate, governance, grants; step 4: mesh, trust | open | |
 
-- **Resume:** step 2, the sources, starting with agentsource (inotify + 10-minute rescan, `agent-sessions.json`), then
-  limbosource, vaultsource, hostsource (FIM, telemetry), netsource (one shared /proc/net read, cached owners, mmap'd IP
-  databases), fwsource (one journal follower), then `heimdalld-rs run` and `docs/RUST_SHADOW.md`.
+- **Resume:** step 2b, `internal/sources/netsource` (tables.go: one shared /proc/net read; netsource.go ports;
+  lan.go listeners and router; conn.go with procinfo.go, `internal/ipintel` mmap'd MaxMind reader + origin + threat lists,
+  `internal/remoteaccess` identify), then fwsource (one `journalctl --follow` with the cursor file), wifisource, lansource,
+  rasource, pkgaudit/kernelaudit/hardening behind gametime. Each as a `sources::Source` on the loop in `rust/heimdall/src/
+  daemon.rs`, with a fuzz target for each parser (MaxMind reader, journal lines), then the network mode of
+  `rust/parity/harness/side-by-side.sh` (`--network`, under `unshare -rn`). Then the shadow week (owner).
 
 ## 2026-11-09 — Running light, phase 0 of the Rust port (DONE in code; install is mine)
 

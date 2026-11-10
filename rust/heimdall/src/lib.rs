@@ -6,6 +6,7 @@
 
 pub mod alert;
 pub mod config;
+pub mod daemon;
 pub mod detect;
 pub mod engine;
 pub mod event;
@@ -16,9 +17,11 @@ pub mod gonet;
 pub mod gotext;
 pub mod gotime;
 pub mod maintenance;
+pub mod pkgverify;
 pub mod quarantine;
 pub mod replay;
 pub mod rules;
+pub mod sources;
 pub mod state;
 pub mod toolrules;
 pub mod verify;

@@ -1,0 +1,58 @@
+[Unit]
+Description=Heimdall in Rust, shadow mode (beside heimdall.service; own alert log, no responses)
+Documentation=https://github.com/Artifex-Technologies/Heimdall/blob/main/docs/RUST_SHADOW.md
+After=heimdall.service
+
+# Not installed by packaging/install.sh: the owner copies it in for the shadow week (docs/RUST_SHADOW.md), then removes it.
+
+[Service]
+Type=simple
+User=heimdall
+Group=heimdall
+ExecStart=/usr/local/bin/heimdalld-rs run --shadow --config /etc/heimdall/shadow-config.json
+Restart=on-failure
+RestartSec=5
+# its log lines in the journal under their own name; the alerts also go to stdout as with the Go daemon
+SyslogIdentifier=heimdalld-rs
+
+CPUWeight=20
+IOWeight=20
+Nice=10
+
+StateDirectory=heimdall-rs
+StateDirectoryMode=0750
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=true
+# the only place it writes; the Go daemon's folder stays read-only to it (heimdalld-rs also refuses a config pointing there)
+ReadWritePaths=/var/lib/heimdall-rs
+ReadOnlyPaths=-/var/lib/heimdall
+
+# Shadow mode takes no responses and serves no API: no network at all, not even loopback.
+PrivateNetwork=yes
+IPAddressDeny=any
+RestrictAddressFamilies=AF_UNIX
+
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~ptrace process_vm_readv process_vm_writev kcmp pidfd_getfd
+SystemCallErrorNumber=EPERM
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+DevicePolicy=closed
+ReadOnlyPaths=/proc
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

@@ -63,6 +63,32 @@ pub fn alert_line(data: &[u8]) {
     }
 }
 
+/// A Sarina session file, as the session watcher reads it; every decoded message then through every detector.
+pub fn session_file(data: &[u8]) {
+    let Ok((_, cwd, msgs)) = crate::sources::agent::parse_session(data) else { return };
+    let _ = crate::sources::clean_path(&cwd);
+    for (role, text, tools) in msgs.into_iter().flatten() {
+        let mut fields = crate::event::Fields::new();
+        fields.insert("role".into(), role);
+        fields.insert("tools".into(), tools.join(","));
+        let e = crate::event::Event { source: "agent-session".into(), kind: "message".into(), text, fields, ..Default::default() };
+        let mut ds = crate::detect::daemon_detectors(
+            &Config { agent_baseline_state_path: String::new(), ..Config::default() },
+            crate::detect::Deps { ephemeral: Some((32768, 60999)), ..Default::default() },
+        );
+        for d in ds.iter_mut() {
+            let _ = d.inspect(&e);
+        }
+    }
+}
+
+/// One line of Limbo's events.jsonl.
+pub fn limbo_line(data: &[u8]) {
+    if let Some(e) = crate::sources::limbo::parse_line(data) {
+        assert!(!e.f("guest").is_empty() && !e.kind.is_empty());
+    }
+}
+
 /// Text from outside: Go's reading of bytes, the text detectors' helpers and RFC 3339 times.
 pub fn text(data: &[u8]) {
     let s = gotext::lossy(data);

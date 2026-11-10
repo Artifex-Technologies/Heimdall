@@ -10,6 +10,9 @@ fn usage() {
         "heimdalld-rs -- Heimdall's daemon in Rust (shadow mode until the switch)
 
 Usage:
+  heimdalld-rs run --shadow --config PATH
+                                    The daemon beside the Go one: real sources, its own alert log, no responses
+                                    (docs/RUST_SHADOW.md). Refuses any state or log path in /var/lib/heimdall/.
   heimdalld-rs replay --config PATH [--approvals PATH] < events.jsonl > alerts.jsonl
                                     Run event lines through the detectors (the parity and differential tests use it).
   heimdalld-rs rules check [FILE]   Check a text rule file (default: the built-in rules); every problem is printed.
@@ -33,6 +36,16 @@ fn main() -> ExitCode {
         return ExitCode::from(2);
     }
     match args.get(1).map(String::as_str) {
+        Some("run") => {
+            let cfg = match Config::load(&flag(&args, "--config").unwrap_or_default()) {
+                Ok(c) => c,
+                Err(e) => {
+                    eprintln!("heimdalld-rs: {e}");
+                    return ExitCode::from(2);
+                }
+            };
+            ExitCode::from(heimdall::daemon::run(cfg, args.iter().any(|a| a == "--shadow")) as u8)
+        }
         Some("replay") => {
             let cfg = match Config::load(&flag(&args, "--config").unwrap_or_default()) {
                 Ok(c) => c,
