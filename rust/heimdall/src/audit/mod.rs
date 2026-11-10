@@ -118,7 +118,7 @@ impl Audits {
     }
 }
 
-fn pipe() -> std::io::Result<(OwnedFd, OwnedFd)> {
+pub(crate) fn pipe() -> std::io::Result<(OwnedFd, OwnedFd)> {
     let mut fds = [0 as libc::c_int; 2];
     // SAFETY: pipe2 fills the two descriptors, owned from here on.
     unsafe {

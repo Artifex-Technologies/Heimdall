@@ -16,7 +16,7 @@ contract.
 | --- | --- | --- |
 | 1 | detect, engine, alert, verify, explain, tool rules, maintenance, config, the agent-baseline state file | **done** (2026-11-10) |
 | 2 | the sources, event-driven, on one thread (`heimdalld-rs run --shadow`) | **done**: sessions (inotify + 10-minute look), vault (inotify), Limbo, FIM (+ pacman's database), telemetry, the maintenance window, /proc/net (ports, connections with the mapped IP databases, threat lists and remote-access recognition by name and Go build info, listeners), the journal (one `journalctl --follow`, the cursor file), the Wi-Fi results and router, the device list, remote-access packages and tunnels; the 6-hourly package, kernel and hardening audits on a thread of their own, behind game time (2c, 2026-11-10) |
-| 3 | the API, the Limbo responder, correlate, governance, grants | done: the correlator (`src/correlate.rs`, in the shadow daemon), governance (`src/governance.rs`), the API (`src/api.rs`: its own thread, plain HTTP/1.1 on loopback, callers from /proc/net/tcp; /healthz, /v1/alerts, /v1/review, /v1/incidents, /v1/requests, /v1/audit, /v1/lan/devices, /v1/quarantine, /v1/rules/drafts), grants (`src/grants.rs`: requests filed, decisions read), the restrict-only rules (`src/quarantine.rs`). Open: the API wired into a non-shadow `run`; the Limbo responder |
+| 3 | the API, the Limbo responder, correlate, governance, grants | done: the correlator (`src/correlate.rs`, in the shadow daemon), governance (`src/governance.rs`), the API (`src/api.rs`: its own thread, plain HTTP/1.1 on loopback, callers from /proc/net/tcp; /healthz, /v1/alerts, /v1/review, /v1/incidents, /v1/requests, /v1/audit, /v1/lan/devices, /v1/quarantine, /v1/rules/drafts), grants (`src/grants.rs`: requests filed, decisions read), the restrict-only rules (`src/quarantine.rs`). the API served by `run` without `--shadow` (its alerts reach the loop as `Msg::Alert`; shadow mode serves none). Open: the Limbo responder |
 | 4 | mesh and trust | open |
 
 ## Layout
@@ -187,6 +187,11 @@ and words.
   CheckRule refuses or accepts (Go's ASCII `\s` and `\b`). The audit report moved from `cmd/heimdalld/audit.go` to
   `internal/auditreport` so the fixture can call it; the Go daemon's answer is unchanged. Found on the way: the float
   writer wrote Go's `-0` as `0` (fixed in `gojson::write_f64`; no alert field carries a negative zero).
+- **The API in a daemon in charge (step 3)**: `run` without `--shadow` serves the API on `api_addr` (its own thread); the
+  alerts it raises come to the loop as `Msg::Alert` through an `Inbox` (a channel, and a pipe that wakes poll(2)) and go,
+  like the sources' integration alerts, to the correlator and the outputs, past any response (Go's `multiSink`).
+  `tests/run.rs` runs the real binary: every endpoint answers 200, a review and a grant request land in the alert log and
+  in /v1/alerts, SIGTERM ends it with 0; the same config with `--shadow` serves nothing for 2 s and says why.
 
 ## Measured (2026-11-10)
 

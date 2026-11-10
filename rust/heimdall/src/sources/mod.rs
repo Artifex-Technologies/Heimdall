@@ -29,6 +29,64 @@ pub enum Msg {
     Issue(Issue),
     /// A line for the daemon's log only.
     Log(String),
+    /// An alert raised off the loop (the API: reviews, grant requests, rule drafts) for the outputs: the correlator and
+    /// every output, never the responses (Go writes them to multiSink, not the engine's sink).
+    Alert(crate::alert::Alert),
+}
+
+/// Messages from another thread to the daemon's loop: a channel, and a byte in a pipe that wakes the loop's poll(2).
+pub struct Inbox {
+    rx: std::sync::mpsc::Receiver<Msg>,
+    wake: std::os::fd::OwnedFd,
+    name: &'static str,
+}
+
+/// The sending end (cheap to clone, usable from any thread).
+#[derive(Clone)]
+pub struct Outbox {
+    tx: std::sync::mpsc::Sender<Msg>,
+    wake: std::sync::Arc<std::os::fd::OwnedFd>,
+}
+
+impl Outbox {
+    /// Sends a message; false once the loop has stopped.
+    pub fn send(&self, m: Msg) -> bool {
+        if self.tx.send(m).is_err() {
+            return false;
+        }
+        let _ = rustix::io::write(&*self.wake, &[1]); // a full pipe already wakes the loop
+        true
+    }
+}
+
+impl Inbox {
+    pub fn new(name: &'static str) -> std::io::Result<(Inbox, Outbox)> {
+        let (r, w) = crate::audit::pipe()?;
+        let (tx, rx) = std::sync::mpsc::channel();
+        Ok((Inbox { rx, wake: r, name }, Outbox { tx, wake: std::sync::Arc::new(w) }))
+    }
+}
+
+impl Source for Inbox {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+    fn fd(&self) -> Option<BorrowedFd<'_>> {
+        use std::os::fd::AsFd;
+        Some(self.wake.as_fd())
+    }
+    fn due(&self) -> Option<Instant> {
+        None
+    }
+    fn ready(&mut self, _now: Instant, out: &mut Vec<Msg>) {
+        let mut buf = [0u8; 256];
+        while matches!(rustix::io::read(&self.wake, &mut buf), Ok(n) if n > 0) {}
+        out.extend(self.rx.try_iter());
+    }
+    fn run(&mut self, _now: Instant, _out: &mut Vec<Msg>) {}
+    fn stop(&mut self, out: &mut Vec<Msg>) {
+        out.extend(self.rx.try_iter());
+    }
 }
 
 /// A problem reading a source (Go: agentsource.Issue).

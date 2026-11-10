@@ -1,11 +1,14 @@
-//! `heimdalld-rs run --shadow`: the daemon on one thread (and one more for the 6-hourly audits, `audit`). Every source, the
-//! engine, the correlator and the alert writers share one loop that sleeps in poll(2) until a source's descriptor is
-//! readable, a source's time comes, or SIGTERM/SIGINT arrives (a signalfd).
+//! `heimdalld-rs run [--shadow]`: the daemon on one thread (and one more for the 6-hourly audits, `audit`, and one for the
+//! API). Every source, the engine, the correlator and the alert writers share one loop that sleeps in poll(2) until a
+//! source's descriptor is readable, a source's time comes, or SIGTERM/SIGINT arrives (a signalfd). The API's alerts reach
+//! the loop as `Msg::Alert` through an `Inbox` (a channel and a pipe).
 //!
-//! Shadow mode (the only mode until the responder, the API, mesh and trust are ported): the real sources,
-//! its own alert log and state files, no responses of any kind (no Limbo hold, no containment request, no copy of a held
-//! file, nothing sent to a mesh peer, no API). It refuses to start with any state or log path in the Go daemon's folder,
-//! so the two never write the same file. docs/RUST_SHADOW.md.
+//! Shadow mode: the real sources, its own alert log and state files, no responses of any kind (no Limbo hold, no
+//! containment request, no copy of a held file, nothing sent to a mesh peer, no API). It refuses to start with any state or
+//! log path in the Go daemon's folder, so the two never write the same file. docs/RUST_SHADOW.md.
+//!
+//! In charge (no `--shadow`, for the switch): the same, plus the API on `api_addr`. Not ported yet: the Limbo responder,
+//! containment requests, the copy of held files, mesh, trust (docs/RUST_PORT.md).
 
 use crate::alert::{Alert, MultiSink, Ring, Sink, WriterSink};
 use crate::config::Config;
@@ -118,18 +121,54 @@ impl std::io::Write for Stdout {
     }
 }
 
+/// Starts the API on its own thread (Go: api.NewServer with every Set... of cmdRun) and returns the loop's end of its
+/// messages and the address bound.
+fn serve_api(
+    cfg: &Config,
+    ring: Arc<Mutex<Ring>>,
+    incidents: Arc<Mutex<crate::correlate::State>>,
+) -> std::io::Result<(sources::Inbox, std::net::SocketAddr)> {
+    let (inbox, outbox) = sources::Inbox::new("api")?;
+    let api = crate::api::Api {
+        ring,
+        incidents,
+        reviewer: Some(Mutex::new(Default::default())),
+        grants: Some(crate::grants::Store {
+            requests: cfg.grant_requests_path.clone(),
+            decisions: crate::grants::DEFAULT_DECISIONS.into(),
+        }),
+        access: Some(crate::api::Access::new(cfg.api_users.clone(), cfg.api_groups.clone())),
+        alerts: Box::new(move |a| {
+            outbox.send(Msg::Alert(a));
+        }),
+        files: crate::api::Files {
+            audit: Some(crate::audit::report::Computer {
+                tracker: cfg.security_tracker.clone(),
+                pacman_db: cfg.pacman_db.clone(),
+                kernel_vulns: cfg.kernel_vulns.clone(),
+                modules: "/usr/lib/modules".into(),
+                running: None,
+                hardening_root: String::new(),
+            }),
+            lan_dir: (!cfg.lan_dir.is_empty()).then(|| cfg.lan_dir.clone()),
+            immunity_dir: Some(std::env::var("HEIMDALL_IMMUNITY_DIR").unwrap_or_else(|_| crate::immunity::DEFAULT_DIR.into())),
+            rule_drafts: Some(cfg.rule_drafts_path.clone()),
+        },
+    };
+    let addr = crate::api::serve(&cfg.api_addr, api)?;
+    Ok((inbox, addr))
+}
+
 /// Runs the daemon until SIGTERM or SIGINT. Exit code as the Go daemon's.
 pub fn run(cfg: Config, shadow: bool) -> i32 {
-    if !shadow {
-        log("only shadow mode for now (the Limbo responder, the API, mesh and trust are not ported yet): run --shadow");
-        return 2;
-    }
-    if let Err(bad) = check_shadow(&cfg) {
-        log("refusing to run in shadow mode beside the Go daemon:");
-        for b in bad {
-            log(&format!("  {b}"));
+    if shadow {
+        if let Err(bad) = check_shadow(&cfg) {
+            log("refusing to run in shadow mode beside the Go daemon:");
+            for b in bad {
+                log(&format!("  {b}"));
+            }
+            return 2;
         }
-        return 2;
     }
     let sig = match signal_fd() {
         Ok(fd) => fd,
@@ -138,9 +177,11 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
             return 2;
         }
     };
-    log("shadow mode: watching beside the Go daemon, own alert log, no responses");
-    if !cfg.api_addr.is_empty() {
-        log(&format!("api_addr {} ignored: the API is not ported yet (the Go daemon serves it)", cfg.api_addr));
+    if shadow {
+        log("shadow mode: watching beside the Go daemon, own alert log, no responses");
+        if !cfg.api_addr.is_empty() {
+            log(&format!("api_addr {} ignored: shadow mode serves no API (the Go daemon serves it)", cfg.api_addr));
+        }
     }
     if cfg.agent_session_dir.is_empty() && cfg.limbo_event_log.is_empty() {
         log("no AI agent sessions or Limbo log to watch; watching the computer itself");
@@ -173,7 +214,10 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
     // every alert passes the correlator on its way to the outputs: related alerts become one incident alert (Go: correlate)
     let corr = crate::correlate::Correlator::new(Box::new(MultiSink { sinks }));
     let incidents = corr.state.clone();
-    let mut eng = Engine::new(Box::new(corr), detect::daemon_detectors(&cfg, deps));
+    // `outputs` is Go's multiSink: the correlator and the outputs. The engine writes through it; alerts raised off the loop
+    // (the API) and the sources' integration alerts go to it directly, past any response
+    let outputs = Arc::new(Mutex::new(corr));
+    let mut eng = Engine::new(Box::new(outputs.clone()), detect::daemon_detectors(&cfg, deps));
     eng.set_maintenance(maintenance::Watcher::new(&cfg.maintenance_path), &cfg.maintenance_soften);
     if toolrules::enabled() {
         match toolrules::builtin() {
@@ -327,8 +371,25 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
         }
     }
 
+    // the API, in charge only (Go: cmdRun's api block): its own thread; the alerts it raises come to this loop as messages
+    if !shadow && !cfg.api_addr.is_empty() {
+        match serve_api(&cfg, ring.clone(), incidents.clone()) {
+            Ok((inbox, addr)) => {
+                srcs.push(Box::new(inbox));
+                log(&format!("status API listening on {addr}"));
+            }
+            Err(e) => log(&format!("status API stopped: {e}")),
+        }
+    }
+
     let session_dir = cfg.agent_session_dir.clone();
     let quiet_missing_dir = !sarina_installed(&cfg);
+    let mut out = outputs.clone();
+    let write_out = |out: &mut Arc<Mutex<crate::correlate::Correlator>>, a: &Alert| {
+        if let Err(e) = out.write(a) {
+            log(&format!("alert sink write failed: {e}"));
+        }
+    };
     let mut repeats = LogOnce::default();
     let mut dispatch = |eng: &mut Engine, msgs: Vec<Msg>| {
         for m in msgs {
@@ -355,8 +416,9 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
                         &i.remedy,
                         &Fields::from([("path".to_string(), i.path.clone())]),
                     );
-                    eng.write_alert(&a);
+                    write_out(&mut out, &a);
                 }
+                Msg::Alert(a) => write_out(&mut out, &a),
             }
         }
     };
@@ -462,6 +524,5 @@ mod tests {
             ..Config::default()
         };
         assert!(check_shadow(&c).is_ok());
-        assert_eq!(run(Config::default(), false), 2, "not without --shadow");
     }
 }
