@@ -177,7 +177,7 @@ func repoTexts(t *testing.T) []string {
 			return nil
 		}
 		if d.IsDir() {
-			if n := d.Name(); n == ".git" || n == ".claude" {
+			if n := d.Name(); n == ".git" || n == ".claude" || n == "target" { // target: the Rust port's build output
 				return fs.SkipDir
 			}
 			return nil

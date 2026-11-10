@@ -94,6 +94,12 @@ func New(c *Catalog, owner Owner) *Policy {
 	return p
 }
 
+// SetTestHooks replaces how a program file is hashed and what time it is, for the parity fixtures (internal/parity), which
+// run the rules over made-up files on a made-up clock. Not for the daemon.
+func (p *Policy) SetTestHooks(hash func(path string) (string, error), now func() time.Time) {
+	p.hash, p.now = hash, now
+}
+
 // Enabled reports whether this system asks for the rules.
 func Enabled() bool {
 	_, err := os.Stat(MarkerPath)

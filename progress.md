@@ -19,6 +19,25 @@ closed rather than deleting it -- the history of *why* is worth keeping.
 
 ---
 
+## 2026-11-10 — The Rust port, step 1 (DONE; steps 2-4 open)
+
+**My ask:** port the always-on daemon to Rust, phase 1 of the plan, keeping the phase-0 design; proof by shared fixtures,
+a differential run and the Go state files. Plan and numbers: `docs/RUST_PORT.md`.
+
+| Item | State | Tested |
+| --- | --- | --- |
+| Go behaviour layer: JSON (lone surrogates, case-insensitive keys), `%q`, durations, RFC 3339, IPs, Unicode tables from Go | done | unit tests, functions.json, properties, fuzz smoke |
+| All 22 detectors, verifier, explanations, tool rules, maintenance softening, engine, alert writer, config | done | 1,986 fixture steps / 147 alert lines byte-identical; engine differential 105,568 alerts identical |
+| Typed rule file for the text detectors, checked at load | done | 9 refusal cases; Go test keeps it equal to Go's patterns |
+| Regex semantics decided (Go's ASCII classes kept) | done | 0 differences on 727,312 texts; Rust's own classes would differ (4 more, 2 fewer on 1,920) |
+| Restrict-only rules (quarantine level) | done | 3 Kani harnesses (not run: Kani not installed), exhaustive tests, 2 properties |
+| agent-baseline.json read and written as Go does | done | fixture scenario with restarts |
+| Sources (step 2), shadow mode unit, API/responder/correlate (3), mesh/trust (4) | open | |
+
+- **Resume:** step 2, the sources, starting with agentsource (inotify + 10-minute rescan, `agent-sessions.json`), then
+  limbosource, vaultsource, hostsource (FIM, telemetry), netsource (one shared /proc/net read, cached owners, mmap'd IP
+  databases), fwsource (one journal follower), then `heimdalld-rs run` and `docs/RUST_SHADOW.md`.
+
 ## 2026-11-09 — Running light, phase 0 of the Rust port (DONE in code; install is mine)
 
 **My ask:** make heimdalld much cheaper to run (I game and run a local model at the same time), from the measurement study's

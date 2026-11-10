@@ -88,6 +88,9 @@ docs/
   DEVICES.md               The device list of trusted home networks (heimdalld lan, /v1/lan/devices)
   WIFI_HEALTH.md           Wi-Fi checks: why the Wi-Fi is slow (heimdalld wifi-health)
 packaging/arch/            PKGBUILD, systemd unit, sysusers -- mirrors Sarina's own layout
+internal/parity/          The Go table tests as scenarios; writes testdata/parity, the fixtures the Rust port must match
+rust/                      The Rust port of the daemon (heimdalld-rs, shadow mode until the switch): docs/RUST_PORT.md
+testdata/parity/           Fixtures both languages run (go test ./internal/parity -update rewrites them)
 ```
 
 All five phases are built (2026-11-05) — see `docs/ARCHITECTURE.md` for
@@ -107,7 +110,14 @@ Adding a source means a new package under `internal/sources/` producing
   phase (host FIM, packet capture, local ML scoring) genuinely needs a
   third-party package, say so explicitly and record the reasoning in
   `docs/ARCHITECTURE.md`, the way that file already reasons about why
-  Phase 1 didn't need `fsnotify`.
+  Phase 1 didn't need `fsnotify`. The Rust port (`rust/`) is the one
+  exception, decided by me on 2026-11-10: the crates I approved (regex, serde,
+  serde_json, memmap2, rustix, sha2 or ring, ed25519-dalek, rustls, others where
+  needed), pinned to exact versions, `cargo audit` in CI, threads and no async.
+- **Go and Rust raise the same alerts.** Until the switch, a change to a detector,
+  the verifier, the explanations or the engine is made in both, and
+  `go test ./internal/parity -update` rewrites the fixtures (review the diff);
+  `cd rust && scripts/nicecargo.sh test --offline` must pass on them.
 - **Match the surrounding code.** Doc comments on every exported type and
   function explaining *why*, not restating the signature. Table-driven
   tests. `gofmt` before every commit (`gofmt -l .` should print nothing).
@@ -248,6 +258,22 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   Both are in Sarina's `docs/ECOSYSTEM.md` port registry.
 
 ### Coordination Log (newest first)
+
+### 2026-11-10 — The Rust port, step 1: detectors, engine, alerts, config (heimdalld-rs, not installed)
+- `rust/` (cargo workspace, `heimdalld-rs`): every detector, the verifier, the explanations, the tool rules, maintenance
+  softening, the engine, the alert log writer, the config reader and the agent-baseline state file, behaving as the Go
+  daemon does (Go's JSON leniency, `%q`, Unicode tables from Go, ASCII `\b \s \d \w`). Spec and results: `docs/RUST_PORT.md`.
+- Proof: the Go table tests exported as fixtures (`internal/parity`, `testdata/parity`): 1,986 steps, 147 alert lines, byte
+  for byte the same in Rust. Engine differential on 214,012 synthetic events: 105,568 alerts identical. Regex corpus:
+  0 differences on 727,312 texts. 14 property tests, 6 fuzz targets, 3 Kani proofs (Kani not installed here; exhaustive
+  tests stand in).
+- **For readers of the alert log (Settings, Sarina, Yggdrasil):** nothing changes; the Rust daemon writes the same lines.
+  When it runs in shadow mode it writes its own log (`docs/RUST_SHADOW.md`, step 2), never the Go daemon's.
+- Go side: `internal/parity` (new), `toolrules.Policy.SetTestHooks` (for the fixtures only), three tests
+  (`TestParityDetectorsAreTheDaemons`, `TestRustRuleFileMatchesGoPatterns`, `TestExportRegexCorpus`, which skips unless
+  asked). No daemon behaviour changed.
+- Open question for me: the leading-ſ/K gap in the `\b` patterns (both daemons), `docs/RUST_PORT.md`.
+— Signed: Heimdall / Claude Opus 5.5
 
 ### 2026-11-09 — Running light: phase 0 of the Rust port
 - heimdalld was 0.95 % of a core and 71 MB on my PC. Fixed in the Go code (the design carries into the Rust port,

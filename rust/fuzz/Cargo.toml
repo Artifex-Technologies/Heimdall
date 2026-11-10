@@ -1,0 +1,60 @@
+[package]
+name = "heimdall-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+license = "MPL-2.0"
+
+# cargo-fuzz (nightly):   cd rust/fuzz && cargo +nightly fuzz run json seeds/json
+# Every target's body is heimdall::fuzzing::*, which tests/fuzz_smoke.rs also runs on stable.
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "=0.4.10"
+heimdall = { path = "../heimdall" }
+
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "json"
+path = "fuzz_targets/json.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "config"
+path = "fuzz_targets/config.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "rule_file"
+path = "fuzz_targets/rule_file.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "event_line"
+path = "fuzz_targets/event_line.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "alert_line"
+path = "fuzz_targets/alert_line.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "text"
+path = "fuzz_targets/text.rs"
+test = false
+doc = false
+bench = false

@@ -1,0 +1,18 @@
+[workspace]
+resolver = "2"
+members = ["heimdall"]
+# cargo-fuzz targets build with a nightly toolchain of their own; they are not part of the normal build
+exclude = ["fuzz"]
+
+[workspace.package]
+edition = "2021"
+license = "MPL-2.0"
+rust-version = "1.82"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
+# unwinding stays on: a detector that panics on hostile input loses that one event, not the daemon (engine.rs)
+panic = "unwind"

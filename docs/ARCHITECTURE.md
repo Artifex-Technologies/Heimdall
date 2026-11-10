@@ -585,3 +585,14 @@ Single parts, by benchmark (i9-9900K, nice 15): a look at 6,629 sessions 15.9 ms
 now a full look every 10 minutes (11.4 ms) and 0.56 µs plus the file for a save; socket owners 5.7 ms every 10 s before,
 4.6 µs when nothing is new, 0.76 ms for a new connection; the text detectors about 30 times less work on ordinary text;
 `journalctl` 4.2 ms CPU per start, 4 starts a minute before, the follower 0.009 % of a core.
+
+## The Rust port (2026-11-10, in progress)
+
+The always-on daemon is being ported to Rust (`rust/`, `heimdalld-rs`) for less memory and CPU while I game and run a local
+model; the design above carries over unchanged. It must raise the same alerts as this daemon on the same input: Go's JSON
+leniency, Go's `%q`, Unicode tables generated from Go and Go's ASCII meaning of `\b \s \d \w` are reproduced, the Go table
+tests are exported as fixtures both languages run (`internal/parity`, `testdata/parity`), and the regex and engine
+differentials compare the two on hundreds of thousands of inputs. The text detectors' patterns are a typed rule file there
+(`rust/heimdall/rules/text.json`), checked at load, kept equal to the patterns here by a Go test. Step 1 (detectors, engine,
+alerts, config) is done; the sources are next, then shadow mode beside this daemon (`docs/RUST_SHADOW.md`), then the API,
+responder, correlator and grants, then mesh and trust. Plan, decisions and numbers: `docs/RUST_PORT.md`.

@@ -24,3 +24,9 @@ PROGRESS.md
 # Python bytecode
 __pycache__/
 *.pyc
+
+# The Rust port's build output
+/rust/target/
+/rust/fuzz/target/
+/rust/fuzz/corpus/
+/rust/fuzz/artifacts/

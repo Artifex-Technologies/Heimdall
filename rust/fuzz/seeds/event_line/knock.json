@@ -1,0 +1,1 @@
+{"source": "host-firewall", "session_id": "", "time": "2026-10-23T01:00:05Z", "kind": "login_failure", "text": "", "fields": {"src": "198.51.100.7", "service": "ssh", "user": "root", "origin": "Netherlands"}}
