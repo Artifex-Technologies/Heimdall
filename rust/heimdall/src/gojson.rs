@@ -110,10 +110,20 @@ impl<'a> Parser<'a> {
     fn word(&mut self, w: &str, v: Value) -> Result<Value, Error> {
         if self.b[self.i..].starts_with(w.as_bytes()) {
             self.i += w.len();
-            Ok(v)
-        } else {
-            err(format!("invalid literal near offset {}", self.i))
+            return Ok(v);
         }
+        // Go's scanner: the first byte that differs, or the end
+        for (k, want) in w.bytes().enumerate().skip(1) {
+            match self.b.get(self.i + k) {
+                None => return err("unexpected end of JSON input"),
+                Some(&c) if c != want => {
+                    self.i += k;
+                    return err(format!("invalid character {} in literal {w} (expecting '{}')", self.describe(), want as char));
+                }
+                _ => {}
+            }
+        }
+        err(format!("invalid literal near offset {}", self.i))
     }
 
     fn enter(&mut self) -> Result<(), Error> {

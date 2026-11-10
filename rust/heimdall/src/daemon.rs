@@ -7,8 +7,9 @@
 //! containment request, no copy of a held file, nothing sent to a mesh peer, no API). It refuses to start with any state or
 //! log path in the Go daemon's folder, so the two never write the same file. docs/RUST_SHADOW.md.
 //!
-//! In charge (no `--shadow`, for the switch): the same, plus the API on `api_addr`. Not ported yet: the Limbo responder,
-//! containment requests, the copy of held files, mesh, trust (docs/RUST_PORT.md).
+//! In charge (no `--shadow`, for the switch): the same, plus the API on `api_addr` and the Limbo responder (`response.rs`;
+//! never in shadow mode). Not ported yet: the Sarina advisory on a hold, containment requests, the copy of held files,
+//! mesh, trust (docs/RUST_PORT.md).
 
 use crate::alert::{Alert, MultiSink, Ring, Sink, WriterSink};
 use crate::config::Config;
@@ -217,7 +218,50 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
     // `outputs` is Go's multiSink: the correlator and the outputs. The engine writes through it; alerts raised off the loop
     // (the API) and the sources' integration alerts go to it directly, past any response
     let outputs = Arc::new(Mutex::new(corr));
-    let mut eng = Engine::new(Box::new(outputs.clone()), detect::daemon_detectors(&cfg, deps));
+    // the Limbo responder: in charge only, never in shadow mode (it is the one thing here that acts on another project)
+    let mut engine_sink: Box<dyn Sink> = Box::new(outputs.clone());
+    let mut responder: Option<crate::response::Handle> = None;
+    let mut responder_inbox: Option<sources::Inbox> = None;
+    if !shadow && !cfg.limbo_control_socket.is_empty() && cfg.limbo_auto_quarantine {
+        match sources::Inbox::new("limbo-responder") {
+            Ok((inbox, outbox)) => {
+                let settings = crate::response::Settings {
+                    delay: if cfg.limbo_quarantine_delay_seconds > 0 {
+                        Duration::from_secs(cfg.limbo_quarantine_delay_seconds as u64)
+                    } else {
+                        crate::response::Settings::default().delay
+                    },
+                    backlog_threshold: if cfg.limbo_backlog_threshold > 0 {
+                        cfg.limbo_backlog_threshold as usize
+                    } else {
+                        crate::response::Settings::default().backlog_threshold
+                    },
+                    ..Default::default()
+                };
+                let (r, h) = crate::response::Responder::new(
+                    engine_sink,
+                    Box::new(crate::response::Client { socket: cfg.limbo_control_socket.clone() }),
+                    settings,
+                    Box::new(move |a| {
+                        outbox.send(Msg::Alert(a));
+                    }),
+                    Box::new(log),
+                );
+                engine_sink = Box::new(r);
+                responder = Some(h);
+                responder_inbox = Some(inbox);
+                log(&format!("Limbo quarantine response enabled (control socket {}, Sarina advisories: false)", cfg.limbo_control_socket));
+                if !cfg.sarina_url.is_empty() {
+                    log("Sarina advisories on quarantines are not ported yet: each new hold carries Heimdall's own explanation only");
+                }
+            }
+            Err(e) => log(&format!("Limbo quarantine response off: {e}")),
+        }
+    }
+    if !shadow {
+        log("not ported yet, so not done by this daemon: containment requests, the copy of files Limbo held, mesh, trust");
+    }
+    let mut eng = Engine::new(engine_sink, detect::daemon_detectors(&cfg, deps));
     eng.set_maintenance(maintenance::Watcher::new(&cfg.maintenance_path), &cfg.maintenance_soften);
     if toolrules::enabled() {
         match toolrules::builtin() {
@@ -371,6 +415,9 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
         }
     }
 
+    if let Some(inbox) = responder_inbox.take() {
+        srcs.push(Box::new(inbox));
+    }
     // the API, in charge only (Go: cmdRun's api block): its own thread; the alerts it raises come to this loop as messages
     if !shadow && !cfg.api_addr.is_empty() {
         match serve_api(&cfg, ring.clone(), incidents.clone()) {
@@ -394,7 +441,13 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
     let mut dispatch = |eng: &mut Engine, msgs: Vec<Msg>| {
         for m in msgs {
             match m {
-                Msg::Event(e) | Msg::LimboEvent(e) => eng.handle(&e),
+                Msg::Event(e) => eng.handle(&e),
+                Msg::LimboEvent(e) => {
+                    eng.handle(&e);
+                    if let Some(h) = &responder {
+                        h.observe(&e); // after the engine, so a trigger is ordered before what follows it
+                    }
+                }
                 Msg::Log(l) => {
                     if repeats.first(&l, Instant::now()) {
                         log(&l);
@@ -479,6 +532,11 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
         }
     }
     log("shutting down");
+    if let Some(h) = &responder {
+        if !h.shutdown(Duration::from_secs(3)) {
+            log("abandoned in-flight Limbo quarantine or advisory calls");
+        }
+    }
     for s in srcs.iter_mut() {
         let mut out = Vec::new();
         s.stop(&mut out);

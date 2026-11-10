@@ -16,7 +16,7 @@ contract.
 | --- | --- | --- |
 | 1 | detect, engine, alert, verify, explain, tool rules, maintenance, config, the agent-baseline state file | **done** (2026-11-10) |
 | 2 | the sources, event-driven, on one thread (`heimdalld-rs run --shadow`) | **done**: sessions (inotify + 10-minute look), vault (inotify), Limbo, FIM (+ pacman's database), telemetry, the maintenance window, /proc/net (ports, connections with the mapped IP databases, threat lists and remote-access recognition by name and Go build info, listeners), the journal (one `journalctl --follow`, the cursor file), the Wi-Fi results and router, the device list, remote-access packages and tunnels; the 6-hourly package, kernel and hardening audits on a thread of their own, behind game time (2c, 2026-11-10) |
-| 3 | the API, the Limbo responder, correlate, governance, grants | done: the correlator (`src/correlate.rs`, in the shadow daemon), governance (`src/governance.rs`), the API (`src/api.rs`: its own thread, plain HTTP/1.1 on loopback, callers from /proc/net/tcp; /healthz, /v1/alerts, /v1/review, /v1/incidents, /v1/requests, /v1/audit, /v1/lan/devices, /v1/quarantine, /v1/rules/drafts), grants (`src/grants.rs`: requests filed, decisions read), the restrict-only rules (`src/quarantine.rs`). the API served by `run` without `--shadow` (its alerts reach the loop as `Msg::Alert`; shadow mode serves none). Open: the Limbo responder |
+| 3 | the API, the Limbo responder, correlate, governance, grants | done: the correlator (`src/correlate.rs`, in the shadow daemon), governance (`src/governance.rs`), the API (`src/api.rs`: its own thread, plain HTTP/1.1 on loopback, callers from /proc/net/tcp; /healthz, /v1/alerts, /v1/review, /v1/incidents, /v1/requests, /v1/audit, /v1/lan/devices, /v1/quarantine, /v1/rules/drafts), grants (`src/grants.rs`: requests filed, decisions read), the restrict-only rules (`src/quarantine.rs`). the API served by `run` without `--shadow` (its alerts reach the loop as `Msg::Alert`; shadow mode serves none). the Limbo responder (`src/response.rs`, in charge only). Open: the Sarina advisory on a new hold (Go: `internal/response/advisor.go`) |
 | 4 | mesh and trust | open |
 
 ## Layout
@@ -40,6 +40,7 @@ rust/
     src/gostruct.rs           Go structs read and written back as Go does (files other Go programs write: immunity, lan)
     src/immunity.rs           what is held (immunity's index) and the YARA rule drafts
     src/audit/report.rs       GET /v1/audit (Go: internal/auditreport)
+    src/response.rs           the Limbo responder: the queue, the re-check (on quarantine.rs), the control-socket client
     src/fuzzing.rs            the fuzz targets' bodies
     tests/                    parity (the Go fixtures), regex_corpus, properties, fuzz_smoke
   fuzz/                       cargo-fuzz targets (nightly) and their seed corpus
@@ -192,6 +193,25 @@ and words.
   like the sources' integration alerts, to the correlator and the outputs, past any response (Go's `multiSink`).
   `tests/run.rs` runs the real binary: every endpoint answers 200, a review and a grant request land in the alert log and
   in /v1/alerts, SIGTERM ends it with 0; the same config with `--shadow` serves nothing for 2 s and says why.
+- **The Limbo responder (step 3)**: `testdata/parity/response.json` (`internal/parity/response.go`: the cases of
+  internal/response's tests and more: 31 cases, 33 steps, 444 Limbo requests, 152 alerts) runs alerts and Limbo events through
+  the Go Responder with its real Client and through `src/response.rs` with its real client, each against the same scripted
+  fake Limbo on a Unix socket (`tests/response.rs`): which alerts trigger (limbo-guest critical on guest.start and
+  policy.remove, limbo-network host_probe/lan_probe/scan at warning or higher, limbo-exchange exchange.held; bad guest
+  names, softened severities, other detectors), Limbo's answers (not enforced, a repeat, refusals with and without a
+  reason, a reply that is not JSON, socket missing, a hang past the timeout, the advisory route failing), the re-check (torn
+  down, an older Limbo without the guests route, odd answers, holds at isolate and restrict before and after the trigger,
+  released records and unknown levels ignored, a list that fails or is not JSON), the queue (8 at once, merges that raise
+  priority, marks from later Limbo events that clear or do not clear a request, a repeat while in flight, over the cap,
+  late and backlog alerts, shutdown with requests waiting and a trigger after it). Every request Limbo saw (method, path,
+  body byte for byte) and every alert passed on or raised are Go's, sorted within a step, the queue's waits written as W;
+  stable over repeated runs. `tests/run.rs`: the real binary in shadow mode with `limbo_control_socket` and
+  `limbo_auto_quarantine` set raises the critical alert for a guest started without a policy and never connects to the
+  socket; in charge it sends the restrict request. Found on the way: Go's message for a broken JSON literal
+  ("invalid character 'o' in literal null (expecting 'u')") is now the reader's too.
+- **Measured in charge (2026-11-10, release build, the same made-up config, 20 s idle)**: in charge (API and responder)
+  4.2 MB PSS, 2 threads (the loop, the API; a responder thread exists only while a call runs), 0 CPU ticks; shadow mode
+  4.1 MB, 1 thread, 0 ticks.
 
 ## Measured (2026-11-10)
 
@@ -275,6 +295,11 @@ round fragmented the same heap and 16.6 MB stayed; the audit thread keeps its ow
   refused with 411); Go's server keeps connections open and reads chunked bodies. Heimdall's clients (Sarina's Go client,
   Python's urllib, Settings) send a length and open a connection per request. Alerts the API raises reach the outputs a
   moment later, through the daemon's loop (Go writes them before answering).
+
+- The responder's calls to Limbo block their own thread (Go: a goroutine with a context). At shutdown Go cancels calls in
+  flight; here a call runs to its end and whatever it returns after the cancel is treated as Go's cancelled call
+  (abandoned, nothing more sent). The queue's watcher sleeps while nothing waits (Go ticks every second once the
+  responder has seen a trigger); the late and backlog alerts are the same, raised at the first tick past the threshold.
 
 ## Findings on the way (not changed)
 

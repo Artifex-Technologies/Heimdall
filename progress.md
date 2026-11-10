@@ -42,7 +42,8 @@ a differential run and the Go state files. Plan and numbers: `docs/RUST_PORT.md`
 | Step 3: governance, the API (own thread, loopback HTTP/1.1, callers from /proc/net/tcp; /healthz, /v1/alerts, /v1/review, /v1/incidents, /v1/requests), grants (file requests, read decisions) | done, not wired (shadow serves no API) | api.json: 64 requests through the Go server, statuses and bodies equal; real-socket caller test; fuzz target http_request |
 | Step 3: /v1/audit, /v1/lan/devices, /v1/quarantine, /v1/rules/drafts | done | api.json now 127 requests (63 new on made-up computers), drafts file after each POST byte for byte |
 | Step 3: the API in a non-shadow `run` (`Msg::Alert` through an `Inbox`: a channel and a pipe; alerts to the correlator and outputs, past any response, as Go's multiSink) | done | tests/run.rs: the real binary in charge answers every endpoint, a review and a grant request reach the alert log and /v1/alerts; in shadow mode the same config serves nothing |
-| Step 3: the Limbo responder; step 4: mesh, trust | open | |
+| Step 3: the Limbo responder (`src/response.rs` on `src/quarantine.rs`; in charge only) | done; the Sarina advisory on a new hold is not ported | response.json: 31 cases, 33 steps, 444 requests, 152 alerts through the Go Responder and the Rust one, each with its real client against the same scripted fake Limbo on a Unix socket: requests and alerts equal; tests/run.rs: the real binary in shadow mode raises the alert and never touches the socket, in charge it sends the hold |
+| Step 3: the Sarina advisory; step 4: mesh, trust; the switch | open | plan: docs/RUST_SWITCH.md |
 
 - **Resume:** step 3, the rest. (1) The four remaining endpoints in `src/api.rs` (each a case in
   `internal/parity/api.go` first): /v1/audit (`cmd/heimdalld/audit.go`: packages, kernels, hardening now, from

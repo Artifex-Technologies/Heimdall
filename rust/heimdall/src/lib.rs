@@ -29,6 +29,7 @@ pub mod pkgverify;
 pub mod quarantine;
 pub mod remoteaccess;
 pub mod replay;
+pub mod response;
 pub mod rules;
 pub mod sources;
 pub mod state;
