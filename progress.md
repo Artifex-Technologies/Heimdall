@@ -46,7 +46,8 @@ a differential run and the Go state files. Plan and numbers: `docs/RUST_PORT.md`
 | takeHeld (the request to copy a file Limbo held), in charge; one-shot commands handed to the Go binary (`/usr/lib/heimdall/heimdalld-go`, HEIMDALL_GO) | done | unit test (file name and bytes as Go's QueueTakeLimbo); tests/run.rs: arguments and exit code passed through, Rust's own commands stay Rust's |
 | Switch-over plan (unit, package, rollback, checklist) | written, not done | `docs/RUST_SWITCH.md` |
 | Step 3: the Sarina advisory on a new hold and the backlog note (`src/advisor.rs`, in charge only) | done | response.json now 77 cases / 80 steps / 752 Limbo requests / 90 Sarina requests through Go's Responder + real HTTP client and the Rust one against the same scripted fake sarina-service (TCP) and fake Limbo: requests (prompt and token included) and alerts equal; tests/run.rs: in charge asks and attaches, shadow asks nothing; 3 properties, fuzz target sarina_reply |
-| Step 3: containment requests; step 4: mesh, trust | open | below |
+| Step 3: containment requests (`src/contain.rs`, in charge only, outermost as Go's) | done | contain.json: 37 cases, 51 steps, 20 requests, the folder after each step and the request byte for byte; property (300 runs); Kani harness + edge values |
+| Step 4: mesh, trust | open | below |
 
 - **Resume (in this order; the switch waits for each item `docs/RUST_SWITCH.md` "Before" marks as needed here):**
   1. ~~**The Sarina advisory**~~ DONE (`src/advisor.rs`, see the table). Was: (`internal/response/advisor.go`, 304 lines) into `src/response.rs`: after a hold with
@@ -59,7 +60,7 @@ a differential run and the Go state files. Plan and numbers: `docs/RUST_PORT.md`
      (tools non-zero, backend_error, empty output, auth, timeout, evicted session, busy). Wire in `daemon.rs` where
      "Sarina advisories on quarantines are not ported yet" is logged (`sarina_url`, token from `sarina_token` or
      HEIMDALL_SARINA_TOKEN, `sarina_cwd`). Then the chain test's six advisory checks can pass.
-  2. **Containment requests** (`internal/contain/trigger.go` + `AboutAgents`, `LoadConfig`, `ReadMarker`): a sink in charge
+  2. ~~**Containment requests**~~ DONE (`src/contain.rs`). Was: (`internal/contain/trigger.go` + `AboutAgents`, `LoadConfig`, `ReadMarker`): a sink in charge
      only, outermost (Go: engine -> contain.Trigger -> takeHeld -> Responder -> multiSink), one request at most every
      10 minutes, written atomically to `contain.RequestPath`. Fixture: the Go trigger tests as cases.
   3. **Step 4, mesh** (`internal/mesh`: identity.go, peers.go, node.go): rustls 0.23 with the ring provider (both in the

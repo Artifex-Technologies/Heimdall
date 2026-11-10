@@ -19,6 +19,8 @@ type Trigger struct {
 	ConfigPath  string
 	RequestPath string
 	MarkerPath  string
+	// Now is the clock (nil: time.Now); the parity fixture (internal/parity) sets it to step through the ten minutes.
+	Now func() time.Time
 
 	mu   sync.Mutex
 	last time.Time
@@ -48,11 +50,15 @@ func (t *Trigger) Write(a alert.Alert) error {
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if time.Since(t.last) < 10*time.Minute {
+	now := time.Now
+	if t.Now != nil {
+		now = t.Now
+	}
+	if now().Sub(t.last) < 10*time.Minute {
 		return err
 	}
-	t.last = time.Now()
-	b, _ := json.Marshal(Request{Time: time.Now().UTC(), Reason: a.Summary, Auto: true})
+	t.last = now()
+	b, _ := json.Marshal(Request{Time: t.last.UTC(), Reason: a.Summary, Auto: true})
 	tmp := t.RequestPath + ".tmp"
 	if werr := os.WriteFile(tmp, b, 0o644); werr == nil {
 		_ = os.Rename(tmp, t.RequestPath)

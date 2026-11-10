@@ -16,7 +16,7 @@ contract.
 | --- | --- | --- |
 | 1 | detect, engine, alert, verify, explain, tool rules, maintenance, config, the agent-baseline state file | **done** (2026-11-10) |
 | 2 | the sources, event-driven, on one thread (`heimdalld-rs run --shadow`) | **done**: sessions (inotify + 10-minute look), vault (inotify), Limbo, FIM (+ pacman's database), telemetry, the maintenance window, /proc/net (ports, connections with the mapped IP databases, threat lists and remote-access recognition by name and Go build info, listeners), the journal (one `journalctl --follow`, the cursor file), the Wi-Fi results and router, the device list, remote-access packages and tunnels; the 6-hourly package, kernel and hardening audits on a thread of their own, behind game time (2c, 2026-11-10) |
-| 3 | the API, the Limbo responder, correlate, governance, grants | done: the correlator (`src/correlate.rs`, in the shadow daemon), governance (`src/governance.rs`), the API (`src/api.rs`: its own thread, plain HTTP/1.1 on loopback, callers from /proc/net/tcp; /healthz, /v1/alerts, /v1/review, /v1/incidents, /v1/requests, /v1/audit, /v1/lan/devices, /v1/quarantine, /v1/rules/drafts), grants (`src/grants.rs`: requests filed, decisions read), the restrict-only rules (`src/quarantine.rs`). the API served by `run` without `--shadow` (its alerts reach the loop as `Msg::Alert`; shadow mode serves none). the Limbo responder (`src/response.rs`, in charge only). the request to copy files Limbo held (`immunity::TakeHeld`); one-shot commands handed to the Go binary when it is installed beside (`main.rs`). The Sarina advisory on a new hold and the backlog note (`src/advisor.rs`, in charge only, 2026-11-10). Open: containment requests (`internal/contain` Trigger) |
+| 3 | the API, the Limbo responder, correlate, governance, grants | done: the correlator (`src/correlate.rs`, in the shadow daemon), governance (`src/governance.rs`), the API (`src/api.rs`: its own thread, plain HTTP/1.1 on loopback, callers from /proc/net/tcp; /healthz, /v1/alerts, /v1/review, /v1/incidents, /v1/requests, /v1/audit, /v1/lan/devices, /v1/quarantine, /v1/rules/drafts), grants (`src/grants.rs`: requests filed, decisions read), the restrict-only rules (`src/quarantine.rs`). the API served by `run` without `--shadow` (its alerts reach the loop as `Msg::Alert`; shadow mode serves none). the Limbo responder (`src/response.rs`, in charge only). the request to copy files Limbo held (`immunity::TakeHeld`); one-shot commands handed to the Go binary when it is installed beside (`main.rs`). The Sarina advisory on a new hold and the backlog note (`src/advisor.rs`, in charge only, 2026-11-10). Containment requests (`src/contain.rs`, in charge only, 2026-11-10) |
 | 4 | mesh and trust | open (design in progress.md, Resume) |
 | switch | the Rust binary as `heimdalld`, the Go one kept for the one-shot commands | plan: `docs/RUST_SWITCH.md` |
 
@@ -43,6 +43,7 @@ rust/
     src/audit/report.rs       GET /v1/audit (Go: internal/auditreport)
     src/response.rs           the Limbo responder: the queue, the re-check (on quarantine.rs), the control-socket client
     src/advisor.rs            the Sarina advisory on a new hold and the backlog note (Go: internal/response/advisor.go)
+    src/contain.rs            containment requests for the root unit (Go: internal/contain's Trigger)
     src/fuzzing.rs            the fuzz targets' bodies
     tests/                    parity (the Go fixtures), regex_corpus, properties, fuzz_smoke
   fuzz/                       cargo-fuzz targets (nightly) and their seed corpus
@@ -229,6 +230,18 @@ and words.
   block always reads back as one JSON object with the texts), opinions and notes are bounded and cut on a letter. Fuzz
   target `sarina_reply`. Found on the way: a JSON number read into a string field was reported as Go's `number 5`; Go
   says `number` (fixed in `gostruct::mismatch`).
+- **Containment requests (step 3, 2026-11-10)**: `testdata/parity/contain.json` (`internal/parity/contain.go`: the Go
+  trigger tests and generated cases; the Go Trigger gained a `Now` clock for it, unused by the daemon) runs in
+  `tests/contain.rs`: **37 cases, 51 steps, 20 requests**, the switch file and the lock set before each step and the
+  folder compared after it, the request byte for byte. Which findings ask (agent files changed without approval, an
+  escalation from a session; not an injection phrase alone, not another detector with the same words, not below
+  critical), the ten minutes (599 s too soon, 600 s due; a refused, switched-off or locked alert does not move the clock),
+  locks (JSON, not JSON, empty: a lock; a folder: none), and the switch file read as Go reads it (keys in other case, a
+  dotless ı that does not fold, `"true"` and `1` refused, a type error elsewhere keeping `true`, duplicate keys, null,
+  a cut or trailing-garbage document, a byte-order mark, a folder). Property (`tests/contain.rs`, 300 runs of up to 25
+  steps): every alert passed on, a request only for a threat while on and unlocked, never two within ten minutes, a due
+  one never missed, the reason the alert's summary. Kani (`src/contain.rs`): `never_two_requests_within_ten_minutes`,
+  the same claim over the edge values without Kani.
 - **Measured in charge (2026-11-10, release build, the same made-up config, 20 s idle)**: in charge (API and responder)
   4.2 MB PSS, 2 threads (the loop, the API; a responder thread exists only while a call runs), 0 CPU ticks; shadow mode
   4.1 MB, 1 thread, 0 ticks.

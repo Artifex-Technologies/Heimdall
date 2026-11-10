@@ -1,0 +1,674 @@
+{
+ "format": "heimdall-parity-contain/1",
+ "cases": [
+  {
+   "name": "off by default, not about the agents, then asked",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {}
+    },
+    {
+     "advance_seconds": 1,
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"connection-watch\",\"severity\":\"critical\",\"summary\":\"x\",\"source\":\"host-net\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    },
+    {
+     "advance_seconds": 1,
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain-request.json": "{\"time\":\"2026-11-10T07:30:02.123456789Z\",\"reason\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"auto\":true}",
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "an escalation from a session",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"permission-escalation\",\"severity\":\"critical\",\"summary\":\"session s-9 asked for a tool its tier does not allow 4 times\",\"source\":\"agent-session\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain-request.json": "{\"time\":\"2026-11-10T07:30:00.123456789Z\",\"reason\":\"session s-9 asked for a tool its tier does not allow 4 times\",\"auto\":true}",
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "an escalation at warning",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"permission-escalation\",\"severity\":\"warning\",\"summary\":\"x\",\"source\":\"agent-session\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "an escalation from another source",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"permission-escalation\",\"severity\":\"critical\",\"summary\":\"x\",\"source\":\"limbo\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "an injection phrase alone",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"injection-phrase\",\"severity\":\"critical\",\"summary\":\"ignore previous instructions\",\"source\":\"agent-session\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "a file change that is not about the agents",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/etc/passwd: changed\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "an agent file change at warning",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"warning\",\"summary\":\"x: it decides how an AI agent behaves\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "the words in another detector",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"tool-rules\",\"severity\":\"critical\",\"summary\":\"it decides how an AI agent behaves\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "the words in other case",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"it Decides how an AI agent behaves\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "an agent file change at info",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"info\",\"summary\":\"it decides how an AI agent behaves\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "ten minutes",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain-request.json": "{\"time\":\"2026-11-10T07:30:00.123456789Z\",\"reason\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"auto\":true}",
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    },
+    {
+     "advance_seconds": 599,
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"permission-escalation\",\"severity\":\"critical\",\"summary\":\"session s-9 asked for a tool its tier does not allow 4 times\",\"source\":\"agent-session\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    },
+    {
+     "advance_seconds": 1,
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"permission-escalation\",\"severity\":\"critical\",\"summary\":\"session s-9 asked for a tool its tier does not allow 4 times\",\"source\":\"agent-session\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain-request.json": "{\"time\":\"2026-11-10T07:40:00.123456789Z\",\"reason\":\"session s-9 asked for a tool its tier does not allow 4 times\",\"auto\":true}",
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    },
+    {
+     "advance_seconds": 300,
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    },
+    {
+     "advance_seconds": 299,
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    },
+    {
+     "advance_seconds": 1,
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain-request.json": "{\"time\":\"2026-11-10T07:50:00.123456789Z\",\"reason\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"auto\":true}",
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "switched off in between: the clock does not move",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain-request.json": "{\"time\":\"2026-11-10T07:30:00.123456789Z\",\"reason\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"auto\":true}",
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    },
+    {
+     "advance_seconds": 600,
+     "config": "{}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{}"
+     }
+    },
+    {
+     "advance_seconds": 1,
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain-request.json": "{\"time\":\"2026-11-10T07:40:01.123456789Z\",\"reason\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"auto\":true}",
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "not about the agents: the clock does not move",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"connection-watch\",\"severity\":\"critical\",\"summary\":\"x\",\"source\":\"host-net\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    },
+    {
+     "advance_seconds": 1,
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain-request.json": "{\"time\":\"2026-11-10T07:30:01.123456789Z\",\"reason\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"auto\":true}",
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "a lock",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": true}",
+     "marker": "{\"since\":\"2026-11-10T07:00:00Z\",\"reason\":\"x\",\"level\":\"contained\"}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contain\": true}",
+      "contained": "{\"since\":\"2026-11-10T07:00:00Z\",\"reason\":\"x\",\"level\":\"contained\"}"
+     }
+    },
+    {
+     "advance_seconds": 700,
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain-request.json": "{\"time\":\"2026-11-10T07:41:40.123456789Z\",\"reason\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"auto\":true}",
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "an unreadable lock is still a lock",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": true}",
+     "marker": "not json",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contain\": true}",
+      "contained": "not json"
+     }
+    },
+    {
+     "advance_seconds": 700,
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain-request.json": "{\"time\":\"2026-11-10T07:41:40.123456789Z\",\"reason\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"auto\":true}",
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "an empty lock is still a lock",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": true}",
+     "marker": "",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contain\": true}",
+      "contained": ""
+     }
+    },
+    {
+     "advance_seconds": 700,
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain-request.json": "{\"time\":\"2026-11-10T07:41:40.123456789Z\",\"reason\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"auto\":true}",
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "a folder in the lock's place is no lock",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": true}",
+     "marker": "\u003cdir\u003e",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain-request.json": "{\"time\":\"2026-11-10T07:30:00.123456789Z\",\"reason\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"auto\":true}",
+      "contain.json": "{\"auto_contain\": true}",
+      "contained": "\u003cdir\u003e"
+     }
+    },
+    {
+     "advance_seconds": 700,
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain-request.json": "{\"time\":\"2026-11-10T07:41:40.123456789Z\",\"reason\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"auto\":true}",
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "config {\"auto_contain\": false}",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": false}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contain\": false}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "config {\"AUTO_Contain\": true}",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"AUTO_Contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain-request.json": "{\"time\":\"2026-11-10T07:30:00.123456789Z\",\"reason\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"auto\":true}",
+      "contain.json": "{\"AUTO_Contain\": true}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "config {\"auto_contain\": \"true\"}",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": \"true\"}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contain\": \"true\"}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "config {\"auto_contain\": 1}",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": 1}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contain\": 1}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "config {\"auto_contain\": true, \"auto_emergency\": \"x\"}",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": true, \"auto_emergency\": \"x\"}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain-request.json": "{\"time\":\"2026-11-10T07:30:00.123456789Z\",\"reason\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"auto\":true}",
+      "contain.json": "{\"auto_contain\": true, \"auto_emergency\": \"x\"}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "config {\"auto_emergency\": \"x\", \"auto_contain\": true}",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_emergency\": \"x\", \"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain-request.json": "{\"time\":\"2026-11-10T07:30:00.123456789Z\",\"reason\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"auto\":true}",
+      "contain.json": "{\"auto_emergency\": \"x\", \"auto_contain\": true}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "config {\"auto_contain\": true",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": true",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contain\": true"
+     }
+    }
+   ]
+  },
+  {
+   "name": "config [true]",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "[true]",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "[true]"
+     }
+    }
+   ]
+  },
+  {
+   "name": "config null",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "null",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "null"
+     }
+    }
+   ]
+  },
+  {
+   "name": "config {\"auto_contain\": true, \"auto_contain\": false}",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": true, \"auto_contain\": false}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contain\": true, \"auto_contain\": false}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "config {\"auto_contain\": false, \"auto_contain\": true}",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": false, \"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain-request.json": "{\"time\":\"2026-11-10T07:30:00.123456789Z\",\"reason\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"auto\":true}",
+      "contain.json": "{\"auto_contain\": false, \"auto_contain\": true}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "config {\"auto_contain\": null}",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": null}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contain\": null}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "config {\"auto_contain\": true} x",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": true} x",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contain\": true} x"
+     }
+    }
+   ]
+  },
+  {
+   "name": "config  {\"auto_contain\":true}\n",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": " {\"auto_contain\":true}\n",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain-request.json": "{\"time\":\"2026-11-10T07:30:00.123456789Z\",\"reason\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"auto\":true}",
+      "contain.json": " {\"auto_contain\":true}\n"
+     }
+    }
+   ]
+  },
+  {
+   "name": "config {\"auto_contain\": true, \"extra\": [1, {\"a\": null}]}",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": true, \"extra\": [1, {\"a\": null}]}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain-request.json": "{\"time\":\"2026-11-10T07:30:00.123456789Z\",\"reason\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"auto\":true}",
+      "contain.json": "{\"auto_contain\": true, \"extra\": [1, {\"a\": null}]}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "config ﻿{\"auto_contain\": true}",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "﻿{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "﻿{\"auto_contain\": true}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "config {\"auto_contain\": true}",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contain\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain-request.json": "{\"time\":\"2026-11-10T07:30:00.123456789Z\",\"reason\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"auto\":true}",
+      "contain.json": "{\"auto_contain\": true}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "config {\"auto_contaın\": true}",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "{\"auto_contaın\": true}",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "{\"auto_contaın\": true}"
+     }
+    }
+   ]
+  },
+  {
+   "name": "config \u003cdir\u003e",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "\u003cdir\u003e",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": "\u003cdir\u003e"
+     }
+    }
+   ]
+  },
+  {
+   "name": "config ",
+   "clock": "2026-11-10T08:30:00.123456789+01:00",
+   "steps": [
+    {
+     "config": "",
+     "alert": "{\"time\":\"2026-11-10T07:00:00Z\",\"detector_id\":\"file-integrity\",\"severity\":\"critical\",\"summary\":\"/home/x/.sarina/skills/evil.md: new file without approval (not on the signed list); it decides how an AI agent behaves \\u003c\\u0026\\u003e \\u2028\",\"source\":\"host-fim\",\"event_kind\":\"\",\"event_text\":\"\"}",
+     "passed": 1,
+     "files": {
+      "contain.json": ""
+     }
+    }
+   ]
+  }
+ ]
+}

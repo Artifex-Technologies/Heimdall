@@ -9,6 +9,7 @@ pub mod alert;
 pub mod api;
 pub mod audit;
 pub mod config;
+pub mod contain;
 pub mod correlate;
 pub mod daemon;
 pub mod detect;

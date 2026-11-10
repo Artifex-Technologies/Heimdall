@@ -33,7 +33,7 @@ A plan, not done. The Go daemon stays in charge until every item under "Before" 
    | --- | --- | --- |
    | the Limbo responder | `limbo_control_socket` set and `limbo_auto_quarantine` true | **ported** (`src/response.rs`) |
    | the Sarina advisory on a new hold | the above and `sarina_url` set | **ported** (`src/advisor.rs`) |
-   | containment requests (`contain.Trigger`) | `/etc/heimdall/contain.json` switches it on | open (`internal/contain`) |
+   | containment requests (`contain.Trigger`) | `/etc/heimdall/contain.json` switches it on | **ported** (`src/contain.rs`) |
    | the request to copy files Limbo held (`takeHeld`) | always, in charge (owner decision 2026-11-05) | **ported** (`immunity::TakeHeld`) |
    | mesh | `mesh_listen` set or peers enrolled | open (step 4) |
    | trust (the signed manifest of the agents' behaviour files) | trust mode not `off` | open (step 4) |

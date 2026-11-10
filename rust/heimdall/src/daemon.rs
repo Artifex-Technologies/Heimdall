@@ -8,8 +8,8 @@
 //! log path in the Go daemon's folder, so the two never write the same file. docs/RUST_SHADOW.md.
 //!
 //! In charge (no `--shadow`, for the switch): the same, plus the API on `api_addr` and the Limbo responder (`response.rs`;
-//! never in shadow mode) with the Sarina advisory on a new hold (`advisor.rs`), and the request to copy files Limbo held.
-//! Not ported yet: containment requests, mesh, trust (docs/RUST_PORT.md).
+//! never in shadow mode) with the Sarina advisory on a new hold (`advisor.rs`), the request to copy files Limbo held, and
+//! containment requests (`contain.rs`). Not ported yet: mesh, trust (docs/RUST_PORT.md).
 
 use crate::alert::{Alert, MultiSink, Ring, Sink, WriterSink};
 use crate::config::Config;
@@ -278,7 +278,15 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
     if !shadow {
         // a file Limbo held as malware is copied into immunity's store by the root unit (Go: takeHeld, outside the responder)
         engine_sink = Box::new(crate::immunity::TakeHeld { next: engine_sink, dir: crate::immunity::REQUEST_DIR.into(), log });
-        log("not ported yet, so not done by this daemon: containment requests, mesh, trust");
+        // a critical finding about the AI agents asks the root unit to contain them (only when switched on in contain.json);
+        // outermost, as Go's: engine -> contain.Trigger -> takeHeld -> Responder -> outputs
+        engine_sink = Box::new(crate::contain::Trigger::new(
+            engine_sink,
+            crate::contain::CONFIG_PATH,
+            crate::contain::REQUEST_PATH,
+            crate::contain::MARKER_PATH,
+        ));
+        log("not ported yet, so not done by this daemon: mesh, trust");
     }
     let mut eng = Engine::new(engine_sink, detect::daemon_detectors(&cfg, deps));
     eng.set_maintenance(maintenance::Watcher::new(&cfg.maintenance_path), &cfg.maintenance_soften);
