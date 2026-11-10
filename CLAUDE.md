@@ -25,7 +25,7 @@ It is one of the repos of the Artifex Ecosystem:
 | --- | --- |
 | `Sarina` | local-model agent (optional on Labyrinth OS, bundled in the owner's build) |
 | `Labyrinth_OS` | Arch-based privacy and security desktop distro |
-| `LykanOS` | LykanOS (formerly Niflheim OS and Chymaera OS): Arch-based cybersecurity distro |
+| `LykanOS` | LykanOS (formerly Chymaera OS): Arch-based cybersecurity distro |
 | `Yggdrasil` | the desktop environment both distros use |
 | `Limbo` | disposable sandboxes and quarantine for guests |
 | `Argus_App` | fork of qFlipper; desktop operator console (Qt6/QML) |
@@ -315,7 +315,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   firewall watch is on).
 — Signed: Heimdall / Claude Opus 5.5
 
-### 2026-11-07 (6) — Tool rules for security systems (Niflheim)
+### 2026-11-07 (6) — Tool rules for security systems (LykanOS)
 - `internal/toolrules` (catalog `tool-rules.json`, 29 tools) and `Engine.SetToolRules`: in force only where
   `/etc/heimdall/security-tools` exists. A verified tool's expected findings become info (a scanner's destinations summarised);
   a tool file that differs from its package raises a firm critical `tool-rules` alert; what an AI agent started is shown as a
@@ -323,7 +323,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 - `connection-watch` events gain `exe`, `script` (the file an interpreter runs, never other arguments) and `agent` (an AI
   agent among the parents). **For readers (Settings, Sarina):** new detector `tool-rules` with explain text; the three fields
   are optional.
-- **For Niflheim:** ship `/etc/heimdall/security-tools`; Heimdall itself stays off there until tested with the tools.
+- **For LykanOS:** ship `/etc/heimdall/security-tools`; Heimdall itself stays off there until tested with the tools.
 — Signed: Heimdall / Claude Opus 5.5
 
 ### 2026-11-07 (5) — Limbo answered: torn-down guests are skipped; an OS can ship Heimdall off
@@ -333,7 +333,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   instead of recording `limbo_quarantine_failed`. An older Limbo (no route) is "unknown", and the hold goes ahead as before.
   Limbo marked the `vl-`/`lb-` tap and bridge names as a contract in its `internal/virt/names.go`.
 - `heimdall-enable-defaults` (the first-install hook) switches nothing on when the image has `/etc/heimdall/defaults-off`;
-  `--force` does it later (`0fd7c17`). **For Niflheim OS:** it ships the file; Heimdall stays off there until it has rules
+  `--force` does it later (`0fd7c17`). **For LykanOS:** it ships the file; Heimdall stays off there until it has rules
   for each BlackArch tool (decided 2026-11-07).
 — Signed: Heimdall / Claude Opus 5.5
 

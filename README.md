@@ -1,6 +1,6 @@
 # Heimdall
 
-The security agent of the **Artifex Ecosystem**. It runs on Labyrinth OS and on LykanOS (formerly Niflheim OS and Chymaera OS). It
+The security agent of the **Artifex Ecosystem**. It runs on Labyrinth OS and on LykanOS (formerly Chymaera OS). It
 watches [Sarina](https://github.com/Artifex-Technologies/Sarina), the local AI agent, from outside Sarina's process. It also watches
 the computer itself: its connections, Wi-Fi, packages and kernels, settings, and the files that arrive. When something is wrong
 it raises an alert a person (or another tool) can act on. When an AI agent is compromised it can stop it.

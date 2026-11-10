@@ -451,7 +451,7 @@ meaningful of the five.
 
 ## Arch, specifically
 
-This project targets Arch Linux (Labyrinth OS and LykanOS, formerly Niflheim OS and Chymaera OS) as its only
+This project targets Arch Linux (Labyrinth OS and LykanOS, formerly Chymaera OS) as its only
 supported platform — not "Linux and best-effort elsewhere." That
 simplifies Phase 2/3 meaningfully: no cross-platform `/proc` abstraction to
 write, no Windows-vs-Linux branch to test (contrast Sarina's own
