@@ -22,7 +22,8 @@ pub struct Group {
     pub type_: String,
     pub affected: String,
     pub fixed: String,
-    pub issues: Vec<String>,
+    /// None: the tracker had no list (written back as null, Go's nil slice).
+    pub issues: Option<Vec<String>>,
 }
 
 crate::go_struct!(Group {
@@ -199,7 +200,7 @@ impl Watcher {
             }
             let fix = if f.no_fix { "no fixed version yet".to_string() } else { format!("fixed in {}", f.group.fixed) };
             let installed = gotext::lossy(&f.installed);
-            let cves = f.group.issues.join(" ");
+            let cves = f.group.issues.as_deref().unwrap_or_default().join(" ");
             let text = format!(
                 "{} {} is installed and has a known {} vulnerability ({}, {}; {})",
                 f.package,

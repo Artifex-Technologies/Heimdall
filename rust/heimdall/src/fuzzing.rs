@@ -187,6 +187,12 @@ pub fn http_request(data: &[u8]) {
         grants: None,
         access: Some(access),
         alerts: Box::new(move |_| *r2.lock().unwrap() += 1),
+        files: crate::api::Files {
+            audit: Some(Default::default()),
+            lan_dir: Some("/nonexistent".into()),
+            immunity_dir: Some("/nonexistent".into()),
+            rule_drafts: Some("/nonexistent/rule-drafts.json".into()),
+        },
     };
     // an account that is neither root nor this process's (nor in the empty lists)
     // SAFETY: getuid has no preconditions.

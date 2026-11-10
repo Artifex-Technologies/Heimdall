@@ -468,6 +468,22 @@ impl<T: FromGo + Default> FromGo for Vec<T> {
     }
 }
 
+/// A slice where nil and empty differ when written back (`null` and `[]`): None is nil.
+impl<T: FromGo + Default> FromGo for Option<Vec<T>> {
+    fn read_into(&mut self, v: &Value, field: &str) -> Result<(), Error> {
+        if matches!(v, Value::Null) {
+            *self = None;
+            return Ok(());
+        }
+        let mut x = self.take().unwrap_or_default();
+        let r = x.read_into(v, field);
+        if matches!(v, Value::Array(_)) {
+            *self = Some(x);
+        }
+        r
+    }
+}
+
 impl<T: FromGo + Default> FromGo for std::collections::BTreeMap<String, T> {
     fn read_into(&mut self, v: &Value, field: &str) -> Result<(), Error> {
         match v {
@@ -664,7 +680,8 @@ pub fn write_indented(out: &mut String, v: &Value, indent: &str) {
 /// Go's encoding of a float64 (`strconv.AppendFloat(f, 'f' or 'e', -1, 64)` with Go's cut-over at 1e21 and 1e-6).
 pub fn write_f64(out: &mut String, f: f64) {
     if f == 0.0 {
-        out.push('0');
+        // Go keeps the sign of a negative zero ("-0")
+        out.push_str(if f.is_sign_negative() { "-0" } else { "0" });
         return;
     }
     let abs = f.abs();

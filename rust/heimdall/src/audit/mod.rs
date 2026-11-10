@@ -11,6 +11,7 @@ pub mod gametime;
 pub mod hardening;
 pub mod kernel;
 pub mod pkg;
+pub mod report;
 pub mod vercmp;
 
 use crate::sources::{Msg, Source};

@@ -16,7 +16,7 @@ contract.
 | --- | --- | --- |
 | 1 | detect, engine, alert, verify, explain, tool rules, maintenance, config, the agent-baseline state file | **done** (2026-11-10) |
 | 2 | the sources, event-driven, on one thread (`heimdalld-rs run --shadow`) | **done**: sessions (inotify + 10-minute look), vault (inotify), Limbo, FIM (+ pacman's database), telemetry, the maintenance window, /proc/net (ports, connections with the mapped IP databases, threat lists and remote-access recognition by name and Go build info, listeners), the journal (one `journalctl --follow`, the cursor file), the Wi-Fi results and router, the device list, remote-access packages and tunnels; the 6-hourly package, kernel and hardening audits on a thread of their own, behind game time (2c, 2026-11-10) |
-| 3 | the API, the Limbo responder, correlate, governance, grants | done: the correlator (`src/correlate.rs`, in the shadow daemon), governance (`src/governance.rs`), the API (`src/api.rs`: its own thread, plain HTTP/1.1 on loopback, callers from /proc/net/tcp; /healthz, /v1/alerts, /v1/review, /v1/incidents, /v1/requests), grants (`src/grants.rs`: requests filed, decisions read), the restrict-only rules (`src/quarantine.rs`). Open: the API's /v1/audit, /v1/lan/devices, /v1/quarantine, /v1/rules/drafts; the API wired into a non-shadow `run`; the Limbo responder |
+| 3 | the API, the Limbo responder, correlate, governance, grants | done: the correlator (`src/correlate.rs`, in the shadow daemon), governance (`src/governance.rs`), the API (`src/api.rs`: its own thread, plain HTTP/1.1 on loopback, callers from /proc/net/tcp; /healthz, /v1/alerts, /v1/review, /v1/incidents, /v1/requests, /v1/audit, /v1/lan/devices, /v1/quarantine, /v1/rules/drafts), grants (`src/grants.rs`: requests filed, decisions read), the restrict-only rules (`src/quarantine.rs`). Open: the API wired into a non-shadow `run`; the Limbo responder |
 | 4 | mesh and trust | open |
 
 ## Layout
@@ -37,6 +37,9 @@ rust/
                               gametime (Yggdrasil's game time), and the thread that runs them (events to the loop by pipe)
     src/correlate.rs          related alerts become incidents (a sink wrapper)
     src/governance.rs, api.rs, grants.rs   POST /v1/review; the loopback API and its caller check; the grant requests
+    src/gostruct.rs           Go structs read and written back as Go does (files other Go programs write: immunity, lan)
+    src/immunity.rs           what is held (immunity's index) and the YARA rule drafts
+    src/audit/report.rs       GET /v1/audit (Go: internal/auditreport)
     src/fuzzing.rs            the fuzz targets' bodies
     tests/                    parity (the Go fixtures), regex_corpus, properties, fuzz_smoke
   fuzz/                       cargo-fuzz targets (nightly) and their seed corpus
@@ -171,6 +174,19 @@ and words.
   loopback socket: the test's own account is identified from /proc/net/tcp and let in, an unknown caller refused, a
   non-loopback `api_addr` refused at bind. Fuzz target `http_request`: from an account that may not use the API, no bytes
   get anything but /healthz answered with 200, and none raises an alert.
+- **The four file endpoints (step 3, 2026-11-10)**: the same fixture, now **127 requests** (117 compared byte for byte),
+  adds 63 for GET /v1/quarantine, GET /v1/lan/devices, GET /v1/audit and GET/POST /v1/rules/drafts, each on a made-up
+  computer the case writes (`internal/parity/api_more.go`): immunity indexes with every field, unknown keys, keys in other
+  case, a duplicate key that Go merges, nulls, empty lists, `-0`, `1e-7`, the largest int64, a mode past uint32, a year-0
+  time with an offset, damaged and wrongly typed files; device lists missing, damaged, a folder in the file's place;
+  audit reports with 20 kernel holes against three kernels (the 15 worst, the running one first, a list date in another
+  offset), a tracker with and without a CVE list (`[]` and `null` written as Go writes them), no pacman database, damaged
+  lists, the hardening checks over a made-up root; rule drafts listed, refused through a link (O_NOFOLLOW, Go's error
+  text), drafted (and the drafts file after each POST compared byte for byte, `MarshalIndent` layout, a note cut at 2000
+  bytes inside a letter written as Go's `�`), deduplicated, the 101st pushing out the oldest, and 16 rule texts
+  CheckRule refuses or accepts (Go's ASCII `\s` and `\b`). The audit report moved from `cmd/heimdalld/audit.go` to
+  `internal/auditreport` so the fixture can call it; the Go daemon's answer is unchanged. Found on the way: the float
+  writer wrote Go's `-0` as `0` (fixed in `gojson::write_f64`; no alert field carries a negative zero).
 
 ## Measured (2026-11-10)
 

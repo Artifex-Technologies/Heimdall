@@ -14,9 +14,13 @@ import (
 
 	"github.com/Artifex-Technologies/Heimdall/internal/alert"
 	"github.com/Artifex-Technologies/Heimdall/internal/api"
+	"github.com/Artifex-Technologies/Heimdall/internal/auditreport"
 	"github.com/Artifex-Technologies/Heimdall/internal/detect"
 	"github.com/Artifex-Technologies/Heimdall/internal/governance"
 	"github.com/Artifex-Technologies/Heimdall/internal/grants"
+	"github.com/Artifex-Technologies/Heimdall/internal/hardening"
+	"github.com/Artifex-Technologies/Heimdall/internal/immunity"
+	"github.com/Artifex-Technologies/Heimdall/internal/lan"
 )
 
 // APICases is the API's fixture (testdata/parity/api.json): requests through the Go server (its guards, the caller check
@@ -46,19 +50,45 @@ type APICase struct {
 	Exact    bool              `json:"exact"`
 	// Alerts: the detectors of the alerts the request raised, in order.
 	Alerts []string `json:"alerts"`
+	// Files and Links make the computer the request sees (paths in the case's folder): immunity/immunity.json (what is
+	// held), rule-drafts.json, lan/devices.json (only with LAN), tracker.json, db/ (pacman), kernel.json, modules/, root/ (the
+	// hardening checks). Running is the running kernel's name.
+	Files   map[string]FileSpec `json:"files,omitempty"`
+	Links   map[string]string   `json:"links,omitempty"`
+	LAN     bool                `json:"lan,omitempty"`
+	Running string              `json:"running,omitempty"`
+	// After: rule-drafts.json after a POST (ids and times written as ID and TIME; "" none).
+	After string `json:"after,omitempty"`
 }
 
-var made = regexp.MustCompile(`"id":"[0-9a-f]{8}"|approve [0-9a-f]{8}|"time":"[^"]*"`)
+var (
+	made     = regexp.MustCompile(`"id":"[0-9a-f]{8}"|approve [0-9a-f]{8}|rule test [0-9a-f]{8}|"time":"[^"]*"`)
+	madeFile = regexp.MustCompile(`"(id|time)": "[^"]*"`)
+)
 
-func normalise(s string) string {
+// normalise writes what the server makes up (request and draft ids, times) and the case's folder as fixed words.
+func normalise(s, dir string) string {
+	s = strings.ReplaceAll(s, dir, "DIR")
 	return made.ReplaceAllStringFunc(s, func(m string) string {
 		switch {
 		case strings.HasPrefix(m, `"id"`):
 			return `"id":"ID"`
 		case strings.HasPrefix(m, "approve"):
 			return "approve ID"
+		case strings.HasPrefix(m, "rule test"):
+			return "rule test ID"
 		}
 		return `"time":"TIME"`
+	})
+}
+
+// normaliseFile does the same for the indented drafts file.
+func normaliseFile(s string) string {
+	return madeFile.ReplaceAllStringFunc(s, func(m string) string {
+		if strings.HasPrefix(m, `"id"`) {
+			return `"id": "ID"`
+		}
+		return `"time": "TIME"`
 	})
 }
 
@@ -105,6 +135,42 @@ func RunAPI(c APICase, dir string) (APICase, error) {
 	}
 	s.SetGrants(st, raised)
 	s.SetIncidents(func() any { return []any{} })
+	if err := writeTree(dir, c.Files); err != nil {
+		return c, err
+	}
+	for name, target := range c.Links {
+		if err := os.Symlink(target, filepath.Join(dir, name)); err != nil {
+			return c, err
+		}
+	}
+	// as cmd/heimdalld wires them (main.go, cmdRun), on the case's folder
+	held := immunity.Store{Dir: filepath.Join(dir, "immunity")}
+	s.SetAudit(func() any {
+		return auditreport.Build(auditreport.Computer{Tracker: filepath.Join(dir, "tracker.json"), PacmanDB: filepath.Join(dir, "db"),
+			KernelVulns: filepath.Join(dir, "kernel.json"), Modules: filepath.Join(dir, "modules"), Running: c.Running,
+			System: hardening.System{Root: filepath.Join(dir, "root")}})
+	})
+	if c.LAN {
+		s.SetDevices(func() any {
+			st, err := lan.Load(filepath.Join(dir, "lan", "devices.json"))
+			if err != nil {
+				return &lan.Store{Status: "unreadable"}
+			}
+			return st
+		})
+	}
+	drafts := filepath.Join(dir, "rule-drafts.json")
+	s.SetRules(immunity.Rules{Path: drafts, RulesDir: filepath.Join(dir, "clamav")}, func() []immunity.Entry {
+		es, _ := held.Load()
+		return es
+	}, raised)
+	s.SetQuarantine(func() any {
+		es, err := held.Load()
+		if err != nil || es == nil {
+			return []immunity.Entry{}
+		}
+		return es
+	})
 	r := httptest.NewRequest(c.Method, c.Path, strings.NewReader(c.Body))
 	r.Host = c.Host
 	for k, v := range c.Headers {
@@ -113,7 +179,10 @@ func RunAPI(c APICase, dir string) (APICase, error) {
 	w := httptest.NewRecorder()
 	s.ServeHTTP(w, r)
 	c.Status = w.Code
-	c.Response = normalise(w.Body.String())
+	c.Response = normalise(w.Body.String(), dir)
+	if b, err := os.ReadFile(drafts); err == nil && c.Method == "POST" && c.Path == "/v1/rules/drafts" {
+		c.After = normaliseFile(string(b))
+	}
 	c.Alerts = []string{}
 	recent := raised.Recent(50)
 	for i := len(recent) - 1; i >= 0; i-- {
@@ -230,6 +299,7 @@ func AllAPI(tmp func() string) (APICases, error) {
 	}
 	with("requests: damaged requests file", func(c *APICase) { c.Path, c.Requests, c.Exact = "/v1/requests", "[{", false })
 	with("requests: PUT", func(c *APICase) { c.Method, c.Path = "PUT", "/v1/requests" })
+	moreAPICases(with)
 	for i := range f.Cases {
 		var err error
 		if f.Cases[i], err = RunAPI(f.Cases[i], tmp()); err != nil {

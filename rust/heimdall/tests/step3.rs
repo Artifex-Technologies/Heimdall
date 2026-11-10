@@ -92,6 +92,7 @@ fn a_real_loopback_caller_is_identified_by_the_kernel() {
         grants: None,
         access: Some(access),
         alerts: Box::new(|_| {}),
+        files: Default::default(),
     };
     let addr = serve("127.0.0.1:0", mk(Access::new(vec![], vec![]))).unwrap();
     let r = get(addr, "/v1/alerts");
@@ -105,14 +106,22 @@ fn a_real_loopback_caller_is_identified_by_the_kernel() {
     assert!(serve("0.0.0.0:0", mk(Access::new(vec![], vec![]))).unwrap_err().to_string().contains("must be a loopback address"));
 }
 
-fn normalise(s: &str) -> String {
-    let re = regex::Regex::new(r#""id":"[0-9a-f]{8}"|approve [0-9a-f]{8}|"time":"[^"]*""#).unwrap();
-    re.replace_all(s, |c: &regex::Captures| {
+fn normalise_file(s: &str) -> String {
+    let re = regex::Regex::new(r#""(id|time)": "[^"]*""#).unwrap();
+    re.replace_all(s, |c: &regex::Captures| if &c[1] == "id" { "\"id\": \"ID\"" } else { "\"time\": \"TIME\"" }.to_string()).into_owned()
+}
+
+fn normalise(s: &str, dir: &str) -> String {
+    let s = s.replace(dir, "DIR");
+    let re = regex::Regex::new(r#""id":"[0-9a-f]{8}"|approve [0-9a-f]{8}|rule test [0-9a-f]{8}|"time":"[^"]*""#).unwrap();
+    re.replace_all(&s, |c: &regex::Captures| {
         let m = &c[0];
         if m.starts_with("\"id\"") {
             "\"id\":\"ID\"".to_string()
         } else if m.starts_with("approve") {
             "approve ID".to_string()
+        } else if m.starts_with("rule test") {
+            "rule test ID".to_string()
         } else {
             "\"time\":\"TIME\"".to_string()
         }
@@ -154,6 +163,28 @@ fn the_api_answers_as_go() {
         if !s("decisions").is_empty() {
             std::fs::write(format!("{cd}/grants.json"), s("decisions")).unwrap();
         }
+        // the computer the request sees (as Go's case wrote it)
+        for (f, spec) in c.get("files").and_then(Value::as_object).cloned().unwrap_or_default() {
+            let p = format!("{cd}/{f}");
+            std::fs::create_dir_all(std::path::Path::new(&p).parent().unwrap()).unwrap();
+            std::fs::write(&p, spec.get("content").and_then(Value::as_str).unwrap_or("")).unwrap();
+        }
+        for (l, target) in c.get("links").and_then(Value::as_object).cloned().unwrap_or_default() {
+            std::os::unix::fs::symlink(target.as_str().unwrap(), format!("{cd}/{l}")).unwrap();
+        }
+        let files = heimdall::api::Files {
+            audit: Some(heimdall::audit::report::Computer {
+                tracker: format!("{cd}/tracker.json"),
+                pacman_db: format!("{cd}/db"),
+                kernel_vulns: format!("{cd}/kernel.json"),
+                modules: format!("{cd}/modules"),
+                running: Some(s("running")),
+                hardening_root: format!("{cd}/root"),
+            }),
+            lan_dir: c.get("lan").and_then(Value::as_bool).unwrap_or(false).then(|| format!("{cd}/lan")),
+            immunity_dir: Some(format!("{cd}/immunity")),
+            rule_drafts: Some(format!("{cd}/rule-drafts.json")),
+        };
         let mut access = Access::new(vec!["sarina".into()], vec!["wheel".into()]);
         access.passwd = format!("{d}/passwd");
         access.group = format!("{d}/group");
@@ -166,6 +197,7 @@ fn the_api_answers_as_go() {
             grants: Some(heimdall::grants::Store { requests: format!("{cd}/req.json"), decisions: format!("{cd}/grants.json") }),
             access: Some(access),
             alerts: Box::new(move |a: Alert| r2.lock().unwrap().push(a.detector_id)),
+            files,
         };
         let mut raw = format!("{} {} HTTP/1.1\r\nHost: {}\r\n", s("method"), s("path"), s("host"));
         for (k, v) in c.get("headers").and_then(Value::as_object).cloned().unwrap_or_default() {
@@ -180,7 +212,7 @@ fn the_api_answers_as_go() {
         let resp = api.handle(&req, peer);
         assert_eq!(resp.status as i64, c["status"].as_i64().unwrap(), "{name}: {}", resp.body);
         let want = c["response"].as_str().unwrap();
-        let got = normalise(&resp.body);
+        let got = normalise(&resp.body, &cd);
         if c["exact"].as_bool().unwrap() {
             assert_eq!(got, want, "{name}");
         } else {
@@ -189,8 +221,12 @@ fn the_api_answers_as_go() {
         }
         let want_alerts: Vec<String> = c["alerts"].as_array().unwrap().iter().map(|x| x.as_str().unwrap().to_string()).collect();
         assert_eq!(*raised.lock().unwrap(), want_alerts, "{name}: alerts");
+        if s("method") == "POST" && s("path") == "/v1/rules/drafts" {
+            let after = std::fs::read_to_string(format!("{cd}/rule-drafts.json")).map(|a| normalise_file(&a)).unwrap_or_default();
+            assert_eq!(after, s("after"), "{name}: the drafts file");
+        }
         n += 1;
     }
     let _ = std::fs::remove_dir_all(&dir);
-    assert!(n >= 60, "{n} cases");
+    assert!(n >= 125, "{n} cases");
 }

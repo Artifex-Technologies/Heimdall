@@ -345,7 +345,7 @@ fn write_requests(path: &str, rs: &[Request]) -> Result<(), String> {
     r.map_err(|e| e.to_string())
 }
 
-fn random(b: &mut [u8]) {
+pub fn random(b: &mut [u8]) {
     // SAFETY: getrandom fills at most the buffer's length.
     unsafe { libc::getrandom(b.as_mut_ptr().cast(), b.len(), 0) };
 }

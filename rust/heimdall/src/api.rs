@@ -3,17 +3,19 @@
 //! endpoint but /healthz only for the accounts `Access` allows, identified by the kernel from /proc/net/tcp{,6}.
 //!
 //! Served: GET /healthz, GET /v1/alerts?n=N, POST /v1/review (governance), GET /v1/incidents, GET and POST /v1/requests
-//! (grants). Not yet (404 here; the Go daemon serves them until the switch): /v1/audit, /v1/lan/devices, /v1/quarantine,
-//! /v1/rules/drafts. Alerts the API raises (reviews, grant requests) go to the daemon's loop as messages, so they pass the
-//! correlator and every output like any other alert. Shadow mode serves no API.
+//! (grants), GET /v1/audit (`audit::report`), GET /v1/lan/devices (only with `lan_dir`), GET /v1/quarantine (immunity's
+//! index), GET and POST /v1/rules/drafts. Alerts the API raises (reviews, grant requests, rule drafts) go to the daemon's
+//! loop as messages, so they pass the correlator and every output like any other alert. Shadow mode serves no API.
 
 use crate::alert::{Alert, Ring};
 use crate::correlate;
 use crate::event::{Event, Finding, Severity};
-use crate::governance::{Request as ReviewRequest, Reviewer};
 use crate::gojson::{self, FromGo};
+use crate::gostruct::{self, Field, Ty, Val};
 use crate::gotime::Time;
+use crate::governance::{Request as ReviewRequest, Reviewer};
 use crate::grants;
+use crate::immunity;
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::net::{IpAddr, SocketAddr, TcpListener, TcpStream};
@@ -62,7 +64,8 @@ pub fn loopback_host(host: &str) -> bool {
     if h == "localhost" {
         return true;
     }
-    crate::gonet::parse_ip(h).is_some_and(|ip| ip.is_loopback() || matches!(ip, IpAddr::V6(v) if v.to_ipv4_mapped().is_some_and(|x| x.is_loopback())))
+    crate::gonet::parse_ip(h)
+        .is_some_and(|ip| ip.is_loopback() || matches!(ip, IpAddr::V6(v) if v.to_ipv4_mapped().is_some_and(|x| x.is_loopback())))
 }
 
 /// Which local accounts may use the API: root, Heimdall's own account, `users`, and members of `groups`.
@@ -164,6 +167,61 @@ pub struct Api {
     pub access: Option<Access>,
     /// Alerts for the daemon's loop.
     pub alerts: Box<dyn Fn(Alert) + Send + Sync>,
+    /// The files the read-only endpoints answer from (None: that endpoint is not served).
+    pub files: Files,
+}
+
+/// Where GET /v1/audit, /v1/lan/devices, /v1/quarantine and /v1/rules/drafts read.
+#[derive(Default)]
+pub struct Files {
+    pub audit: Option<crate::audit::report::Computer>,
+    /// `lan_dir` (devices.json in it); Go serves /v1/lan/devices only when it is set.
+    pub lan_dir: Option<String>,
+    /// immunity's store (its index, immunity.json).
+    pub immunity_dir: Option<String>,
+    pub rule_drafts: Option<String>,
+}
+
+static DEVICE: Ty = Ty::Struct(
+    "lan.Device",
+    &[
+        Field("mac", &Ty::Str, false),
+        Field("ip", &Ty::Str, false),
+        Field("name", &Ty::Str, true),
+        Field("names", &Ty::Slice(&Ty::Str), true),
+        Field("vendor", &Ty::Str, true),
+        Field("model", &Ty::Str, true),
+        Field("kind", &Ty::Str, false),
+        Field("services", &Ty::Slice(&Ty::Str), true),
+        Field("private_mac", &Ty::Bool, true),
+        Field("first_seen", &Ty::Time, false),
+        Field("last_seen", &Ty::Time, false),
+    ],
+);
+static NETWORK: Ty = Ty::Struct(
+    "lan.Network",
+    &[
+        Field("uuid", &Ty::Str, false),
+        Field("ssid", &Ty::Str, false),
+        Field("first_scan", &Ty::Time, false),
+        Field("last_scan", &Ty::Time, false),
+        Field("devices", &Ty::Slice(&DEVICE), false),
+    ],
+);
+/// The device list (Go: lan.Store, devices.json, written by `heimdalld lan scan`).
+static LAN_STORE: Ty = Ty::Struct(
+    "lan.Store",
+    &[
+        Field("networks", &Ty::Slice(&NETWORK), false),
+        Field("status", &Ty::Str, false),
+        Field("status_uuid", &Ty::Str, true),
+        Field("status_time", &Ty::Time, false),
+    ],
+);
+
+/// Go's Encoder.Encode of a value: the JSON and a newline, or nothing at all when it cannot be written.
+fn encoded(t: &Ty, v: &Val) -> Response {
+    Response { status: 200, content_type: "application/json", body: gostruct::to_json(t, v).map(|s| s + "\n").unwrap_or_default() }
 }
 
 impl Api {
@@ -197,7 +255,89 @@ impl Api {
                 json(b)
             }
             "/v1/requests" if self.grants.is_some() => self.requests(r, uid.unwrap_or(0)),
+            "/v1/audit" if self.files.audit.is_some() => json(crate::audit::report::build(self.files.audit.as_ref().expect("checked"))),
+            "/v1/lan/devices" if self.files.lan_dir.is_some() => {
+                let path = format!("{}/devices.json", self.files.lan_dir.as_deref().unwrap_or_default());
+                // Go's lan.Load: a missing file is an empty store; anything else that goes wrong is {"status":"unreadable"}
+                let read = match std::fs::read(&path) {
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => Some(gostruct::zero(&LAN_STORE)),
+                    Err(_) => None,
+                    Ok(b) => match gostruct::unmarshal(&LAN_STORE, &b) {
+                        (v, None) => Some(v),
+                        _ => None,
+                    },
+                };
+                let v = read.unwrap_or_else(|| {
+                    let mut z = gostruct::zero(&LAN_STORE);
+                    if let Val::Struct(f) = &mut z {
+                        f[1] = Val::Str("unreadable".into());
+                    }
+                    z
+                });
+                encoded(&LAN_STORE, &v)
+            }
+            "/v1/quarantine" if self.files.immunity_dir.is_some() => {
+                let v = match immunity::load_entries(self.files.immunity_dir.as_deref().unwrap_or_default()) {
+                    Ok(Some(v)) => v,
+                    _ => Val::Slice(Some(Vec::new())),
+                };
+                encoded(&immunity::ENTRIES, &v)
+            }
+            "/v1/rules/drafts" if self.files.rule_drafts.is_some() => self.rule_drafts(r, uid.unwrap_or(0)),
             _ => text(404, "404 page not found"),
+        }
+    }
+
+    fn rule_drafts(&self, r: &Request, uid: u32) -> Response {
+        let rules = immunity::Rules { path: self.files.rule_drafts.clone().unwrap_or_default() };
+        match r.method.as_str() {
+            "GET" => match rules.load() {
+                Err(e) => text(500, &e),
+                Ok(v) => encoded(&immunity::RULES, &v.unwrap_or(Val::Slice(Some(Vec::new())))),
+            },
+            "POST" => {
+                if r.too_large {
+                    return text(400, "invalid request body: http: request body too large");
+                }
+                let q = match gojson::parse_first(&r.body).and_then(|v| {
+                    let mut q = DraftRequest::default();
+                    q.read_into(&v, "").map(|_| q)
+                }) {
+                    Ok(q) => q,
+                    Err(e) => return text(400, &format!("invalid request body: {e}")),
+                };
+                let dir = self.files.immunity_dir.as_deref().unwrap_or_default();
+                if !immunity::held_hashes(dir).contains(&q.sample) {
+                    return text(400, "sample_sha256 is not a sample Heimdall holds (GET /v1/quarantine)");
+                }
+                let d = match rules.draft(&q.sample, &q.rule, &q.note, uid, Time::now()) {
+                    Ok(d) => d,
+                    Err(e) => return text(400, &e),
+                };
+                let next = format!("sudo heimdalld immunity rule test {}", d.id);
+                let ev = Event {
+                    source: "immunity".into(),
+                    kind: "rule_draft".into(),
+                    time: Time::now(),
+                    fields: [("rule_id", d.id.clone()), ("rule", d.name.clone()), ("sample", d.sample.clone()), ("uid", uid.to_string())]
+                        .into_iter()
+                        .map(|(k, v)| (k.to_string(), v))
+                        .collect(),
+                    ..Default::default()
+                };
+                let short: String = d.sample.chars().take(12).collect();
+                let summary = format!("a YARA rule ({}) was drafted for the held sample {short}; test it: {next}", d.name);
+                (self.alerts)(Alert::from_finding(&Finding::new("rule-draft", Severity::Info, summary, &ev)));
+                // Go writes a map[string]string: keys sorted
+                let mut b = String::new();
+                let mut o = gojson::ObjectWriter::new(&mut b);
+                o.str("id", &d.id);
+                o.str("next", &next);
+                o.str("status", &d.status);
+                o.end();
+                json(b)
+            }
+            _ => text(405, "method not allowed"),
         }
     }
 
@@ -325,6 +465,15 @@ impl Api {
         }
     }
 }
+
+/// The body of POST /v1/rules/drafts.
+#[derive(Default)]
+struct DraftRequest {
+    sample: String,
+    rule: String,
+    note: String,
+}
+crate::go_struct!(DraftRequest { sample: "sample_sha256", rule: "rule", note: "note" });
 
 struct Collect<'a>(&'a mut Vec<Alert>);
 impl crate::alert::Sink for Collect<'_> {

@@ -40,7 +40,8 @@ a differential run and the Go state files. Plan and numbers: `docs/RUST_PORT.md`
 | Step 2c: the 6-hourly package, kernel and hardening audits on their own thread, behind game time; Go's state files | done | audits.json: 3,030 vercmp pairs, 2,599 CVSS vectors, 70 scenarios / 212 steps / 906 events and state files byte for byte; 9 game-time answers; pacman's vercmp as oracle; 3 fuzz targets, 2 Kani harnesses; side by side with audits on: alerts identical (see RUST_PORT.md) |
 | Step 3: the correlator (in the shadow daemon; `incident` now compared) | done | correlate.json: 25 sequences, 2,074 alerts, 337 incident alerts and the /v1/incidents bodies byte for byte |
 | Step 3: governance, the API (own thread, loopback HTTP/1.1, callers from /proc/net/tcp; /healthz, /v1/alerts, /v1/review, /v1/incidents, /v1/requests), grants (file requests, read decisions) | done, not wired (shadow serves no API) | api.json: 64 requests through the Go server, statuses and bodies equal; real-socket caller test; fuzz target http_request |
-| Step 3: /v1/audit, /v1/lan/devices, /v1/quarantine, /v1/rules/drafts; the API in a non-shadow `run`; the Limbo responder; step 4: mesh, trust | open | |
+| Step 3: /v1/audit, /v1/lan/devices, /v1/quarantine, /v1/rules/drafts | done | api.json now 127 requests (63 new on made-up computers), drafts file after each POST byte for byte |
+| Step 3: the API in a non-shadow `run`; the Limbo responder; step 4: mesh, trust | open | |
 
 - **Resume:** step 3, the rest. (1) The four remaining endpoints in `src/api.rs` (each a case in
   `internal/parity/api.go` first): /v1/audit (`cmd/heimdalld/audit.go`: packages, kernels, hardening now, from
