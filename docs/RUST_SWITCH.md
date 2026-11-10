@@ -35,7 +35,7 @@ A plan, not done. The Go daemon stays in charge until every item under "Before" 
    | the Sarina advisory on a new hold | the above and `sarina_url` set | **ported** (`src/advisor.rs`) |
    | containment requests (`contain.Trigger`) | `/etc/heimdall/contain.json` switches it on | **ported** (`src/contain.rs`) |
    | the request to copy files Limbo held (`takeHeld`) | always, in charge (owner decision 2026-11-05) | **ported** (`immunity::TakeHeld`) |
-   | mesh | `mesh_listen` set or peers enrolled | open (step 4) |
+   | mesh | `mesh_listen` set or peers enrolled | **ported** (`src/mesh.rs`) |
    | trust (the signed manifest of the agents' behaviour files) | trust mode not `off` | open (step 4) |
 
    The switch waits for every row that is needed here. (The daemon in charge logs at start which of these it does not do

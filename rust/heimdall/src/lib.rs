@@ -27,6 +27,7 @@ pub mod grants;
 pub mod immunity;
 pub mod ipintel;
 pub mod maintenance;
+pub mod mesh;
 pub mod pkgverify;
 pub mod quarantine;
 pub mod remoteaccess;

@@ -96,13 +96,20 @@ impl Sarina {
         };
         let loopback = hostname == "localhost" || hostname.parse::<std::net::IpAddr>().is_ok_and(|ip| ip.is_loopback());
         if !loopback {
-            return Err(format!("sarina_url host {} is not loopback; refusing (evidence would leave this machine)", gotext::quote(&hostname)));
+            return Err(format!(
+                "sarina_url host {} is not loopback; refusing (evidence would leave this machine)",
+                gotext::quote(&hostname)
+            ));
         }
         if !scheme.eq_ignore_ascii_case("http") {
-            return Err(format!("sarina_url {}: only http:// is supported (sarina-service speaks plain HTTP on loopback)", gotext::quote(base_url)));
+            return Err(format!(
+                "sarina_url {}: only http:// is supported (sarina-service speaks plain HTTP on loopback)",
+                gotext::quote(base_url)
+            ));
         }
         let port: u16 = if port.is_empty() { 80 } else { port.parse().map_err(|_| not_url())? };
-        let addrs: Vec<SocketAddr> = (hostname.as_str(), port).to_socket_addrs().map(|a| a.filter(|a| a.ip().is_loopback()).collect()).unwrap_or_default();
+        let addrs: Vec<SocketAddr> =
+            (hostname.as_str(), port).to_socket_addrs().map(|a| a.filter(|a| a.ip().is_loopback()).collect()).unwrap_or_default();
         Ok(Sarina {
             base: base_url.trim_end_matches('/').to_string(),
             host: authority.to_string(),
@@ -173,13 +180,24 @@ impl Sarina {
             ));
         }
         if gotext::trim_space(out).is_empty() {
-            return Err(fail(CODE_BAD_RESPONSE, "chat reply has an empty final_output", "check the model server; Sarina answered without text"));
+            return Err(fail(
+                CODE_BAD_RESPONSE,
+                "chat reply has an empty final_output",
+                "check the model server; Sarina answered without text",
+            ));
         }
         Ok(valid_prefix(out, MAX_ADVICE).to_string())
     }
 
     /// One call, retried once if the connection itself failed (Go: post).
-    fn post(&self, method: &str, path: &str, body: Option<&str>, out: Option<&'static Ty>, by: Instant) -> Result<Option<Val>, SarinaError> {
+    fn post(
+        &self,
+        method: &str,
+        path: &str,
+        body: Option<&str>,
+        out: Option<&'static Ty>,
+        by: Instant,
+    ) -> Result<Option<Val>, SarinaError> {
         match self.once(method, path, body, out, by) {
             Err(e) if e.code == CODE_UNREACHABLE => {
                 let left = by.saturating_duration_since(Instant::now());
@@ -194,10 +212,21 @@ impl Sarina {
         }
     }
 
-    fn once(&self, method: &str, path: &str, body: Option<&str>, out: Option<&'static Ty>, by: Instant) -> Result<Option<Val>, SarinaError> {
+    fn once(
+        &self,
+        method: &str,
+        path: &str,
+        body: Option<&str>,
+        out: Option<&'static Ty>,
+        by: Instant,
+    ) -> Result<Option<Val>, SarinaError> {
         let by = by.min(Instant::now() + self.timeout);
         let timed_out = || {
-            fail(CODE_TIMEOUT, format!("{method} {path} timed out"), "Sarina may be busy on a slow model; check the model server, then retry")
+            fail(
+                CODE_TIMEOUT,
+                format!("{method} {path} timed out"),
+                "Sarina may be busy on a slow model; check the model server, then retry",
+            )
         };
         // Go's url.Error: `Post "http://127.0.0.1:8899/v1/sessions": ...`
         let verb = format!("{}{}", &method[..1], method[1..].to_ascii_lowercase());
@@ -278,7 +307,14 @@ impl Sarina {
 }
 
 /// What a reply means (Go: the end of once): the status as a code, then the body read into `out`.
-fn judge(method: &str, path: &str, status: u16, status_text: String, body: &[u8], out: Option<&'static Ty>) -> Result<Option<Val>, SarinaError> {
+fn judge(
+    method: &str,
+    path: &str,
+    status: u16,
+    status_text: String,
+    body: &[u8],
+    out: Option<&'static Ty>,
+) -> Result<Option<Val>, SarinaError> {
     if status == 401 || status == 403 {
         return Err(fail(CODE_AUTH, status_text, "set sarina_token or HEIMDALL_SARINA_TOKEN to Sarina's SARINA_SERVICE_TOKEN"));
     }
@@ -290,7 +326,11 @@ fn judge(method: &str, path: &str, status: u16, status_text: String, body: &[u8]
         ));
     }
     if status >= 500 {
-        return Err(fail(CODE_SERVER_ERROR, format!("{}{}", status_text, err_detail(body)), "see the sarina-service logs (journalctl -u sarina-service)"));
+        return Err(fail(
+            CODE_SERVER_ERROR,
+            format!("{}{}", status_text, err_detail(body)),
+            "see the sarina-service logs (journalctl -u sarina-service)",
+        ));
     }
     if status >= 300 {
         return Err(fail(
@@ -332,7 +372,9 @@ pub const CODES: &[&str] = &[
 /// The fuzz target's body: a raw HTTP reply from the service, read as the create-session and the chat reply would be.
 pub fn fuzz_reply(raw: &[u8]) {
     let Some(r) = crate::response::parse_reply(raw, MAX_REPLY + 1) else { return };
-    for (method, path, t) in [("POST", "/v1/sessions", &SESSION), ("POST", "/v1/sessions/s-1/chat", &CHAT), ("DELETE", "/v1/sessions/s-1", &CHAT)] {
+    for (method, path, t) in
+        [("POST", "/v1/sessions", &SESSION), ("POST", "/v1/sessions/s-1/chat", &CHAT), ("DELETE", "/v1/sessions/s-1", &CHAT)]
+    {
         match judge(method, path, r.status, r.status_text.clone(), &r.body, Some(t)) {
             Ok(v) => assert!(r.status < 300 && v.is_some(), "a refusal read as an answer"),
             Err(e) => {
@@ -463,11 +505,7 @@ pub fn format_g(f: f64) -> String {
 /// is only ever an advisory a human reads.
 pub fn build_prompt(a: &Alert) -> String {
     let s = |x: &str| Value::String(x.to_string());
-    let fields = if a.fields.is_empty() {
-        Value::Null
-    } else {
-        Value::Object(a.fields.iter().map(|(k, v)| (k.clone(), s(v))).collect())
-    };
+    let fields = if a.fields.is_empty() { Value::Null } else { Value::Object(a.fields.iter().map(|(k, v)| (k.clone(), s(v))).collect()) };
     let ev = Value::Object(vec![
         ("detector".into(), s(&a.detector_id)),
         ("event_kind".into(), s(&a.event_kind)),

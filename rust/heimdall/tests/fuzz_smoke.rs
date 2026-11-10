@@ -22,6 +22,7 @@ const TARGETS: &[(&str, Target)] = &[
     ("gametime", fuzzing::gametime),
     ("http_request", fuzzing::http_request),
     ("sarina_reply", fuzzing::sarina_reply),
+    ("mesh_batch", fuzzing::mesh_batch),
 ];
 
 #[test]

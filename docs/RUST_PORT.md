@@ -17,7 +17,7 @@ contract.
 | 1 | detect, engine, alert, verify, explain, tool rules, maintenance, config, the agent-baseline state file | **done** (2026-11-10) |
 | 2 | the sources, event-driven, on one thread (`heimdalld-rs run --shadow`) | **done**: sessions (inotify + 10-minute look), vault (inotify), Limbo, FIM (+ pacman's database), telemetry, the maintenance window, /proc/net (ports, connections with the mapped IP databases, threat lists and remote-access recognition by name and Go build info, listeners), the journal (one `journalctl --follow`, the cursor file), the Wi-Fi results and router, the device list, remote-access packages and tunnels; the 6-hourly package, kernel and hardening audits on a thread of their own, behind game time (2c, 2026-11-10) |
 | 3 | the API, the Limbo responder, correlate, governance, grants | done: the correlator (`src/correlate.rs`, in the shadow daemon), governance (`src/governance.rs`), the API (`src/api.rs`: its own thread, plain HTTP/1.1 on loopback, callers from /proc/net/tcp; /healthz, /v1/alerts, /v1/review, /v1/incidents, /v1/requests, /v1/audit, /v1/lan/devices, /v1/quarantine, /v1/rules/drafts), grants (`src/grants.rs`: requests filed, decisions read), the restrict-only rules (`src/quarantine.rs`). the API served by `run` without `--shadow` (its alerts reach the loop as `Msg::Alert`; shadow mode serves none). the Limbo responder (`src/response.rs`, in charge only). the request to copy files Limbo held (`immunity::TakeHeld`); one-shot commands handed to the Go binary when it is installed beside (`main.rs`). The Sarina advisory on a new hold and the backlog note (`src/advisor.rs`, in charge only, 2026-11-10). Containment requests (`src/contain.rs`, in charge only, 2026-11-10) |
-| 4 | mesh and trust | open (design in progress.md, Resume) |
+| 4 | mesh and trust | mesh **done** (`src/mesh.rs`, in charge only, 2026-11-10); trust open |
 | switch | the Rust binary as `heimdalld`, the Go one kept for the one-shot commands | plan: `docs/RUST_SWITCH.md` |
 
 ## Layout
@@ -44,18 +44,20 @@ rust/
     src/response.rs           the Limbo responder: the queue, the re-check (on quarantine.rs), the control-socket client
     src/advisor.rs            the Sarina advisory on a new hold and the backlog note (Go: internal/response/advisor.go)
     src/contain.rs            containment requests for the root unit (Go: internal/contain's Trigger)
+    src/mesh.rs               the mesh: the identity Go wrote, mutual TLS 1.3 with enrolled keys, the sender and the listener
     src/fuzzing.rs            the fuzz targets' bodies
     tests/                    parity (the Go fixtures), regex_corpus, properties, fuzz_smoke
   fuzz/                       cargo-fuzz targets (nightly) and their seed corpus
-  gotools/                    Go helpers: unitables (Unicode tables), replay (events through the Go engine)
+  gotools/                    Go helpers: unitables (Unicode tables), replay (events through the Go engine), meshnode (Go's mesh)
   parity/                     the engine differential: gen-events.py, compare-alerts.py, measure.py, engine-differential.sh
   scripts/                    nicecargo.sh / nicego.sh (builds at nice 15), regex-differential.sh, make-seeds.py
 internal/parity/              the Go side: the Go table tests as scenarios, and the fixture writer
 testdata/parity/              the fixtures both languages run
 ```
 
-Dependencies: `regex` (Unicode case folding only), `sha2`, `rustix`; `proptest` and `serde_json` for tests only. Threads,
-not async. The release binary is 1.9 MB and links only libc, libm and libgcc_s.
+Dependencies: `regex` (Unicode case folding only), `sha2`, `rustix`, `libc`, `memmap2`, `flate2`, and for the mesh `rustls`
+(ring provider, the `tls12` feature left out) and `ring` (ed25519); `proptest` and `serde_json` for tests only. Threads, not
+async. The release binary is 4.6 MB (1.9 MB before rustls and ring) and still links only libc, libm and libgcc_s.
 
 ## Behaving exactly like the Go daemon
 
@@ -242,6 +244,27 @@ and words.
   steps): every alert passed on, a request only for a threat while on and unlocked, never two within ten minutes, a due
   one never missed, the reason the alert's summary. Kani (`src/contain.rs`): `never_two_requests_within_ten_minutes`,
   the same claim over the edge values without Kani.
+- **The mesh (step 4, 2026-11-10)**: `tests/mesh.rs` builds `rust/gotools/meshnode` (the Go daemon's `internal/mesh` on
+  its own) and runs a Go node and a Rust node over real loopback mutual TLS 1.3. Identities: the Rust node reads the key
+  Go wrote (same fingerprint, the same as Go's `fingerprint` file), and Go reads the key Rust made (PKCS#8 as Go writes it,
+  0600, the `fingerprint` file). Both ways the same 7 local alerts are written: 4 travel (below warning, `integration` and
+  received `mesh` alerts stay home), a 600-byte summary cut inside a letter, a 40-byte detector and source cut inside a
+  letter, an offset time with nanoseconds, the zero time), and **the alert lines the Rust listener writes equal the Go
+  listener's** (the receive time dropped). Refused both ways: a key not enrolled (a Go stranger at the Rust listener, a Rust
+  stranger at the Go one), a server whose key is not the enrolled one (the Go client and the Rust client), a client without
+  a certificate (at both). Then the same 18 raw requests, by Go's own HTTP client, to both listeners: **every answer equal**
+  (204, 400 for an empty body, not JSON, `[]`, `{"alerts":{}}`, a bad time, a number for a string, 51 alerts, 75 KB; 204
+  for keys in other case with trailing text, `null`, `{"alerts":null}`, a lone surrogate, 600-byte summaries; the rate limit
+  answering 429 at the same alert; 404 for another path and for GET) and **116 received alert lines equal**. Stable over
+  repeated runs. `tests/run.rs`: the real binary in charge makes its key in `mesh_dir`, listens on `mesh_listen`, writes an
+  enrolled peer's alert to the log as a `mesh` alert and refuses a stranger; in shadow mode it makes no key and opens no
+  port. Properties: a certificate names its key and a cut one names none; a peer never gets past 120 a minute plus 2 a
+  second. Fuzz target `mesh_batch` (a request body, and the same bytes as a certificate). Kani
+  (`reading_a_certificate_never_panics`, inputs up to 12 bytes; every input up to 3 bytes without Kani).
+- **Measured in charge with the mesh (2026-11-10, release builds, the same made-up config, 60 s idle after 8 s)**: the
+  mesh listening with one enrolled peer, the Sarina advisory and the Limbo responder configured, the API on: Go 17.0 MB
+  PSS, 9 threads, 1.45 context switches a second; Rust **5.1 MB**, 4 threads (the loop, the API, the mesh's sender and
+  listener), 0.30 a second; no CPU tick in the minute for either.
 - **Measured in charge (2026-11-10, release build, the same made-up config, 20 s idle)**: in charge (API and responder)
   4.2 MB PSS, 2 threads (the loop, the API; a responder thread exists only while a call runs), 0 CPU ticks; shadow mode
   4.1 MB, 1 thread, 0 ticks.
@@ -333,6 +356,10 @@ round fragmented the same heap and 16.6 MB stayed; the audit thread keeps its ow
   advisory off with a log line (Go would speak TLS to it; sarina-service listens on plain HTTP on loopback). A consultation
   in flight at shutdown runs to its end within the grace (Go cancels it and records a `sarina_unreachable` "context
   canceled" alert).
+- The mesh listener answers one request per connection and serves at most 16 connections at once (Go: keep-alive, no cap);
+  its request head may be 16 KiB (Go: 8 KiB). A peer's handshake is refused when its certificate's key is not ed25519 or not
+  enrolled, as in Go; the certificate's other contents are not checked by either (Go's x509 parser refuses some malformed
+  certificates Rust's reader ignores beyond the key).
 - The responder's calls to Limbo block their own thread (Go: a goroutine with a context). At shutdown Go cancels calls in
   flight; here a call runs to its end and whatever it returns after the cancel is treated as Go's cancelled call
   (abandoned, nothing more sent). The queue's watcher sleeps while nothing waits (Go ticks every second once the

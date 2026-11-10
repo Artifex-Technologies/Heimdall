@@ -280,7 +280,15 @@ fn merge(into: &mut Incident, from: Incident) {
     let mut alerts = from.alerts;
     alerts.append(&mut into.alerts);
     // Go: sort.Slice by time (not stable: members raised in the same nanosecond may come in another order past 12)
-    alerts.sort_by(|a, b| if a.time.before(&b.time) { std::cmp::Ordering::Less } else if b.time.before(&a.time) { std::cmp::Ordering::Greater } else { std::cmp::Ordering::Equal });
+    alerts.sort_by(|a, b| {
+        if a.time.before(&b.time) {
+            std::cmp::Ordering::Less
+        } else if b.time.before(&a.time) {
+            std::cmp::Ordering::Greater
+        } else {
+            std::cmp::Ordering::Equal
+        }
+    });
     if alerts.len() > MAX_MEMBERS {
         let cut = alerts.len() - MAX_MEMBERS;
         alerts.drain(..cut);

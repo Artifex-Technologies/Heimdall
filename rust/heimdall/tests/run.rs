@@ -78,9 +78,8 @@ fn wait_for(what: &str, mut f: impl FnMut() -> bool) {
 /// arguments (here `echo` stands in for it); without it they are refused with the usage.
 #[test]
 fn one_shot_commands_go_to_the_go_binary() {
-    let run = |go: &str, args: &[&str]| {
-        Command::new(env!("CARGO_BIN_EXE_heimdalld-rs")).args(args).env("HEIMDALL_GO", go).output().unwrap()
-    };
+    let run =
+        |go: &str, args: &[&str]| Command::new(env!("CARGO_BIN_EXE_heimdalld-rs")).args(args).env("HEIMDALL_GO", go).output().unwrap();
     let o = run("/usr/bin/echo", &["lan", "scan", "--json", "a b"]);
     assert!(o.status.success());
     assert_eq!(String::from_utf8_lossy(&o.stdout), "lan scan --json a b\n");
@@ -104,7 +103,9 @@ fn fake_limbo(sock: &str) -> std::sync::Arc<std::sync::Mutex<Vec<String>>> {
             s2.lock().unwrap().push(format!("{} {}", r.method, r.path));
             let body = match (r.method.as_str(), r.path.as_str()) {
                 ("GET", "/v1/quarantine") => "[]".to_string(),
-                ("POST", "/v1/quarantine") => r#"{"record":{"id":"q1","guest":"g","level":"restrict"},"created":true,"applied":true}"#.into(),
+                ("POST", "/v1/quarantine") => {
+                    r#"{"record":{"id":"q1","guest":"g","level":"restrict"},"created":true,"applied":true}"#.into()
+                }
                 _ => "{}".into(),
             };
             let _ = write!(c, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}", body.len());
@@ -163,7 +164,10 @@ fn the_responder_never_acts_in_shadow_mode() {
         writeln!(f, r#"{{"time":"2026-11-05T12:00:00Z","kind":"guest.start","guest":"{g}","detail":{{}}}}"#).unwrap();
     };
     let alerted = |g: &str| {
-        std::fs::read_to_string(&log).unwrap_or_default().lines().any(|l| l.contains(r#""detector_id":"limbo-guest""#) && l.contains(&format!(r#""guest":"{g}""#)))
+        std::fs::read_to_string(&log)
+            .unwrap_or_default()
+            .lines()
+            .any(|l| l.contains(r#""detector_id":"limbo-guest""#) && l.contains(&format!(r#""guest":"{g}""#)))
     };
 
     let c = start(&d, true);
@@ -234,5 +238,57 @@ fn in_charge_the_api_is_served_and_its_alerts_reach_the_log_in_shadow_mode_none(
     let (code, err) = stop(c);
     assert_eq!(code, 0, "{err}");
     assert!(err.contains("shadow mode serves no API"), "{err}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// The mesh only in charge: in shadow mode no listener and nothing sent; in charge the daemon listens on mesh_listen with
+/// its key (made in mesh_dir on the first start), an enrolled peer's alert lands in the alert log as a `mesh` alert, and
+/// a key that is not enrolled is refused.
+#[test]
+fn the_mesh_runs_only_in_charge() {
+    use heimdall::mesh;
+    use std::os::unix::fs::PermissionsExt;
+    let dir = std::env::temp_dir().join(format!("heimdall-mesh-run-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("sessions")).unwrap();
+    let d = dir.to_string_lossy().into_owned();
+    let lab = mesh::load_or_create(&format!("{d}/lab")).unwrap();
+    let stranger = mesh::load_or_create(&format!("{d}/stranger")).unwrap();
+    let port = free_port();
+    let mut cfg: serde_json::Value = serde_json::from_str(&config(&d, free_port())).unwrap();
+    cfg["api_addr"] = "".into();
+    cfg["mesh_listen"] = format!("127.0.0.1:{port}").into();
+    std::fs::write(format!("{d}/config.json"), cfg.to_string()).unwrap();
+    let peers = format!("{d}/mesh-peers.json");
+    std::fs::write(&peers, format!(r#"[{{"name":"lab","fingerprint":"{}","address":"127.0.0.1:{}"}}]"#, lab.fingerprint, free_port()))
+        .unwrap();
+    std::fs::set_permissions(&peers, std::fs::Permissions::from_mode(0o644)).unwrap();
+
+    let c = start(&d, true);
+    std::thread::sleep(Duration::from_millis(1500));
+    assert!(TcpStream::connect(("127.0.0.1", port)).is_err(), "shadow mode listens for the mesh");
+    let (code, err) = stop(c);
+    assert_eq!(code, 0, "{err}");
+    assert!(err.contains("mesh: not in shadow mode"), "{err}");
+    assert!(!dir.join("mesh/key.pem").exists(), "shadow mode made a mesh key");
+
+    let c = start(&d, false);
+    wait_for("the mesh listener", || TcpStream::connect(("127.0.0.1", port)).is_ok());
+    let me = mesh::load_or_create(&format!("{d}/mesh")).unwrap();
+    let body = br#"{"alerts":[{"time":"2026-11-10T09:00:00Z","detector_id":"remote-access","severity":"critical","summary":"made-up alert","source":"host"}]}"#;
+    let as_lab = mesh::client_config(&lab, &me.fingerprint, &peers).unwrap();
+    assert_eq!(mesh::post(&as_lab, &format!("127.0.0.1:{port}"), "POST", mesh::PATH, body), Ok(204));
+    let as_stranger = mesh::client_config(&stranger, &me.fingerprint, &peers).unwrap();
+    assert!(mesh::post(&as_stranger, &format!("127.0.0.1:{port}"), "POST", mesh::PATH, body).is_err());
+    let log = format!("{d}/alerts.jsonl");
+    wait_for("the received alert in the log", || {
+        std::fs::read_to_string(&log)
+            .unwrap_or_default()
+            .lines()
+            .any(|l| l.contains(r#""detector_id":"mesh""#) && l.contains("[lab] made-up alert"))
+    });
+    let (code, err) = stop(c);
+    assert_eq!(code, 0, "{err}");
+    assert!(err.contains(&format!("mesh on as {}: 1 peer(s)", me.fingerprint)), "{err}");
     let _ = std::fs::remove_dir_all(&dir);
 }

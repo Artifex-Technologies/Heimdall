@@ -60,15 +60,17 @@ pub fn daemon_detectors(cfg: &Config, deps: Deps) -> Vec<Box<dyn Detector>> {
 
 // ---- the owner's files the detectors consult (read-only) ----
 
-#[derive(Default, Clone)]
-struct Peer {
-    name: String,
-    fingerprint: String,
-    address: String,
+/// An enrolled mesh peer (Go: mesh.Peer).
+#[derive(Default, Clone, Debug, PartialEq)]
+pub struct Peer {
+    pub name: String,
+    pub fingerprint: String,
+    pub address: String,
 }
 crate::go_struct!(Peer { name: "name", fingerprint: "fingerprint", address: "address" });
 
-fn valid_peer(p: &Peer) -> bool {
+/// Go's Peer.Validate.
+pub fn valid_peer(p: &Peer) -> bool {
     let n = p.name.as_bytes();
     let name_ok = !n.is_empty()
         && n.len() <= 32
@@ -82,23 +84,30 @@ fn valid_peer(p: &Peer) -> bool {
     name_ok && fp_ok && !port.is_empty() && port != "0" && !gonet::is_unspecified(&ip) && !gonet::is_multicast(&ip)
 }
 
-/// The enrolled mesh peers (Go: mesh.LoadPeers): root's file, writable by nobody else; invalid entries skipped.
-fn load_peers(path: &str) -> Vec<Peer> {
+/// The enrolled mesh peers (Go: mesh.LoadPeers): root's file (or the reading account's), writable by nobody else; a missing
+/// file is no peers; invalid entries skipped, never guessed.
+pub fn load_peers_checked(path: &str) -> Result<Vec<Peer>, String> {
     use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
-    let Ok(f) = std::fs::OpenOptions::new().read(true).custom_flags(libc_o_nofollow()).open(path) else { return Vec::new() };
-    let Ok(md) = f.metadata() else { return Vec::new() };
+    let f = match std::fs::OpenOptions::new().read(true).custom_flags(libc_o_nofollow()).open(path) {
+        Ok(f) => f,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(e) => return Err(crate::sources::go_path_error("open", path, &e)),
+    };
+    let md = f.metadata().map_err(|e| crate::sources::go_path_error("stat", path, &e))?;
     let euid = rustix::process::geteuid().as_raw();
     if (md.uid() != 0 && md.uid() != euid) || md.mode() & 0o022 != 0 {
-        return Vec::new();
+        return Err(format!("{path} must be root's and writable by nobody else"));
     }
-    let Ok(b) = std::io::read_to_string(f) else { return Vec::new() };
+    let b = std::io::read_to_string(f).map_err(|e| crate::sources::go_path_error("read", path, &e))?;
     // Go decodes one JSON value from the stream; text after it is not read
-    let Ok(v) = gojson::parse_first(b.as_bytes()) else { return Vec::new() };
+    let v = gojson::parse_first(b.as_bytes()).map_err(|e| format!("{path}: {e}"))?;
     let mut ps: Vec<Peer> = Vec::new();
-    if ps.read_into(&v, "").is_err() {
-        return Vec::new();
-    }
-    ps.into_iter().filter(valid_peer).collect()
+    ps.read_into(&v, "").map_err(|e| format!("{path}: {e}"))?;
+    Ok(ps.into_iter().filter(valid_peer).collect())
+}
+
+fn load_peers(path: &str) -> Vec<Peer> {
+    load_peers_checked(path).unwrap_or_default()
 }
 
 fn libc_o_nofollow() -> i32 {

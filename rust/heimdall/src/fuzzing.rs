@@ -210,3 +210,8 @@ pub fn http_request(data: &[u8]) {
 pub fn sarina_reply(data: &[u8]) {
     crate::advisor::fuzz_reply(data);
 }
+
+/// A mesh request body from an enrolled peer, and the same bytes as a presented certificate (mesh.rs).
+pub fn mesh_batch(data: &[u8]) {
+    crate::mesh::fuzz_batch(data);
+}

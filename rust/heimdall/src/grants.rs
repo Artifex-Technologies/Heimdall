@@ -307,7 +307,9 @@ impl Store {
         validate(&r)?;
         self.with_lock(|| {
             let mut rs = self.pending()?.unwrap_or_default();
-            if let Some(o) = rs.iter_mut().find(|o| o.kind == r.kind && o.detail == r.detail && o.session_id == r.session_id && o.uid == r.uid) {
+            if let Some(o) =
+                rs.iter_mut().find(|o| o.kind == r.kind && o.detail == r.detail && o.session_id == r.session_id && o.uid == r.uid)
+            {
                 o.count += 1;
                 if !r.reason.is_empty() {
                     o.reason = r.reason.clone();
@@ -353,6 +355,14 @@ pub fn random(b: &mut [u8]) {
 /// Newest first (Go: Sorted, by time; equal times keep no particular order in Go, the file's order here).
 pub fn sorted(rs: &[Request]) -> Vec<Request> {
     let mut out = rs.to_vec();
-    out.sort_by(|a, b| if a.time.after(&b.time) { std::cmp::Ordering::Less } else if b.time.after(&a.time) { std::cmp::Ordering::Greater } else { std::cmp::Ordering::Equal });
+    out.sort_by(|a, b| {
+        if a.time.after(&b.time) {
+            std::cmp::Ordering::Less
+        } else if b.time.after(&a.time) {
+            std::cmp::Ordering::Greater
+        } else {
+            std::cmp::Ordering::Equal
+        }
+    });
     out
 }

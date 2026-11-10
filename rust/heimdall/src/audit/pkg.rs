@@ -135,8 +135,7 @@ pub fn installed(db_dir: &str) -> std::io::Result<BTreeMap<Vec<u8>, Vec<u8>>> {
 /// Reads the tracker's all.json.
 pub fn load_tracker(path: &str) -> Result<Vec<Group>, AuditError> {
     let b = std::fs::read(path).map_err(|e| AuditError::io("open", path, &e))?;
-    gojson::unmarshal(&b, Vec::<Group>::new())
-        .map_err(|e| AuditError::other(format!("the security tracker file is not readable: {e}")))
+    gojson::unmarshal(&b, Vec::<Group>::new()).map_err(|e| AuditError::other(format!("the security tracker file is not readable: {e}")))
 }
 
 fn rank(sev: &str) -> i32 {

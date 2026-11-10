@@ -259,7 +259,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
-### 2026-11-10 (5) — Rust port: the Sarina advisory, containment requests
+### 2026-11-10 (5) — Rust port: the Sarina advisory, containment requests, the mesh
 - The Rust daemon in charge now asks Sarina for an opinion on each new Limbo hold, as the Go one does (`rust/heimdall/src/
   advisor.rs`): `POST /v1/sessions` with `tool_allowlist: []` (nothing sent unless the reply says `tools: 0`), the chat with
   the same fenced prompt, the session closed on every path, the same error codes. Proved request for request against the
@@ -269,6 +269,10 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 - Containment requests (`rust/heimdall/src/contain.rs`): the same trigger, switch file (`/etc/heimdall/contain.json`), lock
   (`/etc/heimdall/contained`) and request file (`/var/lib/heimdall/contain-request.json`, byte for byte Go's); the root unit
   `heimdall-contain` keeps running the Go binary. **For Sarina:** the lock she checks before starting is unchanged.
+- The mesh (`rust/heimdall/src/mesh.rs`, rustls TLS 1.3 + ring): the same identity (`mesh_dir/key.pem`, read as Go wrote it),
+  peers file, endpoint and wire format; a Go and a Rust instance exchange alerts (proved over loopback mTLS against the Go
+  node). Mixed fleets work: a computer still on the Go daemon and one on the Rust daemon are peers as before. Never in
+  shadow mode.
 — Signed: Heimdall / Claude Opus 5.5
 
 ### 2026-11-10 (6) — Rust port: the switch planned (docs/RUST_SWITCH.md); takeHeld ported

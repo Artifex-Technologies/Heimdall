@@ -2,8 +2,8 @@
 //! the Rust responder and its real client, against the same scripted fake Limbo on a Unix socket; the requests Limbo saw and
 //! the alerts passed on or raised must be Go's (sorted within a step, the queue's waits written as W).
 
-use heimdall::alert::{Alert, Sink};
 use heimdall::advisor::{Advisor, IfInstalled, Sarina};
+use heimdall::alert::{Alert, Sink};
 use heimdall::response::{Client, Responder, Settings};
 use serde_json::Value;
 use std::io::Write;
@@ -70,7 +70,8 @@ fn reply(s: &mut impl Write, code: u16, ctype: &str, body: &str) {
         503 => "Service Unavailable",
         _ => "Internal Server Error",
     };
-    let _ = write!(s, "HTTP/1.1 {code} {text}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+    let _ =
+        write!(s, "HTTP/1.1 {code} {text}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
 }
 
 /// The fake control socket, scripted as Go's fakeLimbo.
@@ -100,7 +101,8 @@ fn fake(sock: &str, l: Value, seen: Arc<Mutex<Vec<String>>>) {
                         list => reply(&mut s, 200, json, list),
                     }
                 } else if r.method == "POST" && r.path == "/v1/quarantine" {
-                    let guest = serde_json::from_str::<Value>(&body).ok().and_then(|v| v["guest"].as_str().map(String::from)).unwrap_or_default();
+                    let guest =
+                        serde_json::from_str::<Value>(&body).ok().and_then(|v| v["guest"].as_str().map(String::from)).unwrap_or_default();
                     std::thread::sleep(Duration::from_millis(num("delay_ms")));
                     let mut rep = get("reply");
                     if rep.is_empty() {
@@ -152,7 +154,9 @@ fn fake_sarina(f: Value, seen: Arc<Mutex<Vec<String>>>) -> String {
                     }
                 }
                 let json = "application/json";
-                let pick = |code: u64, body: String, def: &str| ((if code == 0 { 200 } else { code as u16 }), if body.is_empty() { def.to_string() } else { body });
+                let pick = |code: u64, body: String, def: &str| {
+                    ((if code == 0 { 200 } else { code as u16 }), if body.is_empty() { def.to_string() } else { body })
+                };
                 if r.method == "POST" && r.path == "/v1/sessions" {
                     let (c, b) = pick(num("create_status"), get("create"), r#"{"session_id":"s-1","tools":0}"#);
                     reply(&mut s, c, json, &b);
@@ -197,7 +201,11 @@ fn the_responder_asks_limbo_and_reports_as_go() {
             timeout: ms("timeout_ms", def.timeout),
             max_pending: cfg.get("max_pending").and_then(Value::as_u64).filter(|n| *n > 0).map_or(def.max_pending, |n| n as usize),
             delay: ms("delay_ms", def.delay),
-            backlog_threshold: cfg.get("backlog_threshold").and_then(Value::as_u64).filter(|n| *n > 0).map_or(def.backlog_threshold, |n| n as usize),
+            backlog_threshold: cfg
+                .get("backlog_threshold")
+                .and_then(Value::as_u64)
+                .filter(|n| *n > 0)
+                .map_or(def.backlog_threshold, |n| n as usize),
             backlog_interval: ms("backlog_interval_ms", def.backlog_interval),
             tick: ms("tick_ms", def.tick),
         };
@@ -215,8 +223,14 @@ fn the_responder_asks_limbo_and_reports_as_go() {
         let with_sarina = advisor.is_some();
         let out = Lines::default();
         let o2 = out.clone();
-        let (mut r, h) =
-            Responder::new(Box::new(out.clone()), Box::new(Client { socket: sock }), advisor, settings, Box::new(move |a| o2.clone().write(&a).unwrap()), Box::new(|_| {}));
+        let (mut r, h) = Responder::new(
+            Box::new(out.clone()),
+            Box::new(Client { socket: sock }),
+            advisor,
+            settings,
+            Box::new(move |a| o2.clone().write(&a).unwrap()),
+            Box::new(|_| {}),
+        );
         for (k, st) in c["steps"].as_array().unwrap().iter().enumerate() {
             for input in st["inputs"].as_array().unwrap() {
                 std::thread::sleep(Duration::from_millis(input.get("pause_ms").and_then(Value::as_u64).unwrap_or(0)));
@@ -235,7 +249,9 @@ fn the_responder_asks_limbo_and_reports_as_go() {
             }
             let mut got_req = std::mem::take(&mut *seen.lock().unwrap());
             got_req.sort();
-            let want = |k: &str| -> Vec<String> { st.get(k).and_then(Value::as_array).into_iter().flatten().map(|x| x.as_str().unwrap().to_string()).collect() };
+            let want = |k: &str| -> Vec<String> {
+                st.get(k).and_then(Value::as_array).into_iter().flatten().map(|x| x.as_str().unwrap().to_string()).collect()
+            };
             let differ = |got: &[String], want: &[String]| {
                 let only = |a: &[String], b: &[String]| a.iter().filter(|x| !b.contains(x)).cloned().collect::<Vec<_>>();
                 format!("Rust only: {:?}\nGo only: {:?}", only(got, want), only(want, got))
@@ -257,6 +273,9 @@ fn the_responder_asks_limbo_and_reports_as_go() {
         cases += 1;
     }
     let _ = std::fs::remove_dir_all(&base);
-    assert!(cases >= 70 && steps >= 70 && requests >= 600 && sarina_asked >= 85, "{cases} cases, {steps} steps, {requests} requests, {sarina_asked} asked of Sarina");
+    assert!(
+        cases >= 70 && steps >= 70 && requests >= 600 && sarina_asked >= 85,
+        "{cases} cases, {steps} steps, {requests} requests, {sarina_asked} asked of Sarina"
+    );
     eprintln!("{cases} cases, {steps} steps, {requests} Limbo requests, {sarina_asked} Sarina requests");
 }

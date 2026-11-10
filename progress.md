@@ -47,7 +47,8 @@ a differential run and the Go state files. Plan and numbers: `docs/RUST_PORT.md`
 | Switch-over plan (unit, package, rollback, checklist) | written, not done | `docs/RUST_SWITCH.md` |
 | Step 3: the Sarina advisory on a new hold and the backlog note (`src/advisor.rs`, in charge only) | done | response.json now 77 cases / 80 steps / 752 Limbo requests / 90 Sarina requests through Go's Responder + real HTTP client and the Rust one against the same scripted fake sarina-service (TCP) and fake Limbo: requests (prompt and token included) and alerts equal; tests/run.rs: in charge asks and attaches, shadow asks nothing; 3 properties, fuzz target sarina_reply |
 | Step 3: containment requests (`src/contain.rs`, in charge only, outermost as Go's) | done | contain.json: 37 cases, 51 steps, 20 requests, the folder after each step and the request byte for byte; property (300 runs); Kani harness + edge values |
-| Step 4: mesh, trust | open | below |
+| Step 4: mesh (`src/mesh.rs`, rustls 0.23.46 + ring 0.17.14, TLS 1.3 only; in charge only) | done | tests/mesh.rs: a Go node (rust/gotools/meshnode) and a Rust node over loopback mTLS: each reads the other's identity, 4 alerts each way with equal lines, strangers and wrong server keys refused both ways, 18 raw requests with equal answers and 116 equal lines; run.rs: in charge listens and logs a peer's alert, shadow opens nothing; 2 properties, fuzz target mesh_batch, Kani harness; idle in charge 5.1 MB / 4 threads vs Go 17.0 MB / 9 |
+| Step 4: trust | open | below |
 
 - **Resume (in this order; the switch waits for each item `docs/RUST_SWITCH.md` "Before" marks as needed here):**
   1. ~~**The Sarina advisory**~~ DONE (`src/advisor.rs`, see the table). Was: (`internal/response/advisor.go`, 304 lines) into `src/response.rs`: after a hold with
@@ -63,7 +64,7 @@ a differential run and the Go state files. Plan and numbers: `docs/RUST_PORT.md`
   2. ~~**Containment requests**~~ DONE (`src/contain.rs`). Was: (`internal/contain/trigger.go` + `AboutAgents`, `LoadConfig`, `ReadMarker`): a sink in charge
      only, outermost (Go: engine -> contain.Trigger -> takeHeld -> Responder -> multiSink), one request at most every
      10 minutes, written atomically to `contain.RequestPath`. Fixture: the Go trigger tests as cases.
-  3. **Step 4, mesh** (`internal/mesh`: identity.go, peers.go, node.go): rustls 0.23 with the ring provider (both in the
+  3. ~~**Step 4, mesh**~~ DONE (`src/mesh.rs`, `tests/mesh.rs`). Was: (`internal/mesh`: identity.go, peers.go, node.go): rustls 0.23 with the ring provider (both in the
      cargo cache: `rustls-0.23.46`, `ring-0.17.14`; add with exact versions, `cargo audit`), TLS 1.3 only, client and server
      certificates checked by enrolled fingerprints (custom verifiers, no CA). It must read the identity Go wrote in
      `mesh_dir` (same key, same fingerprint) and `mesh-peers.json`; a self-signed ed25519 certificate is needed only if

@@ -44,7 +44,10 @@ const STATUS_TIMEOUT: Duration = Duration::from_secs(3);
 /// Limbo's name rule (`^[a-z][a-z0-9-]{0,11}$`): a name from a log file is checked again before it goes on a request.
 pub fn guest_ok(g: &str) -> bool {
     let b = g.as_bytes();
-    !b.is_empty() && b.len() <= 12 && b[0].is_ascii_lowercase() && b.iter().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || *c == b'-')
+    !b.is_empty()
+        && b.len() <= 12
+        && b[0].is_ascii_lowercase()
+        && b.iter().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || *c == b'-')
 }
 
 fn rank(s: Severity) -> i32 {
@@ -107,19 +110,37 @@ pub struct QResult {
     pub error: String,
 }
 
-static RECORD: Ty = Ty::Struct("response.Record", &[Field("id", &Ty::Str, false), Field("guest", &Ty::Str, false), Field("level", &Ty::Str, false)]);
+static RECORD: Ty =
+    Ty::Struct("response.Record", &[Field("id", &Ty::Str, false), Field("guest", &Ty::Str, false), Field("level", &Ty::Str, false)]);
 static RESULT: Ty = Ty::Struct(
     "response.Result",
-    &[Field("record", &RECORD, false), Field("created", &Ty::Bool, false), Field("applied", &Ty::Bool, false), Field("error", &Ty::Str, false)],
+    &[
+        Field("record", &RECORD, false),
+        Field("created", &Ty::Bool, false),
+        Field("applied", &Ty::Bool, false),
+        Field("error", &Ty::Str, false),
+    ],
 );
 static LISTED: Ty = Ty::Slice(&Ty::Struct(
     "",
-    &[Field("guest", &Ty::Str, false), Field("level", &Ty::Str, false), Field("status", &Ty::Str, false), Field("opened", &Ty::Time, false)],
+    &[
+        Field("guest", &Ty::Str, false),
+        Field("level", &Ty::Str, false),
+        Field("status", &Ty::Str, false),
+        Field("opened", &Ty::Time, false),
+    ],
 ));
 
 /// What the responder needs from Limbo (a trait so tests can stand in for it).
 pub trait Limbo: Send + Sync {
-    fn quarantine(&self, guest: &str, reason: &str, source: &str, evidence: &BTreeMap<String, String>, by: Instant) -> Result<QResult, LimboError>;
+    fn quarantine(
+        &self,
+        guest: &str,
+        reason: &str,
+        source: &str,
+        evidence: &BTreeMap<String, String>,
+        by: Instant,
+    ) -> Result<QResult, LimboError>;
     fn advise(&self, id: &str, source: &str, text: &str, by: Instant) -> Result<(), LimboError>;
     /// (exists, known): known false when Limbo does not say (an older one).
     fn guest_exists(&self, guest: &str, by: Instant) -> Result<(bool, bool), LimboError>;
@@ -142,7 +163,8 @@ impl Client {
     fn call(&self, method: &str, path: &str, body: Option<&str>, by: Instant, limit: usize) -> Result<Reply, LimboError> {
         // Go's url.Error: `Post "http://limbo/v1/quarantine": ...`
         let verb = format!("{}{}", &method[..1], method[1..].to_ascii_lowercase());
-        let wrap = |kind: ErrKind, what: String| LimboError { kind, msg: format!("limbo control socket: {verb} \"http://limbo{path}\": {what}") };
+        let wrap =
+            |kind: ErrKind, what: String| LimboError { kind, msg: format!("limbo control socket: {verb} \"http://limbo{path}\": {what}") };
         let deadline = || wrap(ErrKind::Timeout, "context deadline exceeded".into());
         let left = by.saturating_duration_since(Instant::now());
         if left.is_zero() {
@@ -264,7 +286,14 @@ pub(crate) fn parse_reply(raw: &[u8], limit: usize) -> Option<Reply> {
 }
 
 impl Limbo for Client {
-    fn quarantine(&self, guest: &str, reason: &str, source: &str, evidence: &BTreeMap<String, String>, by: Instant) -> Result<QResult, LimboError> {
+    fn quarantine(
+        &self,
+        guest: &str,
+        reason: &str,
+        source: &str,
+        evidence: &BTreeMap<String, String>,
+        by: Instant,
+    ) -> Result<QResult, LimboError> {
         // Go: json.Marshal of a map, keys sorted
         let mut b = String::new();
         let mut o = gojson::ObjectWriter::new(&mut b);
@@ -555,7 +584,16 @@ fn enqueue(sh: &Arc<Shared>, a: &Alert) {
     }
     st.pending.insert(
         guest.clone(),
-        Req { guest, primary: a.clone(), enqueued: Instant::now(), latest: a.time, seq, kinds: vec![a.event_kind.clone()], count: 1, delayed: false },
+        Req {
+            guest,
+            primary: a.clone(),
+            enqueued: Instant::now(),
+            latest: a.time,
+            seq,
+            kinds: vec![a.event_kind.clone()],
+            count: 1,
+            delayed: false,
+        },
     );
     dispatch(sh, &mut st);
     sh.cv.notify_all();
@@ -564,7 +602,11 @@ fn enqueue(sh: &Arc<Shared>, a: &Alert) {
 /// Starts queued requests while call slots are free (the caller holds the lock).
 fn dispatch(sh: &Arc<Shared>, st: &mut State) {
     while st.inflight.len() < MAX_QUARANTINES && !st.pending.is_empty() && !st.cancelled {
-        let best = st.pending.values().fold(None::<&Req>, |b, q| if b.is_none_or(|b| before(q, b)) { Some(q) } else { b }).map(|q| q.guest.clone());
+        let best = st
+            .pending
+            .values()
+            .fold(None::<&Req>, |b, q| if b.is_none_or(|b| before(q, b)) { Some(q) } else { b })
+            .map(|q| q.guest.clone());
         let Some(g) = best else { break };
         let q = st.pending.remove(&g).expect("present");
         st.inflight.insert(g);
@@ -574,7 +616,8 @@ fn dispatch(sh: &Arc<Shared>, st: &mut State) {
             let guest = q.guest.clone();
             let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| call(&s2, q)));
             if let Err(p) = r {
-                let what = p.downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| p.downcast_ref::<String>().cloned()).unwrap_or_default();
+                let what =
+                    p.downcast_ref::<&str>().map(|s| s.to_string()).or_else(|| p.downcast_ref::<String>().cloned()).unwrap_or_default();
                 failure(&s2, &guest, CODE_FAILED, &format!("quarantine call panicked: {what}"), "report this as a Heimdall bug", &[]);
             }
             let mut st = lock(&s2);
@@ -716,7 +759,8 @@ fn call(sh: &Arc<Shared>, q: Req) {
         return;
     }
     let a = &q.primary;
-    let reason = if q.count > 1 { format!("{} ({} triggers merged: {})", a.summary, q.count, q.kinds.join(", ")) } else { a.summary.clone() };
+    let reason =
+        if q.count > 1 { format!("{} ({} triggers merged: {})", a.summary, q.count, q.kinds.join(", ")) } else { a.summary.clone() };
     let evidence: BTreeMap<String, String> = [
         ("detector", a.detector_id.clone()),
         ("event_kind", a.event_kind.clone()),
@@ -742,12 +786,24 @@ fn call(sh: &Arc<Shared>, q: Req) {
                 ErrKind::Dial => (CODE_UNREACHABLE, "start Limbo (systemctl start limbo) and check limbo_control_socket in Heimdall's config; restrict the guest by hand meanwhile"),
                 ErrKind::Other => (CODE_FAILED, "read the message for Limbo's reason (journalctl -u limbo); restrict the guest by hand if it is still running"),
             };
-            failure(sh, &guest, code, &format!("could not quarantine guest {}: {e} (queue wait {wait})", gotext::quote(&guest)), remedy, &[("queue_wait", wait)]);
+            failure(
+                sh,
+                &guest,
+                code,
+                &format!("could not quarantine guest {}: {e} (queue wait {wait})", gotext::quote(&guest)),
+                remedy,
+                &[("queue_wait", wait)],
+            );
             return;
         }
     };
     if !res.applied {
-        (sh.log)(&format!("guest {}: quarantine {} recorded but NOT enforced: {} (queue wait {wait})", gotext::quote(&guest), res.id, res.error));
+        (sh.log)(&format!(
+            "guest {}: quarantine {} recorded but NOT enforced: {} (queue wait {wait})",
+            gotext::quote(&guest),
+            res.id,
+            res.error
+        ));
     } else {
         (sh.log)(&format!("guest {} quarantined ({}, level {}, queue wait {wait})", gotext::quote(&guest), res.id, res.level));
     }
@@ -825,7 +881,14 @@ fn advise(sh: &Shared, id: &str, a: &Alert) {
     let text = match r {
         Err(p) => {
             // advisory work must never take the daemon down
-            sarina_failed(sh, id, &guest, "sarina_error", &format!("advisor panicked: {}", panic_text(&*p)), "report this as a Heimdall bug");
+            sarina_failed(
+                sh,
+                id,
+                &guest,
+                "sarina_error",
+                &format!("advisor panicked: {}", panic_text(&*p)),
+                "report this as a Heimdall bug",
+            );
             return;
         }
         Ok(Err(e)) => {

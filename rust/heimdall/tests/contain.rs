@@ -59,7 +59,11 @@ fn the_trigger_asks_as_go_asks() {
             for e in std::fs::read_dir(&dir).unwrap() {
                 let e = e.unwrap();
                 let n = e.file_name().to_string_lossy().into_owned();
-                let v = if e.file_type().unwrap().is_dir() { "<dir>".to_string() } else { String::from_utf8_lossy(&std::fs::read(e.path()).unwrap()).into_owned() };
+                let v = if e.file_type().unwrap().is_dir() {
+                    "<dir>".to_string()
+                } else {
+                    String::from_utf8_lossy(&std::fs::read(e.path()).unwrap()).into_owned()
+                };
                 files.insert(n, v);
             }
             let want: BTreeMap<String, String> =

@@ -9,7 +9,7 @@
 //!
 //! In charge (no `--shadow`, for the switch): the same, plus the API on `api_addr` and the Limbo responder (`response.rs`;
 //! never in shadow mode) with the Sarina advisory on a new hold (`advisor.rs`), the request to copy files Limbo held, and
-//! containment requests (`contain.rs`). Not ported yet: mesh, trust (docs/RUST_PORT.md).
+//! containment requests (`contain.rs`), and the mesh (`mesh.rs`). Not ported yet: trust (docs/RUST_PORT.md).
 
 use crate::alert::{Alert, MultiSink, Ring, Sink, WriterSink};
 use crate::config::Config;
@@ -213,7 +213,43 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
         ephemeral: None,
     };
     // every alert passes the correlator on its way to the outputs: related alerts become one incident alert (Go: correlate)
-    let corr = crate::correlate::Correlator::new(Box::new(MultiSink { sinks }));
+    let raw_outputs = Arc::new(Mutex::new(MultiSink { sinks }));
+    let mut base: Box<dyn Sink> = Box::new(raw_outputs.clone());
+    // the owner's other computers (docs/MESH.md), in charge only: local alerts of at least mesh_min_severity go to the
+    // enrolled peers, and theirs come in to the outputs only (never to the correlator, containment or quarantine)
+    let mesh_wanted = !cfg.mesh_listen.is_empty() || !detect::load_peers_checked(&cfg.mesh_peers_path).unwrap_or_default().is_empty();
+    if mesh_wanted && shadow {
+        log("mesh: not in shadow mode (the Go daemon is the one in the mesh)");
+    } else if mesh_wanted {
+        match crate::mesh::load_or_create(&cfg.mesh_dir) {
+            Err(e) => log(&format!("mesh off: {e}")),
+            Ok(id) => {
+                let fp = id.fingerprint.clone();
+                let out = raw_outputs.clone();
+                let node = crate::mesh::Node {
+                    id,
+                    peers_path: cfg.mesh_peers_path.clone(),
+                    listen: cfg.mesh_listen.clone(),
+                    min_severity: cfg.mesh_min_severity.clone(),
+                    out: Arc::new(move |a: Alert| {
+                        let _ = out.lock().unwrap_or_else(|p| p.into_inner()).write(&a);
+                    }),
+                    log: Arc::new(log),
+                };
+                match node.start(base) {
+                    Ok((sink, n)) => {
+                        base = Box::new(sink);
+                        log(&format!("mesh on as {fp}: {n} peer(s)"));
+                    }
+                    Err((e, next)) => {
+                        base = next;
+                        log(&format!("mesh off: {e}"));
+                    }
+                }
+            }
+        }
+    }
+    let corr = crate::correlate::Correlator::new(base);
     let incidents = corr.state.clone();
     // `outputs` is Go's multiSink: the correlator and the outputs. The engine writes through it; alerts raised off the loop
     // (the API) and the sources' integration alerts go to it directly, past any response
@@ -227,11 +263,18 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
         // the daemon as in Go
         let mut advisor: Option<Box<dyn crate::advisor::Advisor>> = None;
         if !cfg.sarina_url.is_empty() {
-            let token = if cfg.sarina_token.is_empty() { std::env::var("HEIMDALL_SARINA_TOKEN").unwrap_or_default() } else { cfg.sarina_token.clone() };
+            let token = if cfg.sarina_token.is_empty() {
+                std::env::var("HEIMDALL_SARINA_TOKEN").unwrap_or_default()
+            } else {
+                cfg.sarina_token.clone()
+            };
             match crate::advisor::Sarina::new(&cfg.sarina_url, &token, &cfg.sarina_cwd) {
                 Ok(s) => {
                     let c2 = cfg.clone();
-                    advisor = Some(Box::new(crate::advisor::IfInstalled { inner: Box::new(s), installed: Box::new(move || sarina_installed(&c2)) }));
+                    advisor = Some(Box::new(crate::advisor::IfInstalled {
+                        inner: Box::new(s),
+                        installed: Box::new(move || sarina_installed(&c2)),
+                    }));
                 }
                 // an https URL: Go would speak TLS to it; this daemon goes on without the advisory instead of stopping
                 Err(e) if e.contains("only http://") => log(&format!("Sarina advisories off: {e}")),
@@ -270,7 +313,10 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
                 engine_sink = Box::new(r);
                 responder = Some(h);
                 responder_inbox = Some(inbox);
-                log(&format!("Limbo quarantine response enabled (control socket {}, Sarina advisories: {advising})", cfg.limbo_control_socket));
+                log(&format!(
+                    "Limbo quarantine response enabled (control socket {}, Sarina advisories: {advising})",
+                    cfg.limbo_control_socket
+                ));
             }
             Err(e) => log(&format!("Limbo quarantine response off: {e}")),
         }
@@ -286,7 +332,7 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
             crate::contain::REQUEST_PATH,
             crate::contain::MARKER_PATH,
         ));
-        log("not ported yet, so not done by this daemon: mesh, trust");
+        log("not ported yet, so not done by this daemon: trust");
     }
     let mut eng = Engine::new(engine_sink, detect::daemon_detectors(&cfg, deps));
     eng.set_maintenance(maintenance::Watcher::new(&cfg.maintenance_path), &cfg.maintenance_soften);
@@ -433,7 +479,10 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
         gate: crate::audit::gametime::Gate { path: std::env::var("HEIMDALL_GAMETIME").unwrap_or_default(), retry: Duration::ZERO },
     };
     if audits.packages.is_some() {
-        log(&format!("matching installed packages against the security tracker (every {})", crate::gotext::duration(every.as_nanos() as i64)));
+        log(&format!(
+            "matching installed packages against the security tracker (every {})",
+            crate::gotext::duration(every.as_nanos() as i64)
+        ));
     }
     if !audits.is_empty() {
         match crate::audit::AuditSource::start(audits) {
