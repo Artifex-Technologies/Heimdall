@@ -74,6 +74,24 @@ fn wait_for(what: &str, mut f: impl FnMut() -> bool) {
     }
 }
 
+/// After the switch the Rust binary is /usr/bin/heimdalld: the one-shot commands go to the Go binary with the same
+/// arguments (here `echo` stands in for it); without it they are refused with the usage.
+#[test]
+fn one_shot_commands_go_to_the_go_binary() {
+    let run = |go: &str, args: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_heimdalld-rs")).args(args).env("HEIMDALL_GO", go).output().unwrap()
+    };
+    let o = run("/usr/bin/echo", &["lan", "scan", "--json", "a b"]);
+    assert!(o.status.success());
+    assert_eq!(String::from_utf8_lossy(&o.stdout), "lan scan --json a b\n");
+    let o = run("/usr/bin/false", &["immunity", "list"]);
+    assert_eq!(o.status.code(), Some(1), "the Go command's exit code");
+    let o = run("/nonexistent/heimdalld-go", &["lan", "scan"]);
+    assert_eq!(o.status.code(), Some(2));
+    let o = run("/usr/bin/echo", &["rules", "check"]);
+    assert!(String::from_utf8_lossy(&o.stdout).contains("rules, all checked"), "the Rust commands stay Rust's");
+}
+
 /// A fake Limbo control socket: records each request's first line and answers like a Limbo that holds the guest.
 fn fake_limbo(sock: &str) -> std::sync::Arc<std::sync::Mutex<Vec<String>>> {
     let seen: std::sync::Arc<std::sync::Mutex<Vec<String>>> = Default::default();

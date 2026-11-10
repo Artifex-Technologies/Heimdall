@@ -8,8 +8,8 @@
 //! log path in the Go daemon's folder, so the two never write the same file. docs/RUST_SHADOW.md.
 //!
 //! In charge (no `--shadow`, for the switch): the same, plus the API on `api_addr` and the Limbo responder (`response.rs`;
-//! never in shadow mode). Not ported yet: the Sarina advisory on a hold, containment requests, the copy of held files,
-//! mesh, trust (docs/RUST_PORT.md).
+//! never in shadow mode) and the request to copy files Limbo held. Not ported yet: the Sarina advisory on a hold,
+//! containment requests, mesh, trust (docs/RUST_PORT.md).
 
 use crate::alert::{Alert, MultiSink, Ring, Sink, WriterSink};
 use crate::config::Config;
@@ -259,7 +259,9 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
         }
     }
     if !shadow {
-        log("not ported yet, so not done by this daemon: containment requests, the copy of files Limbo held, mesh, trust");
+        // a file Limbo held as malware is copied into immunity's store by the root unit (Go: takeHeld, outside the responder)
+        engine_sink = Box::new(crate::immunity::TakeHeld { next: engine_sink, dir: crate::immunity::REQUEST_DIR.into(), log });
+        log("not ported yet, so not done by this daemon: containment requests, mesh, trust");
     }
     let mut eng = Engine::new(engine_sink, detect::daemon_detectors(&cfg, deps));
     eng.set_maintenance(maintenance::Watcher::new(&cfg.maintenance_path), &cfg.maintenance_soften);

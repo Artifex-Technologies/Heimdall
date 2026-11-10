@@ -17,8 +17,15 @@ Usage:
                                     Run event lines through the detectors (the parity and differential tests use it).
   heimdalld-rs rules check [FILE]   Check a text rule file (default: the built-in rules); every problem is printed.
   heimdalld-rs version
+  heimdalld-rs OTHER ...            Any other command goes to the Go heimdalld kept for them (/usr/lib/heimdall/heimdalld-go,
+                                    HEIMDALL_GO), when it is installed (after the switch, docs/RUST_SWITCH.md).
 "
     );
+}
+
+/// The Go heimdalld kept for the one-shot commands after the switch (HEIMDALL_GO for tests).
+fn go_binary() -> String {
+    std::env::var("HEIMDALL_GO").unwrap_or_else(|_| "/usr/lib/heimdall/heimdalld-go".into())
 }
 
 fn flag(args: &[String], name: &str) -> Option<String> {
@@ -96,6 +103,14 @@ fn main() -> ExitCode {
         Some("-h" | "--help" | "help") => {
             usage();
             ExitCode::SUCCESS
+        }
+        // every one-shot command (scan, lan, immunity, contain, grant, mesh, trust, ...) stays in Go until ported: when this
+        // binary is /usr/bin/heimdalld (after the switch), it hands them to the Go one with the same arguments
+        Some(_) if std::path::Path::new(&go_binary()).exists() => {
+            use std::os::unix::process::CommandExt;
+            let e = std::process::Command::new(go_binary()).args(&args[1..]).exec();
+            eprintln!("heimdalld: {}: {e}", go_binary());
+            ExitCode::from(2)
         }
         _ => {
             usage();

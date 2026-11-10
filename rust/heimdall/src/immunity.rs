@@ -278,9 +278,58 @@ impl Rules {
     }
 }
 
+/// Where heimdalld leaves requests for the root unit (heimdall-requests.service).
+pub const REQUEST_DIR: &str = "/var/lib/heimdall-requests";
+
+/// Asks the root unit to copy a file Limbo held into immunity's store (Go: QueueTakeLimbo): `take-<16 hex>.json` holding
+/// `{"take_limbo":"<sha256>"}`, mode 0644.
+pub fn queue_take_limbo(dir: &str, sha: &str) -> Result<(), String> {
+    if !sha_ok(sha) {
+        return Err("a full SHA-256 is needed".into());
+    }
+    let mut b = String::from("{\"take_limbo\":");
+    crate::gojson::write_str(&mut b, sha);
+    b.push('}');
+    let path = format!("{dir}/take-{}.json", &sha[..16]);
+    crate::state::write_mode(&path, b.as_bytes(), 0o644).map_err(|e| crate::sources::go_path_error("open", &path, &e))
+}
+
+/// A sink that, for each file Limbo held as malware (limbo-exchange, exchange.held), asks for its copy before passing the
+/// alert on (Go: takeHeld in cmd/heimdalld; owner decision 2026-11-05). In charge only.
+pub struct TakeHeld {
+    pub next: Box<dyn crate::alert::Sink>,
+    pub dir: String,
+    pub log: fn(&str),
+}
+
+impl crate::alert::Sink for TakeHeld {
+    fn write(&mut self, a: &crate::alert::Alert) -> std::io::Result<()> {
+        if a.detector_id == "limbo-exchange" && a.event_kind == "exchange.held" && a.source == "limbo" {
+            let sha = a.fields.get("sha256").map(String::as_str).unwrap_or("");
+            if let Err(e) = queue_take_limbo(&self.dir, sha) {
+                (self.log)(&format!("could not ask for a copy of the held file {}: {e}", crate::gotext::quote(sha)));
+            }
+        }
+        self.next.write(a)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_held_file_is_asked_for_as_go_asks() {
+        let d = std::env::temp_dir().join(format!("heimdall-take-{}", std::process::id()));
+        std::fs::create_dir_all(&d).unwrap();
+        let dir = d.to_string_lossy().into_owned();
+        let sha = "ab".repeat(32);
+        queue_take_limbo(&dir, &sha).unwrap();
+        assert_eq!(std::fs::read_to_string(format!("{dir}/take-{}.json", &sha[..16])).unwrap(), format!("{{\"take_limbo\":\"{sha}\"}}"));
+        assert_eq!(queue_take_limbo(&dir, "AB").unwrap_err(), "a full SHA-256 is needed");
+        assert!(queue_take_limbo(&dir, &"AB".repeat(32)).is_err(), "Go's isHex64: lowercase only");
+        let _ = std::fs::remove_dir_all(&d);
+    }
 
     #[test]
     fn a_cut_note_is_written_as_go_writes_it() {

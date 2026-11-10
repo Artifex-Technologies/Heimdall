@@ -19,7 +19,7 @@ closed rather than deleting it -- the history of *why* is worth keeping.
 
 ---
 
-## 2026-11-10 — The Rust port: steps 1 and 2 DONE, step 3 begun (the correlator); the shadow week runs
+## 2026-11-10 — The Rust port: steps 1 and 2 DONE, step 3 done but the Sarina advisory and containment; switch planned; the shadow week runs
 
 **My ask:** port the always-on daemon to Rust, phase 1 of the plan, keeping the phase-0 design; proof by shared fixtures,
 a differential run and the Go state files. Plan and numbers: `docs/RUST_PORT.md`.
@@ -43,19 +43,35 @@ a differential run and the Go state files. Plan and numbers: `docs/RUST_PORT.md`
 | Step 3: /v1/audit, /v1/lan/devices, /v1/quarantine, /v1/rules/drafts | done | api.json now 127 requests (63 new on made-up computers), drafts file after each POST byte for byte |
 | Step 3: the API in a non-shadow `run` (`Msg::Alert` through an `Inbox`: a channel and a pipe; alerts to the correlator and outputs, past any response, as Go's multiSink) | done | tests/run.rs: the real binary in charge answers every endpoint, a review and a grant request reach the alert log and /v1/alerts; in shadow mode the same config serves nothing |
 | Step 3: the Limbo responder (`src/response.rs` on `src/quarantine.rs`; in charge only) | done; the Sarina advisory on a new hold is not ported | response.json: 31 cases, 33 steps, 444 requests, 152 alerts through the Go Responder and the Rust one, each with its real client against the same scripted fake Limbo on a Unix socket: requests and alerts equal; tests/run.rs: the real binary in shadow mode raises the alert and never touches the socket, in charge it sends the hold |
-| Step 3: the Sarina advisory; step 4: mesh, trust; the switch | open | plan: docs/RUST_SWITCH.md |
+| takeHeld (the request to copy a file Limbo held), in charge; one-shot commands handed to the Go binary (`/usr/lib/heimdall/heimdalld-go`, HEIMDALL_GO) | done | unit test (file name and bytes as Go's QueueTakeLimbo); tests/run.rs: arguments and exit code passed through, Rust's own commands stay Rust's |
+| Switch-over plan (unit, package, rollback, checklist) | written, not done | `docs/RUST_SWITCH.md` |
+| Step 3: the Sarina advisory, containment requests; step 4: mesh, trust | open | below |
 
-- **Resume:** step 3, the rest. (1) The four remaining endpoints in `src/api.rs` (each a case in
-  `internal/parity/api.go` first): /v1/audit (`cmd/heimdalld/audit.go`: packages, kernels, hardening now, from
-  `src/audit/`), /v1/lan/devices (`internal/lan` Load of `devices.json`), /v1/quarantine (immunity's index), /v1/rules/drafts
-  (`internal/immunity` Rules.Load/Draft; POST only for a held sample). (2) Wire the API into `daemon.rs` for a non-shadow
-  `run`: add `Msg::Alert(Alert)` and a channel+pipe source like `audit::AuditSource` so `Api.alerts` reaches
-  `eng.write_alert` on the loop; `api::serve(&cfg.api_addr, Api{ring, incidents, reviewer, grants:
-  Store{requests: cfg.grant_requests_path, decisions: grants::DEFAULT_DECISIONS}, access: Access::new(cfg.api_users,
-  cfg.api_groups)})`; keep shadow mode without an API. (3) `internal/response` (responder: queue by severity, one per guest,
-  Limbo client over control.sock with `GET /v1/guests/{name}`, the Sarina advisor with `tool_allowlist: []` and the
-  tool-count check) on top of `src/quarantine.rs`; never in shadow mode; fixtures from `internal/response`'s tests with a
-  fake Limbo socket. (4) Step 4: mesh (mutual TLS 1.3, rustls; ed25519 keys), trust.
+- **Resume (in this order; the switch waits for each item `docs/RUST_SWITCH.md` "Before" marks as needed here):**
+  1. **The Sarina advisory** (`internal/response/advisor.go`, 304 lines) into `src/response.rs`: after a hold with
+     `created`, at most 2 at once (else `sarina_busy`), `POST /v1/sessions` with `tool_allowlist: []`, refuse unless the
+     reply's `tools` is 0 (`sarina_contract_tools_nonzero`), chat with `BuildPrompt` (untrusted framing), one retry only on
+     a refused/dropped connection, DELETE the session on every path, the codes and remedies of `ErrorInfo`, the reply clipped
+     and attached as advisory `sarina`; `IfInstalled`. Plain HTTP/1.1 over loopback TCP like `api.rs`. Proof: extend
+     `internal/parity/response.go` with a scripted fake Sarina (TCP) beside the fake Limbo and the advisor set in RunResponse
+     (`Advisor: response.IfInstalled{...}`); add cases from `internal/response/failure_test.go` and `response_test.go`
+     (tools non-zero, backend_error, empty output, auth, timeout, evicted session, busy). Wire in `daemon.rs` where
+     "Sarina advisories on quarantines are not ported yet" is logged (`sarina_url`, token from `sarina_token` or
+     HEIMDALL_SARINA_TOKEN, `sarina_cwd`). Then the chain test's six advisory checks can pass.
+  2. **Containment requests** (`internal/contain/trigger.go` + `AboutAgents`, `LoadConfig`, `ReadMarker`): a sink in charge
+     only, outermost (Go: engine -> contain.Trigger -> takeHeld -> Responder -> multiSink), one request at most every
+     10 minutes, written atomically to `contain.RequestPath`. Fixture: the Go trigger tests as cases.
+  3. **Step 4, mesh** (`internal/mesh`: identity.go, peers.go, node.go): rustls 0.23 with the ring provider (both in the
+     cargo cache: `rustls-0.23.46`, `ring-0.17.14`; add with exact versions, `cargo audit`), TLS 1.3 only, client and server
+     certificates checked by enrolled fingerprints (custom verifiers, no CA). It must read the identity Go wrote in
+     `mesh_dir` (same key, same fingerprint) and `mesh-peers.json`; a self-signed ed25519 certificate is needed only if
+     Rust ever creates an identity (it can leave that to `heimdalld mesh init` in Go). Proof: a Go node and a Rust node
+     exchanging alerts both ways over a real loopback TLS connection (a test that starts `go run` or a built Go helper in
+     `rust/gotools`), refused peers both ways, and the alert lines equal. Off by default; the shadow unit has no IP.
+  4. **Step 4, trust** (`internal/trust/trust.go`, 530 lines): the signed manifest of the agents' behaviour files, the
+     watch list added to FIM, changes judged after the grace; fixtures from `trust_test.go`.
+  5. Then the switch (`docs/RUST_SWITCH.md`), after the owner's shadow week comes back clean.
+
 
 ## 2026-11-09 — Running light, phase 0 of the Rust port (DONE in code; install is mine)
 
