@@ -128,3 +128,10 @@ path = "fuzz_targets/mesh_batch.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "trust_list"
+path = "fuzz_targets/trust_list.rs"
+test = false
+doc = false
+bench = false

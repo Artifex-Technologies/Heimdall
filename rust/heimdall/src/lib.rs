@@ -37,4 +37,5 @@ pub mod rules;
 pub mod sources;
 pub mod state;
 pub mod toolrules;
+pub mod trust;
 pub mod verify;

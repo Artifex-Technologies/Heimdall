@@ -19,7 +19,7 @@ closed rather than deleting it -- the history of *why* is worth keeping.
 
 ---
 
-## 2026-11-10 — The Rust port: steps 1 and 2 DONE, step 3 done but the Sarina advisory and containment; switch planned; the shadow week runs
+## 2026-11-10 — The Rust port: steps 1-4 DONE; the switch waits only for the shadow week and the owner's checks
 
 **My ask:** port the always-on daemon to Rust, phase 1 of the plan, keeping the phase-0 design; proof by shared fixtures,
 a differential run and the Go state files. Plan and numbers: `docs/RUST_PORT.md`.
@@ -42,39 +42,26 @@ a differential run and the Go state files. Plan and numbers: `docs/RUST_PORT.md`
 | Step 3: governance, the API (own thread, loopback HTTP/1.1, callers from /proc/net/tcp; /healthz, /v1/alerts, /v1/review, /v1/incidents, /v1/requests), grants (file requests, read decisions) | done, not wired (shadow serves no API) | api.json: 64 requests through the Go server, statuses and bodies equal; real-socket caller test; fuzz target http_request |
 | Step 3: /v1/audit, /v1/lan/devices, /v1/quarantine, /v1/rules/drafts | done | api.json now 127 requests (63 new on made-up computers), drafts file after each POST byte for byte |
 | Step 3: the API in a non-shadow `run` (`Msg::Alert` through an `Inbox`: a channel and a pipe; alerts to the correlator and outputs, past any response, as Go's multiSink) | done | tests/run.rs: the real binary in charge answers every endpoint, a review and a grant request reach the alert log and /v1/alerts; in shadow mode the same config serves nothing |
-| Step 3: the Limbo responder (`src/response.rs` on `src/quarantine.rs`; in charge only) | done; the Sarina advisory on a new hold is not ported | response.json: 31 cases, 33 steps, 444 requests, 152 alerts through the Go Responder and the Rust one, each with its real client against the same scripted fake Limbo on a Unix socket: requests and alerts equal; tests/run.rs: the real binary in shadow mode raises the alert and never touches the socket, in charge it sends the hold |
+| Step 3: the Limbo responder (`src/response.rs` on `src/quarantine.rs`; in charge only) | done (the Sarina advisory: below) | response.json: 31 cases, 33 steps, 444 requests, 152 alerts through the Go Responder and the Rust one, each with its real client against the same scripted fake Limbo on a Unix socket: requests and alerts equal; tests/run.rs: the real binary in shadow mode raises the alert and never touches the socket, in charge it sends the hold |
 | takeHeld (the request to copy a file Limbo held), in charge; one-shot commands handed to the Go binary (`/usr/lib/heimdall/heimdalld-go`, HEIMDALL_GO) | done | unit test (file name and bytes as Go's QueueTakeLimbo); tests/run.rs: arguments and exit code passed through, Rust's own commands stay Rust's |
-| Switch-over plan (unit, package, rollback, checklist) | written, not done | `docs/RUST_SWITCH.md` |
+| Switch-over plan (unit, package, rollback, checklist) | written; every port row done, the checklist waits for the shadow week | `docs/RUST_SWITCH.md` |
 | Step 3: the Sarina advisory on a new hold and the backlog note (`src/advisor.rs`, in charge only) | done | response.json now 77 cases / 80 steps / 752 Limbo requests / 90 Sarina requests through Go's Responder + real HTTP client and the Rust one against the same scripted fake sarina-service (TCP) and fake Limbo: requests (prompt and token included) and alerts equal; tests/run.rs: in charge asks and attaches, shadow asks nothing; 3 properties, fuzz target sarina_reply |
 | Step 3: containment requests (`src/contain.rs`, in charge only, outermost as Go's) | done | contain.json: 37 cases, 51 steps, 20 requests, the folder after each step and the request byte for byte; property (300 runs); Kani harness + edge values |
 | Step 4: mesh (`src/mesh.rs`, rustls 0.23.46 + ring 0.17.14, TLS 1.3 only; in charge only) | done | tests/mesh.rs: a Go node (rust/gotools/meshnode) and a Rust node over loopback mTLS: each reads the other's identity, 4 alerts each way with equal lines, strangers and wrong server keys refused both ways, 18 raw requests with equal answers and 116 equal lines; run.rs: in charge listens and logs a peer's alert, shadow opens nothing; 2 properties, fuzz target mesh_batch, Kani harness; idle in charge 5.1 MB / 4 threads vs Go 17.0 MB / 9 |
-| Step 4: trust | open | below |
+| Step 4: trust (`src/trust.rs`: the signed list checked with ring's ed25519, the mode, the watch list, the judge; the behaviour files in the file watch, both modes) | done | trust.json: 49 folders, 577 questions, Go's signer and tampered and odd lists: mode, watch list, list or error, verdicts and reasons equal; the chain on real files; run.rs both modes; 3 properties, fuzz target trust_list, Kani harness |
 
-- **Resume (in this order; the switch waits for each item `docs/RUST_SWITCH.md` "Before" marks as needed here):**
-  1. ~~**The Sarina advisory**~~ DONE (`src/advisor.rs`, see the table). Was: (`internal/response/advisor.go`, 304 lines) into `src/response.rs`: after a hold with
-     `created`, at most 2 at once (else `sarina_busy`), `POST /v1/sessions` with `tool_allowlist: []`, refuse unless the
-     reply's `tools` is 0 (`sarina_contract_tools_nonzero`), chat with `BuildPrompt` (untrusted framing), one retry only on
-     a refused/dropped connection, DELETE the session on every path, the codes and remedies of `ErrorInfo`, the reply clipped
-     and attached as advisory `sarina`; `IfInstalled`. Plain HTTP/1.1 over loopback TCP like `api.rs`. Proof: extend
-     `internal/parity/response.go` with a scripted fake Sarina (TCP) beside the fake Limbo and the advisor set in RunResponse
-     (`Advisor: response.IfInstalled{...}`); add cases from `internal/response/failure_test.go` and `response_test.go`
-     (tools non-zero, backend_error, empty output, auth, timeout, evicted session, busy). Wire in `daemon.rs` where
-     "Sarina advisories on quarantines are not ported yet" is logged (`sarina_url`, token from `sarina_token` or
-     HEIMDALL_SARINA_TOKEN, `sarina_cwd`). Then the chain test's six advisory checks can pass.
-  2. ~~**Containment requests**~~ DONE (`src/contain.rs`). Was: (`internal/contain/trigger.go` + `AboutAgents`, `LoadConfig`, `ReadMarker`): a sink in charge
-     only, outermost (Go: engine -> contain.Trigger -> takeHeld -> Responder -> multiSink), one request at most every
-     10 minutes, written atomically to `contain.RequestPath`. Fixture: the Go trigger tests as cases.
-  3. ~~**Step 4, mesh**~~ DONE (`src/mesh.rs`, `tests/mesh.rs`). Was: (`internal/mesh`: identity.go, peers.go, node.go): rustls 0.23 with the ring provider (both in the
-     cargo cache: `rustls-0.23.46`, `ring-0.17.14`; add with exact versions, `cargo audit`), TLS 1.3 only, client and server
-     certificates checked by enrolled fingerprints (custom verifiers, no CA). It must read the identity Go wrote in
-     `mesh_dir` (same key, same fingerprint) and `mesh-peers.json`; a self-signed ed25519 certificate is needed only if
-     Rust ever creates an identity (it can leave that to `heimdalld mesh init` in Go). Proof: a Go node and a Rust node
-     exchanging alerts both ways over a real loopback TLS connection (a test that starts `go run` or a built Go helper in
-     `rust/gotools`), refused peers both ways, and the alert lines equal. Off by default; the shadow unit has no IP.
-  4. **Step 4, trust** (`internal/trust/trust.go`, 530 lines): the signed manifest of the agents' behaviour files, the
-     watch list added to FIM, changes judged after the grace; fixtures from `trust_test.go`.
-  5. Then the switch (`docs/RUST_SWITCH.md`), after the owner's shadow week comes back clean.
-
+- **Resume (2026-11-10, after steps 1-4):** the port is complete; nothing in `docs/RUST_SWITCH.md` "Before" waits on code.
+  1. The owner's shadow week (until about 2026-11-17): `rust/parity/shadow-compare.py` must say "NO DIFFERENCE"; write the
+     CPU and PSS readings of both daemons here. If trust mode is not `off` on the PC, update the shadow binary first
+     (`docs/RUST_SHADOW.md`, "Updating the binary during the week"): binaries built before 2026-11-10's trust commit raise
+     no trust findings.
+  2. The owner's root checks (`docs/RUST_SWITCH.md` step 3): Limbo's `integration-quarantine.sh`, and `integration-chain.sh`
+     with the Rust binary; every check must pass now, the six Sarina advisory checks included.
+  3. The switch commit: the package change in `docs/RUST_SWITCH.md` (PKGBUILD makedepends `rust`, `build()` builds both,
+     `packaging/install.sh` installs `heimdalld-rs` as `/usr/bin/heimdalld` and the Go binary as
+     `/usr/lib/heimdall/heimdalld-go`, a packaging test), with the Coordination Log entry; then the owner installs it.
+  4. Later, optional: port the one-shot commands (lan, immunity, contain run-request, grant, mesh, trust sign/restore, ...)
+     so the Go binary can go; each runs seconds a day.
 
 ## 2026-11-09 — Running light, phase 0 of the Rust port (DONE in code; install is mine)
 

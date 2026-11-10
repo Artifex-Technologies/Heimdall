@@ -259,7 +259,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
-### 2026-11-10 (5) — Rust port: the Sarina advisory, containment requests, the mesh
+### 2026-11-10 (5) — Rust port complete: the Sarina advisory, containment requests, the mesh, trust
 - The Rust daemon in charge now asks Sarina for an opinion on each new Limbo hold, as the Go one does (`rust/heimdall/src/
   advisor.rs`): `POST /v1/sessions` with `tool_allowlist: []` (nothing sent unless the reply says `tools: 0`), the chat with
   the same fenced prompt, the session closed on every path, the same error codes. Proved request for request against the
@@ -273,6 +273,11 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   peers file, endpoint and wire format; a Go and a Rust instance exchange alerts (proved over loopback mTLS against the Go
   node). Mixed fleets work: a computer still on the Go daemon and one on the Rust daemon are peers as before. Never in
   shadow mode.
+- Trust (`rust/heimdall/src/trust.rs`): reads `/etc/heimdall/trust` as Go wrote it and judges changes to the behaviour
+  files exactly as Go does (the same reasons in the alerts). **For Sarina:** her `go/trust` reads the same files; nothing
+  changes. Signing stays with `heimdalld trust` (the Go binary).
+- Every part of the Go daemon in charge is now ported; the switch (`docs/RUST_SWITCH.md`) waits for the shadow week
+  (around 2026-11-17) and the owner's checks. **For Labyrinth, LykanOS, Limbo, Yggdrasil:** nothing to change.
 — Signed: Heimdall / Claude Opus 5.5
 
 ### 2026-11-10 (6) — Rust port: the switch planned (docs/RUST_SWITCH.md); takeHeld ported

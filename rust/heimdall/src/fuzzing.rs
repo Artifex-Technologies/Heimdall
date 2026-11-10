@@ -215,3 +215,8 @@ pub fn sarina_reply(data: &[u8]) {
 pub fn mesh_batch(data: &[u8]) {
     crate::mesh::fuzz_batch(data);
 }
+
+/// A trust folder's signed list, key or signature file (trust.rs).
+pub fn trust_list(data: &[u8]) {
+    crate::trust::fuzz_list(data);
+}

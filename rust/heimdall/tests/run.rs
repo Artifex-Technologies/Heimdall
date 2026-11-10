@@ -292,3 +292,47 @@ fn the_mesh_runs_only_in_charge() {
     assert!(err.contains(&format!("mesh on as {}: 1 peer(s)", me.fingerprint)), "{err}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Trust is watching, so both modes do it: with trust on, the behaviour files and folders of the watch list join the file
+/// watch (the start log says so); with it off they do not.
+#[test]
+fn trust_watching_runs_in_both_modes() {
+    let dir = std::env::temp_dir().join(format!("heimdall-trust-run-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("sessions")).unwrap();
+    std::fs::create_dir_all(dir.join("trust")).unwrap();
+    std::fs::create_dir_all(dir.join("skills")).unwrap();
+    let d = dir.to_string_lossy().into_owned();
+    let mut cfg: serde_json::Value = serde_json::from_str(&config(&d, free_port())).unwrap();
+    cfg["api_addr"] = "".into();
+    cfg["fim_state_path"] = format!("{d}/fim.json").into();
+    std::fs::write(format!("{d}/config.json"), cfg.to_string()).unwrap();
+    std::fs::write(format!("{d}/trust/watch.json"), format!(r#"{{"files":["{d}/rules.md"],"dirs":["{d}/skills"]}}"#)).unwrap();
+    let run = |shadow: bool| {
+        let mut args = vec!["run".to_string(), "--config".into(), format!("{d}/config.json")];
+        if shadow {
+            args.push("--shadow".into());
+        }
+        let c = Command::new(env!("CARGO_BIN_EXE_heimdalld-rs"))
+            .args(&args)
+            .env("HEIMDALL_IMMUNITY_DIR", format!("{d}/immunity"))
+            .env("HEIMDALL_TRUST_DIR", format!("{d}/trust"))
+            .stdout(Stdio::null())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(800));
+        stop(c)
+    };
+    for shadow in [true, false] {
+        std::fs::write(format!("{d}/trust/mode"), "watch\n").unwrap();
+        let (code, err) = run(shadow);
+        assert_eq!(code, 0, "{err}");
+        assert!(err.contains("trust watch: watching 1 behaviour file(s) and 1 folder(s) of the AI agents"), "{err}");
+        assert!(err.contains("watching 0 file(s) for integrity"), "{err}");
+        std::fs::write(format!("{d}/trust/mode"), "off\n").unwrap();
+        let (_, err) = run(shadow);
+        assert!(!err.contains("trust ") && !err.contains("for integrity"), "{err}");
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}

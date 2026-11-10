@@ -1,0 +1,4613 @@
+{
+ "format": "heimdall-parity-trust/1",
+ "cases": [
+  {
+   "name": "Go's own signer, watch",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": "watch\n",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list still expects it"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list still expects it"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "version": 1,
+    "signed_at": "2026-11-10T17:16:46Z",
+    "files": {
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b"
+    }
+   }
+  },
+  {
+   "name": "mode off",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": "off",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "off",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "version": 1,
+    "signed_at": "2026-11-10T17:16:46Z",
+    "files": {
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b"
+    }
+   }
+  },
+  {
+   "name": "mode off\n",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": "off\n",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "off",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "version": 1,
+    "signed_at": "2026-11-10T17:16:46Z",
+    "files": {
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b"
+    }
+   }
+  },
+  {
+   "name": "mode enforce\n",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": "enforce\n",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list still expects it"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list still expects it"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "enforce",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "version": 1,
+    "signed_at": "2026-11-10T17:16:46Z",
+    "files": {
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b"
+    }
+   }
+  },
+  {
+   "name": "mode  watch ",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": " watch ",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list still expects it"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list still expects it"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "version": 1,
+    "signed_at": "2026-11-10T17:16:46Z",
+    "files": {
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b"
+    }
+   }
+  },
+  {
+   "name": "mode  watch ",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": " watch ",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list still expects it"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list still expects it"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "version": 1,
+    "signed_at": "2026-11-10T17:16:46Z",
+    "files": {
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b"
+    }
+   }
+  },
+  {
+   "name": "mode WATCH",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": "WATCH",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "off",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "version": 1,
+    "signed_at": "2026-11-10T17:16:46Z",
+    "files": {
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b"
+    }
+   }
+  },
+  {
+   "name": "mode ",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": "",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "off",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "version": 1,
+    "signed_at": "2026-11-10T17:16:46Z",
+    "files": {
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b"
+    }
+   }
+  },
+  {
+   "name": "mode watch\nenforce",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": "watch\nenforce",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "off",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "version": 1,
+    "signed_at": "2026-11-10T17:16:46Z",
+    "files": {
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b"
+    }
+   }
+  },
+  {
+   "name": "mode no file: drop",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "off",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "version": 1,
+    "signed_at": "2026-11-10T17:16:46Z",
+    "files": {
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b"
+    }
+   }
+  },
+  {
+   "name": "a changed list",
+   "files": {
+    "manifest.json": "{\n  \"version\": 2,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": "watch\n",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "error": "the signed list of approved files does not match its signature (changed by someone without the key)",
+    "version": 0,
+    "signed_at": "",
+    "files": null
+   }
+  },
+  {
+   "name": "a list with a space more",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n ",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": "watch\n",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "error": "the signed list of approved files does not match its signature (changed by someone without the key)",
+    "version": 0,
+    "signed_at": "",
+    "files": null
+   }
+  },
+  {
+   "name": "no signature",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "mode": "watch\n",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/manifest.sig: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/manifest.sig: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/manifest.sig: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/manifest.sig: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/manifest.sig: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/manifest.sig: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/manifest.sig: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/manifest.sig: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/manifest.sig: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/manifest.sig: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "error": "open DIR/manifest.sig: no such file or directory",
+    "version": 0,
+    "signed_at": "",
+    "files": null
+   }
+  },
+  {
+   "name": "no list",
+   "files": {
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": "watch\n",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/manifest.json: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/manifest.json: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/manifest.json: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/manifest.json: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/manifest.json: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/manifest.json: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/manifest.json: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/manifest.json: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/manifest.json: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/manifest.json: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "error": "open DIR/manifest.json: no such file or directory",
+    "version": 0,
+    "signed_at": "",
+    "files": null
+   }
+  },
+  {
+   "name": "no public key",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": "watch\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/owner.pub: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/owner.pub: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/owner.pub: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/owner.pub: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/owner.pub: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/owner.pub: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/owner.pub: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/owner.pub: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/owner.pub: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: open DIR/owner.pub: no such file or directory"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "error": "open DIR/owner.pub: no such file or directory",
+    "version": 0,
+    "signed_at": "",
+    "files": null
+   }
+  },
+  {
+   "name": "a public key that is not base64",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": "watch\n",
+    "owner.pub": "not base64!\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: DIR/owner.pub is not a key"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: DIR/owner.pub is not a key"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: DIR/owner.pub is not a key"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: DIR/owner.pub is not a key"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: DIR/owner.pub is not a key"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: DIR/owner.pub is not a key"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: DIR/owner.pub is not a key"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: DIR/owner.pub is not a key"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: DIR/owner.pub is not a key"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: DIR/owner.pub is not a key"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "error": "DIR/owner.pub is not a key",
+    "version": 0,
+    "signed_at": "",
+    "files": null
+   }
+  },
+  {
+   "name": "a public key of the wrong size",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": "watch\n",
+    "owner.pub": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: DIR/owner.pub is not a key"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: DIR/owner.pub is not a key"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: DIR/owner.pub is not a key"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: DIR/owner.pub is not a key"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: DIR/owner.pub is not a key"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: DIR/owner.pub is not a key"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: DIR/owner.pub is not a key"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: DIR/owner.pub is not a key"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: DIR/owner.pub is not a key"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: DIR/owner.pub is not a key"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "error": "DIR/owner.pub is not a key",
+    "version": 0,
+    "signed_at": "",
+    "files": null
+   }
+  },
+  {
+   "name": "another key",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": "watch\n",
+    "owner.pub": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "error": "the signed list of approved files does not match its signature (changed by someone without the key)",
+    "version": 0,
+    "signed_at": "",
+    "files": null
+   }
+  },
+  {
+   "name": "a signature without its newline",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==",
+    "mode": "watch\n",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list still expects it"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list still expects it"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "version": 1,
+    "signed_at": "2026-11-10T17:16:46Z",
+    "files": {
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b"
+    }
+   }
+  },
+  {
+   "name": "a signature with spaces around",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "  \nzsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n\n",
+    "mode": "watch\n",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list still expects it"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list still expects it"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "version": 1,
+    "signed_at": "2026-11-10T17:16:46Z",
+    "files": {
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b"
+    }
+   }
+  },
+  {
+   "name": "a signature broken by a newline",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2\r\nhTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==",
+    "mode": "watch\n",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list still expects it"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list still expects it"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "version": 1,
+    "signed_at": "2026-11-10T17:16:46Z",
+    "files": {
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b"
+    }
+   }
+  },
+  {
+   "name": "a signature without padding",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw",
+    "mode": "watch\n",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "error": "the signed list of approved files does not match its signature (changed by someone without the key)",
+    "version": 0,
+    "signed_at": "",
+    "files": null
+   }
+  },
+  {
+   "name": "a signature in URL base64",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF_f2lJU01_s28n2hTN2BkG3me5A53m5cZEHHP9Ny56-XxfIwsv30HaupPpizzoupwuy5H3_mN2eK8CrAw==",
+    "mode": "watch\n",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "error": "the signed list of approved files does not match its signature (changed by someone without the key)",
+    "version": 0,
+    "signed_at": "",
+    "files": null
+   }
+  },
+  {
+   "name": "a signature cut short",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEH",
+    "mode": "watch\n",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\n  \"files\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"\n  ],\n  \"dirs\": [\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"\n  ]\n}\n"
+   },
+   "asks": [
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d67e2e944994496c8d8ec76eed0cf9f09679448d584b532bebf941852a37f5ed",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814AC3EAF081B78FB8B2B4B5E2379C1B3BA5BE07851AB1D4B27FA7A9176EC0E",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/planted.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/gone.md",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/deep/x.md",
+     "hash": "abc",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: the signed list of approved files does not match its signature (changed by someone without the key)"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skillsx/a.md",
+     "hash": "abc",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/elsewhere/file",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md/",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\"],\"dirs\":[\"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills\"]}",
+   "load": {
+    "error": "the signed list of approved files does not match its signature (changed by someone without the key)",
+    "version": 0,
+    "signed_at": "",
+    "files": null
+   }
+  },
+  {
+   "name": "watch {\"files\":[],\"dirs\":[]}",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": "watch\n",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\"files\":[],\"dirs\":[]}"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/b",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/d/x",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/d/",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/d//x",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[],\"dirs\":[]}",
+   "load": {
+    "version": 1,
+    "signed_at": "2026-11-10T17:16:46Z",
+    "files": {
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b"
+    }
+   }
+  },
+  {
+   "name": "watch {\"FILES\":[\"/a\"],\"Dirs\":[\"/d/\"]}",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": "watch\n",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\"FILES\":[\"/a\"],\"Dirs\":[\"/d/\"]}"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "x",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/b",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/d/x",
+     "hash": "x",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/d/",
+     "hash": "x",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/d//x",
+     "hash": "x",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/a\"],\"dirs\":[\"/d/\"]}",
+   "load": {
+    "version": 1,
+    "signed_at": "2026-11-10T17:16:46Z",
+    "files": {
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b"
+    }
+   }
+  },
+  {
+   "name": "watch {\"files\":[\"/a\",1,\"/b\"],\"dirs\":\"x\"}",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": "watch\n",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\"files\":[\"/a\",1,\"/b\"],\"dirs\":\"x\"}"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "x",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/b",
+     "hash": "x",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/d/x",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/d/",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/d//x",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "x",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/a\",\"\",\"/b\"],\"dirs\":null}",
+   "load": {
+    "version": 1,
+    "signed_at": "2026-11-10T17:16:46Z",
+    "files": {
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b"
+    }
+   }
+  },
+  {
+   "name": "watch not json",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": "watch\n",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "not json"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/b",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/d/x",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/d/",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/d//x",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":null,\"dirs\":null}",
+   "load": {
+    "version": 1,
+    "signed_at": "2026-11-10T17:16:46Z",
+    "files": {
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b"
+    }
+   }
+  },
+  {
+   "name": "watch {\"files\":null}",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": "watch\n",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\"files\":null}"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/b",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/d/x",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/d/",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/d//x",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":null,\"dirs\":null}",
+   "load": {
+    "version": 1,
+    "signed_at": "2026-11-10T17:16:46Z",
+    "files": {
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b"
+    }
+   }
+  },
+  {
+   "name": "watch []",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": "watch\n",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "[]"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/b",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/d/x",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/d/",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/d//x",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":null,\"dirs\":null}",
+   "load": {
+    "version": 1,
+    "signed_at": "2026-11-10T17:16:46Z",
+    "files": {
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b"
+    }
+   }
+  },
+  {
+   "name": "watch {\"dirs\":[\"/d//\"]}",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": "watch\n",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n",
+    "watch.json": "{\"dirs\":[\"/d//\"]}"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/b",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/d/x",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/d/",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/d//x",
+     "hash": "x",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":null,\"dirs\":[\"/d//\"]}",
+   "load": {
+    "version": 1,
+    "signed_at": "2026-11-10T17:16:46Z",
+    "files": {
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b"
+    }
+   }
+  },
+  {
+   "name": "watch no file: drop",
+   "files": {
+    "manifest.json": "{\n  \"version\": 1,\n  \"signed_at\": \"2026-11-10T17:16:46Z\",\n  \"files\": {\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md\": \"9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e\",\n    \"/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md\": \"d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b\"\n  }\n}\n",
+    "manifest.sig": "zsYSOF/f2lJU01/s28n2hTN2BkG3me5A53m5cZEHHP9Ny56+XxfIwsv30HaupPpizzoupwuy5H3/mN2eK8CrAw==\n",
+    "mode": "watch\n",
+    "owner.pub": "Cgj9Mpo/n9oy/B3I7c0YwNvpCOLJpy2PAo93wRnOFMg=\n"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/b",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/d/x",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/d/",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/d//x",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "",
+     "hash": "x",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md",
+     "hash": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "verdict": "",
+     "why": ""
+    },
+    {
+     "path": "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md",
+     "hash": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b",
+     "verdict": "",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":null,\"dirs\":null}",
+   "load": {
+    "version": 1,
+    "signed_at": "2026-11-10T17:16:46Z",
+    "files": {
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/rules.md": "9814ac3eaf081b78fb8b2b4b5e2379c1b3ba5be07851ab1d4b27fa7a9176ec0e",
+     "/tmp/TestTrustFixtureMatchesTheGoDaemon4145890754/002/skills/ok.md": "d14a58bae804a2b80b5b76a010239c88ffca1fc7951a90f8e9131beda1e23c1b"
+    }
+   }
+  },
+  {
+   "name": "signed list {\"version\":1,\"signed_at\":\"2026-11-10T08:00:00Z\",\"files\":{\"/a\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\"}}",
+   "files": {
+    "manifest.json": "{\"version\":1,\"signed_at\":\"2026-11-10T08:00:00Z\",\"files\":{\"/a\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\"}}",
+    "manifest.sig": "XSKCgRr3wF7+3/FGBfvUKVlz9vZyoU+QNKBF5HK+UuQ1JtDEzkWXM1hL0jvk0bKJySjLBCT2xzUqnTDfhkhRCg==\n",
+    "mode": "watch\n",
+    "owner.pub": "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=\n",
+    "watch.json": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/a",
+     "hash": "one",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/b",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/d/x",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/d/y",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}",
+   "load": {
+    "version": 1,
+    "signed_at": "2026-11-10T08:00:00Z",
+    "files": {
+     "/a": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881"
+    }
+   }
+  },
+  {
+   "name": "signed list {\"VERSION\":1,\"Signed_At\":\"2026-11-10T08:00:00.5+01:00\",\"FILES\":{\"/a\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\",\"/b\":null}}",
+   "files": {
+    "manifest.json": "{\"VERSION\":1,\"Signed_At\":\"2026-11-10T08:00:00.5+01:00\",\"FILES\":{\"/a\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\",\"/b\":null}}",
+    "manifest.sig": "zzM5N2ScRPjXVMzABVMU+hiLR/3b8MVwZdW7ruRP/EbTdOoBv8R4SGcBzjwZM/ID5VSWnPqG99xkFrMUuD0FCQ==\n",
+    "mode": "watch\n",
+    "owner.pub": "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=\n",
+    "watch.json": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/a",
+     "hash": "one",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/b",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list still expects it"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/d/x",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/d/y",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}",
+   "load": {
+    "version": 1,
+    "signed_at": "2026-11-10T08:00:00.5+01:00",
+    "files": {
+     "/a": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "/b": ""
+    }
+   }
+  },
+  {
+   "name": "signed list {\"files\":{\"/a\":\"one\",\"/a\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\"}}",
+   "files": {
+    "manifest.json": "{\"files\":{\"/a\":\"one\",\"/a\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\"}}",
+    "manifest.sig": "YiLQGKXNqVbta0V9PNDp3Z0h6BlIdiK64y4kTpbAz5te/+FI1s3XYbMFk75biYcJOMCtjW5jst9O8/IQNnaBBg==\n",
+    "mode": "watch\n",
+    "owner.pub": "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=\n",
+    "watch.json": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/a",
+     "hash": "one",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/b",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/d/x",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/d/y",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}",
+   "load": {
+    "version": 0,
+    "signed_at": "0001-01-01T00:00:00Z",
+    "files": {
+     "/a": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881"
+    }
+   }
+  },
+  {
+   "name": "signed list {\"files\":{\"/a\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\"},\"files\":{\"/b\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\"}}",
+   "files": {
+    "manifest.json": "{\"files\":{\"/a\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\"},\"files\":{\"/b\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\"}}",
+    "manifest.sig": "2Y989TBruxOg8U++60EtssOAJdpKIMjlNXk1KB6nmYB60sAu7AclXYwJyNlwZXCC9yu97IddySxChQFxK61fDA==\n",
+    "mode": "watch\n",
+    "owner.pub": "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=\n",
+    "watch.json": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/a",
+     "hash": "one",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/b",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list still expects it"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/d/x",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/d/y",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}",
+   "load": {
+    "version": 0,
+    "signed_at": "0001-01-01T00:00:00Z",
+    "files": {
+     "/a": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "/b": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881"
+    }
+   }
+  },
+  {
+   "name": "signed list {\"files\":null}",
+   "files": {
+    "manifest.json": "{\"files\":null}",
+    "manifest.sig": "3lfB4Zw/JxDhoZgxwUPrrqQuvw8B+lwNKTpN3+GHDLuxoC60kGGH+SZf8V362nANQcdoos7M+V8wcozCDzduAA==\n",
+    "mode": "watch\n",
+    "owner.pub": "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=\n",
+    "watch.json": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/a",
+     "hash": "one",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/b",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/d/x",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/d/y",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}",
+   "load": {
+    "version": 0,
+    "signed_at": "0001-01-01T00:00:00Z",
+    "files": {}
+   }
+  },
+  {
+   "name": "signed list null",
+   "files": {
+    "manifest.json": "null",
+    "manifest.sig": "PYWa/Jkqw2YKsz1sbUDiLkZqtnZ5shkdFhZFfQEeOjK+9owOOKyuAZnujpy7epnKEbf2psp0W7TR4AewDFzRCA==\n",
+    "mode": "watch\n",
+    "owner.pub": "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=\n",
+    "watch.json": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/a",
+     "hash": "one",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/b",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/d/x",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/d/y",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}",
+   "load": {
+    "version": 0,
+    "signed_at": "0001-01-01T00:00:00Z",
+    "files": {}
+   }
+  },
+  {
+   "name": "signed list {}",
+   "files": {
+    "manifest.json": "{}",
+    "manifest.sig": "tCFbGQP4srJllkVV+oc0rNbRFzzE0m00PEyBFJnDOPFP4iOwdQ6GccLck81ksWLZmqDCC7NLQYd6wAocvYUAAA==\n",
+    "mode": "watch\n",
+    "owner.pub": "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=\n",
+    "watch.json": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/a",
+     "hash": "one",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/b",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/d/x",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/d/y",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}",
+   "load": {
+    "version": 0,
+    "signed_at": "0001-01-01T00:00:00Z",
+    "files": {}
+   }
+  },
+  {
+   "name": "signed list {\"version\":\"1\",\"files\":{\"/a\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\"}}",
+   "files": {
+    "manifest.json": "{\"version\":\"1\",\"files\":{\"/a\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\"}}",
+    "manifest.sig": "C1+5aKqU1+0sHJQ+2BY3j4eyRhiSiLRmGV+nPDsKZMHvmC5JhdBrj/Ew/ewKGH/AB2HU/C2oedmyFZFADCI7DA==\n",
+    "mode": "watch\n",
+    "owner.pub": "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=\n",
+    "watch.json": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal string into Go struct field Manifest.version of type int"
+    },
+    {
+     "path": "/a",
+     "hash": "one",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal string into Go struct field Manifest.version of type int"
+    },
+    {
+     "path": "/b",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal string into Go struct field Manifest.version of type int"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal string into Go struct field Manifest.version of type int"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal string into Go struct field Manifest.version of type int"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal string into Go struct field Manifest.version of type int"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal string into Go struct field Manifest.version of type int"
+    },
+    {
+     "path": "/d/x",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal string into Go struct field Manifest.version of type int"
+    },
+    {
+     "path": "/d/y",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal string into Go struct field Manifest.version of type int"
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}",
+   "load": {
+    "error": "json: cannot unmarshal string into Go struct field Manifest.version of type int",
+    "version": 0,
+    "signed_at": "",
+    "files": null
+   }
+  },
+  {
+   "name": "signed list {\"signed_at\":\"yesterday\"}",
+   "files": {
+    "manifest.json": "{\"signed_at\":\"yesterday\"}",
+    "manifest.sig": "K/RIAkGLxwkZkKuKRNqIphRKNGH2hwgv1ZWEVhnhv1XSjfY9KsgNkzfGij0DNqovsKGtEZpuROLSSAJKJ0qqAA==\n",
+    "mode": "watch\n",
+    "owner.pub": "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=\n",
+    "watch.json": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: parsing time \"yesterday\" as \"2006-01-02T15:04:05Z07:00\": cannot parse \"yesterday\" as \"2006\""
+    },
+    {
+     "path": "/a",
+     "hash": "one",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: parsing time \"yesterday\" as \"2006-01-02T15:04:05Z07:00\": cannot parse \"yesterday\" as \"2006\""
+    },
+    {
+     "path": "/b",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: parsing time \"yesterday\" as \"2006-01-02T15:04:05Z07:00\": cannot parse \"yesterday\" as \"2006\""
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: parsing time \"yesterday\" as \"2006-01-02T15:04:05Z07:00\": cannot parse \"yesterday\" as \"2006\""
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: parsing time \"yesterday\" as \"2006-01-02T15:04:05Z07:00\": cannot parse \"yesterday\" as \"2006\""
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: parsing time \"yesterday\" as \"2006-01-02T15:04:05Z07:00\": cannot parse \"yesterday\" as \"2006\""
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: parsing time \"yesterday\" as \"2006-01-02T15:04:05Z07:00\": cannot parse \"yesterday\" as \"2006\""
+    },
+    {
+     "path": "/d/x",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: parsing time \"yesterday\" as \"2006-01-02T15:04:05Z07:00\": cannot parse \"yesterday\" as \"2006\""
+    },
+    {
+     "path": "/d/y",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: parsing time \"yesterday\" as \"2006-01-02T15:04:05Z07:00\": cannot parse \"yesterday\" as \"2006\""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}",
+   "load": {
+    "error": "parsing time \"yesterday\" as \"2006-01-02T15:04:05Z07:00\": cannot parse \"yesterday\" as \"2006\"",
+    "version": 0,
+    "signed_at": "",
+    "files": null
+   }
+  },
+  {
+   "name": "signed list {\"files\":[\"/a\"]}",
+   "files": {
+    "manifest.json": "{\"files\":[\"/a\"]}",
+    "manifest.sig": "XPly9i26jWL+u40qb6J6gA+42RQHIXxIdXv1sIRbMiaEpaGYx91y7Z4HRv9IVX033jPO/ESHYD1Nytywl8MiBQ==\n",
+    "mode": "watch\n",
+    "owner.pub": "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=\n",
+    "watch.json": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal array into Go struct field Manifest.files of type map[string]string"
+    },
+    {
+     "path": "/a",
+     "hash": "one",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal array into Go struct field Manifest.files of type map[string]string"
+    },
+    {
+     "path": "/b",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal array into Go struct field Manifest.files of type map[string]string"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal array into Go struct field Manifest.files of type map[string]string"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal array into Go struct field Manifest.files of type map[string]string"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal array into Go struct field Manifest.files of type map[string]string"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal array into Go struct field Manifest.files of type map[string]string"
+    },
+    {
+     "path": "/d/x",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal array into Go struct field Manifest.files of type map[string]string"
+    },
+    {
+     "path": "/d/y",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal array into Go struct field Manifest.files of type map[string]string"
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}",
+   "load": {
+    "error": "json: cannot unmarshal array into Go struct field Manifest.files of type map[string]string",
+    "version": 0,
+    "signed_at": "",
+    "files": null
+   }
+  },
+  {
+   "name": "signed list {\"files\":{\"/a\":5}}",
+   "files": {
+    "manifest.json": "{\"files\":{\"/a\":5}}",
+    "manifest.sig": "b0/qzrQIqUAFTRJJ9BCic/fVUnELivprtXRZxntb6Y5hfxgEqWuNsSNQHjIAYt0vy7bifL+qumDFj7GFNDEMBA==\n",
+    "mode": "watch\n",
+    "owner.pub": "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=\n",
+    "watch.json": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal number into Go struct field Manifest.files.~1a of type string"
+    },
+    {
+     "path": "/a",
+     "hash": "one",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal number into Go struct field Manifest.files.~1a of type string"
+    },
+    {
+     "path": "/b",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal number into Go struct field Manifest.files.~1a of type string"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal number into Go struct field Manifest.files.~1a of type string"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal number into Go struct field Manifest.files.~1a of type string"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal number into Go struct field Manifest.files.~1a of type string"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal number into Go struct field Manifest.files.~1a of type string"
+    },
+    {
+     "path": "/d/x",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal number into Go struct field Manifest.files.~1a of type string"
+    },
+    {
+     "path": "/d/y",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal number into Go struct field Manifest.files.~1a of type string"
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}",
+   "load": {
+    "error": "json: cannot unmarshal number into Go struct field Manifest.files.~1a of type string",
+    "version": 0,
+    "signed_at": "",
+    "files": null
+   }
+  },
+  {
+   "name": "signed list {\"files\":{\"/a\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\"}} x",
+   "files": {
+    "manifest.json": "{\"files\":{\"/a\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\"}} x",
+    "manifest.sig": "RI9HkdV7sw/DBGCLOIja0KK2fMNBmb7Q4gefHPSoMS76Y2/BRaNht9ZDSU6RuEUvyE/gPS+sUEwAsL+THXGhDA==\n",
+    "mode": "watch\n",
+    "owner.pub": "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=\n",
+    "watch.json": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: invalid character 'x' after top-level value"
+    },
+    {
+     "path": "/a",
+     "hash": "one",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: invalid character 'x' after top-level value"
+    },
+    {
+     "path": "/b",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: invalid character 'x' after top-level value"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: invalid character 'x' after top-level value"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: invalid character 'x' after top-level value"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: invalid character 'x' after top-level value"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: invalid character 'x' after top-level value"
+    },
+    {
+     "path": "/d/x",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: invalid character 'x' after top-level value"
+    },
+    {
+     "path": "/d/y",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: invalid character 'x' after top-level value"
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}",
+   "load": {
+    "error": "invalid character 'x' after top-level value",
+    "version": 0,
+    "signed_at": "",
+    "files": null
+   }
+  },
+  {
+   "name": "signed list []",
+   "files": {
+    "manifest.json": "[]",
+    "manifest.sig": "L4bimleDQVzmeQl3d9mt9+IUhOXJ8MmqyuUEiB5P1yshb5TjE2sRM4rnvq20+TkInNsoK1ChpnN+KANQ32ReCQ==\n",
+    "mode": "watch\n",
+    "owner.pub": "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=\n",
+    "watch.json": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal array into Go value of type trust.Manifest"
+    },
+    {
+     "path": "/a",
+     "hash": "one",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal array into Go value of type trust.Manifest"
+    },
+    {
+     "path": "/b",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal array into Go value of type trust.Manifest"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal array into Go value of type trust.Manifest"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal array into Go value of type trust.Manifest"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal array into Go value of type trust.Manifest"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal array into Go value of type trust.Manifest"
+    },
+    {
+     "path": "/d/x",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal array into Go value of type trust.Manifest"
+    },
+    {
+     "path": "/d/y",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal array into Go value of type trust.Manifest"
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}",
+   "load": {
+    "error": "json: cannot unmarshal array into Go value of type trust.Manifest",
+    "version": 0,
+    "signed_at": "",
+    "files": null
+   }
+  },
+  {
+   "name": "signed list ",
+   "files": {
+    "manifest.json": "",
+    "manifest.sig": "TDWTNoBeDbNdMz6Fp4bwopfR3uLuZKXS1paCn9tCDVYBVe3b0wTm0mcBZlj3gvc21hH/mHksUTTdlZGHo/MJBA==\n",
+    "mode": "watch\n",
+    "owner.pub": "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=\n",
+    "watch.json": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: unexpected end of JSON input"
+    },
+    {
+     "path": "/a",
+     "hash": "one",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: unexpected end of JSON input"
+    },
+    {
+     "path": "/b",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: unexpected end of JSON input"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: unexpected end of JSON input"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: unexpected end of JSON input"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: unexpected end of JSON input"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: unexpected end of JSON input"
+    },
+    {
+     "path": "/d/x",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: unexpected end of JSON input"
+    },
+    {
+     "path": "/d/y",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: unexpected end of JSON input"
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}",
+   "load": {
+    "error": "unexpected end of JSON input",
+    "version": 0,
+    "signed_at": "",
+    "files": null
+   }
+  },
+  {
+   "name": "signed list {\"files\":{\"/d/x\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\",\"/c\":\"\"}}",
+   "files": {
+    "manifest.json": "{\"files\":{\"/d/x\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\",\"/c\":\"\"}}",
+    "manifest.sig": "koLbgXVvO6lsgNHVrmSaRVnZaxr8LQViC/Xw+tQEHvS8eBacL3sv4d9lKfCkejwBf1sB6wfFSEjIK4wdv2+1Bg==\n",
+    "mode": "watch\n",
+    "owner.pub": "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=\n",
+    "watch.json": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/a",
+     "hash": "one",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/b",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list still expects it"
+    },
+    {
+     "path": "/d/x",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/d/y",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}",
+   "load": {
+    "version": 0,
+    "signed_at": "0001-01-01T00:00:00Z",
+    "files": {
+     "/c": "",
+     "/d/x": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881"
+    }
+   }
+  },
+  {
+   "name": "signed list {\"version\":1.5}",
+   "files": {
+    "manifest.json": "{\"version\":1.5}",
+    "manifest.sig": "fw7AnLQ8qJghkQwH6brEJTp/zJlIsYGVjoQmbNQgQfNgdAeH31nz6iQmv8bfoMkBE5DUtsWzZ+N5JZDozYRrDw==\n",
+    "mode": "watch\n",
+    "owner.pub": "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=\n",
+    "watch.json": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal number 1.5 into Go struct field Manifest.version of type int"
+    },
+    {
+     "path": "/a",
+     "hash": "one",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal number 1.5 into Go struct field Manifest.version of type int"
+    },
+    {
+     "path": "/b",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal number 1.5 into Go struct field Manifest.version of type int"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal number 1.5 into Go struct field Manifest.version of type int"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal number 1.5 into Go struct field Manifest.version of type int"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal number 1.5 into Go struct field Manifest.version of type int"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal number 1.5 into Go struct field Manifest.version of type int"
+    },
+    {
+     "path": "/d/x",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal number 1.5 into Go struct field Manifest.version of type int"
+    },
+    {
+     "path": "/d/y",
+     "hash": "",
+     "deleted": true,
+     "verdict": "unsigned",
+     "why": "the signed list cannot be checked: json: cannot unmarshal number 1.5 into Go struct field Manifest.version of type int"
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}",
+   "load": {
+    "error": "json: cannot unmarshal number 1.5 into Go struct field Manifest.version of type int",
+    "version": 0,
+    "signed_at": "",
+    "files": null
+   }
+  },
+  {
+   "name": "signed list {\"files\":{\"/a\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\"},\"extra\":{\"nested\":[1,2,{\"x\":null}]}}",
+   "files": {
+    "manifest.json": "{\"files\":{\"/a\":\"2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881\"},\"extra\":{\"nested\":[1,2,{\"x\":null}]}}",
+    "manifest.sig": "ICOHK7lC3VdNETgqK0ekorexEvG19R/t3Xm/d0WKuNos5XDncNdpsYYP28Jfhclv4Hwy3reRQN5Z31zGWztsDQ==\n",
+    "mode": "watch\n",
+    "owner.pub": "6kpsY+KcUgq+9VB7Ey7F+ZVHdq6+vnuSQh7qaRRG0iw=\n",
+    "watch.json": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}"
+   },
+   "asks": [
+    {
+     "path": "/a",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/a",
+     "hash": "one",
+     "verdict": "unsigned",
+     "why": "its content differs from the signed version"
+    },
+    {
+     "path": "/b",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/b",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/c",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    },
+    {
+     "path": "/d/x",
+     "hash": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+     "verdict": "unsigned",
+     "why": "it is not on the signed list"
+    },
+    {
+     "path": "/d/y",
+     "hash": "",
+     "deleted": true,
+     "verdict": "approved",
+     "why": ""
+    }
+   ],
+   "mode": "watch",
+   "watch": "{\"files\":[\"/a\",\"/b\",\"/c\"],\"dirs\":[\"/d\"]}",
+   "load": {
+    "version": 0,
+    "signed_at": "0001-01-01T00:00:00Z",
+    "files": {
+     "/a": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881"
+    }
+   }
+  }
+ ]
+}

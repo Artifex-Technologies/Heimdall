@@ -9,7 +9,7 @@
 //!
 //! In charge (no `--shadow`, for the switch): the same, plus the API on `api_addr` and the Limbo responder (`response.rs`;
 //! never in shadow mode) with the Sarina advisory on a new hold (`advisor.rs`), the request to copy files Limbo held, and
-//! containment requests (`contain.rs`), and the mesh (`mesh.rs`). Not ported yet: trust (docs/RUST_PORT.md).
+//! containment requests (`contain.rs`), and the mesh (`mesh.rs`). Trust (`trust.rs`) is watching, so it runs in both modes.
 
 use crate::alert::{Alert, MultiSink, Ring, Sink, WriterSink};
 use crate::config::Config;
@@ -204,10 +204,12 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
         }
     }
     let approvals = detect::Approvals::new("/etc/heimdall/remote-access-approved.json");
+    // the signed list of the AI agents' behaviour files (HEIMDALL_TRUST_DIR in tests); watching only, in both modes
+    let trust_store = crate::trust::Store::new(&std::env::var("HEIMDALL_TRUST_DIR").unwrap_or_else(|_| crate::trust::DEFAULT_DIR.into()));
     let peers = cfg.mesh_peers_path.clone();
     let deps = Deps {
         verifier: Some(Box::new(Verifier::new(&cfg.pacman_db))),
-        trust: None,
+        trust: Some(Box::new(crate::trust::Judge { store: trust_store.clone() })),
         mesh_peer: Some(Box::new(move |ip: &str| detect::mesh_peer_at(&peers, ip))),
         approved: Some(Box::new(move |id: &str| approvals.approved(id))),
         ephemeral: None,
@@ -332,7 +334,6 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
             crate::contain::REQUEST_PATH,
             crate::contain::MARKER_PATH,
         ));
-        log("not ported yet, so not done by this daemon: trust");
     }
     let mut eng = Engine::new(engine_sink, detect::daemon_detectors(&cfg, deps));
     eng.set_maintenance(maintenance::Watcher::new(&cfg.maintenance_path), &cfg.maintenance_soften);
@@ -347,18 +348,25 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
             Err(e) => log(&format!("tool rules not in force: {e}")),
         }
     }
-    log("trust (the signed list of the AI agents' behaviour files) is not ported yet: those files are watched only if listed in fim_paths");
+    // with trust on, the AI agents' behaviour files and folders are watched too (their changes judged against the signed list
+    // after a short grace, so a change signed right after it was made stays quiet)
+    let mode = trust_store.mode();
+    let tw = if mode == "off" { crate::trust::WatchList::default() } else { trust_store.watch() };
+    let (tw_files, tw_dirs) = (tw.files.unwrap_or_default(), tw.dirs.unwrap_or_default());
+    if mode != "off" {
+        log(&format!("trust {mode}: watching {} behaviour file(s) and {} folder(s) of the AI agents", tw_files.len(), tw_dirs.len()));
+    }
 
     let secs = |ns: i64| Duration::from_nanos(ns.max(1_000_000_000) as u64);
     let mut srcs: Vec<Box<dyn Source>> = vec![Box::new(sources::maintenance::MaintenanceSource::new(&cfg.maintenance_path))];
     srcs.push(Box::new(sources::telemetry::TelemetrySource::new(Default::default(), secs(cfg.telemetry_interval()))));
-    if !cfg.fim_paths.is_empty() {
+    if !cfg.fim_paths.is_empty() || tw_files.len() + tw_dirs.len() > 0 {
         log(&format!(
             "watching {} file(s) for integrity (poll every {})",
             cfg.fim_paths.len(),
             crate::gotext::duration(cfg.fim_poll_interval())
         ));
-        let w = sources::fim::Watcher::new(&cfg.fim_paths, &cfg.fim_state_path);
+        let w = sources::fim::Watcher::new(&cfg.fim_paths, &cfg.fim_state_path).with_trust(&tw_files, &tw_dirs, 2 * 60 * 1_000_000_000);
         srcs.push(Box::new(sources::fim::FimSource::new(w, secs(cfg.fim_poll_interval()))));
     }
     if !cfg.limbo_event_log.is_empty() {

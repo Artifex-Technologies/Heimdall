@@ -17,7 +17,7 @@ contract.
 | 1 | detect, engine, alert, verify, explain, tool rules, maintenance, config, the agent-baseline state file | **done** (2026-11-10) |
 | 2 | the sources, event-driven, on one thread (`heimdalld-rs run --shadow`) | **done**: sessions (inotify + 10-minute look), vault (inotify), Limbo, FIM (+ pacman's database), telemetry, the maintenance window, /proc/net (ports, connections with the mapped IP databases, threat lists and remote-access recognition by name and Go build info, listeners), the journal (one `journalctl --follow`, the cursor file), the Wi-Fi results and router, the device list, remote-access packages and tunnels; the 6-hourly package, kernel and hardening audits on a thread of their own, behind game time (2c, 2026-11-10) |
 | 3 | the API, the Limbo responder, correlate, governance, grants | done: the correlator (`src/correlate.rs`, in the shadow daemon), governance (`src/governance.rs`), the API (`src/api.rs`: its own thread, plain HTTP/1.1 on loopback, callers from /proc/net/tcp; /healthz, /v1/alerts, /v1/review, /v1/incidents, /v1/requests, /v1/audit, /v1/lan/devices, /v1/quarantine, /v1/rules/drafts), grants (`src/grants.rs`: requests filed, decisions read), the restrict-only rules (`src/quarantine.rs`). the API served by `run` without `--shadow` (its alerts reach the loop as `Msg::Alert`; shadow mode serves none). the Limbo responder (`src/response.rs`, in charge only). the request to copy files Limbo held (`immunity::TakeHeld`); one-shot commands handed to the Go binary when it is installed beside (`main.rs`). The Sarina advisory on a new hold and the backlog note (`src/advisor.rs`, in charge only, 2026-11-10). Containment requests (`src/contain.rs`, in charge only, 2026-11-10) |
-| 4 | mesh and trust | mesh **done** (`src/mesh.rs`, in charge only, 2026-11-10); trust open |
+| 4 | mesh and trust | **done** (2026-11-10): the mesh (`src/mesh.rs`, in charge only); trust (`src/trust.rs`: the signed list read and checked, the judge, the behaviour files in the file watch; watching, so in both modes) |
 | switch | the Rust binary as `heimdalld`, the Go one kept for the one-shot commands | plan: `docs/RUST_SWITCH.md` |
 
 ## Layout
@@ -45,6 +45,7 @@ rust/
     src/advisor.rs            the Sarina advisory on a new hold and the backlog note (Go: internal/response/advisor.go)
     src/contain.rs            containment requests for the root unit (Go: internal/contain's Trigger)
     src/mesh.rs               the mesh: the identity Go wrote, mutual TLS 1.3 with enrolled keys, the sender and the listener
+    src/trust.rs              trust: the signed list (ed25519 over manifest.json), the mode, the watch list, the judge
     src/fuzzing.rs            the fuzz targets' bodies
     tests/                    parity (the Go fixtures), regex_corpus, properties, fuzz_smoke
   fuzz/                       cargo-fuzz targets (nightly) and their seed corpus
@@ -261,6 +262,26 @@ and words.
   port. Properties: a certificate names its key and a cut one names none; a peer never gets past 120 a minute plus 2 a
   second. Fuzz target `mesh_batch` (a request body, and the same bytes as a certificate). Kani
   (`reading_a_certificate_never_panics`, inputs up to 12 bytes; every input up to 3 bytes without Kani).
+- **Trust (step 4, 2026-11-10)**: `testdata/parity/trust.json` (`internal/parity/trust.go`: the cases of
+  `internal/trust/trust_test.go` and more) runs in `tests/trust.rs`: **49 trust folders, 577 questions** (52 approved,
+  289 unsigned, the rest no say). A list Go's own signer wrote (Init, Sign of two real files, the watch list, the mode) and
+  copies of it: 9 modes (spaces and a no-break space around, upper case, two lines, none), tampering (a changed list, one
+  space more, no signature, no list, no key, a key that is not base64 or of the wrong size, another key, a signature
+  without its newline, with spaces around, broken by CRLF, without padding, in URL base64, cut), 8 watch lists (keys in
+  other case, a number among the files, a string for the folders, not JSON, null, `[]`, a doubled slash, none), and 17
+  lists signed with a key of the fixture's own in shapes Go's signer never writes (keys in other case, a null hash,
+  duplicate keys and duplicate `files` objects merged, null, `{}`, wrong types, a bad time, trailing text, `[]`, empty, an
+  empty hash). The mode, the watch list (as Go writes it), the list or Go's error, and every verdict and reason are Go's;
+  the one exception is the tail of Go's time-parse message for a signed list with a broken time (the port says
+  `cannot parse` without naming the layout element; Go's signer never writes such a list). Without `-update` the Go test
+  reads every stored folder again and must give the stored answers. The chain on real files (`tests/trust.rs`): a store
+  signed in the test, the file watch with the trust folder and the file-integrity detector with the Rust judge: a signed
+  change is info "approved", a planted file and an unsigned change firm critical findings with Go's reasons, a list changed
+  without the key trusts nothing. `tests/run.rs`: with trust on, both modes add the watch list to the file watch; off, not.
+  Properties: base64 as Go reads it (round trip, newlines anywhere, padding required); "approved" only with the owner's
+  signature over exactly that content (or a deletion the list does not expect), over random folders, keys, tampering and
+  questions; any bytes as a signed list read or refused. Fuzz target `trust_list`. Kani (`base64_never_panics`, inputs up
+  to 8 bytes; every input of up to 4 characters from a mixed alphabet without Kani).
 - **Measured in charge with the mesh (2026-11-10, release builds, the same made-up config, 60 s idle after 8 s)**: the
   mesh listening with one enrolled peer, the Sarina advisory and the Limbo responder configured, the API on: Go 17.0 MB
   PSS, 9 threads, 1.45 context switches a second; Rust **5.1 MB**, 4 threads (the loop, the API, the mesh's sender and

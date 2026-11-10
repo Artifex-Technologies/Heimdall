@@ -36,10 +36,10 @@ A plan, not done. The Go daemon stays in charge until every item under "Before" 
    | containment requests (`contain.Trigger`) | `/etc/heimdall/contain.json` switches it on | **ported** (`src/contain.rs`) |
    | the request to copy files Limbo held (`takeHeld`) | always, in charge (owner decision 2026-11-05) | **ported** (`immunity::TakeHeld`) |
    | mesh | `mesh_listen` set or peers enrolled | **ported** (`src/mesh.rs`) |
-   | trust (the signed manifest of the agents' behaviour files) | trust mode not `off` | open (step 4) |
+   | trust (the signed manifest of the agents' behaviour files) | trust mode not `off` | **ported** (`src/trust.rs`; reading and judging, as the daemon does; signing stays with `heimdalld trust`, Go) |
 
-   The switch waits for every row that is needed here. (The daemon in charge logs at start which of these it does not do
-   yet.)
+   Every row is ported (2026-11-10), so nothing here waits on the port any more; the commands above only show which parts
+   the switch puts to work on this computer.
 3. **Limbo's restrict-only contract tests pass against the Rust binary** (both need root and a real guest; run them
    yourself):
 
@@ -94,7 +94,7 @@ sudo pacman -U heimdall-git-*.pkg.tar.zst
 sudo systemctl daemon-reload && sudo systemctl restart heimdall
 # 3. check
 heimdalld version; /usr/lib/heimdall/heimdalld-go version
-journalctl -u heimdall -n 40 --no-pager                    # the sources it watches; "status API listening"; what it does not do yet
+journalctl -u heimdall -n 40 --no-pager                    # the sources it watches; "status API listening"; "Limbo quarantine response enabled", "mesh on as", "trust watch" where they apply
 curl -s http://127.0.0.1:8930/healthz                      # ok
 curl -s 'http://127.0.0.1:8930/v1/alerts?n=3' | head -c 400; echo
 heimdalld lan list | head -3                               # a one-shot command, through the Go binary
@@ -127,11 +127,14 @@ The state files are the same for both daemons, so going back loses nothing and r
 
 ## Checklist
 
-- [ ] Shadow week: "NO DIFFERENCE"; CPU and PSS of both daemons in `progress.md`
-- [ ] Every row of the table under "Before" that is needed on this computer is ported
+- [ ] Shadow week: "NO DIFFERENCE"; CPU and PSS of both daemons in `progress.md` (if trust mode is not `off` on this
+      computer, the shadow binary must be the one from 2026-11-10 or later: `docs/RUST_SHADOW.md`, "Updating the binary")
+- [x] Every row of the table under "Before" is ported (2026-11-10: the responder, the Sarina advisory, containment
+      requests, takeHeld, the mesh, trust)
 - [ ] `integration-quarantine.sh` passes; `integration-chain.sh` with the Rust binary passes (every check, the six
       advisory checks included)
-- [ ] Rust and Go test suites pass at the commit
+- [ ] Rust and Go test suites pass at the commit the package is built from (they pass at the last port commit of
+      2026-11-10; `tests/mesh.rs` needs Go on the PATH to run the Go node, and says so when it skips)
 - [ ] Package change committed (PKGBUILD makedepends, build, install.sh, packaging test); Coordination Log entry for
       Labyrinth, LykanOS, Sarina, Limbo, Yggdrasil (nothing for them to change)
 - [ ] Shadow unit disabled; package built and installed; `heimdall` restarted

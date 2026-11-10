@@ -60,6 +60,21 @@ sudo systemctl start heimdall-shadow
 date -u +%Y-%m-%dT%H:%M:%SZ > ~/heimdall-shadow-start.txt   # the comparison's start
 ```
 
+## Updating the binary during the week
+
+The shadow daemon keeps its state across a restart, so a newer build can replace it at any time. One update matters
+(2026-11-10): from then on the shadow daemon also judges the AI agents' behaviour files against the signed list (trust), as
+the Go daemon does. A binary built before that raises no trust findings, so with trust on (`heimdalld trust status` says
+`watch` or `enforce`) a change to a behaviour file would show as a difference. With trust `off` nothing changes.
+
+```bash
+cd ~/Documents/Github/Heimdall && git pull
+cd rust && scripts/nicecargo.sh build --release --locked && cd ..
+sudo install -Dm755 rust/target/release/heimdalld-rs /usr/local/bin/heimdalld-rs
+sudo systemctl restart heimdall-shadow
+journalctl -u heimdall-shadow -n 30 --no-pager      # with trust on: "trust watch: watching N behaviour file(s) ..."
+```
+
 ## Check that it runs
 
 ```bash
