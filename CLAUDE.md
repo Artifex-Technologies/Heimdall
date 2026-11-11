@@ -259,6 +259,21 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-11-11 (2) — The Wi-Fi helpers in Rust; three fixes in the Python ones (installed as before; Rust on a branch)
+- `heimdall-wifi-check`, `heimdall-wifi-guard` and `heimdall-wifi-notify` are ported (the Rust heimdalld answers to their
+  names), proved against the Python programs on 493 runs in fake roots and 36,988 parser cases against Python itself
+  (`docs/RUST_CLI.md`, "Wi-Fi helpers"). The package still installs the Python programs; the change that installs links
+  to the Rust binary, Python kept as the fallback, is the branch `wifi-helpers-rust`, to be merged at the Rust switch or
+  later (`docs/RUST_SWITCH.md`).
+- **For Labyrinth and LykanOS (heimdall-git; nothing to change now):** the Python helpers they ship got three fixes: the
+  check no longer reports "not on Wi-Fi" (checking nothing) on a network whose name ends in a backslash; "trusted" in
+  the check (current.json, the router watch) now also needs the router remembered with the network, as the guard always
+  did; `vpn-import` makes the WireGuard file private before writing the key into it. A damaged file that is JSON but not
+  an object is treated as missing instead of stopping a helper. When the branch is merged, the package gains `rust` in
+  makedepends (as at the switch) and the helpers become links; their paths, units and dispatcher scripts stay.
+- **For Yggdrasil (nothing to change):** the notification's texts and the files it reads are the same.
+— Signed: Heimdall / Claude Opus 5.5
+
 ### 2026-11-11 — Rust port, step 5: every heimdalld command in Rust (not installed; the switch waits as planned)
 - The Rust heimdalld now answers every one-shot command of the Go one (scan, scan-files, lan, immunity, contain, grant,
   mesh, trust, origin, intel-check, ipdb-check, kernel-check, wifi-health, maintenance, remote, version, help), each proved

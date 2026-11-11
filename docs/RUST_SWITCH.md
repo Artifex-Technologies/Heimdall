@@ -16,11 +16,12 @@ A plan, not done. The Go daemon stays in charge until every item under "Before" 
   leaves the build entirely. The Rust `heimdalld` still hands a command it does not know to that path when the file is
   there (`main.rs`, tested in `tests/run.rs`), which after stage 2 never happens: an unknown command gets Go's own
   "unknown command" message and exit code 2.
-- Still not Rust, and not needing the Go binary: `heimdall-intel-update` (shell; curl and the checks above), the Wi-Fi
-  helpers `heimdall-wifi-check`, `heimdall-wifi-guard`, `heimdall-wifi-notify` (Python), `heimdall-dns-blocklist` and
-  `heimdall-enable-defaults` (shell), and their Python tests in `packaging/tests`. Porting the three Python helpers is the
-  open item in `progress.md`; when they are ported they become links to `heimdalld` (it picks the helper by the name it is
-  started as, `cli::tool`).
+- Still not Rust, and not needing the Go binary: `heimdall-intel-update` (shell; curl and the checks above),
+  `heimdall-dns-blocklist` and `heimdall-enable-defaults` (shell).
+- The Wi-Fi helpers `heimdall-wifi-check`, `heimdall-wifi-guard`, `heimdall-wifi-notify` are ported (2026-11-11,
+  `docs/RUST_CLI.md`, "Wi-Fi helpers"): the Rust `heimdalld` answers to their names (`cli::tool`). The package change that
+  installs them as links, with the Python programs kept as the fallback, is on the branch `wifi-helpers-rust` (below),
+  pushed and not merged: it goes in with stage 1 or after it, never before the shadow week is done.
 - `heimdall.service` does not change (`ExecStart=/usr/bin/heimdalld run --config /etc/heimdall/config.json`), nor its
   drop-ins, nor the config, nor any state file: the Rust daemon reads and writes the Go daemon's files in
   `/var/lib/heimdall` (proved by the handover rehearsal, Go -> Rust -> Go -> Rust, no repeated alert), and the commands keep
@@ -94,6 +95,35 @@ Made in the same commit as the switch, not before (a package built from it insta
   and `packaging/tests` gets a check that both are installed. The pacman hook (`Target = usr/bin/heimdalld`) stays.
 - LykanOS and Labyrinth images get the same package; nothing else in them changes.
 
+**The Wi-Fi helpers (branch `wifi-helpers-rust`, merged at stage 1 or later):**
+
+- The branch builds the Rust binary (`makedepends` gains `rust`; `build()` runs the cargo line above) and installs it as
+  `/usr/lib/heimdall/heimdalld-rs`, then `/usr/bin/heimdall-wifi-check`, `heimdall-wifi-guard` and `heimdall-wifi-notify`
+  as links to it. The Python programs stay installed as `/usr/lib/heimdall/python/heimdall-wifi-*` (the fallback). The
+  units and the dispatcher scripts are unchanged: they call the same paths.
+- Merged on its own (before the stage-1 commit), it changes only the helpers: `/usr/bin/heimdalld` stays Go. Merged with or
+  after stage 1, the stage-1 commit's `usr/bin/heimdalld` line and the branch's `usr/lib/heimdall/heimdalld-rs` line
+  install the same file; the links may then point at `heimdalld` and the second copy go (a one-line change in
+  `install.sh`, with the packaging test that checks the links).
+- `packaging/tests/test_install_layout.py` runs `install.sh` into a temporary folder and checks the links resolve to the
+  Rust binary and the fallbacks are there.
+- Checks on this computer after installing (what the tests cannot do; each read-only or on a network I choose):
+
+  ```bash
+  ls -l /usr/bin/heimdall-wifi-*                       # links to /usr/lib/heimdall/heimdalld-rs
+  heimdall-wifi-guard status                          # the trusted networks, the VPN, "now on: ...", as before
+  sudo systemctl start heimdall-wifi-check@$(nmcli -g GENERAL.CON-UUID device show wlan0).service
+  journalctl -u 'heimdall-wifi-check@*' -n 20 --no-pager   # the check under its sandbox (SystemCallFilter=@system-service)
+  tail -n 2 /var/lib/heimdall/wifi/results.jsonl      # the same checks and verdict as the Python's line before it
+  cat /run/heimdall-wifi/last.json                    # and the notification shown on the desktop
+  ```
+
+  The guard's `pre-up`/`up`/`down` with a VPN set up (the lockdown, the VPN, the kill switch) on an untrusted network I
+  join on purpose, never while the PC is streaming.
+- Rollback of one helper at once (lasts until the next package upgrade):
+  `sudo ln -sfn /usr/lib/heimdall/python/heimdall-wifi-guard /usr/bin/heimdall-wifi-guard` (likewise `-check`,
+  `-notify`); fully: the previous package from pacman's cache.
+
 **Stage 2 (a week after the switch, when nothing went back to Go):** the Go binary goes.
 
 - `makedepends`: drop `go`. `build()`: only the cargo line. `packaging/install.sh`: drop the `heimdalld-go` line (the
@@ -165,6 +195,9 @@ The state files are the same for both daemons, so going back loses nothing and r
 - [ ] Checks: version of both binaries, the start log, /healthz, /v1/alerts, the one-shot commands above (lan scan and the
       inventory under their sandboxed units), Settings' Security page shows alerts, the device list and the Wi-Fi check,
       PSS and threads
+- [ ] Wi-Fi helpers: branch `wifi-helpers-rust` merged with stage 1 or later; `test_install_layout.py` passes; the checks
+      above (the check under its unit on a real network, the guard's status, the notification), and once the guard on an
+      untrusted network with the VPN; a week later, the Python fallbacks can go with stage 2
 - [ ] Stage 2, a week later: the package stops building Go (`makedepends` without `go`, `install.sh` without
       `heimdalld-go`); Coordination Log entry
 - [ ] A day later: no `integration` alerts from the daemon itself; CPU over the day; then the shadow leftovers removed

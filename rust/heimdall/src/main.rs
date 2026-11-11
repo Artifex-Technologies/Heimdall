@@ -18,7 +18,9 @@ fn flag(args: &[String], name: &str) -> Option<String> {
 }
 
 fn main() -> ExitCode {
-    let args: Vec<String> = std::env::args().collect();
+    // an argument that is not UTF-8 is read with U+FFFD where it breaks (std::env::args would stop the program; the Wi-Fi
+    // helpers' Python reads any bytes)
+    let args: Vec<String> = std::env::args_os().map(|a| a.to_string_lossy().into_owned()).collect();
     // started by a helper's name (a link to this program, after the switch): that helper
     let name = args.first().map(|a| a.rsplit('/').next().unwrap_or(a).to_string()).unwrap_or_default();
     if name.starts_with("heimdall-") {

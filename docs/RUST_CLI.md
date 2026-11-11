@@ -44,6 +44,14 @@ The same as the daemon's port:
 | Sarina `go/reverse/netmap.go` | `heimdalld origin IP...` | `IP  ORIGIN` lines (two spaces) |
 | `heimdall-intel-update` | `heimdalld ipdb-check FILE`, `heimdalld intel-check list|tracker|kernel ...` | the exit code |
 | units | `lan scan` (timer, 5 min), `immunity inventory` (timer, daily), `immunity run-requests` and `contain run-request` (path units) | the exit code, the journal |
+| NetworkManager's dispatcher (`90-heimdall-wifi` starts `heimdall-wifi-check@UUID.service`, sandboxed, as heimdall) | `heimdall-wifi-check --uuid UUID` | nothing; the daemon reads its `results.jsonl` and `current.json`, the notification its `last.json` |
+| NetworkManager's dispatcher (`pre-up.d/50-heimdall-wifi-guard` waits for it; `50-heimdall-wifi-guard` starts it with `systemd-run`) | `heimdall-wifi-guard pre-up|up|down IFACE UUID` | nothing; it acts (nft, nmcli, systemctl) and writes its state and `last.json` |
+| me, in a terminal | `heimdall-wifi-guard status|trust|untrust|vpn-import|vpn-remove|sign-in|ruleset-check` | the text and exit code |
+| my session (`heimdall-wifi-notify.path`, a user unit) | `heimdall-wifi-notify` | nothing; it calls `notify-send` |
+
+The Wi-Fi helpers have no callers in the sibling repositories (Yggdrasil, Labyrinth, LykanOS, Sarina, Limbo were searched
+on 2026-11-11): Settings' Wi-Fi checks run `heimdalld wifi-health`, and `heimdalld lan scan` reads the guard's trusted
+list (`/etc/heimdall/wifi-trusted.json`), which keeps its form.
 
 ## Status
 
@@ -53,7 +61,8 @@ The same as the daemon's port:
 | intel | `ipdb-check`, `intel-check`, `origin`, `kernel-check`, `heimdall-intel-update` | the four commands **done**; `heimdall-intel-update` stays the shell script that calls them | `tests/cli_intel.rs`: 80 runs against Go in fake roots (kernel lists of 1,300+ made-up records byte for byte, zip and zip64) |
 | immunity | `immunity ...`, `scan-files` | **done** | `tests/cli_immunity.rs`: 73 steps of both binaries on two copies of one made-up system, the store, ClamAV's folder, the user's files (owners, modes, times) and every tool called compared after each step |
 | contain and admin | `contain ...`, `maintenance`, `grant`, `remote` | **done** | `tests/cli_admin.rs`: 135 differential runs, 447 fixture cases; `tests/cli_contain.rs`: 16 runs of `contain now|emergency|run-request|release` in their own process and network namespaces, a real containment of a made-up Sarina included |
-| Wi-Fi | `wifi-health`, `heimdall-wifi-check`, `heimdall-wifi-guard`, `heimdall-wifi-notify`, packaging/tests | `wifi-health` **done**; the helpers not ported | cli-wifi.json: 3,361 parser cases and 160 whole reports byte for byte; 19 runs of both binaries in fake roots with a made-up Wi-Fi, the speed test over TLS included |
+| Wi-Fi | `wifi-health` | **done** | cli-wifi.json: 3,361 parser cases and 160 whole reports byte for byte; 19 runs of both binaries in fake roots with a made-up Wi-Fi, the speed test over TLS included |
+| Wi-Fi helpers | `heimdall-wifi-check`, `heimdall-wifi-guard`, `heimdall-wifi-notify` (Python) | **done** (2026-11-11); installed as links on branch `wifi-helpers-rust`, not merged | `tests/cli_wifitools.rs`: 493 runs of the Python program and the port in fake roots (check 64 on made-up networks, guard 375, notify 54); `tests/wifitools_python.rs`: 36,988 parser cases against Python itself; 6 fuzz targets |
 | trust, mesh, scan | `trust ...`, `scan`, `mesh ...` | **done** | `tests/cli_trust.rs`: 155 fixture cases (trust 96, mesh 59), 67 steps; `tests/cli_scan.rs`: 21 steps; `tests/cli_mesh.rs`: 44 steps; all against Go |
 | basics | `version`, `help`, unknown commands, `__write-as-owner` | **done** | `tests/cli.rs` against Go |
 
@@ -269,6 +278,128 @@ Not 1:1 (all where nothing reads the difference): one request per connection and
 mirror that offers it; the bytes counted are the same file); no HTTP proxy from the environment (Go's client honours
 `HTTPS_PROXY`; Settings runs the check without one); a certificate failure that is not one of the usual kinds is worded by
 rustls, not Go, in the speed test's error.
+
+## Wi-Fi helpers
+
+`heimdall-wifi-check`, `heimdall-wifi-guard` and `heimdall-wifi-notify` were the last programs the package ships in Python.
+Their ports are `rust/heimdall/src/cli/wifitools/` (`check.rs`, `guard.rs`, `notify.rs`).
+
+**The shape:** not new binaries, the same `heimdalld`. It already picks a helper by the name it is started as (`main.rs`:
+a program name starting with `heimdall-` goes to `cli::tool`), so each helper becomes a link to `/usr/bin/heimdalld` and
+needs nothing new: no crate was added (the TLS check uses the rustls and ring the daemon already has; DER, URLs, JSON and
+addresses are read by small modules of our own), one file to build, sign and update, and a helper is done printing its
+usage in under a millisecond where the Python program takes about 25 ms. The helpers keep their own names in the journal, in `ps`,
+and for NetworkManager and systemd, which call them by name. Separate binaries would each have carried their own copy of
+the Python behaviour layer and the TLS stack.
+
+**Python's rules, carried over** (`py.rs`, `py_table.rs`, `addr.rs`, `net.rs`, `der.rs`): the helpers read files and tools'
+answers with Python's own semantics, so the port does too: `json.load` and `json.dump` (the C scanner's grammar, NaN and
+Infinity, duplicate keys, integers of any size, `repr` of floats including ties, `ensure_ascii`), Python's values where a
+file or `ip -j` can hold any JSON (truthiness, `==` with 1 == 1.0 == True, `in` on lists, dicts and strings, iteration,
+`str()`, `int()`), the string methods (`splitlines` with all of Python's line breaks, `strip` and `split` with Python's
+whitespace, `isprintable`, and the word characters and digits of `re`, from tables written from Python's own
+`unicodedata` by `rust/pytools/pytable.py`), `subprocess.run` (strict UTF-8 and universal newlines on the output, the
+environment given, the child killed at the timeout through its pidfd), Python's `ipaddress` (strict IPv4, IPv6 forms,
+scopes, numbers as addresses, `is_private` of 3.13 and later), `getaddrinfo` with Python's hints and `inet_ntop`'s
+writing, `socket.create_connection`, the certificate check of `ssl.create_default_context()` with the refusal worded as
+OpenSSL words it, `urllib`'s request bytes, redirects (3.14's `urlsplit`, `urlparse`, `urlunparse`, `urljoin`, its limits),
+`http.client`'s reading of a response (status line, email's header parsing, chunked and close-delimited bodies,
+`read(4096)`) and the passive multicast listening. Where the Python program stops with a traceback, the port stops at the
+same point with exit 1 and the exception's class on standard error (`heimdall-wifi-guard: TypeError: ...`), so the files
+written until then are the same too.
+
+Proof:
+
+- `tests/cli_wifitools.rs` runs the Python program (`packaging/...`, mounted under its installed name) and the port in two
+  copies of the same fake root, and compares standard output and error (a traceback by its exception class), the exit
+  code, every file under the folders the helper writes, and every call of a tool with its arguments exactly (fakes of
+  nmcli, ip, nft with the rules it was given on standard input, systemctl, ping, ss, heimdalld origin, notify-send):
+  - **notify** (54 runs): verdicts unsafe, caution, safe (first time, again, already known), every guard event, names and
+    messages of every JSON type and with control, zero-width, combining and astral characters, damaged files (not JSON,
+    a list, a BOM, not UTF-8, nested 300 deep, a folder), `XDG_STATE_HOME` set and empty, `HOME` with slashes, the state
+    folder not writable, no notify-send, a notify-send that fails, and one that hangs (killed after 10 seconds, as
+    Python's `TimeoutExpired`).
+  - **guard** (375 runs): the eight cases of `packaging/tests/test_heimdall_wifi_guard.py` as whole runs (21 steps), every
+    command and usage error as root and as a user (63), and 291 runs with odd input: the router's address from 16 kinds
+    of `ip -j` answers, 26 damaged or oddly typed files each through eight steps (a VPN whose endpoint is a number,
+    `true`, `"2001:DB8::0:5%wg"`, a port of `" 51_820 "` or `2.9`), names from NetworkManager with escapes, line ends and
+    bytes that are not UTF-8, five device lists, 13 WireGuard files (names looked up in the fake root's hosts file,
+    dotless and dotted i in "Endpoint", a port in Arabic-Indic digits, an octal address, IPv6 forms).
+  - **check** (64 runs): 22 made-up Wi-Fi networks, each in a network namespace of its own: a dummy `wlan0`, web servers
+    (`rust/parity/harness/wifi-check-net.py`, which also logs the request bytes each program sent: compared), TLS servers
+    (`openssl s_server` with a test authority the fake root trusts: a genuine certificate, a self-signed one, an unknown
+    authority with and without its chain, another name, an expired one, plain text where TLS was expected, a host that
+    never answers), a DNS server that invents answers, another device announcing itself by multicast DNS and UPnP; the
+    pinned names answer from MCAST-TEST-NET (233.252.0.0/24, the documentation block Python does not call private) for
+    the DNS check and from 2001:db8:: for TLS. Safe at home, an evil twin with ARP spoofing and every kind of interception,
+    captive portals (plain and HTTPS), redirects that end well, loop, go on too long or lose their Location, chunked and
+    close-delimited bodies, short bodies, connectivity limited (the 20 seconds of waiting included) or unknown, the
+    guard's lockdown on, no IP database, nothing resolving, WEP, a name ending in a backslash, not on Wi-Fi. Then 42
+    runs with odd input: scan lists not UTF-8 or full of escapes and Unicode spaces, 15 kinds of odd `ip -j` answers (a
+    null hardware address, a missing `dst`, a list for an address...), eight routers.json, five trusted lists, the
+    guard's state, `ss` and origin lines, arguments, the state and public files elsewhere or not writable, this
+    computer's own addresses answered oddly.
+- `tests/wifitools_python.rs` sends seeded made-up input to the shipped Python programs' own functions and to Python's
+  json, re, ipaddress, http.client and urllib (`rust/parity/harness/wifitools-oracle.py`, one process; nothing is looked
+  up, getaddrinfo answers from a table) and to the port: 36,988 cases (nmcli lines and scan lists, the guard's split,
+  security classes, AS numbers, origin and ss lines, Endpoint lines, WireGuard files, lockdown rules from oddly typed
+  configurations, addresses, `int()`, text decoding, `splitlines`/`strip`/`split`/`isprintable`, float `repr`, 4,000 JSON
+  texts through `dumps`, `indent=1`, `indent=2`, `repr`, `str` and truthiness, 3,000 web answers, 1,500 redirects), each
+  answer written as Python's json writes it and compared as text. Eight other seeds (`HEIMDALL_PROP_SEED`), about 296,000
+  more cases: none different.
+- Fuzz targets `wifi_nmcli`, `wifi_json`, `wifi_wireguard`, `wifi_cert`, `wifi_http`, `wifi_tools` (bodies in
+  `src/cli/wifitools/fuzzing.rs`, seeds in `rust/fuzz/seeds`), each with what must hold (nmcli fields escaped again split
+  back the same; JSON written reads back the same; the lockdown rules always drop by default and never open TCP;
+  addresses written read back); `tests/cli_wifi_fuzz.rs` runs them on their seeds, on random input, and on every cut and
+  one-byte change of the seeds.
+- `packaging/tests` (Python) runs in CI now too, and CI runs on changes under `packaging/`.
+
+**Bugs found in the Python, fixed in both** (2026-11-11):
+
+- `heimdall-wifi-check` split NetworkManager's lines at every `:` not after a `\`. nmcli writes a name ending in a
+  backslash as `x\\` before the separator, so that name swallowed the next field; on the access point's own network the
+  line was dropped and the check reported "not on Wi-Fi" and checked nothing. Anyone can name an access point that way.
+  Now read left to right.
+- `heimdall-wifi-check` called a network trusted by its NetworkManager profile alone; the guard also asks for the router
+  remembered with it. A stranger's network with the name and password of a trusted one was untrusted to the guard but
+  trusted in `current.json`, so the daemon's router watch (untrusted networks only) did not watch it. Now trusted as the
+  guard decides it.
+- `heimdall-wifi-guard vpn-import` wrote the WireGuard private key into `/run/wg-heimdall.conf` created with the default
+  mode (0644 under the usual umask) and made it 0600 only afterwards; another account could open the file in between
+  and keep reading. Now made 0600 before the key is written (and a file left there is made 0600 too).
+- All three: a file holding JSON that is not an object (a list, `null`; a damaged or hand-edited file) stopped the program
+  with a traceback (the guard in `pre-up`, before it could lock or tell; notify on every later notification). It now
+  counts as missing, as a file that is not JSON already did.
+
+**Found, not changed (for me to decide):** the guard's `up` trusts a trusted profile whose router's hardware address could
+not be read (five tries, a ping each) as trusted, without the router check (`is_trusted(uuid, "")`). A stranger's
+network with a trusted network's name and password that stays silent to ARP for those five seconds is then let in
+without the VPN. Treating an unknown router as untrusted at home would start the VPN there when the router is slow. The
+check follows the guard here, so the two agree either way.
+
+Not 1:1, on purpose or where nothing reads the difference:
+
+- A traceback is one line, `PROG: Class: message`, in place of Python's traceback; the exit code (1), the class and the
+  files written before it are the same.
+- A JSON file with a `\u` escape of half a surrogate pair: Python keeps it in the string, the port reads the file as
+  damaged (as missing). Neither program writes one (their strings come from strict UTF-8). Nesting deeper than 10,000
+  stops the port as Python's RecursionError does (Python's own depth depends on its C stack).
+- An argument that is not UTF-8 is read with U+FFFD where it breaks (Python keeps the bytes); the dispatcher's arguments
+  are filtered to letters, digits and dashes before.
+- `upper()` follows Rust's Unicode tables, Python 3.14's are Unicode 16.0; only hardware addresses and NetworkManager's
+  security words are upper-cased.
+- A WireGuard Endpoint whose name is not ASCII: Python converts it with IDNA 2003 and looks it up, the port does not look
+  it up (an error as Python's gaierror). Proton's files name addresses.
+- `urlsplit`'s NFKC check of a host that is not ASCII is not carried over: a redirect's Location is ISO-8859-1 text, and
+  no character of it NFKC-maps to `/ ? # @ :`.
+- Certificates: the refusals the check meets are worded as OpenSSL words them (proved above); a rarer one (a bad
+  signature, an unsuitable purpose, a revoked certificate) is worded from rustls's reason and may not be OpenSSL's
+  choice of words. A chain signed by a trusted authority but malformed in a way only OpenSSL's strict mode (Python 3.13
+  and later) refuses (a CA without key usage, a leaf without an authority key identifier), or ending at an expired root,
+  passes in the port: it changes only the check of a chain the computer trusts, not the detection of interception. The
+  authorities trusted are OpenSSL's: its default file and the hashed names in its default folder.
+- No HTTP proxy from the environment (the check's unit has none; urllib would honour `http_proxy`); a redirect to `ftp://`
+  is no answer (urllib would try the FTP server).
 
 ## trust, mesh, scan
 

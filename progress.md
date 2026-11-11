@@ -19,6 +19,43 @@ closed rather than deleting it -- the history of *why* is worth keeping.
 
 ---
 
+## 2026-11-11 — The Wi-Fi helpers in Rust: DONE (the package change on branch `wifi-helpers-rust`, not merged)
+
+**My ask:** port `heimdall-wifi-check`, `heimdall-wifi-guard` and `heimdall-wifi-notify` (Python) to Rust with the same
+arguments, output, files, notifications, programs called and exit codes; the Python tests' cases as fixtures, a
+differential harness with fakes in fake roots and namespaces, properties and fuzz targets for the parsers of nmcli and ip
+output; fix real bugs in both; the install change on a branch, not merged, fitted into the switch plan. Nothing on this
+computer's network was touched: every tool that could change it is a fake, the check ran in network namespaces of its
+own.
+
+| Item | State | Proof |
+| --- | --- | --- |
+| shape | the same heimdalld, picked by the name it is started as (`cli::tool`); no crate added | `docs/RUST_CLI.md`, "Wi-Fi helpers" |
+| Python's rules (`py.rs`, `py_table.rs`, `addr.rs`, `net.rs`, `der.rs`) | done | `tests/wifitools_python.rs`: 36,988 cases against Python itself (and ~296,000 more with eight other seeds), none different |
+| `heimdall-wifi-notify` | done | 54 runs against the Python program |
+| `heimdall-wifi-guard` | done | 375 runs: the 8 Python test cases as whole runs, every command, 291 with odd input |
+| `heimdall-wifi-check` | done | 64 runs: 22 made-up Wi-Fi networks in namespaces (TLS, DNS, web, other devices), 42 with odd input |
+| fuzz targets | `wifi_nmcli`, `wifi_json`, `wifi_wireguard`, `wifi_cert`, `wifi_http`, `wifi_tools` | seeds, random input, every cut and one-byte change (`tests/cli_wifi_fuzz.rs`) |
+| packaging | branch `wifi-helpers-rust`: links to the Rust binary, Python kept in `/usr/lib/heimdall/python/` | `packaging/tests/test_install_layout.py` (on the branch) |
+
+- **Bugs fixed in the Python and the port:** (1) the check split nmcli's lines wrongly for a network name ending in a
+  backslash: on such an access point it reported "not on Wi-Fi" and checked nothing; (2) the check's "trusted" ignored
+  the router remembered with the network (the guard did not), so a stranger's network with a trusted name and password
+  escaped the daemon's router watch; (3) `vpn-import` wrote the WireGuard private key into a /run file of the default mode
+  before making it 0600; (4) all three: a file holding JSON that is not an object stopped the helper with a traceback.
+- **Found, not changed, for me to decide:** the guard trusts a trusted profile whose router did not answer ARP within its
+  five tries (no router check then): a stranger with a trusted network's name and password who stays silent five
+  seconds gets no VPN. `docs/RUST_CLI.md` has both sides.
+- Not 1:1 (all in `docs/RUST_CLI.md`): a one-line error in place of a traceback (same exit code, class and files); JSON
+  with half a surrogate pair; rare certificate refusals worded by rustls; OpenSSL's strict-mode refusals of trusted but
+  malformed chains; no HTTP proxy; non-ASCII WireGuard host names not looked up.
+- Also: `main.rs` reads arguments that are not UTF-8 instead of panicking; CI runs on `packaging/` changes and runs the
+  Python tests.
+- **Resume:** merge `wifi-helpers-rust` with the switch's stage 1 or after it (`docs/RUST_SWITCH.md`, "The Wi-Fi
+  helpers"), then the checks there: the check under its sandboxed unit on a real network, the guard's status, a real
+  notification, once the guard with the VPN on an untrusted network I join on purpose. Decide the guard's unknown-router
+  question.
+
 ## 2026-11-11 — CI: red since 6b1c858 (the fake-root command tests on Ubuntu); CLOSED, green again at cc1b120
 
 - Fixed: user namespaces allowed on the runner (`66d3b50`); the fake root follows the host's lib64, Ubuntu's program loader
@@ -50,7 +87,8 @@ first. Method and every proof: `docs/RUST_CLI.md`.
 | contain and admin | `contain` (all), `maintenance`, `grant`, `remote` | done | `tests/cli_admin.rs` 135 runs, 447 fixture cases; `tests/cli_contain.rs` 16 runs in pid and net namespaces (a real containment of a made-up sarina) |
 | Wi-Fi | `wifi-health` | done | cli-wifi.json 3,361 parser cases, 160 reports; 19 runs |
 | trust, mesh, scan | `trust` (signing), `mesh`, `scan` | done | 155 fixture cases; 67, 44 and 21 steps |
-| helpers | `heimdall-intel-update` (shell), `heimdall-wifi-check`, `heimdall-wifi-guard`, `heimdall-wifi-notify` (Python), packaging/tests | **not ported** | none of them needs the Go binary |
+| helpers | `heimdall-intel-update` (shell) | not ported | does not need the Go binary |
+| Wi-Fi helpers | `heimdall-wifi-check`, `heimdall-wifi-guard`, `heimdall-wifi-notify` (Python) | done 2026-11-11 (entry above) | 493 runs against Python, 36,988 parser cases |
 
 - Not 1:1, on purpose (all in `docs/RUST_CLI.md`): immunity's samples are gzip from flate2 (same content, each reads the
   other's); a sample named above U+00FF is kept good where Go keeps an empty one that can never be released; damaged
@@ -65,10 +103,8 @@ first. Method and every proof: `docs/RUST_CLI.md`.
      sandboxed units (the Rust binary has not run under `SystemCallFilter=@system-service` yet).
   2. A week later, stage 2: the package stops building Go (`makedepends` without `go`, `install.sh` without
      `heimdalld-go`, a packaging test that it is gone).
-  3. Open, optional: port `heimdall-wifi-check`, `heimdall-wifi-guard`, `heimdall-wifi-notify` (Python) into
-     `src/cli/wifitools.rs` (the stubs and `cli::tool` dispatch by program name are there; tests through
-     `Root::run_as` with the helper's name, both implementations run in fake roots), then port packaging/tests to Rust
-     (`tests/packaging.rs`); `heimdall-intel-update` could follow (curl from Rust, the same flags).
+  3. ~~Open, optional: port the three Wi-Fi helpers~~ DONE 2026-11-11 (entry above); packaging/tests stay Python and run
+     in CI; `heimdall-intel-update` could follow (curl from Rust, the same flags).
 
 ## 2026-11-10 — The Rust port: steps 1-4 DONE; the switch waits only for the shadow week and the owner's checks
 
