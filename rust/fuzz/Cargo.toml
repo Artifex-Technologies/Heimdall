@@ -170,3 +170,17 @@ path = "fuzz_targets/wifi_devices.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "lan_dns"
+path = "fuzz_targets/lan_dns.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "lan_answer"
+path = "fuzz_targets/lan_answer.rs"
+test = false
+doc = false
+bench = false
