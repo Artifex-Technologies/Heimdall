@@ -17,10 +17,12 @@ fn opts(extra: &str) -> Opts {
     }
 }
 
-/// A made-up Sarina: a copy of sleep named sarina, running in the fake root's own process namespace (waited for: a
-/// fixed 0.2 s was too short on a busy CI runner).
-const SARINA: &str =
-    "cp /usr/bin/sleep \"$R/tmp/sarina\"\ntouch -d '2026-01-02 03:04:05' \"$R/tmp/sarina\"\n(cd \"$R\" && chroot \"$R\" /tmp/sarina 300 </dev/null >/dev/null 2>&1 &)\n\
+/// A made-up Sarina: a shell script named sarina (its command name is the script's), running in the fake root's own
+/// process namespace and waited for (a fixed 0.2 s was too short on a busy CI runner). Not a copy of sleep: on Ubuntu
+/// 26.04 sleep is uutils' one program for every command, which picks the command by its own name, so a copy named
+/// sarina exited at once and stayed behind unreaped.
+const SARINA: &str = "printf '#!/bin/sh\\nsleep 300\\n' > \"$R/tmp/sarina\"\nchmod 755 \"$R/tmp/sarina\"\n\
+     touch -d '2026-01-02 03:04:05' \"$R/tmp/sarina\"\n(cd \"$R\" && chroot \"$R\" /tmp/sarina </dev/null >/dev/null 2>&1 &)\n\
      for i in $(seq 100); do grep -qsx sarina \"$R\"/proc/[0-9]*/comm && break; sleep 0.1; done\n";
 
 /// The evidence folder: its files and the parts of them that do not change from run to run.

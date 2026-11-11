@@ -65,7 +65,14 @@ fn models_loaded() -> Option<Vec<String>> {
     (!names.is_empty()).then_some(names)
 }
 
-/// Go's `sarinaProcs`: the processes named sarina or sarina-*, by command or program.
+/// Go's `exited`: a process that has ended but not been collected by its parent yet (state Z or X in /proc/<pid>/stat).
+fn exited(pid: i32) -> bool {
+    let Ok(stat) = std::fs::read(format!("/proc/{pid}/stat")) else { return false };
+    stat.iter().rposition(|&b| b == b')').and_then(|i| stat.get(i + 2)).is_some_and(|&c| c == b'Z' || c == b'X')
+}
+
+/// Go's `sarinaProcs`: the processes named sarina or sarina-*, by command or program; an exited one waiting for its parent
+/// is left out (killing it again does nothing, and counting it would call a held containment broken).
 fn sarina_procs() -> BTreeMap<i32, String> {
     let mut out = BTreeMap::new();
     let me = std::process::id() as i32;
@@ -73,7 +80,7 @@ fn sarina_procs() -> BTreeMap<i32, String> {
     for e in rd.flatten() {
         let Some(pid) = e.file_name().to_str().and_then(crate::gotext::atoi) else { continue };
         let pid = pid as i32;
-        if pid == me {
+        if pid == me || exited(pid) {
             continue;
         }
         let comm = std::fs::read(format!("/proc/{pid}/comm")).unwrap_or_default();

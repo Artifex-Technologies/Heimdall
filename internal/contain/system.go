@@ -85,13 +85,26 @@ func (s Real) UnloadModels() ([]string, error) {
 	return names, nil
 }
 
-// sarinaProcs lists Sarina's processes: the program sarina (wherever it was installed) and its helpers (sarina-*).
+// exited reports a process that has ended but not been collected by its parent yet (state Z or X in /proc/<pid>/stat):
+// it runs nothing, holds no files and cannot be killed again, so it neither counts as stopped nor as still running.
+func exited(pid string) bool {
+	stat, err := os.ReadFile(filepath.Join("/proc", pid, "stat"))
+	if err != nil {
+		return false
+	}
+	i := bytes.LastIndexByte(stat, ')')
+	return i >= 0 && i+2 < len(stat) && (stat[i+2] == 'Z' || stat[i+2] == 'X')
+}
+
+// sarinaProcs lists Sarina's processes: the program sarina (wherever it was installed) and its helpers (sarina-*). An
+// exited one waiting for its parent is left out: killing it again does nothing, and counting it would call a held
+// containment broken (and with the automatic emergency on, stop the desktop for a process that was already gone).
 func sarinaProcs() map[int]string {
 	out := map[int]string{}
 	entries, _ := os.ReadDir("/proc")
 	for _, e := range entries {
 		pid, err := strconv.Atoi(e.Name())
-		if err != nil || pid == os.Getpid() {
+		if err != nil || pid == os.Getpid() || exited(e.Name()) {
 			continue
 		}
 		comm, _ := os.ReadFile(filepath.Join("/proc", e.Name(), "comm"))
