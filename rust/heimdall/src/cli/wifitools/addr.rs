@@ -281,7 +281,7 @@ pub fn ntop6(b: [u8; 16]) -> String {
 
 /// Python's `host.encode("idna")` for an ASCII name (labels not empty, shorter than 64); a name that is not ASCII is not
 /// converted (Python's IDNA 2003 is not carried over: NetworkManager and the WireGuard files give ASCII names).
-fn idna(host: &str) -> PyResult<String> {
+pub fn idna(host: &str) -> PyResult<String> {
     if !host.is_ascii() {
         return Err(PyErr::new("gaierror", "a name that is not ASCII is not looked up"));
     }

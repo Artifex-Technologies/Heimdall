@@ -184,3 +184,45 @@ path = "fuzz_targets/lan_answer.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "wifi_nmcli"
+path = "fuzz_targets/wifi_nmcli.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "wifi_json"
+path = "fuzz_targets/wifi_json.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "wifi_wireguard"
+path = "fuzz_targets/wifi_wireguard.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "wifi_cert"
+path = "fuzz_targets/wifi_cert.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "wifi_http"
+path = "fuzz_targets/wifi_http.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "wifi_tools"
+path = "fuzz_targets/wifi_tools.rs"
+test = false
+doc = false
+bench = false

@@ -149,7 +149,7 @@ impl Worded {
 
 /// The chain OpenSSL builds from what the server sent when no authority it trusts is found: up from the certificate, an
 /// issuer found by name and key identifier each step, until a self-signed one or none.
-fn untrusted(sent: &[der::Cert]) -> String {
+pub fn untrusted(sent: &[der::Cert]) -> String {
     let Some(first) = sent.first() else { return "unable to get local issuer certificate".into() };
     let mut chain = vec![0usize];
     let mut cur = first;
@@ -249,68 +249,183 @@ pub fn tls_probe(host: &str) -> Tls {
 
 // ---- plain web pages, as urllib fetches them
 
-/// Python's `urllib.parse.urlsplit` (3.14): (scheme, netloc, path, query, fragment).
-pub fn urlsplit(url: &str, default_scheme: &str) -> Option<[String; 5]> {
-    let mut url: String = url.trim_start_matches(|c: char| c <= ' ').chars().filter(|c| !matches!(c, '\t' | '\r' | '\n')).collect();
-    let mut scheme = default_scheme.to_string();
+/// A URL split as Python 3.14's `_urlsplit` splits it: a part that is absent is None, not "".
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Split {
+    pub scheme: Option<String>,
+    pub netloc: Option<String>,
+    pub path: String,
+    pub query: Option<String>,
+    pub fragment: Option<String>,
+}
+
+const USES_NETLOC: &[&str] = &[
+    "",
+    "ftp",
+    "http",
+    "gopher",
+    "nntp",
+    "telnet",
+    "imap",
+    "wais",
+    "file",
+    "mms",
+    "https",
+    "shttp",
+    "snews",
+    "prospero",
+    "rtsp",
+    "rtsps",
+    "rtspu",
+    "rsync",
+    "svn",
+    "svn+ssh",
+    "sftp",
+    "nfs",
+    "git",
+    "git+ssh",
+    "ws",
+    "wss",
+    "itms-services",
+];
+const USES_RELATIVE: &[&str] = &[
+    "", "ftp", "http", "gopher", "nntp", "imap", "wais", "file", "https", "shttp", "mms", "prospero", "rtsp", "rtsps", "rtspu", "sftp",
+    "svn", "svn+ssh", "ws", "wss",
+];
+const USES_PARAMS: &[&str] =
+    &["", "ftp", "hdl", "prospero", "http", "imap", "https", "shttp", "rtsp", "rtsps", "rtspu", "sip", "sips", "mms", "sftp", "tel"];
+
+/// `_check_bracketed_host`: an IPv6 address (or an IPvFuture "v1.x") inside brackets.
+fn bracketed_host_ok(h: &str) -> bool {
+    if let Some(rest) = h.strip_prefix(['v', 'V']) {
+        let hex = rest.find(|c: char| !c.is_ascii_hexdigit()).unwrap_or(rest.len());
+        return hex > 0 && rest[hex..].starts_with('.') && rest.len() > hex + 1 && !rest[hex + 1..].contains('\n');
+    }
+    addr::parse_v4(h).is_none() && addr::parse_v6(h).is_some()
+}
+
+/// Python's `_urlsplit(url, scheme)` (3.14); None where it raises ValueError.
+pub fn urlsplit(url: &str, scheme: Option<&str>) -> Option<Split> {
+    let clean = |s: &str| -> String { s.chars().filter(|c| !matches!(c, '\t' | '\r' | '\n')).collect() };
+    let mut url = clean(url.trim_start_matches(|c: char| c <= ' '));
+    let mut sp = Split { scheme: scheme.map(|s| clean(s.trim_matches(|c: char| c <= ' '))), ..Split::default() };
     if let Some(i) = url.find(':') {
         let first = url.chars().next().unwrap();
-        let ok =
-            i > 0 && first.is_ascii_alphabetic() && url[..i].chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'));
-        if ok {
-            scheme = url[..i].to_ascii_lowercase();
+        if i > 0 && first.is_ascii_alphabetic() && url[..i].chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.')) {
+            sp.scheme = Some(url[..i].to_ascii_lowercase());
             url = url[i + 1..].to_string();
         }
     }
-    let mut netloc = String::new();
     if url.starts_with("//") {
         let rest = &url[2..];
         let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
-        netloc = rest[..end].to_string();
+        let netloc = rest[..end].to_string();
         url = rest[end..].to_string();
         if netloc.contains('[') != netloc.contains(']') {
-            return None; // "Invalid IPv6 URL"
+            return None;
         }
+        if netloc.contains('[') {
+            let hp = netloc.rsplit_once('@').map_or(netloc.as_str(), |(_, b)| b);
+            let host = match hp.split_once('[') {
+                Some((before, bracketed)) => {
+                    if !before.is_empty() {
+                        return None;
+                    }
+                    let (h, port) = bracketed.split_once(']').unwrap_or((bracketed, ""));
+                    if !port.is_empty() && !port.starts_with(':') {
+                        return None;
+                    }
+                    h
+                }
+                None => hp.split_once(':').map_or(hp, |(h, _)| h),
+            };
+            if !bracketed_host_ok(host) {
+                return None;
+            }
+        }
+        sp.netloc = Some(netloc);
     }
-    let mut fragment = String::new();
     if let Some((a, b)) = url.split_once('#') {
-        fragment = b.to_string();
+        sp.fragment = Some(b.to_string());
         url = a.to_string();
     }
-    let mut query = String::new();
     if let Some((a, b)) = url.split_once('?') {
-        query = b.to_string();
+        sp.query = Some(b.to_string());
         url = a.to_string();
     }
-    Some([scheme, netloc, url, query, fragment])
+    sp.path = url;
+    Some(sp)
 }
 
-/// `urllib.parse.urlunsplit`.
-pub fn urlunsplit(p: &[String; 5]) -> String {
-    let [scheme, netloc, path, query, fragment] = p;
-    let mut url = path.clone();
-    let uses_netloc = matches!(scheme.as_str(), "http" | "https" | "ftp" | "");
-    if !netloc.is_empty() {
+/// Python's `_urlunsplit`.
+pub fn urlunsplit(s: &Split) -> String {
+    let mut url = s.path.clone();
+    if let Some(n) = &s.netloc {
         if !url.is_empty() && !url.starts_with('/') {
             url = format!("/{url}");
         }
-        url = format!("//{netloc}{url}");
-    } else if url.starts_with("//") || (!scheme.is_empty() && uses_netloc && (url.is_empty() || url.starts_with('/'))) {
+        url = format!("//{n}{url}");
+    } else if url.starts_with("//") {
         url = format!("//{url}");
     }
-    if !scheme.is_empty() {
-        url = format!("{scheme}:{url}");
+    if let Some(sc) = s.scheme.as_ref().filter(|x| !x.is_empty()) {
+        url = format!("{sc}:{url}");
     }
-    if !query.is_empty() {
-        url = format!("{url}?{query}");
+    if let Some(q) = &s.query {
+        url = format!("{url}?{q}");
     }
-    if !fragment.is_empty() {
-        url = format!("{url}#{fragment}");
+    if let Some(f) = &s.fragment {
+        url = format!("{url}#{f}");
     }
     url
 }
 
-/// `urllib.parse.urljoin(base, url)` for http and https.
+/// `urlunparse(urlparse(url))` with urllib's redirect fix in between (an empty path after a host becomes "/"): the scheme
+/// and the text, None where urlparse raises.
+fn reparse(url: &str) -> Option<(String, String)> {
+    let sp = urlsplit(url, Some(""))?;
+    let scheme = sp.scheme.clone().unwrap_or_default();
+    let (mut path, params) = if USES_PARAMS.contains(&scheme.as_str()) && sp.path.contains(';') {
+        let p = &sp.path;
+        let i = match p.rfind('/') {
+            Some(slash) => p[slash..].find(';').map(|j| slash + j),
+            None => p.find(';'),
+        };
+        match i {
+            Some(i) => (p[..i].to_string(), p[i + 1..].to_string()),
+            None => (p.clone(), String::new()),
+        }
+    } else {
+        (sp.path.clone(), String::new())
+    };
+    let netloc = sp.netloc.clone().unwrap_or_default();
+    let query = sp.query.clone().unwrap_or_default();
+    let fragment = sp.fragment.clone().unwrap_or_default();
+    if path.is_empty() && !netloc.is_empty() {
+        path = "/".into();
+    }
+    // urlunparse
+    let netloc = if !netloc.is_empty() {
+        Some(netloc)
+    } else if !scheme.is_empty() && USES_NETLOC.contains(&scheme.as_str()) && (path.is_empty() || path.starts_with('/')) {
+        Some(String::new())
+    } else {
+        None
+    };
+    if !params.is_empty() {
+        path = format!("{path};{params}");
+    }
+    let s = Split {
+        scheme: Some(scheme.clone()).filter(|x| !x.is_empty()),
+        netloc,
+        path,
+        query: Some(query).filter(|x| !x.is_empty()),
+        fragment: Some(fragment).filter(|x| !x.is_empty()),
+    };
+    Some((scheme, urlunsplit(&s)))
+}
+
+/// `urllib.parse.urljoin(base, url)` (3.14).
 pub fn urljoin(base: &str, url: &str) -> Option<String> {
     if base.is_empty() {
         return Some(url.to_string());
@@ -318,33 +433,43 @@ pub fn urljoin(base: &str, url: &str) -> Option<String> {
     if url.is_empty() {
         return Some(base.to_string());
     }
-    let b = urlsplit(base, "")?;
-    let [scheme, netloc, path, query, fragment] = urlsplit(url, &b[0])?;
-    if scheme != b[0] || !matches!(scheme.as_str(), "http" | "https" | "ftp" | "") {
+    let b = urlsplit(base, None)?;
+    let u = urlsplit(url, None)?;
+    let scheme = u.scheme.clone().or(b.scheme.clone());
+    let sc = scheme.clone().unwrap_or_default();
+    if scheme != b.scheme || (!sc.is_empty() && !USES_RELATIVE.contains(&sc.as_str())) {
         return Some(url.to_string());
     }
-    if !netloc.is_empty() {
-        return Some(urlunsplit(&[scheme, netloc, path, query, fragment]));
+    let mut netloc = u.netloc.clone();
+    if sc.is_empty() || USES_NETLOC.contains(&sc.as_str()) {
+        if netloc.as_ref().is_some_and(|n| !n.is_empty()) {
+            return Some(urlunsplit(&Split { scheme, netloc, path: u.path, query: u.query, fragment: u.fragment }));
+        }
+        netloc = b.netloc.clone();
     }
-    let netloc = b[1].clone();
-    if path.is_empty() {
-        let q = if query.is_empty() { b[3].clone() } else { query };
-        return Some(urlunsplit(&[scheme, netloc, b[2].clone(), q, fragment]));
+    if u.path.is_empty() {
+        let (mut query, mut fragment) = (u.query.clone(), u.fragment.clone());
+        if query.is_none() {
+            query = b.query.clone();
+            if fragment.is_none() {
+                fragment = b.fragment.clone();
+            }
+        }
+        return Some(urlunsplit(&Split { scheme, netloc, path: b.path.clone(), query, fragment }));
     }
-    let mut base_parts: Vec<&str> = b[2].split('/').collect();
+    let mut base_parts: Vec<&str> = b.path.split('/').collect();
     if base_parts.last() != Some(&"") {
         base_parts.pop();
     }
-    let segments: Vec<&str> = if path.starts_with('/') {
-        path.split('/').collect()
+    let segments: Vec<&str> = if u.path.starts_with('/') {
+        u.path.split('/').collect()
     } else {
         let mut s: Vec<&str> = base_parts;
-        s.extend(path.split('/'));
+        s.extend(u.path.split('/'));
         if s.len() > 2 {
             let last = s.len() - 1;
-            let mid: Vec<&str> = s[1..last].iter().copied().filter(|x| !x.is_empty()).collect();
             let mut t = vec![s[0]];
-            t.extend(mid);
+            t.extend(s[1..last].iter().copied().filter(|x| !x.is_empty()));
             t.push(s[last]);
             s = t;
         }
@@ -364,8 +489,8 @@ pub fn urljoin(base: &str, url: &str) -> Option<String> {
         resolved.push("");
     }
     let joined = resolved.join("/");
-    let p = if joined.is_empty() { "/".to_string() } else { joined };
-    Some(urlunsplit(&[scheme, netloc, p, query, fragment]))
+    let path = if joined.is_empty() { "/".to_string() } else { joined };
+    Some(urlunsplit(&Split { scheme, netloc, path, query: u.query, fragment: u.fragment }))
 }
 
 /// `quote(url, encoding="iso-8859-1", safe=string.punctuation)` of a header's text (each character one byte).
@@ -402,6 +527,102 @@ fn unquote(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
+/// email's feedparser over a header block (compat32): lines split at \r\n, \r or \n; the block ends at the first line that
+/// is not a header line (headerRE); a line starting with a space or tab continues the header before it, or
+/// is dropped when there is none; "From " lines and lines starting with ':' are dropped. (lower-case name, value).
+fn email_headers(raw: &str) -> Vec<(String, String)> {
+    let mut lines: Vec<&str> = Vec::new();
+    let mut start = 0;
+    let b = raw.as_bytes();
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'\n' || b[i] == b'\r' {
+            let end = if b[i] == b'\r' && b.get(i + 1) == Some(&b'\n') { i + 2 } else { i + 1 };
+            lines.push(&raw[start..end]);
+            start = end;
+            i = end;
+        } else {
+            i += 1;
+        }
+    }
+    if start < raw.len() {
+        lines.push(&raw[start..]);
+    }
+    let header_re = |l: &str| {
+        l.starts_with("From ")
+            || l.starts_with([' ', '\t'])
+            || l.find(':').is_some_and(|i| l[..i].bytes().all(|c| (0x21..=0x7e).contains(&c) && c != b':'))
+    };
+    let mut out: Vec<(String, String)> = Vec::new();
+    let mut cur: Option<(String, String)> = None;
+    for l in lines {
+        if !header_re(l) {
+            break;
+        }
+        if l.starts_with([' ', '\t']) {
+            if let Some(c) = cur.as_mut() {
+                c.1.push_str(l);
+            }
+            continue;
+        }
+        if let Some(c) = cur.take() {
+            out.push(c);
+        }
+        if l.starts_with("From ") {
+            continue;
+        }
+        let i = l.find(':').unwrap_or(0);
+        if i == 0 {
+            continue;
+        }
+        cur = Some((l[..i].to_ascii_lowercase(), l[i + 1..].to_string()));
+    }
+    if let Some(c) = cur.take() {
+        out.push(c);
+    }
+    // compat32's header_source_parse (3.14): the lines joined, then spaces and line ends off the front, line ends off the end
+    for h in out.iter_mut() {
+        let v = h.1.trim_start_matches([' ', '\t', '\r', '\n']).trim_end_matches(['\r', '\n']).to_string();
+        h.1 = v;
+    }
+    out
+}
+
+/// `int(line, 16)` of a chunk-size line's bytes (after `;` is cut): ASCII spaces around, a sign, an optional 0x, hex
+/// digits with single underscores between them.
+fn chunk_size(text: &str) -> Option<i128> {
+    let t = text.trim_matches([' ', '\t', '\n', '\r', '\x0b', '\x0c']);
+    let (neg, t) = match t.as_bytes().first() {
+        Some(b'-') => (true, &t[1..]),
+        Some(b'+') => (false, &t[1..]),
+        _ => (false, t),
+    };
+    let (t, prefixed) = match t.get(..2) {
+        Some("0x" | "0X") => (&t[2..], true),
+        _ => (t, false),
+    };
+    let mut digits = String::new();
+    let mut prev_ok = prefixed; // after 0x an underscore may come first
+    let mut last_us = false;
+    for c in t.chars() {
+        if c.is_ascii_hexdigit() {
+            digits.push(c);
+            prev_ok = true;
+            last_us = false;
+        } else if c == '_' && prev_ok {
+            prev_ok = false;
+            last_us = true;
+        } else {
+            return None;
+        }
+    }
+    if digits.is_empty() || last_us || digits.len() > 30 {
+        return None;
+    }
+    let v = i128::from_str_radix(&digits, 16).ok()?;
+    Some(if neg { -v } else { v })
+}
+
 /// A connection for one request.
 enum Conn {
     Plain(TcpStream),
@@ -432,12 +653,14 @@ impl Write for Conn {
     }
 }
 
+type Source = BufReader<Box<dyn Read + Send>>;
+
 /// A response read as http.client reads it.
 struct Resp {
     status: u32,
     /// (lower-case name, value as ISO-8859-1 text), in order
     headers: Vec<(String, String)>,
-    r: BufReader<Conn>,
+    r: Source,
     chunked: bool,
     length: Option<u64>,
     chunk_left: Option<u64>,
@@ -450,7 +673,7 @@ fn latin1(b: &[u8]) -> String {
     b.iter().map(|&c| c as char).collect()
 }
 
-fn read_line(r: &mut BufReader<Conn>) -> Option<Vec<u8>> {
+fn read_line(r: &mut Source) -> Option<Vec<u8>> {
     let mut line = Vec::new();
     r.by_ref().take(MAXLINE as u64 + 1).read_until(b'\n', &mut line).ok()?;
     (line.len() <= MAXLINE).then_some(line)
@@ -461,7 +684,7 @@ impl Resp {
         self.headers.iter().find(|(k, _)| k == name).map(|(_, v)| v.as_str())
     }
 
-    fn begin(mut r: BufReader<Conn>) -> Option<Resp> {
+    fn begin(mut r: Source) -> Option<Resp> {
         let status = loop {
             let line = read_line(&mut r)?;
             if line.is_empty() {
@@ -491,40 +714,21 @@ impl Resp {
                 }
             }
         };
-        // the header lines (at most 100), then email's parser over them: the block ends at the first line that is not a
-        // header (headerRE), a line starting with a space or tab continues the one before (kept as it is)
-        let mut lines = Vec::new();
+        // the header lines (at most 100), then email's parser over their text, as http.client hands it over
+        let mut raw = String::new();
+        let mut n = 0;
         loop {
             let l = read_line(&mut r)?;
             if matches!(l.as_slice(), b"\r\n" | b"\n" | b"") {
                 break;
             }
-            lines.push(latin1(&l));
-            if lines.len() > 100 {
+            raw.push_str(&latin1(&l));
+            n += 1;
+            if n > 100 {
                 return None; // "got more than 100 headers"
             }
         }
-        let mut headers: Vec<(String, String)> = Vec::new();
-        for l in &lines {
-            if l.starts_with([' ', '\t']) {
-                if let Some(h) = headers.last_mut() {
-                    h.1.push_str(l);
-                    continue;
-                }
-            }
-            let name_end = l.find(':');
-            let is_header =
-                l.starts_with("From ") || name_end.is_some_and(|i| l[..i].bytes().all(|c| (0x21..=0x7e).contains(&c) && c != b':'));
-            if !is_header {
-                break;
-            }
-            let Some(i) = name_end else { continue };
-            headers.push((l[..i].to_ascii_lowercase(), l[i + 1..].trim_start_matches([' ', '\t']).to_string()));
-        }
-        for h in headers.iter_mut() {
-            let v = h.1.trim_end_matches(['\r', '\n']).to_string();
-            h.1 = v;
-        }
+        let headers = email_headers(&raw);
         let mut resp = Resp { status, headers, r, chunked: false, length: None, chunk_left: None, done: false };
         resp.chunked = resp.header("transfer-encoding").is_some_and(|t| t.eq_ignore_ascii_case("chunked"));
         if !resp.chunked {
@@ -560,8 +764,9 @@ impl Resp {
                         }
                         let line = read_line(&mut self.r)?;
                         let line = latin1(&line);
-                        let size = line.split(';').next().unwrap_or_default();
-                        let n = u64::from_str_radix(py::strip(size), 16).ok()?;
+                        let size = chunk_size(line.split(';').next().unwrap_or_default())?;
+                        // a negative size reads the rest and then fails on the missing chunk end: IncompleteRead
+                        let n = u64::try_from(size).ok()?;
                         if n == 0 {
                             loop {
                                 let l = read_line(&mut self.r)?;
@@ -664,7 +869,34 @@ fn request(scheme: &str, host: &str, selector: &str) -> Option<Resp> {
     req.extend_from_slice(b"\r\nUser-Agent: Mozilla/5.0\r\nConnection: close\r\n\r\n");
     conn.write_all(&req).ok()?;
     conn.flush().ok()?;
-    Resp::begin(BufReader::new(conn))
+    Resp::begin(BufReader::new(Box::new(conn)))
+}
+
+/// What urllib makes of a response: (the status, the Location or URI header, for a 2xx the body read(4096) gives, whether
+/// reading the whole body works as a redirect does).
+pub type View = (u32, Option<String>, Option<Vec<u8>>, bool);
+
+/// The [`View`] of a response's bytes; None where http.client raises.
+pub fn response_view(data: &[u8]) -> Option<View> {
+    let src: Box<dyn Read + Send> = Box::new(std::io::Cursor::new(data.to_vec()));
+    let mut r = Resp::begin(BufReader::new(src))?;
+    let loc = r.header("location").or_else(|| r.header("uri")).map(str::to_string);
+    if (200..300).contains(&r.status) {
+        let body = r.read(4096)?;
+        return Some((r.status, loc, Some(body), true));
+    }
+    let ok = r.read_all().is_some();
+    Some((r.status, loc, None, ok))
+}
+
+/// The next URL of a redirect from `base` to `location` (urllib's `http_error_302`), None where urllib refuses it.
+pub fn redirect_target(base: &str, location: &str) -> Option<String> {
+    let (scheme, url) = reparse(location)?;
+    if !matches!(scheme.as_str(), "http" | "https" | "ftp" | "") {
+        return None;
+    }
+    let newurl = quote(&url)?;
+    Some(urljoin(base, &newurl)?.replace(' ', "%20"))
 }
 
 /// `urllib.request.urlopen(Request(url, headers={"User-Agent": "Mozilla/5.0"}), timeout=8)` and `resp.read(4096)`: the
@@ -694,15 +926,7 @@ pub fn urlopen(url: &str) -> Option<(u32, Vec<u8>)> {
             return None; // HTTPError
         }
         let loc = resp.header("location").or_else(|| resp.header("uri"))?.to_string();
-        let mut parts = urlsplit(&loc, "")?;
-        if !matches!(parts[0].as_str(), "http" | "https" | "ftp" | "") {
-            return None;
-        }
-        if parts[2].is_empty() && !parts[1].is_empty() {
-            parts[2] = "/".into();
-        }
-        let newurl = quote(&urlunsplit(&parts))?;
-        let newurl = urljoin(&full, &newurl)?.replace(' ', "%20");
+        let newurl = redirect_target(&full, &loc)?;
         if !visited.is_empty() {
             let seen = visited.iter().find(|(u, _)| *u == newurl).map_or(0, |(_, n)| *n);
             if seen >= 4 || visited.len() >= 10 {

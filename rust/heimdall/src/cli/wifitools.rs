@@ -10,6 +10,7 @@
 pub mod addr;
 pub mod check;
 pub mod der;
+pub mod fuzzing;
 pub mod guard;
 pub mod net;
 pub mod notify;
@@ -38,5 +39,12 @@ pub type FuzzTarget = (&'static str, fn(&[u8]));
 
 /// The helpers' fuzz targets, for tests/cli_wifi_fuzz.rs.
 pub fn fuzz_targets() -> Vec<FuzzTarget> {
-    Vec::new()
+    vec![
+        ("wifi_nmcli", fuzzing::nmcli),
+        ("wifi_json", fuzzing::json),
+        ("wifi_wireguard", fuzzing::wireguard),
+        ("wifi_cert", fuzzing::cert),
+        ("wifi_http", fuzzing::http),
+        ("wifi_tools", fuzzing::tools),
+    ]
 }

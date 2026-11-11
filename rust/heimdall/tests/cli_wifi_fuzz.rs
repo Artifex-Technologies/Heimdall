@@ -25,6 +25,32 @@ fn every_wifi_target_survives_its_seeds() {
     }
 }
 
+/// The Wi-Fi helpers' targets on every cut and every one-byte change of their seeds (a certificate cut short or with one
+/// byte changed is what a broken or hostile network sends).
+#[test]
+fn wifi_helper_targets_survive_cuts_and_changed_bytes() {
+    let dir = concat!(env!("CARGO_MANIFEST_DIR"), "/../fuzz/seeds");
+    let mut runs = 0;
+    for (name, f) in heimdall::cli::wifitools::fuzz_targets() {
+        for s in std::fs::read_dir(format!("{dir}/{name}")).unwrap().flatten() {
+            let b = std::fs::read(s.path()).unwrap();
+            for cut in 0..=b.len() {
+                f(&b[..cut]);
+                runs += 1;
+            }
+            for i in 0..b.len() {
+                for x in [0u8, 0xff, b':', b'\\', b'\n', b[i] ^ 0x80] {
+                    let mut c = b.clone();
+                    c[i] = x;
+                    f(&c);
+                    runs += 1;
+                }
+            }
+        }
+    }
+    assert!(runs > 10_000, "{runs}");
+}
+
 fn texty() -> impl Strategy<Value = Vec<u8>> {
     let words = prop::sample::select(vec![
         &b"Connected to x\n"[..],

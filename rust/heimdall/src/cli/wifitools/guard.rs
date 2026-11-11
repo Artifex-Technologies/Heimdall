@@ -80,8 +80,16 @@ pub fn endpoint_value(line: &str) -> Option<&str> {
     (end > 0).then(|| &rest[..end])
 }
 
+/// A name lookup: (host, port) to addresses, Python's `socket.getaddrinfo(host, port, proto=IPPROTO_UDP)`.
+pub type Resolve<'a> = &'a dyn Fn(&str, &str) -> PyResult<Vec<String>>;
+
 /// `parse_wg(text)`: the endpoints of a WireGuard file, an address of a name looked up as Python looks it up.
 pub fn parse_wg(text: &str) -> PyResult<Vec<Val>> {
+    parse_wg_with(text, &|h, p| addr::getaddrinfo(h, p, 0, libc::IPPROTO_UDP))
+}
+
+/// `parse_wg` with the lookup given (the tests and fuzz targets look nothing up).
+pub fn parse_wg_with(text: &str, resolve: Resolve) -> PyResult<Vec<Val>> {
     let mut eps = Vec::new();
     for line in py::splitlines(text) {
         let Some(m) = endpoint_value(line) else { continue };
@@ -94,7 +102,7 @@ pub fn parse_wg(text: &str) -> PyResult<Vec<Val>> {
             Ok(ip) => vec![ip.to_string()],
             Err(_) => {
                 let p = py::int_str(port)?;
-                let mut v = addr::getaddrinfo(host, &p, 0, libc::IPPROTO_UDP)?;
+                let mut v = resolve(host, &p)?;
                 v.sort();
                 v.dedup();
                 v

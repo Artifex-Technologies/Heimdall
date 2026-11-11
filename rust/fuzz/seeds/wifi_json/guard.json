@@ -1,0 +1,1 @@
+{"vpn": {"uuid": "vpn-uuid", "iface": "wg-heimdall", "endpoints": [{"ip": "203.0.113.5", "port": 51820}, {"ip": "2001:db8::5", "port": "51820"}]}}

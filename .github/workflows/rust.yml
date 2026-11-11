@@ -2,9 +2,10 @@
 name: rust
 on:
   push:
-    paths: ["rust/**", "internal/**", "testdata/**", "cmd/**", ".github/workflows/rust.yml"]
+    # packaging/: the Wi-Fi helpers' Python programs, which tests/cli_wifitools.rs runs beside their Rust ports
+    paths: ["rust/**", "internal/**", "testdata/**", "cmd/**", "packaging/**", ".github/workflows/rust.yml"]
   pull_request:
-    paths: ["rust/**", "internal/**", "testdata/**", "cmd/**", ".github/workflows/rust.yml"]
+    paths: ["rust/**", "internal/**", "testdata/**", "cmd/**", "packaging/**", ".github/workflows/rust.yml"]
   schedule:
     - cron: "17 5 * * 1" # the audit weekly, for advisories published after the last change
 permissions:
@@ -30,6 +31,9 @@ jobs:
       # normal users by default, which made every fake-root test fail here since 6b1c858
       - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: cargo test --locked
+      - name: the Python programs' own tests (packaging/tests)
+        working-directory: .
+        run: python3 -m unittest discover -s packaging/tests -p 'test_*.py'
       - name: the engine differential (Go and Rust on the same synthetic events)
         working-directory: .
         run: rust/parity/engine-differential.sh 50000

@@ -1,0 +1,7 @@
+HTTP/1.1 301 Moved
+	folded first
+Location:
+ /a/../b/./c
+Bad Header: x
+Location: /lost
+

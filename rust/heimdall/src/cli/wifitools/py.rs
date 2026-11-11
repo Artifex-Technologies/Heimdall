@@ -304,10 +304,24 @@ pub fn int(v: &Val) -> PyResult<String> {
 /// Python's limit on the digits of an integer read from text.
 pub const MAX_STR_DIGITS: usize = 4300;
 
-/// `int(s)` of a string: spaces around, a sign, decimal digits of any script with single underscores between them.
+/// `int(s)` of a string, as CPython reads it: other scripts' digits and whitespace mapped to ASCII first (a character that
+/// is neither ends the text), then ASCII spaces around, a sign, digits with single underscores between them.
 pub fn int_str(text: &str) -> PyResult<String> {
     let bad = || PyErr::value(format!("invalid literal for int() with base 10: {}", repr_str(text)));
-    let t = strip(text);
+    let mut t = String::new();
+    for c in text.chars() {
+        if (c as u32) < 127 {
+            t.push(c);
+        } else if is_space(c) {
+            t.push(' ');
+        } else if let Some(d) = decimal_value(c) {
+            t.push(char::from(b'0' + d as u8));
+        } else {
+            t.push('?');
+            break;
+        }
+    }
+    let t = t.trim_matches([' ', '\t', '\n', '\x0b', '\x0c', '\r']);
     let (neg, body) = match t.chars().next() {
         Some('-') => (true, &t[1..]),
         Some('+') => (false, &t[1..]),
@@ -317,8 +331,8 @@ pub fn int_str(text: &str) -> PyResult<String> {
     let mut prev_digit = false;
     let mut last_underscore = false;
     for c in body.chars() {
-        if let Some(d) = decimal_value(c) {
-            digits.push(char::from(b'0' + d as u8));
+        if c.is_ascii_digit() {
+            digits.push(c);
             prev_digit = true;
             last_underscore = false;
         } else if c == '_' && prev_digit {
@@ -724,10 +738,19 @@ pub fn float_repr(f: f64) -> String {
     if f.is_infinite() {
         return if f > 0.0 { "inf".into() } else { "-inf".into() };
     }
-    let e = format!("{:e}", f.abs());
-    let (mant, exp) = e.split_once('e').unwrap();
-    let digits: String = mant.chars().filter(|c| *c != '.').collect();
-    let exp: i32 = exp.parse().unwrap();
+    let split = |e: &str| -> (String, i32) {
+        let (mant, exp) = e.split_once('e').unwrap();
+        (mant.chars().filter(|c| *c != '.').collect(), exp.parse().unwrap())
+    };
+    let (mut digits, mut exp) = split(&format!("{:e}", f.abs()));
+    // of two shortest forms equally near, Python's dtoa takes the even one: the value rounded to as many digits (ties to
+    // even) wins whenever it reads back
+    if digits.len() > 1 {
+        let alt = format!("{:.*e}", digits.len() - 1, f.abs());
+        if alt.parse::<f64>() == Ok(f.abs()) {
+            (digits, exp) = split(&alt);
+        }
+    }
     let sign = if f.is_sign_negative() { "-" } else { "" };
     if f == 0.0 {
         return format!("{sign}0.0");
