@@ -52,7 +52,7 @@ The same as the daemon's port:
 | lan | `lan scan`, `lan list` | not ported | |
 | intel | `ipdb-check`, `intel-check`, `origin`, `kernel-check`, `heimdall-intel-update` | not ported | |
 | immunity | `immunity ...`, `scan-files` | not ported | |
-| contain and admin | `contain ...`, `maintenance`, `grant`, `remote` | not ported | |
+| contain and admin | `contain ...`, `maintenance`, `grant`, `remote` | `maintenance` **done**; the rest not ported | `tests/cli_admin.rs`: 47 differential runs, 199 fixture cases |
 | Wi-Fi | `wifi-health`, `heimdall-wifi-check`, `heimdall-wifi-guard`, `heimdall-wifi-notify`, packaging/tests | not ported | |
 | trust, mesh, scan | `trust ...`, `mesh ...`, `scan` | not ported | |
 | basics | `version`, `help`, unknown commands, `__write-as-owner` | **done** | `tests/cli.rs` against Go |
@@ -71,7 +71,18 @@ The same as the daemon's port:
 
 ## contain and admin
 
-(not ported yet)
+`src/cli/maintenance.rs` on `src/maintenance.rs` (now with Go's `Open`, `Write`, `Clear`, `Describe` and `Duration.Round`).
+
+- **maintenance** (`on --for D --reason R`, `off`, `status`, `--config`): proved in fake roots against the Go binary (47 runs:
+  every action as root, as a user and through sudo, `maintenance_actors`, the window capped at four hours, a missing
+  `/etc/heimdall`, damaged and unreadable configs with Go's sixteen kinds of JSON error, flag errors, `-h`), the window file
+  byte for byte, and the Go fixture `testdata/parity/cli-admin.json` (199 cases: `Describe` over five zones and eleven
+  remaining times, `Open` + `Write`, `Read` of odd files, `Round` at the ends of the range). Properties: a window never
+  lasts more than four hours (also a Kani harness, `src/maintenance.rs`), `Round` against exact arithmetic, a window read
+  back is capped.
+- Not 1:1 inside, the same outside: the daemon's JSON reader names a config's wrong type differently from Go
+  ("number 5 into Go struct field net_ports"); the commands print Go's text (`cli::maintenance::go_config_error`). The
+  daemon's own message on a damaged config (`run`) is unchanged.
 
 ## Wi-Fi
 

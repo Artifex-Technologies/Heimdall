@@ -1,0 +1,1141 @@
+{
+ "format": "heimdall-cli-admin/1",
+ "maintenance_describe": [
+  {
+   "window": "{\"reason\":\"kernel update\",\"actor\":\"owner\",\"opened\":\"2026-11-10T19:23:00.123456789Z\",\"until\":\"2026-11-10T14:59:59.123456789-05:00\"}",
+   "now": "2026-11-10T20:00:00.123456789Z",
+   "text": "no maintenance window is open"
+  },
+  {
+   "window": "{\"reason\":\"agent installs \\\"vim\\\", \\u003cgit\\u003e \\u0026 ü\",\"actor\":\"owner\",\"opened\":\"2026-11-10T19:24:00.123456789Z\",\"until\":\"2026-11-10T15:01:00.123456789-05:00\"}",
+   "now": "2026-11-10T20:01:00.123456789Z",
+   "text": "no maintenance window is open"
+  },
+  {
+   "window": "{\"reason\":\"tab\\there\\nnew line \\u0001 ​ \\u2028\",\"actor\":\"owner\",\"opened\":\"2026-11-10T19:25:00.123456789Z\",\"until\":\"2026-11-10T15:02:00.12345679-05:00\"}",
+   "now": "2026-11-10T20:02:00.123456789Z",
+   "text": "maintenance window open: \"tab\\there\\nnew line \\x01 \\u200b \\u2028\", opened by owner, 0s left (ends 15:02)"
+  },
+  {
+   "window": "{\"reason\":\"\",\"actor\":\"owner\",\"opened\":\"2026-11-10T19:26:00.123456789Z\",\"until\":\"2026-11-10T15:03:30.122456789-05:00\"}",
+   "now": "2026-11-10T20:03:00.123456789Z",
+   "text": "maintenance window open: \"\", opened by owner, 0s left (ends 15:03)"
+  },
+  {
+   "window": "{\"reason\":\"kernel update\",\"actor\":\"owner\",\"opened\":\"2026-11-10T19:27:00.123456789Z\",\"until\":\"2026-11-10T15:04:30.123456789-05:00\"}",
+   "now": "2026-11-10T20:04:00.123456789Z",
+   "text": "maintenance window open: \"kernel update\", opened by owner, 1m0s left (ends 15:04)"
+  },
+  {
+   "window": "{\"reason\":\"agent installs \\\"vim\\\", \\u003cgit\\u003e \\u0026 ü\",\"actor\":\"owner\",\"opened\":\"2026-11-10T19:28:00.123456789Z\",\"until\":\"2026-11-10T15:06:29.623456789-05:00\"}",
+   "now": "2026-11-10T20:05:00.123456789Z",
+   "text": "maintenance window open: \"agent installs \\\"vim\\\", \u003cgit\u003e \u0026 ü\", opened by owner, 1m0s left (ends 15:06)"
+  },
+  {
+   "window": "{\"reason\":\"tab\\there\\nnew line \\u0001 ​ \\u2028\",\"actor\":\"owner\",\"opened\":\"2026-11-10T19:29:00.123456789Z\",\"until\":\"2026-11-10T15:07:30.123456789-05:00\"}",
+   "now": "2026-11-10T20:06:00.123456789Z",
+   "text": "maintenance window open: \"tab\\there\\nnew line \\x01 \\u200b \\u2028\", opened by owner, 2m0s left (ends 15:07)"
+  },
+  {
+   "window": "{\"reason\":\"\",\"actor\":\"owner\",\"opened\":\"2026-11-10T19:30:00.123456789Z\",\"until\":\"2026-11-10T15:22:00.123456789-05:00\"}",
+   "now": "2026-11-10T20:07:00.123456789Z",
+   "text": "maintenance window open: \"\", opened by owner, 15m0s left (ends 15:22)"
+  },
+  {
+   "window": "{\"reason\":\"kernel update\",\"actor\":\"owner\",\"opened\":\"2026-11-10T19:31:00.123456789Z\",\"until\":\"2026-11-10T19:07:30.123456789-05:00\"}",
+   "now": "2026-11-10T20:08:00.123456789Z",
+   "text": "maintenance window open: \"kernel update\", opened by owner, 3h23m0s left (ends 23:31)"
+  },
+  {
+   "window": "{\"reason\":\"agent installs \\\"vim\\\", \\u003cgit\\u003e \\u0026 ü\",\"actor\":\"owner\",\"opened\":\"2026-11-10T19:32:00.123456789Z\",\"until\":\"2026-11-10T19:09:00.123456789-05:00\"}",
+   "now": "2026-11-10T20:09:00.123456789Z",
+   "text": "maintenance window open: \"agent installs \\\"vim\\\", \u003cgit\u003e \u0026 ü\", opened by owner, 3h23m0s left (ends 23:32)"
+  },
+  {
+   "window": "{\"reason\":\"tab\\there\\nnew line \\u0001 ​ \\u2028\",\"actor\":\"owner\",\"opened\":\"2026-11-10T19:33:00.123456789Z\",\"until\":\"2026-11-10T21:10:00.123456789-05:00\"}",
+   "now": "2026-11-10T20:10:00.123456789Z",
+   "text": "maintenance window open: \"tab\\there\\nnew line \\x01 \\u200b \\u2028\", opened by owner, 3h23m0s left (ends 23:33)"
+  },
+  {
+   "window": "{\"reason\":\"agent installs \\\"vim\\\", \\u003cgit\\u003e \\u0026 ü\",\"actor\":\"owner\",\"opened\":\"2026-11-10T14:30:00.123456789-05:00\",\"until\":\"2026-11-11T01:36:59.123456789+05:30\"}",
+   "now": "2026-11-10T15:07:00.123456789-05:00",
+   "text": "no maintenance window is open"
+  },
+  {
+   "window": "{\"reason\":\"tab\\there\\nnew line \\u0001 ​ \\u2028\",\"actor\":\"owner\",\"opened\":\"2026-11-10T14:31:00.123456789-05:00\",\"until\":\"2026-11-11T01:38:00.123456789+05:30\"}",
+   "now": "2026-11-10T15:08:00.123456789-05:00",
+   "text": "no maintenance window is open"
+  },
+  {
+   "window": "{\"reason\":\"\",\"actor\":\"owner\",\"opened\":\"2026-11-10T14:32:00.123456789-05:00\",\"until\":\"2026-11-11T01:39:00.12345679+05:30\"}",
+   "now": "2026-11-10T15:09:00.123456789-05:00",
+   "text": "maintenance window open: \"\", opened by owner, 0s left (ends 01:39)"
+  },
+  {
+   "window": "{\"reason\":\"kernel update\",\"actor\":\"owner\",\"opened\":\"2026-11-10T14:33:00.123456789-05:00\",\"until\":\"2026-11-11T01:40:30.122456789+05:30\"}",
+   "now": "2026-11-10T15:10:00.123456789-05:00",
+   "text": "maintenance window open: \"kernel update\", opened by owner, 0s left (ends 01:40)"
+  },
+  {
+   "window": "{\"reason\":\"agent installs \\\"vim\\\", \\u003cgit\\u003e \\u0026 ü\",\"actor\":\"owner\",\"opened\":\"2026-11-10T14:34:00.123456789-05:00\",\"until\":\"2026-11-11T01:41:30.123456789+05:30\"}",
+   "now": "2026-11-10T15:11:00.123456789-05:00",
+   "text": "maintenance window open: \"agent installs \\\"vim\\\", \u003cgit\u003e \u0026 ü\", opened by owner, 1m0s left (ends 01:41)"
+  },
+  {
+   "window": "{\"reason\":\"tab\\there\\nnew line \\u0001 ​ \\u2028\",\"actor\":\"owner\",\"opened\":\"2026-11-10T14:35:00.123456789-05:00\",\"until\":\"2026-11-11T01:43:29.623456789+05:30\"}",
+   "now": "2026-11-10T15:12:00.123456789-05:00",
+   "text": "maintenance window open: \"tab\\there\\nnew line \\x01 \\u200b \\u2028\", opened by owner, 1m0s left (ends 01:43)"
+  },
+  {
+   "window": "{\"reason\":\"\",\"actor\":\"owner\",\"opened\":\"2026-11-10T14:36:00.123456789-05:00\",\"until\":\"2026-11-11T01:44:30.123456789+05:30\"}",
+   "now": "2026-11-10T15:13:00.123456789-05:00",
+   "text": "maintenance window open: \"\", opened by owner, 2m0s left (ends 01:44)"
+  },
+  {
+   "window": "{\"reason\":\"kernel update\",\"actor\":\"owner\",\"opened\":\"2026-11-10T14:37:00.123456789-05:00\",\"until\":\"2026-11-11T01:59:00.123456789+05:30\"}",
+   "now": "2026-11-10T15:14:00.123456789-05:00",
+   "text": "maintenance window open: \"kernel update\", opened by owner, 15m0s left (ends 01:59)"
+  },
+  {
+   "window": "{\"reason\":\"agent installs \\\"vim\\\", \\u003cgit\\u003e \\u0026 ü\",\"actor\":\"owner\",\"opened\":\"2026-11-10T14:38:00.123456789-05:00\",\"until\":\"2026-11-11T05:44:30.123456789+05:30\"}",
+   "now": "2026-11-10T15:15:00.123456789-05:00",
+   "text": "maintenance window open: \"agent installs \\\"vim\\\", \u003cgit\u003e \u0026 ü\", opened by owner, 3h23m0s left (ends 18:38)"
+  },
+  {
+   "window": "{\"reason\":\"tab\\there\\nnew line \\u0001 ​ \\u2028\",\"actor\":\"owner\",\"opened\":\"2026-11-10T14:39:00.123456789-05:00\",\"until\":\"2026-11-11T05:46:00.123456789+05:30\"}",
+   "now": "2026-11-10T15:16:00.123456789-05:00",
+   "text": "maintenance window open: \"tab\\there\\nnew line \\x01 \\u200b \\u2028\", opened by owner, 3h23m0s left (ends 18:39)"
+  },
+  {
+   "window": "{\"reason\":\"\",\"actor\":\"owner\",\"opened\":\"2026-11-10T14:40:00.123456789-05:00\",\"until\":\"2026-11-11T07:47:00.123456789+05:30\"}",
+   "now": "2026-11-10T15:17:00.123456789-05:00",
+   "text": "maintenance window open: \"\", opened by owner, 3h23m0s left (ends 18:40)"
+  },
+  {
+   "window": "{\"reason\":\"tab\\there\\nnew line \\u0001 ​ \\u2028\",\"actor\":\"owner\",\"opened\":\"2026-11-11T01:07:00.123456789+05:30\",\"until\":\"2026-11-11T10:13:59.123456789+14:00\"}",
+   "now": "2026-11-11T01:44:00.123456789+05:30",
+   "text": "no maintenance window is open"
+  },
+  {
+   "window": "{\"reason\":\"\",\"actor\":\"owner\",\"opened\":\"2026-11-11T01:08:00.123456789+05:30\",\"until\":\"2026-11-11T10:15:00.123456789+14:00\"}",
+   "now": "2026-11-11T01:45:00.123456789+05:30",
+   "text": "no maintenance window is open"
+  },
+  {
+   "window": "{\"reason\":\"kernel update\",\"actor\":\"owner\",\"opened\":\"2026-11-11T01:09:00.123456789+05:30\",\"until\":\"2026-11-11T10:16:00.12345679+14:00\"}",
+   "now": "2026-11-11T01:46:00.123456789+05:30",
+   "text": "maintenance window open: \"kernel update\", opened by owner, 0s left (ends 10:16)"
+  },
+  {
+   "window": "{\"reason\":\"agent installs \\\"vim\\\", \\u003cgit\\u003e \\u0026 ü\",\"actor\":\"owner\",\"opened\":\"2026-11-11T01:10:00.123456789+05:30\",\"until\":\"2026-11-11T10:17:30.122456789+14:00\"}",
+   "now": "2026-11-11T01:47:00.123456789+05:30",
+   "text": "maintenance window open: \"agent installs \\\"vim\\\", \u003cgit\u003e \u0026 ü\", opened by owner, 0s left (ends 10:17)"
+  },
+  {
+   "window": "{\"reason\":\"tab\\there\\nnew line \\u0001 ​ \\u2028\",\"actor\":\"owner\",\"opened\":\"2026-11-11T01:11:00.123456789+05:30\",\"until\":\"2026-11-11T10:18:30.123456789+14:00\"}",
+   "now": "2026-11-11T01:48:00.123456789+05:30",
+   "text": "maintenance window open: \"tab\\there\\nnew line \\x01 \\u200b \\u2028\", opened by owner, 1m0s left (ends 10:18)"
+  },
+  {
+   "window": "{\"reason\":\"\",\"actor\":\"owner\",\"opened\":\"2026-11-11T01:12:00.123456789+05:30\",\"until\":\"2026-11-11T10:20:29.623456789+14:00\"}",
+   "now": "2026-11-11T01:49:00.123456789+05:30",
+   "text": "maintenance window open: \"\", opened by owner, 1m0s left (ends 10:20)"
+  },
+  {
+   "window": "{\"reason\":\"kernel update\",\"actor\":\"owner\",\"opened\":\"2026-11-11T01:13:00.123456789+05:30\",\"until\":\"2026-11-11T10:21:30.123456789+14:00\"}",
+   "now": "2026-11-11T01:50:00.123456789+05:30",
+   "text": "maintenance window open: \"kernel update\", opened by owner, 2m0s left (ends 10:21)"
+  },
+  {
+   "window": "{\"reason\":\"agent installs \\\"vim\\\", \\u003cgit\\u003e \\u0026 ü\",\"actor\":\"owner\",\"opened\":\"2026-11-11T01:14:00.123456789+05:30\",\"until\":\"2026-11-11T10:36:00.123456789+14:00\"}",
+   "now": "2026-11-11T01:51:00.123456789+05:30",
+   "text": "maintenance window open: \"agent installs \\\"vim\\\", \u003cgit\u003e \u0026 ü\", opened by owner, 15m0s left (ends 10:36)"
+  },
+  {
+   "window": "{\"reason\":\"tab\\there\\nnew line \\u0001 ​ \\u2028\",\"actor\":\"owner\",\"opened\":\"2026-11-11T01:15:00.123456789+05:30\",\"until\":\"2026-11-11T14:21:30.123456789+14:00\"}",
+   "now": "2026-11-11T01:52:00.123456789+05:30",
+   "text": "maintenance window open: \"tab\\there\\nnew line \\x01 \\u200b \\u2028\", opened by owner, 3h23m0s left (ends 05:15)"
+  },
+  {
+   "window": "{\"reason\":\"\",\"actor\":\"owner\",\"opened\":\"2026-11-11T01:16:00.123456789+05:30\",\"until\":\"2026-11-11T14:23:00.123456789+14:00\"}",
+   "now": "2026-11-11T01:53:00.123456789+05:30",
+   "text": "maintenance window open: \"\", opened by owner, 3h23m0s left (ends 05:16)"
+  },
+  {
+   "window": "{\"reason\":\"kernel update\",\"actor\":\"owner\",\"opened\":\"2026-11-11T01:17:00.123456789+05:30\",\"until\":\"2026-11-11T16:24:00.123456789+14:00\"}",
+   "now": "2026-11-11T01:54:00.123456789+05:30",
+   "text": "maintenance window open: \"kernel update\", opened by owner, 3h23m0s left (ends 05:17)"
+  },
+  {
+   "window": "{\"reason\":\"\",\"actor\":\"owner\",\"opened\":\"2026-11-11T09:44:00.123456789+14:00\",\"until\":\"2026-11-10T10:50:59.123456789-09:30\"}",
+   "now": "2026-11-11T10:21:00.123456789+14:00",
+   "text": "no maintenance window is open"
+  },
+  {
+   "window": "{\"reason\":\"kernel update\",\"actor\":\"owner\",\"opened\":\"2026-11-11T09:45:00.123456789+14:00\",\"until\":\"2026-11-10T10:52:00.123456789-09:30\"}",
+   "now": "2026-11-11T10:22:00.123456789+14:00",
+   "text": "no maintenance window is open"
+  },
+  {
+   "window": "{\"reason\":\"agent installs \\\"vim\\\", \\u003cgit\\u003e \\u0026 ü\",\"actor\":\"owner\",\"opened\":\"2026-11-11T09:46:00.123456789+14:00\",\"until\":\"2026-11-10T10:53:00.12345679-09:30\"}",
+   "now": "2026-11-11T10:23:00.123456789+14:00",
+   "text": "maintenance window open: \"agent installs \\\"vim\\\", \u003cgit\u003e \u0026 ü\", opened by owner, 0s left (ends 10:53)"
+  },
+  {
+   "window": "{\"reason\":\"tab\\there\\nnew line \\u0001 ​ \\u2028\",\"actor\":\"owner\",\"opened\":\"2026-11-11T09:47:00.123456789+14:00\",\"until\":\"2026-11-10T10:54:30.122456789-09:30\"}",
+   "now": "2026-11-11T10:24:00.123456789+14:00",
+   "text": "maintenance window open: \"tab\\there\\nnew line \\x01 \\u200b \\u2028\", opened by owner, 0s left (ends 10:54)"
+  },
+  {
+   "window": "{\"reason\":\"\",\"actor\":\"owner\",\"opened\":\"2026-11-11T09:48:00.123456789+14:00\",\"until\":\"2026-11-10T10:55:30.123456789-09:30\"}",
+   "now": "2026-11-11T10:25:00.123456789+14:00",
+   "text": "maintenance window open: \"\", opened by owner, 1m0s left (ends 10:55)"
+  },
+  {
+   "window": "{\"reason\":\"kernel update\",\"actor\":\"owner\",\"opened\":\"2026-11-11T09:49:00.123456789+14:00\",\"until\":\"2026-11-10T10:57:29.623456789-09:30\"}",
+   "now": "2026-11-11T10:26:00.123456789+14:00",
+   "text": "maintenance window open: \"kernel update\", opened by owner, 1m0s left (ends 10:57)"
+  },
+  {
+   "window": "{\"reason\":\"agent installs \\\"vim\\\", \\u003cgit\\u003e \\u0026 ü\",\"actor\":\"owner\",\"opened\":\"2026-11-11T09:50:00.123456789+14:00\",\"until\":\"2026-11-10T10:58:30.123456789-09:30\"}",
+   "now": "2026-11-11T10:27:00.123456789+14:00",
+   "text": "maintenance window open: \"agent installs \\\"vim\\\", \u003cgit\u003e \u0026 ü\", opened by owner, 2m0s left (ends 10:58)"
+  },
+  {
+   "window": "{\"reason\":\"tab\\there\\nnew line \\u0001 ​ \\u2028\",\"actor\":\"owner\",\"opened\":\"2026-11-11T09:51:00.123456789+14:00\",\"until\":\"2026-11-10T11:13:00.123456789-09:30\"}",
+   "now": "2026-11-11T10:28:00.123456789+14:00",
+   "text": "maintenance window open: \"tab\\there\\nnew line \\x01 \\u200b \\u2028\", opened by owner, 15m0s left (ends 11:13)"
+  },
+  {
+   "window": "{\"reason\":\"\",\"actor\":\"owner\",\"opened\":\"2026-11-11T09:52:00.123456789+14:00\",\"until\":\"2026-11-10T14:58:30.123456789-09:30\"}",
+   "now": "2026-11-11T10:29:00.123456789+14:00",
+   "text": "maintenance window open: \"\", opened by owner, 3h23m0s left (ends 13:52)"
+  },
+  {
+   "window": "{\"reason\":\"kernel update\",\"actor\":\"owner\",\"opened\":\"2026-11-11T09:53:00.123456789+14:00\",\"until\":\"2026-11-10T15:00:00.123456789-09:30\"}",
+   "now": "2026-11-11T10:30:00.123456789+14:00",
+   "text": "maintenance window open: \"kernel update\", opened by owner, 3h23m0s left (ends 13:53)"
+  },
+  {
+   "window": "{\"reason\":\"agent installs \\\"vim\\\", \\u003cgit\\u003e \\u0026 ü\",\"actor\":\"owner\",\"opened\":\"2026-11-11T09:54:00.123456789+14:00\",\"until\":\"2026-11-10T17:01:00.123456789-09:30\"}",
+   "now": "2026-11-11T10:31:00.123456789+14:00",
+   "text": "maintenance window open: \"agent installs \\\"vim\\\", \u003cgit\u003e \u0026 ü\", opened by owner, 3h23m0s left (ends 13:54)"
+  },
+  {
+   "window": "{\"reason\":\"kernel update\",\"actor\":\"owner\",\"opened\":\"2026-11-10T10:21:00.123456789-09:30\",\"until\":\"2026-11-10T20:27:59.123456789Z\"}",
+   "now": "2026-11-10T10:58:00.123456789-09:30",
+   "text": "no maintenance window is open"
+  },
+  {
+   "window": "{\"reason\":\"agent installs \\\"vim\\\", \\u003cgit\\u003e \\u0026 ü\",\"actor\":\"owner\",\"opened\":\"2026-11-10T10:22:00.123456789-09:30\",\"until\":\"2026-11-10T20:29:00.123456789Z\"}",
+   "now": "2026-11-10T10:59:00.123456789-09:30",
+   "text": "no maintenance window is open"
+  },
+  {
+   "window": "{\"reason\":\"tab\\there\\nnew line \\u0001 ​ \\u2028\",\"actor\":\"owner\",\"opened\":\"2026-11-10T10:23:00.123456789-09:30\",\"until\":\"2026-11-10T20:30:00.12345679Z\"}",
+   "now": "2026-11-10T11:00:00.123456789-09:30",
+   "text": "maintenance window open: \"tab\\there\\nnew line \\x01 \\u200b \\u2028\", opened by owner, 0s left (ends 20:30)"
+  },
+  {
+   "window": "{\"reason\":\"\",\"actor\":\"owner\",\"opened\":\"2026-11-10T10:24:00.123456789-09:30\",\"until\":\"2026-11-10T20:31:30.122456789Z\"}",
+   "now": "2026-11-10T11:01:00.123456789-09:30",
+   "text": "maintenance window open: \"\", opened by owner, 0s left (ends 20:31)"
+  },
+  {
+   "window": "{\"reason\":\"kernel update\",\"actor\":\"owner\",\"opened\":\"2026-11-10T10:25:00.123456789-09:30\",\"until\":\"2026-11-10T20:32:30.123456789Z\"}",
+   "now": "2026-11-10T11:02:00.123456789-09:30",
+   "text": "maintenance window open: \"kernel update\", opened by owner, 1m0s left (ends 20:32)"
+  },
+  {
+   "window": "{\"reason\":\"agent installs \\\"vim\\\", \\u003cgit\\u003e \\u0026 ü\",\"actor\":\"owner\",\"opened\":\"2026-11-10T10:26:00.123456789-09:30\",\"until\":\"2026-11-10T20:34:29.623456789Z\"}",
+   "now": "2026-11-10T11:03:00.123456789-09:30",
+   "text": "maintenance window open: \"agent installs \\\"vim\\\", \u003cgit\u003e \u0026 ü\", opened by owner, 1m0s left (ends 20:34)"
+  },
+  {
+   "window": "{\"reason\":\"tab\\there\\nnew line \\u0001 ​ \\u2028\",\"actor\":\"owner\",\"opened\":\"2026-11-10T10:27:00.123456789-09:30\",\"until\":\"2026-11-10T20:35:30.123456789Z\"}",
+   "now": "2026-11-10T11:04:00.123456789-09:30",
+   "text": "maintenance window open: \"tab\\there\\nnew line \\x01 \\u200b \\u2028\", opened by owner, 2m0s left (ends 20:35)"
+  },
+  {
+   "window": "{\"reason\":\"\",\"actor\":\"owner\",\"opened\":\"2026-11-10T10:28:00.123456789-09:30\",\"until\":\"2026-11-10T20:50:00.123456789Z\"}",
+   "now": "2026-11-10T11:05:00.123456789-09:30",
+   "text": "maintenance window open: \"\", opened by owner, 15m0s left (ends 20:50)"
+  },
+  {
+   "window": "{\"reason\":\"kernel update\",\"actor\":\"owner\",\"opened\":\"2026-11-10T10:29:00.123456789-09:30\",\"until\":\"2026-11-11T00:35:30.123456789Z\"}",
+   "now": "2026-11-10T11:06:00.123456789-09:30",
+   "text": "maintenance window open: \"kernel update\", opened by owner, 3h23m0s left (ends 14:29)"
+  },
+  {
+   "window": "{\"reason\":\"agent installs \\\"vim\\\", \\u003cgit\\u003e \\u0026 ü\",\"actor\":\"owner\",\"opened\":\"2026-11-10T10:30:00.123456789-09:30\",\"until\":\"2026-11-11T00:37:00.123456789Z\"}",
+   "now": "2026-11-10T11:07:00.123456789-09:30",
+   "text": "maintenance window open: \"agent installs \\\"vim\\\", \u003cgit\u003e \u0026 ü\", opened by owner, 3h23m0s left (ends 14:30)"
+  },
+  {
+   "window": "{\"reason\":\"tab\\there\\nnew line \\u0001 ​ \\u2028\",\"actor\":\"owner\",\"opened\":\"2026-11-10T10:31:00.123456789-09:30\",\"until\":\"2026-11-11T02:38:00.123456789Z\"}",
+   "now": "2026-11-10T11:08:00.123456789-09:30",
+   "text": "maintenance window open: \"tab\\there\\nnew line \\x01 \\u200b \\u2028\", opened by owner, 3h23m0s left (ends 14:31)"
+  },
+  {
+   "window": "",
+   "now": "2026-11-10T20:00:00.123456789Z",
+   "text": "no maintenance window is open"
+  }
+ ],
+ "maintenance_open": [
+  {
+   "actor": "user0",
+   "reason": "kernel update",
+   "d": -60000000000,
+   "now": "2026-11-10T20:00:00.123456789Z",
+   "file": "",
+   "error": "maintenance: the duration must be positive"
+  },
+  {
+   "actor": "user1",
+   "reason": "agent installs \"vim\", \u003cgit\u003e \u0026 ü",
+   "d": 0,
+   "now": "2026-11-10T21:00:00.123456789Z",
+   "file": "",
+   "error": "maintenance: the duration must be positive"
+  },
+  {
+   "actor": "user2",
+   "reason": "tab\there\nnew line \u0001 ​ \u2028",
+   "d": 1,
+   "now": "2026-11-10T22:00:00.123456789Z",
+   "file": "{\"reason\":\"tab\\there\\nnew line \\u0001 ​ \\u2028\",\"actor\":\"user2\",\"opened\":\"2026-11-10T22:00:00.123456789Z\",\"until\":\"2026-11-10T22:00:00.12345679Z\"}",
+   "error": ""
+  },
+  {
+   "actor": "user3",
+   "reason": "",
+   "d": 60000000000,
+   "now": "2026-11-10T23:00:00.123456789Z",
+   "file": "",
+   "error": "maintenance: a reason is required"
+  },
+  {
+   "actor": "user4",
+   "reason": "kernel update",
+   "d": 900000000000,
+   "now": "2026-11-11T00:00:00.123456789Z",
+   "file": "{\"reason\":\"kernel update\",\"actor\":\"user4\",\"opened\":\"2026-11-11T00:00:00.123456789Z\",\"until\":\"2026-11-11T00:15:00.123456789Z\"}",
+   "error": ""
+  },
+  {
+   "actor": "user5",
+   "reason": "agent installs \"vim\", \u003cgit\u003e \u0026 ü",
+   "d": 14400000000000,
+   "now": "2026-11-11T01:00:00.123456789Z",
+   "file": "{\"reason\":\"agent installs \\\"vim\\\", \\u003cgit\\u003e \\u0026 ü\",\"actor\":\"user5\",\"opened\":\"2026-11-11T01:00:00.123456789Z\",\"until\":\"2026-11-11T05:00:00.123456789Z\"}",
+   "error": ""
+  },
+  {
+   "actor": "user6",
+   "reason": "tab\there\nnew line \u0001 ​ \u2028",
+   "d": 14400000000001,
+   "now": "2026-11-11T02:00:00.123456789Z",
+   "file": "{\"reason\":\"tab\\there\\nnew line \\u0001 ​ \\u2028\",\"actor\":\"user6\",\"opened\":\"2026-11-11T02:00:00.123456789Z\",\"until\":\"2026-11-11T06:00:00.123456789Z\"}",
+   "error": ""
+  },
+  {
+   "actor": "user7",
+   "reason": "",
+   "d": 36000000000000,
+   "now": "2026-11-11T03:00:00.123456789Z",
+   "file": "",
+   "error": "maintenance: a reason is required"
+  },
+  {
+   "actor": "user8",
+   "reason": "kernel update",
+   "d": 9223372036854775807,
+   "now": "2026-11-11T04:00:00.123456789Z",
+   "file": "{\"reason\":\"kernel update\",\"actor\":\"user8\",\"opened\":\"2026-11-11T04:00:00.123456789Z\",\"until\":\"2026-11-11T08:00:00.123456789Z\"}",
+   "error": ""
+  },
+  {
+   "actor": "user0",
+   "reason": "agent installs \"vim\", \u003cgit\u003e \u0026 ü",
+   "d": -60000000000,
+   "now": "2026-11-10T15:00:00.123456789-05:00",
+   "file": "",
+   "error": "maintenance: the duration must be positive"
+  },
+  {
+   "actor": "user1",
+   "reason": "tab\there\nnew line \u0001 ​ \u2028",
+   "d": 0,
+   "now": "2026-11-10T16:00:00.123456789-05:00",
+   "file": "",
+   "error": "maintenance: the duration must be positive"
+  },
+  {
+   "actor": "user2",
+   "reason": "",
+   "d": 1,
+   "now": "2026-11-10T17:00:00.123456789-05:00",
+   "file": "",
+   "error": "maintenance: a reason is required"
+  },
+  {
+   "actor": "user3",
+   "reason": "kernel update",
+   "d": 60000000000,
+   "now": "2026-11-10T18:00:00.123456789-05:00",
+   "file": "{\"reason\":\"kernel update\",\"actor\":\"user3\",\"opened\":\"2026-11-10T18:00:00.123456789-05:00\",\"until\":\"2026-11-10T18:01:00.123456789-05:00\"}",
+   "error": ""
+  },
+  {
+   "actor": "user4",
+   "reason": "agent installs \"vim\", \u003cgit\u003e \u0026 ü",
+   "d": 900000000000,
+   "now": "2026-11-10T19:00:00.123456789-05:00",
+   "file": "{\"reason\":\"agent installs \\\"vim\\\", \\u003cgit\\u003e \\u0026 ü\",\"actor\":\"user4\",\"opened\":\"2026-11-10T19:00:00.123456789-05:00\",\"until\":\"2026-11-10T19:15:00.123456789-05:00\"}",
+   "error": ""
+  },
+  {
+   "actor": "user5",
+   "reason": "tab\there\nnew line \u0001 ​ \u2028",
+   "d": 14400000000000,
+   "now": "2026-11-10T20:00:00.123456789-05:00",
+   "file": "{\"reason\":\"tab\\there\\nnew line \\u0001 ​ \\u2028\",\"actor\":\"user5\",\"opened\":\"2026-11-10T20:00:00.123456789-05:00\",\"until\":\"2026-11-11T00:00:00.123456789-05:00\"}",
+   "error": ""
+  },
+  {
+   "actor": "user6",
+   "reason": "",
+   "d": 14400000000001,
+   "now": "2026-11-10T21:00:00.123456789-05:00",
+   "file": "",
+   "error": "maintenance: a reason is required"
+  },
+  {
+   "actor": "user7",
+   "reason": "kernel update",
+   "d": 36000000000000,
+   "now": "2026-11-10T22:00:00.123456789-05:00",
+   "file": "{\"reason\":\"kernel update\",\"actor\":\"user7\",\"opened\":\"2026-11-10T22:00:00.123456789-05:00\",\"until\":\"2026-11-11T02:00:00.123456789-05:00\"}",
+   "error": ""
+  },
+  {
+   "actor": "user8",
+   "reason": "agent installs \"vim\", \u003cgit\u003e \u0026 ü",
+   "d": 9223372036854775807,
+   "now": "2026-11-10T23:00:00.123456789-05:00",
+   "file": "{\"reason\":\"agent installs \\\"vim\\\", \\u003cgit\\u003e \\u0026 ü\",\"actor\":\"user8\",\"opened\":\"2026-11-10T23:00:00.123456789-05:00\",\"until\":\"2026-11-11T03:00:00.123456789-05:00\"}",
+   "error": ""
+  },
+  {
+   "actor": "user0",
+   "reason": "tab\there\nnew line \u0001 ​ \u2028",
+   "d": -60000000000,
+   "now": "2026-11-11T01:30:00.123456789+05:30",
+   "file": "",
+   "error": "maintenance: the duration must be positive"
+  },
+  {
+   "actor": "user1",
+   "reason": "",
+   "d": 0,
+   "now": "2026-11-11T02:30:00.123456789+05:30",
+   "file": "",
+   "error": "maintenance: the duration must be positive"
+  },
+  {
+   "actor": "user2",
+   "reason": "kernel update",
+   "d": 1,
+   "now": "2026-11-11T03:30:00.123456789+05:30",
+   "file": "{\"reason\":\"kernel update\",\"actor\":\"user2\",\"opened\":\"2026-11-11T03:30:00.123456789+05:30\",\"until\":\"2026-11-11T03:30:00.12345679+05:30\"}",
+   "error": ""
+  },
+  {
+   "actor": "user3",
+   "reason": "agent installs \"vim\", \u003cgit\u003e \u0026 ü",
+   "d": 60000000000,
+   "now": "2026-11-11T04:30:00.123456789+05:30",
+   "file": "{\"reason\":\"agent installs \\\"vim\\\", \\u003cgit\\u003e \\u0026 ü\",\"actor\":\"user3\",\"opened\":\"2026-11-11T04:30:00.123456789+05:30\",\"until\":\"2026-11-11T04:31:00.123456789+05:30\"}",
+   "error": ""
+  },
+  {
+   "actor": "user4",
+   "reason": "tab\there\nnew line \u0001 ​ \u2028",
+   "d": 900000000000,
+   "now": "2026-11-11T05:30:00.123456789+05:30",
+   "file": "{\"reason\":\"tab\\there\\nnew line \\u0001 ​ \\u2028\",\"actor\":\"user4\",\"opened\":\"2026-11-11T05:30:00.123456789+05:30\",\"until\":\"2026-11-11T05:45:00.123456789+05:30\"}",
+   "error": ""
+  },
+  {
+   "actor": "user5",
+   "reason": "",
+   "d": 14400000000000,
+   "now": "2026-11-11T06:30:00.123456789+05:30",
+   "file": "",
+   "error": "maintenance: a reason is required"
+  },
+  {
+   "actor": "user6",
+   "reason": "kernel update",
+   "d": 14400000000001,
+   "now": "2026-11-11T07:30:00.123456789+05:30",
+   "file": "{\"reason\":\"kernel update\",\"actor\":\"user6\",\"opened\":\"2026-11-11T07:30:00.123456789+05:30\",\"until\":\"2026-11-11T11:30:00.123456789+05:30\"}",
+   "error": ""
+  },
+  {
+   "actor": "user7",
+   "reason": "agent installs \"vim\", \u003cgit\u003e \u0026 ü",
+   "d": 36000000000000,
+   "now": "2026-11-11T08:30:00.123456789+05:30",
+   "file": "{\"reason\":\"agent installs \\\"vim\\\", \\u003cgit\\u003e \\u0026 ü\",\"actor\":\"user7\",\"opened\":\"2026-11-11T08:30:00.123456789+05:30\",\"until\":\"2026-11-11T12:30:00.123456789+05:30\"}",
+   "error": ""
+  },
+  {
+   "actor": "user8",
+   "reason": "tab\there\nnew line \u0001 ​ \u2028",
+   "d": 9223372036854775807,
+   "now": "2026-11-11T09:30:00.123456789+05:30",
+   "file": "{\"reason\":\"tab\\there\\nnew line \\u0001 ​ \\u2028\",\"actor\":\"user8\",\"opened\":\"2026-11-11T09:30:00.123456789+05:30\",\"until\":\"2026-11-11T13:30:00.123456789+05:30\"}",
+   "error": ""
+  },
+  {
+   "actor": "user0",
+   "reason": "",
+   "d": -60000000000,
+   "now": "2026-11-11T10:00:00.123456789+14:00",
+   "file": "",
+   "error": "maintenance: the duration must be positive"
+  },
+  {
+   "actor": "user1",
+   "reason": "kernel update",
+   "d": 0,
+   "now": "2026-11-11T11:00:00.123456789+14:00",
+   "file": "",
+   "error": "maintenance: the duration must be positive"
+  },
+  {
+   "actor": "user2",
+   "reason": "agent installs \"vim\", \u003cgit\u003e \u0026 ü",
+   "d": 1,
+   "now": "2026-11-11T12:00:00.123456789+14:00",
+   "file": "{\"reason\":\"agent installs \\\"vim\\\", \\u003cgit\\u003e \\u0026 ü\",\"actor\":\"user2\",\"opened\":\"2026-11-11T12:00:00.123456789+14:00\",\"until\":\"2026-11-11T12:00:00.12345679+14:00\"}",
+   "error": ""
+  },
+  {
+   "actor": "user3",
+   "reason": "tab\there\nnew line \u0001 ​ \u2028",
+   "d": 60000000000,
+   "now": "2026-11-11T13:00:00.123456789+14:00",
+   "file": "{\"reason\":\"tab\\there\\nnew line \\u0001 ​ \\u2028\",\"actor\":\"user3\",\"opened\":\"2026-11-11T13:00:00.123456789+14:00\",\"until\":\"2026-11-11T13:01:00.123456789+14:00\"}",
+   "error": ""
+  },
+  {
+   "actor": "user4",
+   "reason": "",
+   "d": 900000000000,
+   "now": "2026-11-11T14:00:00.123456789+14:00",
+   "file": "",
+   "error": "maintenance: a reason is required"
+  },
+  {
+   "actor": "user5",
+   "reason": "kernel update",
+   "d": 14400000000000,
+   "now": "2026-11-11T15:00:00.123456789+14:00",
+   "file": "{\"reason\":\"kernel update\",\"actor\":\"user5\",\"opened\":\"2026-11-11T15:00:00.123456789+14:00\",\"until\":\"2026-11-11T19:00:00.123456789+14:00\"}",
+   "error": ""
+  },
+  {
+   "actor": "user6",
+   "reason": "agent installs \"vim\", \u003cgit\u003e \u0026 ü",
+   "d": 14400000000001,
+   "now": "2026-11-11T16:00:00.123456789+14:00",
+   "file": "{\"reason\":\"agent installs \\\"vim\\\", \\u003cgit\\u003e \\u0026 ü\",\"actor\":\"user6\",\"opened\":\"2026-11-11T16:00:00.123456789+14:00\",\"until\":\"2026-11-11T20:00:00.123456789+14:00\"}",
+   "error": ""
+  },
+  {
+   "actor": "user7",
+   "reason": "tab\there\nnew line \u0001 ​ \u2028",
+   "d": 36000000000000,
+   "now": "2026-11-11T17:00:00.123456789+14:00",
+   "file": "{\"reason\":\"tab\\there\\nnew line \\u0001 ​ \\u2028\",\"actor\":\"user7\",\"opened\":\"2026-11-11T17:00:00.123456789+14:00\",\"until\":\"2026-11-11T21:00:00.123456789+14:00\"}",
+   "error": ""
+  },
+  {
+   "actor": "user8",
+   "reason": "",
+   "d": 9223372036854775807,
+   "now": "2026-11-11T18:00:00.123456789+14:00",
+   "file": "",
+   "error": "maintenance: a reason is required"
+  },
+  {
+   "actor": "user0",
+   "reason": "kernel update",
+   "d": -60000000000,
+   "now": "2026-11-10T10:30:00.123456789-09:30",
+   "file": "",
+   "error": "maintenance: the duration must be positive"
+  },
+  {
+   "actor": "user1",
+   "reason": "agent installs \"vim\", \u003cgit\u003e \u0026 ü",
+   "d": 0,
+   "now": "2026-11-10T11:30:00.123456789-09:30",
+   "file": "",
+   "error": "maintenance: the duration must be positive"
+  },
+  {
+   "actor": "user2",
+   "reason": "tab\there\nnew line \u0001 ​ \u2028",
+   "d": 1,
+   "now": "2026-11-10T12:30:00.123456789-09:30",
+   "file": "{\"reason\":\"tab\\there\\nnew line \\u0001 ​ \\u2028\",\"actor\":\"user2\",\"opened\":\"2026-11-10T12:30:00.123456789-09:30\",\"until\":\"2026-11-10T12:30:00.12345679-09:30\"}",
+   "error": ""
+  },
+  {
+   "actor": "user3",
+   "reason": "",
+   "d": 60000000000,
+   "now": "2026-11-10T13:30:00.123456789-09:30",
+   "file": "",
+   "error": "maintenance: a reason is required"
+  },
+  {
+   "actor": "user4",
+   "reason": "kernel update",
+   "d": 900000000000,
+   "now": "2026-11-10T14:30:00.123456789-09:30",
+   "file": "{\"reason\":\"kernel update\",\"actor\":\"user4\",\"opened\":\"2026-11-10T14:30:00.123456789-09:30\",\"until\":\"2026-11-10T14:45:00.123456789-09:30\"}",
+   "error": ""
+  },
+  {
+   "actor": "user5",
+   "reason": "agent installs \"vim\", \u003cgit\u003e \u0026 ü",
+   "d": 14400000000000,
+   "now": "2026-11-10T15:30:00.123456789-09:30",
+   "file": "{\"reason\":\"agent installs \\\"vim\\\", \\u003cgit\\u003e \\u0026 ü\",\"actor\":\"user5\",\"opened\":\"2026-11-10T15:30:00.123456789-09:30\",\"until\":\"2026-11-10T19:30:00.123456789-09:30\"}",
+   "error": ""
+  },
+  {
+   "actor": "user6",
+   "reason": "tab\there\nnew line \u0001 ​ \u2028",
+   "d": 14400000000001,
+   "now": "2026-11-10T16:30:00.123456789-09:30",
+   "file": "{\"reason\":\"tab\\there\\nnew line \\u0001 ​ \\u2028\",\"actor\":\"user6\",\"opened\":\"2026-11-10T16:30:00.123456789-09:30\",\"until\":\"2026-11-10T20:30:00.123456789-09:30\"}",
+   "error": ""
+  },
+  {
+   "actor": "user7",
+   "reason": "",
+   "d": 36000000000000,
+   "now": "2026-11-10T17:30:00.123456789-09:30",
+   "file": "",
+   "error": "maintenance: a reason is required"
+  },
+  {
+   "actor": "user8",
+   "reason": "kernel update",
+   "d": 9223372036854775807,
+   "now": "2026-11-10T18:30:00.123456789-09:30",
+   "file": "{\"reason\":\"kernel update\",\"actor\":\"user8\",\"opened\":\"2026-11-10T18:30:00.123456789-09:30\",\"until\":\"2026-11-10T22:30:00.123456789-09:30\"}",
+   "error": ""
+  }
+ ],
+ "maintenance_read": [
+  {
+   "file": "",
+   "found": false,
+   "back": ""
+  },
+  {
+   "file": "{}",
+   "found": true,
+   "back": "{\"reason\":\"\",\"actor\":\"\",\"opened\":\"0001-01-01T00:00:00Z\",\"until\":\"0001-01-01T00:00:00Z\"}"
+  },
+  {
+   "file": "null",
+   "found": true,
+   "back": "{\"reason\":\"\",\"actor\":\"\",\"opened\":\"0001-01-01T00:00:00Z\",\"until\":\"0001-01-01T00:00:00Z\"}"
+  },
+  {
+   "file": "[]",
+   "found": false,
+   "back": ""
+  },
+  {
+   "file": "{\"until\": 5}",
+   "found": false,
+   "back": ""
+  },
+  {
+   "file": "{\"reason\": \"x\", \"until\": \"2026-11-10T20:00:00Z\"}",
+   "found": true,
+   "back": "{\"reason\":\"x\",\"actor\":\"\",\"opened\":\"0001-01-01T00:00:00Z\",\"until\":\"2026-11-10T20:00:00Z\"}"
+  },
+  {
+   "file": "{\"reason\":\"r\",\"actor\":\"a\",\"opened\":\"2026-11-10T20:00:00+01:00\",\"until\":\"2026-11-11T20:00:00-05:00\"}",
+   "found": true,
+   "back": "{\"reason\":\"r\",\"actor\":\"a\",\"opened\":\"2026-11-10T20:00:00+01:00\",\"until\":\"2026-11-11T00:00:00+01:00\"}"
+  },
+  {
+   "file": "{\"REASON\":\"r\",\"Actor\":\"a\",\"opened\":\"2026-11-10T20:00:00.5Z\",\"until\":\"2026-11-10T21:00:00.25Z\",\"extra\":[1,2]}",
+   "found": true,
+   "back": "{\"reason\":\"r\",\"actor\":\"a\",\"opened\":\"2026-11-10T20:00:00.5Z\",\"until\":\"2026-11-10T21:00:00.25Z\"}"
+  },
+  {
+   "file": "{\"reason\":\"\\ud800\",\"opened\":\"0001-01-01T00:00:00Z\",\"until\":\"2030-01-01T00:00:00Z\"}",
+   "found": true,
+   "back": "{\"reason\":\"�\",\"actor\":\"\",\"opened\":\"0001-01-01T00:00:00Z\",\"until\":\"2030-01-01T00:00:00Z\"}"
+  },
+  {
+   "file": "{\"opened\":\"2026-11-10T20:00:00Z\",\"until\":\"2026-11-10T19:00:00Z\"}",
+   "found": true,
+   "back": "{\"reason\":\"\",\"actor\":\"\",\"opened\":\"2026-11-10T20:00:00Z\",\"until\":\"2026-11-10T19:00:00Z\"}"
+  },
+  {
+   "file": "{\"until\":\"not a time\"}",
+   "found": false,
+   "back": ""
+  },
+  {
+   "file": "{\"reason\":\"a\",\"reason\":\"b\"}",
+   "found": true,
+   "back": "{\"reason\":\"b\",\"actor\":\"\",\"opened\":\"0001-01-01T00:00:00Z\",\"until\":\"0001-01-01T00:00:00Z\"}"
+  },
+  {
+   "file": "{\"reason\":\"x\"} trailing",
+   "found": false,
+   "back": ""
+  },
+  {
+   "file": "{\"until\":\"2026-11-10T20:00:00Z\",}",
+   "found": false,
+   "back": ""
+  }
+ ],
+ "round": [
+  {
+   "d": 0,
+   "m": -1,
+   "out": 0
+  },
+  {
+   "d": 0,
+   "m": 0,
+   "out": 0
+  },
+  {
+   "d": 0,
+   "m": 1,
+   "out": 0
+  },
+  {
+   "d": 0,
+   "m": 1000000000,
+   "out": 0
+  },
+  {
+   "d": 0,
+   "m": 60000000000,
+   "out": 0
+  },
+  {
+   "d": 0,
+   "m": 3600000000000,
+   "out": 0
+  },
+  {
+   "d": 1,
+   "m": -1,
+   "out": 1
+  },
+  {
+   "d": 1,
+   "m": 0,
+   "out": 1
+  },
+  {
+   "d": 1,
+   "m": 1,
+   "out": 1
+  },
+  {
+   "d": 1,
+   "m": 1000000000,
+   "out": 0
+  },
+  {
+   "d": 1,
+   "m": 60000000000,
+   "out": 0
+  },
+  {
+   "d": 1,
+   "m": 3600000000000,
+   "out": 0
+  },
+  {
+   "d": -1,
+   "m": -1,
+   "out": -1
+  },
+  {
+   "d": -1,
+   "m": 0,
+   "out": -1
+  },
+  {
+   "d": -1,
+   "m": 1,
+   "out": -1
+  },
+  {
+   "d": -1,
+   "m": 1000000000,
+   "out": 0
+  },
+  {
+   "d": -1,
+   "m": 60000000000,
+   "out": 0
+  },
+  {
+   "d": -1,
+   "m": 3600000000000,
+   "out": 0
+  },
+  {
+   "d": 29000000000,
+   "m": -1,
+   "out": 29000000000
+  },
+  {
+   "d": 29000000000,
+   "m": 0,
+   "out": 29000000000
+  },
+  {
+   "d": 29000000000,
+   "m": 1,
+   "out": 29000000000
+  },
+  {
+   "d": 29000000000,
+   "m": 1000000000,
+   "out": 29000000000
+  },
+  {
+   "d": 29000000000,
+   "m": 60000000000,
+   "out": 0
+  },
+  {
+   "d": 29000000000,
+   "m": 3600000000000,
+   "out": 0
+  },
+  {
+   "d": 30000000000,
+   "m": -1,
+   "out": 30000000000
+  },
+  {
+   "d": 30000000000,
+   "m": 0,
+   "out": 30000000000
+  },
+  {
+   "d": 30000000000,
+   "m": 1,
+   "out": 30000000000
+  },
+  {
+   "d": 30000000000,
+   "m": 1000000000,
+   "out": 30000000000
+  },
+  {
+   "d": 30000000000,
+   "m": 60000000000,
+   "out": 60000000000
+  },
+  {
+   "d": 30000000000,
+   "m": 3600000000000,
+   "out": 0
+  },
+  {
+   "d": -30000000000,
+   "m": -1,
+   "out": -30000000000
+  },
+  {
+   "d": -30000000000,
+   "m": 0,
+   "out": -30000000000
+  },
+  {
+   "d": -30000000000,
+   "m": 1,
+   "out": -30000000000
+  },
+  {
+   "d": -30000000000,
+   "m": 1000000000,
+   "out": -30000000000
+  },
+  {
+   "d": -30000000000,
+   "m": 60000000000,
+   "out": -60000000000
+  },
+  {
+   "d": -30000000000,
+   "m": 3600000000000,
+   "out": 0
+  },
+  {
+   "d": 31000000000,
+   "m": -1,
+   "out": 31000000000
+  },
+  {
+   "d": 31000000000,
+   "m": 0,
+   "out": 31000000000
+  },
+  {
+   "d": 31000000000,
+   "m": 1,
+   "out": 31000000000
+  },
+  {
+   "d": 31000000000,
+   "m": 1000000000,
+   "out": 31000000000
+  },
+  {
+   "d": 31000000000,
+   "m": 60000000000,
+   "out": 60000000000
+  },
+  {
+   "d": 31000000000,
+   "m": 3600000000000,
+   "out": 0
+  },
+  {
+   "d": 90000000000,
+   "m": -1,
+   "out": 90000000000
+  },
+  {
+   "d": 90000000000,
+   "m": 0,
+   "out": 90000000000
+  },
+  {
+   "d": 90000000000,
+   "m": 1,
+   "out": 90000000000
+  },
+  {
+   "d": 90000000000,
+   "m": 1000000000,
+   "out": 90000000000
+  },
+  {
+   "d": 90000000000,
+   "m": 60000000000,
+   "out": 120000000000
+  },
+  {
+   "d": 90000000000,
+   "m": 3600000000000,
+   "out": 0
+  },
+  {
+   "d": -90000000000,
+   "m": -1,
+   "out": -90000000000
+  },
+  {
+   "d": -90000000000,
+   "m": 0,
+   "out": -90000000000
+  },
+  {
+   "d": -90000000000,
+   "m": 1,
+   "out": -90000000000
+  },
+  {
+   "d": -90000000000,
+   "m": 1000000000,
+   "out": -90000000000
+  },
+  {
+   "d": -90000000000,
+   "m": 60000000000,
+   "out": -120000000000
+  },
+  {
+   "d": -90000000000,
+   "m": 3600000000000,
+   "out": 0
+  },
+  {
+   "d": 9223372036854775807,
+   "m": -1,
+   "out": 9223372036854775807
+  },
+  {
+   "d": 9223372036854775807,
+   "m": 0,
+   "out": 9223372036854775807
+  },
+  {
+   "d": 9223372036854775807,
+   "m": 1,
+   "out": 9223372036854775807
+  },
+  {
+   "d": 9223372036854775807,
+   "m": 1000000000,
+   "out": 9223372036854775807
+  },
+  {
+   "d": 9223372036854775807,
+   "m": 60000000000,
+   "out": 9223372020000000000
+  },
+  {
+   "d": 9223372036854775807,
+   "m": 3600000000000,
+   "out": 9223372036854775807
+  },
+  {
+   "d": -9223372036854775808,
+   "m": -1,
+   "out": -9223372036854775808
+  },
+  {
+   "d": -9223372036854775808,
+   "m": 0,
+   "out": -9223372036854775808
+  },
+  {
+   "d": -9223372036854775808,
+   "m": 1,
+   "out": -9223372036854775808
+  },
+  {
+   "d": -9223372036854775808,
+   "m": 1000000000,
+   "out": -9223372036854775808
+  },
+  {
+   "d": -9223372036854775808,
+   "m": 60000000000,
+   "out": -9223372020000000000
+  },
+  {
+   "d": -9223372036854775808,
+   "m": 3600000000000,
+   "out": -9223372036854775808
+  },
+  {
+   "d": 9223372006854775808,
+   "m": -1,
+   "out": 9223372006854775808
+  },
+  {
+   "d": 9223372006854775808,
+   "m": 0,
+   "out": 9223372006854775808
+  },
+  {
+   "d": 9223372006854775808,
+   "m": 1,
+   "out": 9223372006854775808
+  },
+  {
+   "d": 9223372006854775808,
+   "m": 1000000000,
+   "out": 9223372007000000000
+  },
+  {
+   "d": 9223372006854775808,
+   "m": 60000000000,
+   "out": 9223372020000000000
+  },
+  {
+   "d": 9223372006854775808,
+   "m": 3600000000000,
+   "out": 9223372036854775807
+  },
+  {
+   "d": -9223372006854775808,
+   "m": -1,
+   "out": -9223372006854775808
+  },
+  {
+   "d": -9223372006854775808,
+   "m": 0,
+   "out": -9223372006854775808
+  },
+  {
+   "d": -9223372006854775808,
+   "m": 1,
+   "out": -9223372006854775808
+  },
+  {
+   "d": -9223372006854775808,
+   "m": 1000000000,
+   "out": -9223372007000000000
+  },
+  {
+   "d": -9223372006854775808,
+   "m": 60000000000,
+   "out": -9223372020000000000
+  },
+  {
+   "d": -9223372006854775808,
+   "m": 3600000000000,
+   "out": -9223372036854775808
+  },
+  {
+   "d": 3599000000000,
+   "m": -1,
+   "out": 3599000000000
+  },
+  {
+   "d": 3599000000000,
+   "m": 0,
+   "out": 3599000000000
+  },
+  {
+   "d": 3599000000000,
+   "m": 1,
+   "out": 3599000000000
+  },
+  {
+   "d": 3599000000000,
+   "m": 1000000000,
+   "out": 3599000000000
+  },
+  {
+   "d": 3599000000000,
+   "m": 60000000000,
+   "out": 3600000000000
+  },
+  {
+   "d": 3599000000000,
+   "m": 3600000000000,
+   "out": 3600000000000
+  }
+ ]
+}
