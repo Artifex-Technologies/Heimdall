@@ -19,6 +19,42 @@ closed rather than deleting it -- the history of *why* is worth keeping.
 
 ---
 
+## 2026-11-11 — The Rust port, step 5: every one-shot command DONE; the Go binary can go after the switch
+
+**My ask:** port the rest of the CLI (every subcommand of cmd/heimdalld, `heimdall-intel-update`, the Go and Python helpers
+the package ships, the Python tests) so the Go binary can go; the same arguments, output, files and exit codes; Go's
+behaviour as shared fixtures, differential runs on fake roots, properties, fuzz targets, Kani bodies; timer-driven commands
+first. Method and every proof: `docs/RUST_CLI.md`.
+
+| Group | Commands | State | Proof (each against the Go binary) |
+| --- | --- | --- | --- |
+| step 0 | dispatch, Go's flag package, log lines, tabwriter, errno texts, filepath, local time and layouts, ParseDuration; safefs and `__write-as-owner`; fake roots (user, mount, net and pid namespaces; tools that change the system always faked) | done | `tests/cli.rs`; unit tests |
+| lan | `lan scan` (timer), `lan list` | done | cli-lan.json 4,091 cases; 19 list runs; 11 scan statuses; a whole scan of a made-up network in namespaces (output, files and the 12 questions sent equal) |
+| intel | `ipdb-check`, `intel-check list|tracker|kernel` (daily timer through heimdall-intel-update), `origin`, `kernel-check` | done | `tests/cli_intel.rs`: 80 runs; linux-kernel.json of 2,200 made-up records byte for byte (zip and zip64) |
+| immunity | every `immunity` subcommand (inventory timer, run-requests and contain run-request path units, release and confirm for Settings), `rule ...`, `scan-files` | done | `tests/cli_immunity.rs`: 73 steps, the store, ClamAV's folder, the user's files (owners, modes, times) and every tool called compared after each |
+| contain and admin | `contain` (all), `maintenance`, `grant`, `remote` | done | `tests/cli_admin.rs` 135 runs, 447 fixture cases; `tests/cli_contain.rs` 16 runs in pid and net namespaces (a real containment of a made-up sarina) |
+| Wi-Fi | `wifi-health` | done | cli-wifi.json 3,361 parser cases, 160 reports; 19 runs |
+| trust, mesh, scan | `trust` (signing), `mesh`, `scan` | done | 155 fixture cases; 67, 44 and 21 steps |
+| helpers | `heimdall-intel-update` (shell), `heimdall-wifi-check`, `heimdall-wifi-guard`, `heimdall-wifi-notify` (Python), packaging/tests | **not ported** | none of them needs the Go binary |
+
+- Not 1:1, on purpose (all in `docs/RUST_CLI.md`): immunity's samples are gzip from flate2 (same content, each reads the
+  other's); a sample named above U+00FF is kept good where Go keeps an empty one that can never be released; damaged
+  samples and ELF files with compressed sections word their errors differently; `__write-as-owner` drops root's supplementary
+  groups; `lan scan` leaves out a name that would make Go panic; a few error texts of damaged files (time layouts, a wrong
+  type in a config) are worded differently; `help` adds the Rust-only commands.
+- The daemon (`run`, `run --shadow`) is unchanged by this step: the shadow week goes on with the same binary behaviour.
+- **Resume (2026-11-11):**
+  1. The shadow week, the root checks and the switch commit as before (`docs/RUST_SWITCH.md`, stage 1: the package builds
+     both, installs Rust as `heimdalld` and keeps Go at `/usr/lib/heimdall/heimdalld-go` only as the quick rollback). After
+     the switch, run the checks in its step 3, which now include `heimdall-lan-scan` and `heimdall-inventory` under their
+     sandboxed units (the Rust binary has not run under `SystemCallFilter=@system-service` yet).
+  2. A week later, stage 2: the package stops building Go (`makedepends` without `go`, `install.sh` without
+     `heimdalld-go`, a packaging test that it is gone).
+  3. Open, optional: port `heimdall-wifi-check`, `heimdall-wifi-guard`, `heimdall-wifi-notify` (Python) into
+     `src/cli/wifitools.rs` (the stubs and `cli::tool` dispatch by program name are there; tests through
+     `Root::run_as` with the helper's name, both implementations run in fake roots), then port packaging/tests to Rust
+     (`tests/packaging.rs`); `heimdall-intel-update` could follow (curl from Rust, the same flags).
+
 ## 2026-11-10 — The Rust port: steps 1-4 DONE; the switch waits only for the shadow week and the owner's checks
 
 **My ask:** port the always-on daemon to Rust, phase 1 of the plan, keeping the phase-0 design; proof by shared fixtures,

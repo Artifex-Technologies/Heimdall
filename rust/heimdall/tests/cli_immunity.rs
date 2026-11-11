@@ -155,6 +155,12 @@ impl Pair {
         Some(Pair { go, rg, rr })
     }
     fn step(&self, args: &[&str], o: &Opts) -> (Out, Out) {
+        // the store keeps the newest first by the second an entry was added: a step that adds one starts in a new second,
+        // so the order is the same in both copies however loaded the computer is
+        if matches!(args.get(1).copied(), Some("hold" | "add" | "suspect" | "take-limbo" | "run-requests")) {
+            let ms = (std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_millis() % 1000) as u64;
+            std::thread::sleep(std::time::Duration::from_millis(1010 - ms.min(1000)));
+        }
         let g = norm(&self.rg.run(&self.go, args, o));
         let r = norm(&self.rr.run(&rust_bin(), args, o));
         assert_same(&format!("{args:?}"), &g, &r);

@@ -7,8 +7,8 @@ or less CPU.
 
 The Go daemon stays installed and in charge until the switch. The Rust daemon (`heimdalld-rs`, in `rust/`) first runs
 beside it in **shadow mode**: the real sources, its own alert log, no responses (`docs/RUST_SHADOW.md`). The one-shot
-commands (lan scan, inventory, intel-check, requests, contain, immunity, grant, ...) stay in Go; their file formats are the
-contract.
+commands (lan scan, inventory, intel-check, requests, contain, immunity, grant, ...) are ported as well (2026-11-11), each
+proved against the Go binary in fake roots: `docs/RUST_CLI.md`.
 
 ## Plan and status
 
@@ -18,7 +18,8 @@ contract.
 | 2 | the sources, event-driven, on one thread (`heimdalld-rs run --shadow`) | **done**: sessions (inotify + 10-minute look), vault (inotify), Limbo, FIM (+ pacman's database), telemetry, the maintenance window, /proc/net (ports, connections with the mapped IP databases, threat lists and remote-access recognition by name and Go build info, listeners), the journal (one `journalctl --follow`, the cursor file), the Wi-Fi results and router, the device list, remote-access packages and tunnels; the 6-hourly package, kernel and hardening audits on a thread of their own, behind game time (2c, 2026-11-10) |
 | 3 | the API, the Limbo responder, correlate, governance, grants | done: the correlator (`src/correlate.rs`, in the shadow daemon), governance (`src/governance.rs`), the API (`src/api.rs`: its own thread, plain HTTP/1.1 on loopback, callers from /proc/net/tcp; /healthz, /v1/alerts, /v1/review, /v1/incidents, /v1/requests, /v1/audit, /v1/lan/devices, /v1/quarantine, /v1/rules/drafts), grants (`src/grants.rs`: requests filed, decisions read), the restrict-only rules (`src/quarantine.rs`). the API served by `run` without `--shadow` (its alerts reach the loop as `Msg::Alert`; shadow mode serves none). the Limbo responder (`src/response.rs`, in charge only). the request to copy files Limbo held (`immunity::TakeHeld`); one-shot commands handed to the Go binary when it is installed beside (`main.rs`). The Sarina advisory on a new hold and the backlog note (`src/advisor.rs`, in charge only, 2026-11-10). Containment requests (`src/contain.rs`, in charge only, 2026-11-10) |
 | 4 | mesh and trust | **done** (2026-11-10): the mesh (`src/mesh.rs`, in charge only); trust (`src/trust.rs`: the signed list read and checked, the judge, the behaviour files in the file watch; watching, so in both modes) |
-| switch | the Rust binary as `heimdalld`, the Go one kept for the one-shot commands | plan: `docs/RUST_SWITCH.md` |
+| 5 | the one-shot commands (`src/cli`): every subcommand of cmd/heimdalld | **done** (2026-11-11): `docs/RUST_CLI.md`; the Python Wi-Fi helpers and `heimdall-intel-update` are not ported |
+| switch | the Rust binary as `heimdalld` for everything; the Go one kept a week as the quick rollback, then dropped | plan: `docs/RUST_SWITCH.md` |
 
 ## Layout
 

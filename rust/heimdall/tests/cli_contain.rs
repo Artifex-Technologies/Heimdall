@@ -19,7 +19,7 @@ fn opts(extra: &str) -> Opts {
 
 /// A made-up Sarina: a copy of sleep named sarina, running in the fake root's own process namespace.
 const SARINA: &str =
-    "cp /usr/bin/sleep \"$R/tmp/sarina\"\n(cd \"$R\" && chroot \"$R\" /tmp/sarina 300 </dev/null >/dev/null 2>&1 &)\nsleep 0.2\n";
+    "cp /usr/bin/sleep \"$R/tmp/sarina\"\ntouch -d '2026-01-02 03:04:05' \"$R/tmp/sarina\"\n(cd \"$R\" && chroot \"$R\" /tmp/sarina 300 </dev/null >/dev/null 2>&1 &)\nsleep 0.2\n";
 
 /// The evidence folder: its files and the parts of them that do not change from run to run.
 fn evidence(r: &Root) -> BTreeMap<String, String> {

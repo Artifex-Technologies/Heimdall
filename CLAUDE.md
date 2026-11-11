@@ -259,6 +259,24 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-11-11 — Rust port, step 5: every heimdalld command in Rust (not installed; the switch waits as planned)
+- The Rust heimdalld now answers every one-shot command of the Go one (scan, scan-files, lan, immunity, contain, grant,
+  mesh, trust, origin, intel-check, ipdb-check, kernel-check, wifi-health, maintenance, remote, version, help), each proved
+  against the Go binary in fake roots: the same arguments, output, files and exit codes (`docs/RUST_CLI.md`). After the
+  switch the Go binary is kept a week only as the quick rollback, then the package stops building it
+  (`docs/RUST_SWITCH.md`, stages 1 and 2). Nothing is installed yet; `run --shadow` is unchanged.
+- **For Yggdrasil Settings (nothing to change):** `heimdalld wifi-health --json [--speed]` writes the same report;
+  `contain release`, `immunity release ID` and `immunity confirm ID` the same exit codes and messages.
+- **For Labyrinth (nothing to change):** `scan-files` prints the same `INFECTED PATH: SIGNATURE` lines and exit codes 0/1/2;
+  `maintenance on|off|status` is the same for labyrinth-agent.
+- **For Sarina (nothing to change):** `heimdalld origin IP...` prints the same `IP  ORIGIN` lines; `trust status|sign|restore`
+  and `grant ...` keep their texts and files (her `go/trust` and `go/heimdall/grants.go` read the same files).
+- **For Limbo (nothing to change):** `immunity take-limbo` and the requests copy Limbo's held files as before; the analysis
+  asks `POST /v1/sample-runs` on the admin socket with the same body.
+- One difference a reader may see: a held file whose name has a character above U+00FF now keeps a readable sample (Go kept
+  an empty one that could never be released).
+— Signed: Heimdall / Claude Opus 5.5
+
 ### 2026-11-10 (5) — Rust port complete: the Sarina advisory, containment requests, the mesh, trust
 - The Rust daemon in charge now asks Sarina for an opinion on each new Limbo hold, as the Go one does (`rust/heimdall/src/
   advisor.rs`): `POST /v1/sessions` with `tool_allowlist: []` (nothing sent unless the reply says `tools: 0`), the chat with
