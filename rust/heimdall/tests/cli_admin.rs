@@ -622,6 +622,59 @@ fn grant_decisions_on_a_terminal_as_go() {
     }
 }
 
+#[test]
+fn remote_as_go() {
+    let root = Opts::default();
+    let user = Opts::user();
+    let approvals = |text: &'static str| {
+        move |r: &Root| {
+            r.write("/etc/heimdall/remote-access-approved.json", text);
+        }
+    };
+    let cases: Vec<Case> = vec![
+        ("list-none", Box::new(|_| {}), vec![], &user),
+        ("list", Box::new(approvals(r#"{"approved": ["tailscale", "anydesk", "nope"]}"#)), vec!["list"], &user),
+        ("list-damaged", Box::new(approvals(r#"{"approved": ["tailscale", 5]}"#)), vec!["list"], &user),
+        ("list-extra", Box::new(approvals(r#"{"approved": ["tailscale"]}"#)), vec!["list", "extra"], &user),
+        ("approve-user", Box::new(|_| {}), vec!["approve", "tailscale"], &user),
+        ("approve-nodir", Box::new(|_| {}), vec!["approve", "tailscale"], &root),
+        ("approve", Box::new(etc), vec!["approve", "tailscale"], &root),
+        ("approve-again", Box::new(approvals(r#"{"approved": ["tailscale"]}"#)), vec!["approve", "tailscale"], &root),
+        (
+            "approve-more",
+            Box::new(approvals(r#"{"approved": ["zerotier", "anydesk", "anydesk"], "x": 1}"#)),
+            vec!["approve", "tailscale"],
+            &root,
+        ),
+        ("approve-partial", Box::new(approvals(r#"{"approved": ["zerotier", 5, "anydesk"]}"#)), vec!["approve", "tailscale"], &root),
+        ("approve-syntax", Box::new(approvals(r#"{"approved": ["zerotier""#)), vec!["approve", "tailscale"], &root),
+        ("forget", Box::new(approvals(r#"{"approved": ["tailscale", "anydesk"]}"#)), vec!["forget", "tailscale"], &root),
+        ("forget-last", Box::new(approvals(r#"{"approved": ["tailscale"]}"#)), vec!["forget", "tailscale"], &root),
+        ("forget-none", Box::new(etc), vec!["forget", "tailscale"], &root),
+        ("forget-null", Box::new(approvals(r#"{"approved": null}"#)), vec!["forget", "tailscale"], &root),
+        ("unknown-tool", Box::new(etc), vec!["approve", "nope"], &root),
+        ("c2", Box::new(etc), vec!["approve", "sliver"], &root),
+        ("c2-forget", Box::new(etc), vec!["forget", "sliver"], &root),
+        ("bad-args", Box::new(etc), vec!["approve"], &root),
+        ("bad-verb", Box::new(etc), vec!["allow", "tailscale"], &root),
+        (
+            "dir-in-place",
+            Box::new(|r| {
+                r.mkdir("/etc/heimdall/remote-access-approved.json.tmp", 0o755);
+            }),
+            vec!["approve", "tailscale"],
+            &root,
+        ),
+    ];
+    for (name, build, args, o) in &cases {
+        let mut full = vec!["remote"];
+        full.extend(args.iter());
+        if same(&format!("remote-{name}"), build, &full, o).is_none() {
+            return;
+        }
+    }
+}
+
 /// The fuzz targets of these commands on their seeds, cut and changed byte by byte (rust/fuzz/seeds/<target>).
 #[test]
 fn fuzz_targets_survive_their_seeds() {

@@ -52,7 +52,7 @@ The same as the daemon's port:
 | lan | `lan scan`, `lan list` | not ported | |
 | intel | `ipdb-check`, `intel-check`, `origin`, `kernel-check`, `heimdall-intel-update` | not ported | |
 | immunity | `immunity ...`, `scan-files` | not ported | |
-| contain and admin | `contain ...`, `maintenance`, `grant`, `remote` | `maintenance`, `grant` **done**; the rest not ported | `tests/cli_admin.rs`: 97 differential runs, 447 fixture cases |
+| contain and admin | `contain ...`, `maintenance`, `grant`, `remote` | `maintenance`, `grant`, `remote` **done**; `contain` not ported | `tests/cli_admin.rs`: 118 differential runs, 447 fixture cases |
 | Wi-Fi | `wifi-health`, `heimdall-wifi-check`, `heimdall-wifi-guard`, `heimdall-wifi-notify`, packaging/tests | not ported | |
 | trust, mesh, scan | `trust ...`, `scan` (done), `mesh ...` | trust and scan **done**; mesh not ported | `tests/cli_trust.rs`: 96 fixture cases, 67 steps; `tests/cli_scan.rs`: 21 steps; all against Go |
 | basics | `version`, `help`, unknown commands, `__write-as-owner` | **done** | `tests/cli.rs` against Go |
@@ -91,6 +91,10 @@ The same as the daemon's port:
   the files after byte for byte, the errors) and 14 made-up `/proc` trees through the guard (programs by link and by first
   argument, a missing status, no parent, chains longer than 64). Properties (a tier is only ever 0-3; `Sscan`), fuzz
   target `grant_files` (any bytes as either file; what reads is written back and reads the same), smoke-run in the tests.
+- **remote** (`list`, `approve ID`, `forget ID`): `src/cli/remote.rs`; the list's marks from the daemon's own approvals
+  reader, the file written as Go's `SetApproved` writes it (a damaged file read as far as Go reads it, `null` kept for a
+  list that never was, one-space indent). 21 runs in fake roots: as a user and as root, a missing folder, duplicates,
+  partial and broken files, a command-and-control implant refused, a folder in the temporary file's place.
 - Not 1:1 inside, the same outside: the daemon's JSON reader names a config's wrong type differently from Go
   ("number 5 into Go struct field net_ports"); the commands print Go's text (`cli::maintenance::go_config_error`). The
   daemon's own message on a damaged config (`run`) is unchanged.
