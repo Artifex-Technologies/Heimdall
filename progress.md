@@ -19,6 +19,17 @@ closed rather than deleting it -- the history of *why* is worth keeping.
 
 ---
 
+## 2026-11-11 — CI: red since 6b1c858 (the fake-root command tests on Ubuntu); OPEN, one test left
+
+- Fixed: user namespaces allowed on the runner (`66d3b50`); the fake root follows the host's lib64, Ubuntu's program loader
+  (`67b416d`); the made-up Sarina is waited for, not 0.2 s (`001f956`). Locally (Arch) every test passes.
+- Still failing on GitHub only: `cli_contain.rs` `containment_and_emergency_as_go` (contain run-request). On Ubuntu, Go says
+  "stopped Sarina: none" (exit 0); Rust finds `sarina (9)`, stops it, then "containment did not hold: Sarina process still
+  running" (exit 1); likely the killed process stays a zombie under the namespace's pid 1, which Rust counts and Go does
+  not (and Go's lookup misses it there). Heimdall is Arch-only, so next: run the Rust job in an `archlinux:latest`
+  container with `options: --privileged` (namespaces need it in Docker), as Yggdrasil's CI does, and check whether Rust
+  should skip zombies (state Z) like a reaped process before the switch.
+
 ## 2026-11-11 — The Rust port, step 5: every one-shot command DONE; the Go binary can go after the switch
 
 **My ask:** port the rest of the CLI (every subcommand of cmd/heimdalld, `heimdall-intel-update`, the Go and Python helpers
