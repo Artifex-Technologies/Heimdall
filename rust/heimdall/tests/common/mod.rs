@@ -235,8 +235,16 @@ impl Root {
         for d in ["null", "zero", "urandom", "random", "tty"] {
             std::fs::write(path.join("dev").join(d), b"").unwrap();
         }
-        for (link, target) in
-            [("bin", "usr/bin"), ("lib", "usr/lib"), ("lib64", "usr/lib"), ("sbin", "usr/bin"), ("usr/sbin", "bin"), ("usr/lib64", "lib")]
+        // Arch keeps everything in /usr/lib (lib64 is a link to it); Debian and Ubuntu (the CI runner) keep the program
+        // loader in a real /usr/lib64, which the fake root then mounts as it is (run_as).
+        let real_lib64 = std::fs::symlink_metadata("/usr/lib64").is_ok_and(|m| m.is_dir());
+        let (lib64, usr_lib64) = if real_lib64 { ("usr/lib64", None) } else { ("usr/lib", Some("lib")) };
+        if real_lib64 {
+            std::fs::create_dir_all(path.join("usr/lib64")).unwrap();
+        }
+        for (link, target) in [("bin", "usr/bin"), ("lib", "usr/lib"), ("lib64", lib64), ("sbin", "usr/bin"), ("usr/sbin", "bin")]
+            .into_iter()
+            .chain(usr_lib64.map(|t| ("usr/lib64", t)))
         {
             std::os::unix::fs::symlink(target, path.join(link)).unwrap();
         }
@@ -347,6 +355,8 @@ impl Root {
             "set -e\nR='{r}'\n{}\nmount -t overlay overlay -o 'lowerdir={}:/usr/bin' \"$R/usr/bin\"\n\
              mount --bind /usr/lib \"$R/usr/lib\"\nmount -o remount,bind,ro \"$R/usr/lib\"\n\
              mount --bind /usr/share \"$R/usr/share\"\nmount -o remount,bind,ro \"$R/usr/share\"\n\
+             if [ ! -L \"$R/usr/lib64\" ] && [ -d \"$R/usr/lib64\" ]; then mount --bind /usr/lib64 \"$R/usr/lib64\"; \
+             mount -o remount,bind,ro \"$R/usr/lib64\"; fi\n\
              for d in null zero urandom random tty; do mount --bind /dev/$d \"$R/dev/$d\" 2>/dev/null || true; done\n\
              mount --bind '{}' \"$R/usr/bin/{name}\"\n",
             if o.pid { "mount -t proc proc \"$R/proc\"" } else { "mount --rbind /proc \"$R/proc\"" },
