@@ -66,6 +66,8 @@ pub struct FlagSet {
     args: Vec<String>,
     actual: Vec<String>,
     usage: Option<UsageFn>,
+    /// The error Go's `Parse` returned, as text (`error()`).
+    error: std::cell::RefCell<String>,
 }
 
 /// Parsing failed; the message and the usage are already on standard error (Go's `Parse` returning an error, or ErrHelp).
@@ -74,7 +76,14 @@ pub struct Failed;
 
 impl FlagSet {
     pub fn new(name: &str) -> FlagSet {
-        FlagSet { name: name.to_string(), defs: BTreeMap::new(), args: Vec::new(), actual: Vec::new(), usage: None }
+        FlagSet {
+            name: name.to_string(),
+            defs: BTreeMap::new(),
+            args: Vec::new(),
+            actual: Vec::new(),
+            usage: None,
+            error: std::cell::RefCell::new(String::new()),
+        }
     }
 
     fn define(&mut self, name: &str, v: Val, usage: &str) {
@@ -193,7 +202,14 @@ impl FlagSet {
         }
     }
 
+    /// The text of the error the last `parse` failed with, as Go's `err.Error()` ("flag provided but not defined: -x",
+    /// "flag: help requested"): some Go commands print it again after the flag package's own message.
+    pub fn error(&self) -> String {
+        self.error.borrow().clone()
+    }
+
     fn fail(&self, msg: String) -> Failed {
+        *self.error.borrow_mut() = msg.clone();
         eprintln!("{msg}");
         self.print_usage();
         Failed
@@ -232,6 +248,7 @@ impl FlagSet {
             let Some(def) = self.defs.get(&name) else {
                 self.args = rest;
                 if name == "help" || name == "h" {
+                    *self.error.borrow_mut() = "flag: help requested".into();
                     self.print_usage();
                     return Err(Failed);
                 }

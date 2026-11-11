@@ -54,7 +54,7 @@ The same as the daemon's port:
 | immunity | `immunity ...`, `scan-files` | not ported | |
 | contain and admin | `contain ...`, `maintenance`, `grant`, `remote` | `maintenance` **done**; the rest not ported | `tests/cli_admin.rs`: 47 differential runs, 199 fixture cases |
 | Wi-Fi | `wifi-health`, `heimdall-wifi-check`, `heimdall-wifi-guard`, `heimdall-wifi-notify`, packaging/tests | not ported | |
-| trust, mesh, scan | `trust ...` (done), `mesh ...`, `scan` | trust **done**; mesh, scan not ported | trust: `tests/cli_trust.rs`, 96 fixture cases, 67 steps against Go |
+| trust, mesh, scan | `trust ...`, `scan` (done), `mesh ...` | trust and scan **done**; mesh not ported | `tests/cli_trust.rs`: 96 fixture cases, 67 steps; `tests/cli_scan.rs`: 21 steps; all against Go |
 | basics | `version`, `help`, unknown commands, `__write-as-owner` | **done** | `tests/cli.rs` against Go |
 
 ## lan
@@ -119,7 +119,25 @@ Proof:
 Not 1:1: a key file whose public half does not belong to its seed (only a damaged file) is refused ("the signing key
 cannot be read ... is not a key"); Go would sign with it and write a list that never verifies.
 
-**mesh, scan**: not ported yet (they go to the Go binary).
+**scan** (`src/cli/scan.rs`): one look through the daemon's own detectors and sources, as Go's `cmdScan`: Sarina's
+sessions (no state; the issues as warnings), Limbo's whole log (no offset; unparseable lines counted), the vaults (nothing
+remembered), the watched files (with the FIM state file), the host's load and the ecosystem's ports (`PortWatcher` reporting
+on its first look, as Go's `Poll` alone does; the daemon's first look still only learns), the tool rules where the system
+asks for them, the ring of `ring_size`, the findings oldest first as alert lines; exit 0, 1 or 2 as Go. The config is read
+with Go's error texts (`Config::load_go`).
+
+Proof (`tests/cli_scan.rs`, fake roots with a network namespace of their own, 21 steps): planted sessions (injection,
+keys, permission denials, a zero-width space, a system message, a tool call), Limbo lines (a guest without policy, a LAN
+probe, a held file, a broken line, a cut line), vault notes (and the ones skipped), a listener on 0.0.0.0:8765, watched
+files changed and deleted between two looks, only info left, nothing left, the FIM state unwritable, a ring of 2, every
+flag and config error, a damaged session, a missing vault and Limbo log, Limbo's log a folder, the session folder gone:
+stdout (alert lines, times aside), stderr, exit codes and the FIM state file equal.
+
+Not 1:1: for a config with a wrong type inside a list or a list where none belongs, Go 1.27 names the element and the
+list's type ("cannot unmarshal string into Config.net_ports.1 of type int"); the port says "Go struct field
+Config.net_ports of type int" ("of type slice" for the list). Only the message of a broken config differs.
+
+**mesh**: not ported yet (it goes to the Go binary).
 
 ## Differences from Go
 

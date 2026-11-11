@@ -85,7 +85,8 @@ pub fn parse_proc_net(text: &str) -> Vec<Socket> {
     out
 }
 
-fn read_tables(paths: &[String]) -> std::io::Result<Vec<Socket>> {
+/// Reads the socket tables (Go: readTables): the entries of every file that opened; the last error when none did.
+pub fn read_tables(paths: &[String]) -> std::io::Result<Vec<Socket>> {
     let mut out = Vec::new();
     let mut last = None;
     let mut opened = 0;
@@ -124,6 +125,13 @@ impl PortWatcher {
             peers: BTreeSet::new(),
             first: true,
         }
+    }
+
+    /// A watcher whose first look reports what it sees, as Go's `PortWatcher.Poll` does when called alone (`heimdalld scan`);
+    /// the daemon's first look only learns.
+    pub fn reporting_first(mut self) -> PortWatcher {
+        self.first = false;
+        self
     }
 
     pub fn observe(&mut self, entries: &[Socket]) -> Vec<Event> {

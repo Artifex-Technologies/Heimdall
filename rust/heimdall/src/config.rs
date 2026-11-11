@@ -228,6 +228,23 @@ impl Config {
         gojson::unmarshal(b, Config::default()).map_err(|e| e.to_string())
     }
 
+    /// `load` with the Go command's error texts word for word, for the one-shot commands that print them (`heimdalld scan`):
+    /// a read error as Go's ("config: read P: open P: permission denied") and a type error naming the struct as the Go that
+    /// builds heimdalld does ("... into Go struct field Config.ring_size of type int"). The daemon keeps `load`.
+    pub fn load_go(path: &str) -> Result<Config, String> {
+        if path.is_empty() {
+            return Ok(Config::default());
+        }
+        match std::fs::read(path) {
+            Ok(b) => Config::parse(&b).map_err(|e| {
+                let e = e.replacen(" into Go struct field ", " into Go struct field Config.", 1);
+                format!("config: parse {path}: {}", e.replacen(" into Go value of type Config", " into Go value of type config.Config", 1))
+            }),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Config::default()),
+            Err(e) => Err(format!("config: read {path}: {}", crate::gopath::read_err(path, &e))),
+        }
+    }
+
     /// Go's config.Load: an empty path or a missing file is the defaults; a file that does not read is an error.
     pub fn load(path: &str) -> Result<Config, String> {
         if path.is_empty() {
