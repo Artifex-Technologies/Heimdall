@@ -53,7 +53,7 @@ The same as the daemon's port:
 | intel | `ipdb-check`, `intel-check`, `origin`, `kernel-check`, `heimdall-intel-update` | not ported | |
 | immunity | `immunity ...`, `scan-files` | not ported | |
 | contain and admin | `contain ...`, `maintenance`, `grant`, `remote` | `maintenance`, `grant`, `remote`, `contain status|evidence` **done**; `contain now|emergency|run-request|release` go to Go | `tests/cli_admin.rs`: 135 differential runs, 447 fixture cases |
-| Wi-Fi | `wifi-health`, `heimdall-wifi-check`, `heimdall-wifi-guard`, `heimdall-wifi-notify`, packaging/tests | not ported | |
+| Wi-Fi | `wifi-health`, `heimdall-wifi-check`, `heimdall-wifi-guard`, `heimdall-wifi-notify`, packaging/tests | `wifi-health` **done**; the helpers not ported | cli-wifi.json: 3,361 parser cases and 160 whole reports byte for byte; 19 runs of both binaries in fake roots with a made-up Wi-Fi, the speed test over TLS included |
 | trust, mesh, scan | `trust ...`, `scan`, `mesh ...` | **done** | `tests/cli_trust.rs`: 155 fixture cases (trust 96, mesh 59), 67 steps; `tests/cli_scan.rs`: 21 steps; `tests/cli_mesh.rs`: 44 steps; all against Go |
 | basics | `version`, `help`, unknown commands, `__write-as-owner` | **done** | `tests/cli.rs` against Go |
 
@@ -138,7 +138,48 @@ Not 1:1, on purpose:
 
 ## Wi-Fi
 
-(not ported yet)
+`heimdalld wifi-health [--speed] [--json] [--iface IF] [--api ADDR]` is Rust (`src/cli/wifihealth.rs` and
+`src/cli/wifihealth/`): the default route's Wi-Fi interface from `/proc/net/route` and `/sys/class/net/IF/wireless`, `iw`
+before and after (power saving, link, station dump), the router and the internet pinged at once while NetworkManager's scan
+list and the device count (`GET /v1/lan/devices`, 3 s, Go's decoder rules: the first JSON value, every field's type checked)
+are read, the optional download from the first https mirrors of `/etc/pacman.d/mirrorlist` (two streams with Go's `Range`
+headers, about 8 s, the internet pinged meanwhile, redirects followed), all inside 90 seconds; the same findings, verdict,
+summary, JSON (Go's `json.Encoder`: field order, `omitempty`, `null` for no neighbours, nothing at all when a number is not
+finite) and text, the same exit codes (1 only when `iw` is missing).
+
+What it took to be the same:
+
+- Go's patterns with `\s` and `\d` written as Go's ASCII classes; Go's number parsing with its errors ignored (overflow kept:
+  a huge frequency is `int(+Inf)`, which on amd64 is the smallest int); bytes that are not UTF-8 carried through as Go sees
+  them (one character to the patterns, one U+FFFD each in JSON, raw in text: `gostr.rs`).
+- Go's `sort.Slice` (pdqsort, not stable) ported step for step (`gosort.rs`), since networks with the same signal are listed
+  in the order Go's algorithm leaves them.
+- **Go 1.27's JSON encoder writes a byte that is not UTF-8 as the character U+FFFD itself**, not as the escape `\ufffd` older
+  Go wrote (checked with the Go that builds heimdalld). `gostruct::write_bytes` still writes the escape; it is shared with
+  the daemon's API, so it is left alone here and reported.
+- The HTTP client (`http.rs`): HTTP/1.1, one request per connection, TLS by rustls with the authorities Go reads
+  (`SSL_CERT_FILE`, Go's file list, `/etc/ssl/certs`); TLS 1.3 and 1.2, as Go offers them (the `tls12` feature of rustls is
+  on for this; the mesh keeps TLS 1.3 only in its own configuration). Errors carry Go's words where the report quotes them
+  ("no such host", "connection refused", "certificate signed by unknown authority", ...).
+
+Proof:
+
+- `testdata/parity/cli-wifi.json` (`internal/parity/cli_wifi.go`, a fixed seed): 206 `iw` texts, 201 scan lists, 201 ping
+  outputs, 1,517 frequencies, 776 overlap questions, 300 `sort.Slice` orders and 160 whole made-up situations (good, busy,
+  weak, crowded, a provider's hotspot on our radio, power saving, speed tests, unknown bands, names that are not UTF-8),
+  each report's JSON and text byte for byte (`tests/cli_wifi.rs`).
+- Both binaries in fake roots (`tests/cli_wifi_run.rs`): a dummy `wlan0` in a network namespace of its own, fake `iw`,
+  `ping`, `nmcli`, a fake API on 127.0.0.1:8930 (Python's http.server), and for `--speed` a mirror over TLS (`openssl
+  s_server` with a test authority made for the run): 19 situations, text and JSON, flags in Go's spellings, `-h`, a wrong
+  flag, the API down or broken, no mirror list, the mirror unreachable, `iw` missing, no default route. Output (the measured
+  speed and the time aside), errors, exit codes and every tool call equal.
+- Fuzz targets `wifi_link`, `wifi_scan`, `wifi_ping`, `wifi_devices` (seeds in `rust/fuzz/seeds`), 4 property tests and 2
+  Kani harnesses with their claims checked exhaustively over a range (`tests/cli_wifi_fuzz.rs`).
+
+Not 1:1 (all where nothing reads the difference): one request per connection and HTTP/1.1 only (Go may use HTTP/2 with a
+mirror that offers it; the bytes counted are the same file); no HTTP proxy from the environment (Go's client honours
+`HTTPS_PROXY`; Settings runs the check without one); a certificate failure that is not one of the usual kinds is worded by
+rustls, not Go, in the speed test's error.
 
 ## trust, mesh, scan
 

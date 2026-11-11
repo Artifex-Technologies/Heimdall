@@ -1,0 +1,11 @@
+Connected to 02:00:5e:10:00:9f (on wlan0)
+	SSID: Home
+	freq: 5180
+	signal: -48 dBm
+	rx bitrate: 866.7 MBit/s VHT-MCS 9 80MHz
+	tx bitrate: 780.0 MBit/s 80MHz
+Station x
+	tx packets: 10
+	tx retries: 1
+	tx failed: 0
+	expected throughput: 410.5Mbps

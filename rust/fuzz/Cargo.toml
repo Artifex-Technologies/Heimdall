@@ -142,3 +142,31 @@ path = "fuzz_targets/grant_files.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "wifi_link"
+path = "fuzz_targets/wifi_link.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "wifi_scan"
+path = "fuzz_targets/wifi_scan.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "wifi_ping"
+path = "fuzz_targets/wifi_ping.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "wifi_devices"
+path = "fuzz_targets/wifi_devices.rs"
+test = false
+doc = false
+bench = false
