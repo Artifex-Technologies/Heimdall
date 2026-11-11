@@ -11,12 +11,21 @@ GUARD = "/run/heimdall-wifi-guard/last.json"
 SEEN = os.path.join(os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"), "heimdall", "wifi-notified.json")
 
 
+def load(path):
+    """The object in a JSON file; None when the file does not read, is not JSON, or holds something else (a damaged file
+    must not stop every later notification)."""
+    try:
+        with open(path) as f:
+            v = json.load(f)
+    except (OSError, ValueError):
+        return None
+    return v if isinstance(v, dict) else None
+
+
 def guard(seen):
     """The Wi-Fi guard's events: the VPN came on, or the Wi-Fi was dropped because the VPN could not protect it."""
-    try:
-        with open(GUARD) as f:
-            g = json.load(f)
-    except (OSError, ValueError):
+    g = load(GUARD)
+    if g is None:
         return
     if seen.get("guard") == g.get("time"):
         return
@@ -31,25 +40,15 @@ def guard(seen):
 
 
 def main():
-    try:
-        with open(SEEN) as f:
-            seen = json.load(f)
-    except (OSError, ValueError):
-        seen = {}
+    seen = load(SEEN) or {}
     guard(seen)
     os.makedirs(os.path.dirname(SEEN), exist_ok=True)
     with open(SEEN, "w") as f:
         json.dump(seen, f)
-    try:
-        with open(PUB) as f:
-            r = json.load(f)
-    except (OSError, ValueError):
+    r = load(PUB)
+    if r is None:
         return
-    try:
-        with open(SEEN) as f:
-            seen = json.load(f)
-    except (OSError, ValueError):
-        seen = {}
+    seen = load(SEEN) or {}
     if seen.get("last") == r.get("time"):
         return  # already shown
     ssid = "".join(c for c in str(r.get("ssid", "")) if c.isprintable())[:64] or "this network"
