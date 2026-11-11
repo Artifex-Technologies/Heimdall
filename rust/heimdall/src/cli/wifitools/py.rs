@@ -382,7 +382,7 @@ pub fn decimal_value(c: char) -> Option<u32> {
     let t = table::DECIMAL;
     let i = t.partition_point(|&(_, b)| b < x);
     let &(a, b) = t.get(i)?;
-    (a <= x && x <= b).then_some((x - a) % 10)
+    (a <= x && x <= b).then(|| (x - a) % 10)
 }
 
 /// `s.strip()`.

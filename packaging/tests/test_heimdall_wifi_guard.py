@@ -131,6 +131,15 @@ class Guard(unittest.TestCase):
         self.assertIn('oifname "wg-heimdall" accept', rs)
         self.assertNotIn("tcp", rs)
 
+    def test_a_file_of_another_kind_counts_as_missing(self):
+        # JSON that is not an object (a damaged or hand-edited file) is treated as a missing file, not a traceback
+        for text in ("[]", "null", '"x"', "5"):
+            with open(self.m.CONF, "w") as f:
+                f.write(text)
+            self.assertEqual(self.m.load(self.m.CONF, {}), {})
+            self.m.pre_up("wlan0", "cafe-uuid")
+        self.assertNotIn("LOCK", self.calls)
+
     def test_wireguard_files_are_read(self):
         eps = self.m.parse_wg("[Interface]\nPrivateKey = x\n[Peer]\nPublicKey = y\nEndpoint = 185.159.157.1:51820\n")
         self.assertEqual(eps, [{"ip": "185.159.157.1", "port": 51820}])

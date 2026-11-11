@@ -45,9 +45,12 @@ def sh(argv, timeout=30, check=False):
 def load(path, default):
     try:
         with open(path) as f:
-            return json.load(f)
+            data = json.load(f)
     except (OSError, ValueError):
         return default
+    # JSON of another kind (a damaged or hand-edited file) counts as missing, as a file that is not JSON does, rather than
+    # stopping the guard with a traceback before it could lock the network or say why
+    return data if isinstance(data, type(default)) else default
 
 
 def save(path, data, mode=0o644):
@@ -302,9 +305,11 @@ def cmd_vpn_import(path):
         sh(["nmcli", "connection", "delete", conf["vpn"]["uuid"]])
     iface = "wg-heimdall"
     tmp = "/run/%s.conf" % iface  # NetworkManager names the connection after the file
-    with open(tmp, "w") as f:
+    # private before the key is written into it (made with the default mode, it was readable by every user until the chmod)
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        os.fchmod(fd, 0o600)  # a file left there before keeps its mode otherwise
         f.write(text)
-    os.chmod(tmp, 0o600)
     try:
         out = sh(["nmcli", "connection", "import", "type", "wireguard", "file", tmp], check=True).stdout
     finally:

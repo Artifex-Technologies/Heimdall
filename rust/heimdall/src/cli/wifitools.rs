@@ -7,6 +7,8 @@
 //! arguments, output, files, notifications, programs called and exit codes, proved by running both on the same made-up
 //! systems (tests/cli_wifitools.rs) and by the parsers' properties and fuzz targets (docs/RUST_CLI.md, "Wi-Fi helpers").
 
+pub mod addr;
+pub mod guard;
 pub mod notify;
 pub mod py;
 
@@ -20,8 +22,8 @@ pub fn wifi_check(_args: &[String]) -> Option<i32> {
     None
 }
 
-pub fn wifi_guard(_args: &[String]) -> Option<i32> {
-    None
+pub fn wifi_guard(args: &[String]) -> Option<i32> {
+    Some(guard::main(args))
 }
 
 pub fn wifi_notify(args: &[String]) -> Option<i32> {
