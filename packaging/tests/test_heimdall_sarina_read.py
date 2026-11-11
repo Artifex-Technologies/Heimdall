@@ -24,7 +24,30 @@ def effective(path):
     return None
 
 
+def tmpfiles_sets_named_acls():
+    """Whether this systemd-tmpfiles, run as this user, sets an ACL for a user named in --root's passwd at all (the GitHub
+    runner's does not), so that the tests below can say anything about our file."""
+    if not HAVE:
+        return False
+    root = tempfile.mkdtemp()
+    try:
+        os.makedirs(os.path.join(root, "etc"))
+        os.makedirs(os.path.join(root, "probe"))
+        with open(os.path.join(root, "etc", "passwd"), "w") as f:
+            f.write("heimdall:x:950:950::/var/lib/heimdall:/usr/bin/nologin\n")
+        with open(os.path.join(root, "etc", "group"), "w") as f:
+            f.write("heimdall:x:950:\n")
+        conf = os.path.join(root, "probe.conf")
+        with open(conf, "w") as f:
+            f.write("a+ /probe - - - - u:heimdall:r-x\n")
+        subprocess.run(["systemd-tmpfiles", "--root=" + root, "--create", conf], capture_output=True)
+        return any(l.startswith("user:950:") for l in acl(os.path.join(root, "probe")))
+    finally:
+        shutil.rmtree(root)
+
+
 @unittest.skipUnless(HAVE, "systemd-tmpfiles and getfacl are needed")
+@unittest.skipUnless(tmpfiles_sets_named_acls(), "this systemd-tmpfiles sets no ACL when run unprivileged")
 class SarinaRead(unittest.TestCase):
     def setUp(self):
         self.root = tempfile.mkdtemp()
