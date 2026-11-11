@@ -51,7 +51,7 @@ The same as the daemon's port:
 | --- | --- | --- | --- |
 | lan | `lan scan`, `lan list` | `lan list` **done**; `lan scan` written, still handed to Go | `tests/cli_lan.rs`: cli-lan.json (4,091 cases), 19 `lan list` runs and 11 `lan scan` runs without a scan against Go in fake roots |
 | intel | `ipdb-check`, `intel-check`, `origin`, `kernel-check`, `heimdall-intel-update` | the four commands **done**; `heimdall-intel-update` stays the shell script that calls them | `tests/cli_intel.rs`: 98 runs against Go in fake roots (kernel lists of 1,300+ made-up records byte for byte, zip and zip64) |
-| immunity | `immunity ...`, `scan-files` | not ported | |
+| immunity | `immunity ...`, `scan-files` | **done** | `tests/cli_immunity.rs`: 73 steps of both binaries on two copies of one made-up system, the store, ClamAV's folder, the user's files (owners, modes, times) and every tool called compared after each step |
 | contain and admin | `contain ...`, `maintenance`, `grant`, `remote` | `maintenance`, `grant`, `remote`, `contain status|evidence` **done**; `contain now|emergency|run-request|release` go to Go | `tests/cli_admin.rs`: 135 differential runs, 447 fixture cases |
 | Wi-Fi | `wifi-health`, `heimdall-wifi-check`, `heimdall-wifi-guard`, `heimdall-wifi-notify`, packaging/tests | `wifi-health` **done**; the helpers not ported | cli-wifi.json: 3,361 parser cases and 160 whole reports byte for byte; 19 runs of both binaries in fake roots with a made-up Wi-Fi, the speed test over TLS included |
 | trust, mesh, scan | `trust ...`, `scan`, `mesh ...` | **done** | `tests/cli_trust.rs`: 155 fixture cases (trust 96, mesh 59), 67 steps; `tests/cli_scan.rs`: 21 steps; `tests/cli_mesh.rs`: 44 steps; all against Go |
@@ -124,7 +124,46 @@ Not 1:1:
 
 ## immunity
 
-(not ported yet)
+`rust/heimdall/src/cli/immunity.rs` and `src/cli/immunity/` (Go: cmd/heimdalld/immunity.go, rules.go, main.go's
+cmdScanFiles; internal/immunity, internal/scan): the store (`store.rs`: the index written as Go writes it with the daemon's
+own `immunity::ENTRY`, samples, ClamAV's `.hsb` file, holding and releasing through `safefs`, the proofs from the trust list
+and the inventory, Limbo's held files, the analysis over Limbo's admin socket, the report of a sample), Go's `debug/elf` as
+far as the report reads it (`elf.rs`; the names of machines and file types from Go by `rust/gotools/elftable`), Go's
+`filepath.Match` line for line (`gomatch.rs`, Go's own table as its test), ClamAV and the scan of files (`scan.rs`), the rule
+drafts (`rules.rs`).
+
+- **The steps compared** (`tests/cli_immunity.rs`, a fake ClamAV knowing one made-up signature; after every step: output,
+  exit code, the store with the samples by their content, ClamAV's folder, the user's files with owners, modes and times,
+  the requests folder, the drafts, and every tool called): holds of a script, a file ClamAV knows, a second copy of held
+  content, a file too small, a link, a missing file, a file under /usr, a Latin-1 name; `add` of a real program (its ELF
+  report compared), `suspect`; `list` in two time zones and `--json`; `check` as a user; `confirm` by a prefix, unknown and
+  ambiguous prefixes; `release` of a ClamAV-known file (refused), of a suspect, of a held file (back with its owner, mode
+  and time, never over a file), twice; `release-if-proven` without proof; `forget`, twice; `export`; usage errors; as a user.
+  The daily `inventory` twice (programs, units, desktop files; a data file left out); `run-requests` with a proven release
+  (the inventory saw the file two days before), an unproven one, a copy of what Limbo held, one that does not hash to its
+  name, an analysis (no Limbo here), a wrong type, not JSON, a link, a folder, a name that is not hex, then again while
+  Sarina is contained; `take-limbo` and `analyze` by hand. `rule`: drafts as a user and as root, a refused draft, an unknown
+  sample, a missing file, `list`, `show`, `test` passing and failing (`--fp` before and after the id), `approve` refused by
+  the guard without a terminal, `reject`. `scan-files`: usage errors, a scan as root and as a user, `--state` remembering
+  unchanged files and forgetting them when a rule is added, `--exclude` folders and globs (a malformed one), `--max-mb`, a
+  link, an unreadable file, `./` and trailing-slash roots, and a ClamAV that reports nothing.
+- Unit tests: Go's own `filepath.Match` table; every cut and one-byte change of a real program's first 4 KiB through the ELF
+  reader.
+
+Not 1:1, on purpose:
+- The samples' gzip bytes: flate2 compresses differently from Go; the content is the same (checked against its SHA-256 on
+  every read) and each program reads the other's samples.
+- A file name with a character above U+00FF: Go cannot write it into the gzip header and keeps an empty, broken sample (the
+  file can never be released); the port keeps the sample without the name (`a_name_go_cannot_write_into_gzip_keeps_a_good_
+  sample` shows both).
+- A damaged sample reports `gzip: invalid header`, `gzip: invalid checksum`, `EOF` or `unexpected EOF`; Go's inflater can also
+  name the offset where the data broke.
+- An ELF file Go refuses for a compressed section it cannot inflate, or reads through one, may get a different ELF part in
+  its report (no real program has compressed sections there).
+- The analysis's HTTP request to Limbo carries the same method, path and body; its headers are not Go's byte for byte
+  (Limbo reads only the body).
+
+`contain now|emergency|run-request|release` still go to the Go binary (next to port; they use this store).
 
 ## contain and admin
 

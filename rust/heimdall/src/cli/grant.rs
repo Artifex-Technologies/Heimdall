@@ -525,7 +525,7 @@ pub fn sscan_int(s: &str) -> Option<i64> {
     crate::cli::goflag::parse_int(&b[..i]).ok()
 }
 
-fn confirm(prompt: &str) -> bool {
+pub(crate) fn confirm(prompt: &str) -> bool {
     print!("{prompt}");
     let _ = std::io::stdout().flush();
     let mut line = String::new();

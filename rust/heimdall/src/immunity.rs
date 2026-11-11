@@ -250,7 +250,7 @@ impl Rules {
 
     /// Go's save: MarshalIndent with two spaces, a temporary file beside it (0640, the folder's owner when root writes),
     /// renamed into place.
-    fn save(&self, rs: &Val) -> Result<(), String> {
+    pub(crate) fn save(&self, rs: &Val) -> Result<(), String> {
         let b =
             gostruct::to_json_indented(&RULES, rs, "  ").ok_or_else(|| "json: error calling MarshalJSON for type time.Time".to_string())?;
         let dir = std::path::Path::new(&self.path).parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_else(|| ".".into());
