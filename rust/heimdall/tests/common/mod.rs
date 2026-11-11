@@ -160,6 +160,8 @@ pub struct Opts {
     pub stdin: Vec<u8>,
     /// a network namespace of its own
     pub net: bool,
+    /// a process namespace of its own with its own /proc: the command sees (and can signal) only what runs in it
+    pub pid: bool,
     /// shell run inside the namespaces as root before the command (paths outside the root: $R is the root)
     pub setup: String,
     pub timeout: Duration,
@@ -167,7 +169,15 @@ pub struct Opts {
 
 impl Default for Opts {
     fn default() -> Opts {
-        Opts { root: true, env: Vec::new(), stdin: Vec::new(), net: false, setup: String::new(), timeout: Duration::from_secs(60) }
+        Opts {
+            root: true,
+            env: Vec::new(),
+            stdin: Vec::new(),
+            net: false,
+            pid: false,
+            setup: String::new(),
+            timeout: Duration::from_secs(60),
+        }
     }
 }
 
@@ -334,11 +344,12 @@ impl Root {
         }
         let r = self.path.display().to_string();
         let mut script = format!(
-            "set -e\nR='{r}'\nmount --rbind /proc \"$R/proc\"\nmount -t overlay overlay -o 'lowerdir={}:/usr/bin' \"$R/usr/bin\"\n\
+            "set -e\nR='{r}'\n{}\nmount -t overlay overlay -o 'lowerdir={}:/usr/bin' \"$R/usr/bin\"\n\
              mount --bind /usr/lib \"$R/usr/lib\"\nmount -o remount,bind,ro \"$R/usr/lib\"\n\
              mount --bind /usr/share \"$R/usr/share\"\nmount -o remount,bind,ro \"$R/usr/share\"\n\
              for d in null zero urandom random tty; do mount --bind /dev/$d \"$R/dev/$d\" 2>/dev/null || true; done\n\
              mount --bind '{}' \"$R/usr/bin/{name}\"\n",
+            if o.pid { "mount -t proc proc \"$R/proc\"" } else { "mount --rbind /proc \"$R/proc\"" },
             self.fakes.display(),
             bin.display()
         );
@@ -364,6 +375,9 @@ impl Root {
         script.push_str(&format!("cd \"$R\"\nexec chroot {user}\"$R\" /usr/bin/env -i {} {inside} {}\n", env.join(" "), argv.join(" ")));
         let mut cmd = Command::new("unshare");
         cmd.args(userns_args()).arg("--mount").arg("--propagation").arg("private");
+        if o.pid {
+            cmd.args(["--pid", "--fork"]);
+        }
         if o.net {
             cmd.arg("--net");
         }

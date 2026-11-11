@@ -52,7 +52,7 @@ The same as the daemon's port:
 | lan | `lan scan`, `lan list` | `lan list` **done**; `lan scan` written, still handed to Go | `tests/cli_lan.rs`: cli-lan.json (4,091 cases), 19 `lan list` runs and 11 `lan scan` runs without a scan against Go in fake roots |
 | intel | `ipdb-check`, `intel-check`, `origin`, `kernel-check`, `heimdall-intel-update` | the four commands **done**; `heimdall-intel-update` stays the shell script that calls them | `tests/cli_intel.rs`: 98 runs against Go in fake roots (kernel lists of 1,300+ made-up records byte for byte, zip and zip64) |
 | immunity | `immunity ...`, `scan-files` | **done** | `tests/cli_immunity.rs`: 73 steps of both binaries on two copies of one made-up system, the store, ClamAV's folder, the user's files (owners, modes, times) and every tool called compared after each step |
-| contain and admin | `contain ...`, `maintenance`, `grant`, `remote` | `maintenance`, `grant`, `remote`, `contain status|evidence` **done**; `contain now|emergency|run-request|release` go to Go | `tests/cli_admin.rs`: 135 differential runs, 447 fixture cases |
+| contain and admin | `contain ...`, `maintenance`, `grant`, `remote` | **done** | `tests/cli_admin.rs`: 135 differential runs, 447 fixture cases; `tests/cli_contain.rs`: 16 runs of `contain now|emergency|run-request|release` in their own process and network namespaces, a real containment of a made-up Sarina included |
 | Wi-Fi | `wifi-health`, `heimdall-wifi-check`, `heimdall-wifi-guard`, `heimdall-wifi-notify`, packaging/tests | `wifi-health` **done**; the helpers not ported | cli-wifi.json: 3,361 parser cases and 160 whole reports byte for byte; 19 runs of both binaries in fake roots with a made-up Wi-Fi, the speed test over TLS included |
 | trust, mesh, scan | `trust ...`, `scan`, `mesh ...` | **done** | `tests/cli_trust.rs`: 155 fixture cases (trust 96, mesh 59), 67 steps; `tests/cli_scan.rs`: 21 steps; `tests/cli_mesh.rs`: 44 steps; all against Go |
 | basics | `version`, `help`, unknown commands, `__write-as-owner` | **done** | `tests/cli.rs` against Go |
@@ -163,7 +163,7 @@ Not 1:1, on purpose:
 - The analysis's HTTP request to Limbo carries the same method, path and body; its headers are not Go's byte for byte
   (Limbo reads only the body).
 
-`contain now|emergency|run-request|release` still go to the Go binary (next to port; they use this store).
+
 
 ## contain and admin
 
@@ -195,8 +195,18 @@ Not 1:1, on purpose:
   `ReadMarker`). 17 runs: no lock, a lock as Go writes it, an emergency lock, a lock that is not JSON (Go shows the zero
   time in the local zone of year 1), an empty one, a folder in its place, the switches partly damaged or spelled in
   another case, `HEIMDALL_CONTAIN_MARKER`, the evidence folders newest first, none, and one a user cannot read.
-  `contain now|emergency|run-request|release` still go to the Go binary: they hold suspicious files in immunity's store
-  and put proven ones back, which comes with the immunity port.
+- **contain now, emergency, run-request, release** (`src/cli/contain/steps.rs`: Go's Runner, Real and evidence): the lock,
+  the evidence folder saved first (processes, a running Sarina's maps, environment with secrets hidden and open files,
+  `ss`, `nvidia-smi`, the model server's list, the journal, unapproved behaviour files, her latest sessions, the index and
+  notes), Sarina stopped (systemctl, Limbo's agent runs, SIGKILL), the models unloaded, the check a minute later, the
+  emergency step (the approved files restored, the desktop and model server stopped, `fuser -k` on the graphics devices,
+  `nvidia-smi --gpu-reset`, `systemctl reboot`), suspicious programs held in immunity's store. 16 runs against Go, each in a
+  fake root with its own process namespace (the command sees and can signal only what runs there) and network namespace (no
+  model server is reachable): usage, as a user, `release` with and without a lock, `run-request` with no request, an
+  unreadable one, an empty or mistyped reason, automatic containment off, and a real automatic containment of a made-up
+  `sarina` process (stopped, held in immunity, evidence saved, "containment held"); `emergency --yes` with every outside
+  tool failing. Compared: output (pids aside), exit codes, the lock and requests, immunity's index, the evidence folder (its
+  name, times and the process table's numbers aside) and every tool called.
 - Not 1:1 inside, the same outside: the daemon's JSON reader names a config's wrong type differently from Go
   ("number 5 into Go struct field net_ports"); the commands print Go's text (`cli::maintenance::go_config_error`). The
   daemon's own message on a damaged config (`run`) is unchanged.

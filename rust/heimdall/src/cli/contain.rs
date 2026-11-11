@@ -1,8 +1,9 @@
 //! `heimdalld contain status|now|emergency|evidence|release|run-request` (Go: cmd/heimdalld/contain.go, internal/contain):
 //! stop a compromised AI agent (docs/CONTAIN.md).
 //!
-//! Ported: `status`, `evidence`, the usage. Not yet (they hand over to the Go binary): `now`, `emergency`, `run-request` and
-//! `release`, which hold suspicious files in immunity's store and put released ones back (immunity's port).
+//! Every subcommand is ported; what containment does to the computer is in `contain/steps.rs`.
+
+mod steps;
 
 use crate::contain;
 
@@ -76,10 +77,167 @@ pub fn main(args: &[String]) -> Option<i32> {
             print!("{out}");
             Some(if m.is_some() { 1 } else { 0 })
         }
-        "now" | "emergency" | "run-request" | "release" => None,
+        "now" | "emergency" | "run-request" | "release" => Some(act(sub, &args[1..])),
         _ => {
             eprint!("{USAGE}");
             Some(2)
         }
     }
+}
+
+/// `heimdalld contain: ` lines on standard error (Go's `log.New(os.Stderr, "heimdalld contain: ", 0)`).
+fn log(s: &str) {
+    crate::cli::golog::Logger::new("heimdalld contain: ", false).print(s);
+}
+
+/// The sessions kept as evidence: the folder Heimdall watches, and each user's own.
+fn sessions() -> Vec<String> {
+    let mut out = Vec::new();
+    if let Ok(cfg) = crate::config::Config::load_go("/etc/heimdall/config.json") {
+        if !cfg.agent_session_dir.is_empty() {
+            out.push(cfg.agent_session_dir);
+        }
+    }
+    out.extend(crate::cli::immunity::store::glob("/home/*/.sarina/sessions").iter().map(|p| crate::gotext::lossy(p)));
+    out
+}
+
+/// `now`, `emergency`, `run-request`, `release` (root).
+fn act(sub: &str, args: &[String]) -> i32 {
+    use crate::cli::goflag::FlagSet;
+    let test = std::env::var("HEIMDALL_CONTAIN_MARKER").is_ok_and(|v| !v.is_empty());
+    let need_root = || {
+        if !rustix::process::geteuid().is_root() && !test {
+            eprintln!("heimdalld contain: this needs root (sudo)");
+            return false;
+        }
+        true
+    };
+    let runner = || steps::Runner::new(marker(), sessions(), log);
+    match sub {
+        "now" => {
+            let mut fs = FlagSet::new("contain now");
+            fs.string("reason", "contained by the owner", "why (kept in the lock)");
+            fs.bool("escalate", false, "when containment does not hold after a minute, go on to the emergency step");
+            if fs.parse(args).is_err() || !need_root() {
+                return 2;
+            }
+            match runner().run(&fs.get_str("reason"), false, false, fs.get_bool("escalate")) {
+                Ok(()) => 0,
+                Err(e) => {
+                    log(&e);
+                    1
+                }
+            }
+        }
+        "emergency" => {
+            let mut fs = FlagSet::new("contain emergency");
+            fs.bool("yes", false, "really: this kills the desktop and every game and restarts the computer");
+            fs.string("reason", "emergency started by the owner", "why (kept in the lock)");
+            if fs.parse(args).is_err() || !need_root() {
+                return 2;
+            }
+            if !fs.get_bool("yes") {
+                eprintln!(
+                    "heimdalld contain emergency: this kills the desktop and every program on the graphics card, resets the card and restarts; add --yes"
+                );
+                return 2;
+            }
+            match runner().emergency(&fs.get_str("reason")) {
+                Ok(()) => 0,
+                Err(e) => {
+                    log(&e);
+                    1
+                }
+            }
+        }
+        "run-request" => {
+            if !need_root() {
+                return 2;
+            }
+            let Ok(b) = std::fs::read(contain::REQUEST_PATH) else { return 0 };
+            let _ = std::fs::remove_file(contain::REQUEST_PATH);
+            static REQ: crate::gostruct::Ty = crate::gostruct::Ty::Struct(
+                "contain.Request",
+                &[
+                    crate::gostruct::Field("time", &crate::gostruct::Ty::Time, false),
+                    crate::gostruct::Field("reason", &crate::gostruct::Ty::Str, false),
+                    crate::gostruct::Field("auto", &crate::gostruct::Ty::Bool, false),
+                ],
+            );
+            let (v, err) = crate::gostruct::unmarshal(&REQ, &b);
+            let reason = crate::gostruct::str_field(&REQ, &v, "reason").to_string();
+            if err.is_some() || crate::gotext::trim_space(&reason).is_empty() {
+                log("ignored an unreadable request");
+                return 1;
+            }
+            let (auto, auto_emergency) = contain::load_config(contain::CONFIG_PATH);
+            if !auto {
+                log(&format!("ignored a request: automatic containment is off ({})", contain::CONFIG_PATH));
+                return 0;
+            }
+            let reason = if reason.len() > 300 { crate::gotext::lossy(&reason.as_bytes()[..300]) } else { reason };
+            match runner().run(&reason, true, auto_emergency, false) {
+                Ok(()) => 0,
+                Err(e) => {
+                    log(&e);
+                    1
+                }
+            }
+        }
+        _ => release(test, need_root()),
+    }
+}
+
+/// `release`: the approved behaviour files put back, the lock lifted, proven holds of the containment put back.
+fn release(test: bool, root: bool) -> i32 {
+    use crate::cli::immunity::store;
+    if !root {
+        return 2;
+    }
+    let ts = crate::trust::Store::new(crate::trust::DEFAULT_DIR);
+    if ts.load().is_ok() {
+        let (back, err) = ts.restore(&[]);
+        for r in &back {
+            println!("restored {} (it was {})", r.path, r.why);
+        }
+        if let Some(e) = err {
+            eprintln!("heimdalld contain: restoring failed, the lock stays: {e}");
+            return 1;
+        }
+    } else {
+        println!("no signed list (heimdalld trust init), so nothing to restore");
+    }
+    let m = marker();
+    match std::fs::remove_file(&m) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => {
+            eprintln!("heimdalld contain: {}", crate::goerr::path("remove", &m, &e));
+            return 1;
+        }
+    }
+    let imm = store::Store::default_store();
+    let proof = store::Proof::load();
+    if let Ok(es) = imm.load() {
+        for e in es.unwrap_or_default() {
+            if store::s(&e, "status") != store::HELD || store::s(&e, "source") != "containment" {
+                continue;
+            }
+            match imm.release_if_proven(&store::s(&e, "sha256"), &proof) {
+                Ok(r) => println!("put back {} ({})", store::s(&r, "original"), store::s(&r, "released_by")),
+                Err(_) => println!("still held, for you to judge: {}", store::s(&e, "original")),
+            }
+        }
+    }
+    if !test {
+        let _ = std::process::Command::new("systemctl")
+            .args(["start", "ollama.service"])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+    }
+    println!("released: Sarina may start again");
+    0
 }
