@@ -101,6 +101,9 @@ Made in the same commit as the switch, not before (a package built from it insta
   `/usr/lib/heimdall/heimdalld-rs`, then `/usr/bin/heimdall-wifi-check`, `heimdall-wifi-guard` and `heimdall-wifi-notify`
   as links to it. The Python programs stay installed as `/usr/lib/heimdall/python/heimdall-wifi-*` (the fallback). The
   units and the dispatcher scripts are unchanged: they call the same paths.
+- A recipe that builds only Go (Labyrinth's `heimdall-git` today, which calls the same `install.sh`) keeps installing the
+  Python programs at `/usr/bin` as before (`install.sh` says so on standard error), so merging never breaks a sibling's
+  package; Labyrinth's recipe gets the cargo line with the stage-1 change.
 - Merged on its own (before the stage-1 commit), it changes only the helpers: `/usr/bin/heimdalld` stays Go. Merged with or
   after stage 1, the stage-1 commit's `usr/bin/heimdalld` line and the branch's `usr/lib/heimdall/heimdalld-rs` line
   install the same file; the links may then point at `heimdalld` and the second copy go (a one-line change in
