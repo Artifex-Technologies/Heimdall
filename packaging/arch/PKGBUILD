@@ -7,7 +7,9 @@ arch=('x86_64')
 url="https://github.com/Artifex-Technologies/Heimdall"
 license=('MPL2')
 depends=('glibc' 'curl' 'gzip' 'python' 'iproute2' 'iw' 'networkmanager' 'dnsmasq' 'nftables')
-makedepends=('go' 'git')
+# rust: the Wi-Fi helpers (heimdall-wifi-check, -guard, -notify) are the Rust heimdalld under their names; python stays for
+# their Python programs, kept as the fallback (docs/RUST_SWITCH.md)
+makedepends=('go' 'git' 'rust')
 provides=('heimdall')
 conflicts=('heimdall')
 backup=('etc/heimdall/dns-allow.txt' 'etc/NetworkManager/dnsmasq.d/heimdall-blocklist.conf')
@@ -23,6 +25,8 @@ build() {
 	cd "$srcdir/Heimdall"
 	export CGO_ENABLED=0
 	go build -trimpath -ldflags "-s -w" -o heimdalld ./cmd/heimdalld
+	# offline first, so a build with the crates already fetched never reaches the network
+	(cd rust && { cargo build --release --locked --offline || cargo build --release --locked; })
 }
 
 check() {

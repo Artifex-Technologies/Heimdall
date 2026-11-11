@@ -6,6 +6,25 @@ set -eu
 d=${1:?usage: packaging/install.sh DESTDIR}
 p=packaging
 i() { install -D -m "$1" "$2" "$d/$3"; }
+l() { mkdir -p "$d/$(dirname "$2")"; ln -sfn "$1" "$d/$2"; }
+
+# The Wi-Fi helpers: when the Rust heimdalld is built (rust/target/release/heimdalld-rs), each is a link to it (it answers
+# to their names; docs/RUST_CLI.md, "Wi-Fi helpers") and the Python program stays in /usr/lib/heimdall/python as the
+# fallback (docs/RUST_SWITCH.md); a recipe that builds only Go installs the Python programs as before.
+rs=rust/target/release/heimdalld-rs
+helper() { # helper NAME SOURCE
+  if [ -f "$rs" ]; then
+    i 755 "$2" "usr/lib/heimdall/python/$1"
+    l ../lib/heimdall/heimdalld-rs "usr/bin/$1"
+  else
+    i 755 "$2" "usr/bin/$1"
+  fi
+}
+if [ -f "$rs" ]; then
+  i 755 "$rs" usr/lib/heimdall/heimdalld-rs
+else
+  echo "install.sh: $rs is not built: the Wi-Fi helpers are installed as their Python programs" >&2
+fi
 
 i 755 heimdalld                                  usr/bin/heimdalld
 i 644 LICENSE                                    usr/share/licenses/heimdall/LICENSE
@@ -41,7 +60,7 @@ i 644 $p/arch/heimdall-intel-update.service      usr/lib/systemd/system/heimdall
 i 644 $p/arch/heimdall-intel-update.timer        usr/lib/systemd/system/heimdall-intel-update.timer
 
 # the Wi-Fi safety check, run by NetworkManager on every Wi-Fi connection
-i 755 $p/arch/heimdall-wifi-check                usr/bin/heimdall-wifi-check
+helper heimdall-wifi-check $p/arch/heimdall-wifi-check
 i 644 $p/arch/heimdall-wifi-check@.service       usr/lib/systemd/system/heimdall-wifi-check@.service
 i 755 $p/net/dispatcher.d/90-heimdall-wifi       usr/lib/NetworkManager/dispatcher.d/90-heimdall-wifi
 
@@ -53,7 +72,7 @@ i 644 docs/DEVICES.md                            usr/share/doc/heimdall/DEVICES.
 i 644 docs/WIFI_HEALTH.md                        usr/share/doc/heimdall/WIFI_HEALTH.md
 
 # trusted networks, the VPN with its kill switch, and a quiet computer on untrusted networks
-i 755 $p/net/heimdall-wifi-guard                 usr/bin/heimdall-wifi-guard
+helper heimdall-wifi-guard $p/net/heimdall-wifi-guard
 i 755 $p/net/dispatcher.d/50-heimdall-wifi-guard usr/lib/NetworkManager/dispatcher.d/50-heimdall-wifi-guard
 i 755 $p/net/dispatcher.d/pre-up.d/50-heimdall-wifi-guard usr/lib/NetworkManager/dispatcher.d/pre-up.d/50-heimdall-wifi-guard
 i 644 $p/net/heimdall-wifi-privacy.conf          usr/lib/NetworkManager/conf.d/heimdall-wifi-privacy.conf
@@ -69,7 +88,7 @@ i 644 $p/net/units/heimdall-dns-blocklist.service usr/lib/systemd/system/heimdal
 i 644 $p/net/units/heimdall-dns-blocklist.timer  usr/lib/systemd/system/heimdall-dns-blocklist.timer
 
 # the desktop notification of Wi-Fi verdicts and guard events
-i 755 $p/net/heimdall-wifi-notify                usr/bin/heimdall-wifi-notify
+helper heimdall-wifi-notify $p/net/heimdall-wifi-notify
 i 644 $p/net/user-units/heimdall-wifi-notify.path    usr/lib/systemd/user/heimdall-wifi-notify.path
 i 644 $p/net/user-units/heimdall-wifi-notify.service usr/lib/systemd/user/heimdall-wifi-notify.service
 
