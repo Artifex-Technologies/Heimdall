@@ -282,7 +282,9 @@ impl Guard {
             return Ok(false);
         }
         match mac {
-            None | Some("") => Ok(true),
+            // the profile alone (before the link is up, and for status); a router that did not answer is not trusted
+            None => Ok(true),
+            Some("") => Ok(false),
             Some(m) => t.get("routers", Val::List(Vec::new()))?.contains(&py::s(m)),
         }
     }
@@ -390,12 +392,13 @@ impl Guard {
             return self.set_state(&[("wifi", py::s(uuid)), ("iface", py::s(iface)), ("trusted", Val::Bool(true))]);
         }
         if self.is_trusted(uuid, None)? {
-            // the profile is trusted but its router is not the one remembered: treat it as a stranger
-            self.note(
-                "router-changed",
-                &ssid,
-                "This network has the name of a trusted one, but its router is different: treating it as untrusted.",
-            )?;
+            // the profile is trusted but its router is not the one remembered, or did not answer: a stranger
+            let why = if mac.is_empty() {
+                "This network has the name of a trusted one, but its router did not answer: treating it as untrusted."
+            } else {
+                "This network has the name of a trusted one, but its router is different: treating it as untrusted."
+            };
+            self.note("router-changed", &ssid, why)?;
         }
         self.quiet(uuid, true)?;
         let vpn = self.vpn()?;

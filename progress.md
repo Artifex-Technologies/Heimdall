@@ -43,9 +43,9 @@ own.
   the router remembered with the network (the guard did not), so a stranger's network with a trusted name and password
   escaped the daemon's router watch; (3) `vpn-import` wrote the WireGuard private key into a /run file of the default mode
   before making it 0600; (4) all three: a file holding JSON that is not an object stopped the helper with a traceback.
-- **Found, not changed, for me to decide:** the guard trusts a trusted profile whose router did not answer ARP within its
-  five tries (no router check then): a stranger with a trusted network's name and password who stays silent five
-  seconds gets no VPN. `docs/RUST_CLI.md` has both sides.
+- **Decided (later the same day):** a trusted profile whose router did not answer ARP within the guard's five tries is now
+  untrusted (it used to be trusted with no router check, so a stranger copying a trusted network who stayed silent five
+  seconds got no VPN). Guard and check, Python and Rust; the cost is the VPN at home when the router is slow to answer.
 - Not 1:1 (all in `docs/RUST_CLI.md`): a one-line error in place of a traceback (same exit code, class and files); JSON
   with half a surrogate pair; rare certificate refusals worded by rustls; OpenSSL's strict-mode refusals of trusted but
   malformed chains; no HTTP proxy; non-ASCII WireGuard host names not looked up.
@@ -53,8 +53,7 @@ own.
   Python tests.
 - **Resume:** merge `wifi-helpers-rust` with the switch's stage 1 or after it (`docs/RUST_SWITCH.md`, "The Wi-Fi
   helpers"), then the checks there: the check under its sandboxed unit on a real network, the guard's status, a real
-  notification, once the guard with the VPN on an untrusted network I join on purpose. Decide the guard's unknown-router
-  question.
+  notification, once the guard with the VPN on an untrusted network I join on purpose.
 
 ## 2026-11-11 — CI: red since 6b1c858 (the fake-root command tests on Ubuntu); CLOSED, green again at cc1b120
 

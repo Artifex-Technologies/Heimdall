@@ -65,6 +65,14 @@ class Guard(unittest.TestCase):
         with open(os.path.join(self.m.RUN, "last.json")) as f:
             return json.load(f)
 
+
+    def test_a_router_that_did_not_answer_is_not_trusted(self):
+        with open(self.m.TRUSTED, "w") as f:
+            json.dump({"u1": {"ssid": "Home", "routers": ["00:00:5E:00:53:01"]}}, f)
+        self.assertTrue(self.m.is_trusted("u1", "00:00:5E:00:53:01"))
+        self.assertTrue(self.m.is_trusted("u1"))  # the profile alone: before the link is up, and for status
+        self.assertFalse(self.m.is_trusted("u1", ""))  # silent to ARP: a stranger copying the network could be
+        self.assertFalse(self.m.is_trusted("u1", "00:00:5E:00:53:09"))
     def test_untrusted_network_locks_first_then_vpn(self):
         self.m.pre_up("wlan0", "cafe-uuid")
         self.assertIn("LOCK", self.calls)

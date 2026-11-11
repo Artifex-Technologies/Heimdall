@@ -371,11 +371,13 @@ Proof:
   with a traceback (the guard in `pre-up`, before it could lock or tell; notify on every later notification). It now
   counts as missing, as a file that is not JSON already did.
 
-**Found, not changed (for me to decide):** the guard's `up` trusts a trusted profile whose router's hardware address could
-not be read (five tries, a ping each) as trusted, without the router check (`is_trusted(uuid, "")`). A stranger's
-network with a trusted network's name and password that stays silent to ARP for those five seconds is then let in
-without the VPN. Treating an unknown router as untrusted at home would start the VPN there when the router is slow. The
-check follows the guard here, so the two agree either way.
+**Decided 2026-11-11: a router that did not answer is not trusted.** The guard's `up` used to trust a trusted profile
+whose router's hardware address could not be read (five tries, a ping each), without the router check
+(`is_trusted(uuid, "")`): a stranger's network with a trusted network's name and password that stayed silent to ARP for
+those five seconds was let in without the VPN. I chose the other side: such a network is untrusted (the VPN when it is
+set up, and a "router did not answer" notice), and the cost is the VPN at home on the rare join where my router is slow
+to answer. The check follows the guard, in Python and Rust alike; the profile alone still decides before the link is up
+(`pre-up`) and for `status`.
 
 Not 1:1, on purpose or where nothing reads the difference:
 

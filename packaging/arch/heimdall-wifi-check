@@ -187,12 +187,13 @@ def check_gateway(r, me, known):
 
 
 def is_trusted(uuid, mac):
-    """Trusted as heimdall-wifi-guard decides it: the profile was trusted, and its router (when known) is one remembered
-    with it. A stranger's network with the name and password of a trusted one is not trusted here either."""
+    """Trusted as heimdall-wifi-guard decides it: the profile was trusted, and its router is one remembered with it (a router
+    that did not answer is not trusted). A stranger's network with the name and password of a trusted one is not trusted
+    here either."""
     t = load_json(TRUSTED, {}).get(uuid) if uuid else None
     if not t:
         return False
-    return not mac or mac in t.get("routers", [])
+    return bool(mac) and mac in t.get("routers", [])
 
 
 def origins(ips):

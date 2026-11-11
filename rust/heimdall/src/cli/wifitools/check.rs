@@ -545,7 +545,7 @@ fn is_trusted(uuid: &str, mac: &str) -> PyResult<bool> {
         return Ok(false);
     }
     if mac.is_empty() {
-        return Ok(true);
+        return Ok(false); // a router that did not answer is not trusted (as the guard decides)
     }
     t.get("routers", Val::List(Vec::new()))?.contains(&py::s(mac))
 }

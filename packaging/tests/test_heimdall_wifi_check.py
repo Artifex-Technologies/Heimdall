@@ -42,7 +42,7 @@ class Check(unittest.TestCase):
         with open(self.m.TRUSTED, "w") as f:
             json.dump({"u1": {"ssid": "Home", "routers": ["00:00:5E:00:53:01"]}}, f)
         self.assertTrue(self.m.is_trusted("u1", "00:00:5E:00:53:01"))
-        self.assertTrue(self.m.is_trusted("u1", ""))  # router not known yet: the profile decides, as in the guard
+        self.assertFalse(self.m.is_trusted("u1", ""))  # the router did not answer: not trusted, as in the guard
         self.assertFalse(self.m.is_trusted("u1", "00:00:5E:00:53:09"))
         self.assertFalse(self.m.is_trusted("u2", "00:00:5E:00:53:01"))
         self.assertFalse(self.m.is_trusted("", "00:00:5E:00:53:01"))

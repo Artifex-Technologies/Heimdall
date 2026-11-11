@@ -111,7 +111,9 @@ def is_trusted(uuid, mac=None):
     t = load(TRUSTED, {}).get(uuid)
     if not t:
         return False
-    return mac is None or not mac or mac in t.get("routers", [])
+    # mac None: the profile alone (before the link is up, and for status). A router that did not answer ("") is not trusted:
+    # a stranger copying a trusted network could stay silent to ARP; the VPN at home when the router is slow is the lesser cost
+    return mac is None or mac in t.get("routers", [])
 
 
 # ---- the lockdown (outgoing traffic only; incoming stays with ufw)
@@ -208,8 +210,11 @@ def up(iface, uuid):
         quiet(uuid, False)
         set_state(wifi=uuid, iface=iface, trusted=True)
         return
-    if is_trusted(uuid):  # the profile is trusted but its router is not the one remembered: treat it as a stranger
-        note("router-changed", ssid, "This network has the name of a trusted one, but its router is different: treating it as untrusted.")
+    if is_trusted(uuid):  # the profile is trusted but its router is not the one remembered, or did not answer: a stranger
+        if mac:
+            note("router-changed", ssid, "This network has the name of a trusted one, but its router is different: treating it as untrusted.")
+        else:
+            note("router-changed", ssid, "This network has the name of a trusted one, but its router did not answer: treating it as untrusted.")
     quiet(uuid, True)
     vpn = load(CONF, {}).get("vpn")
     set_state(wifi=uuid, iface=iface, trusted=False)
