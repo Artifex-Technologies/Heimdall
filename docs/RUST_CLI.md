@@ -49,7 +49,7 @@ The same as the daemon's port:
 
 | Group | Commands | State | Proof |
 | --- | --- | --- | --- |
-| lan | `lan scan`, `lan list` | `lan list` **done**; `lan scan` written, still handed to Go | `tests/cli_lan.rs`: cli-lan.json (4,091 cases), 19 `lan list` runs and 11 `lan scan` runs without a scan against Go in fake roots |
+| lan | `lan scan`, `lan list` | **done** | `tests/cli_lan.rs`: cli-lan.json (4,091 cases), 19 `lan list` runs, 11 `lan scan` runs without a scan, and a whole scan of a made-up network in network namespaces (output, devices.json, events.jsonl and every question sent equal to Go's) |
 | intel | `ipdb-check`, `intel-check`, `origin`, `kernel-check`, `heimdall-intel-update` | the four commands **done**; `heimdall-intel-update` stays the shell script that calls them | `tests/cli_intel.rs`: 98 runs against Go in fake roots (kernel lists of 1,300+ made-up records byte for byte, zip and zip64) |
 | immunity | `immunity ...`, `scan-files` | **done** | `tests/cli_immunity.rs`: 73 steps of both binaries on two copies of one made-up system, the store, ClamAV's folder, the user's files (owners, modes, times) and every tool called compared after each step |
 | contain and admin | `contain ...`, `maintenance`, `grant`, `remote` | **done** | `tests/cli_admin.rs`: 135 differential runs, 447 fixture cases; `tests/cli_contain.rs`: 16 runs of `contain now|emergency|run-request|release` in their own process and network namespaces, a real containment of a made-up Sarina included |
@@ -74,8 +74,15 @@ The same as the daemon's port:
   folder, unreadable; `--dir` spellings; usage errors; four time zones): standard output, standard error and exit codes equal.
 - **`lan scan` without a scan** (each in a network namespace of its own): offline, not trusted (no file, another network,
   nmcli failing, a broken file), the router changed, a store that does not read, a folder that cannot be made, a store that
-  cannot be written: output, exit code, devices.json (times aside) and the tools called equal. `lan scan` itself is still
-  handed to Go until the whole scan is proved on a namespaced network.
+  cannot be written: output, exit code, devices.json (times aside) and the tools called equal.
+- **`lan scan` on a made-up network** (`lan_scan_on_a_made_up_network_as_go`): the scanning computer at 192.0.2.10 on a
+  bridge, and four devices each in a network namespace of its own joined by a veth pair (locally administered hardware
+  addresses): the router answering reverse lookups, a TV answering multicast DNS (services, a friendly name, a model, a
+  second round of service types), a Windows computer answering NetBIOS, a thermostat answering only ARP
+  (`rust/parity/harness/lan-responder.py` answers and logs every question). Go and Rust scan two copies of it at once, with
+  a list from an earlier scan: "5 devices, 2 new", devices.json and events.jsonl (times aside) and every question each
+  sent (the sweep's ARP aside: the kernel's) are the same: the multicast DNS questions byte for byte, the reverse lookups
+  with their EDNS0 record, the NetBIOS node status question. Nothing leaves the namespaces.
 
 Not 1:1, on purpose:
 - A device announcing a name whose lowercase is longer than the name (`Ⱥ`, bytes that are not UTF-8) can make Go slice past

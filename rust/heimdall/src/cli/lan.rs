@@ -23,9 +23,6 @@ pub fn main(args: &[String]) -> Option<i32> {
         return Some(2);
     }
     let what = what.unwrap_or_default();
-    if what == "scan" && std::env::var_os("HEIMDALL_RUST_LAN_SCAN").is_none() {
-        return None; // not proved against Go on a real (namespaced) network yet: the Go binary scans
-    }
     let mut fs = FlagSet::new(&format!("lan {what}"));
     fs.string("dir", "/var/lib/heimdall/lan", "state directory");
     if fs.parse(&args[1..]).is_err() {

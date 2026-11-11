@@ -360,3 +360,89 @@ fn lan_scan_without_a_scan_as_go() {
     }
     eprintln!("lan scan statuses: {n} runs compared with Go");
 }
+
+/// The made-up network: this computer at 192.0.2.10 on a bridge (br0); on the bridge, each in a network namespace of its own
+/// joined by a veth pair, the router (192.0.2.1, reverse lookups), a TV (.20, multicast DNS), a Windows computer (.30,
+/// NetBIOS) and a thermostat (.40, ARP only), each with a locally administered hardware address;
+/// rust/parity/harness/lan-responder.py answers and logs every question.
+fn made_up_network(log: &str) -> String {
+    let resp = repo().join("rust/parity/harness/lan-responder.py");
+    format!(
+        "ip link add br0 address 02:00:00:00:00:10 type bridge
+ip addr add 192.0.2.10/24 dev br0
+ip link set br0 up
+dev() {{
+  unshare --net sleep 60 &
+  P=$!
+  sleep 0.1
+  ip link add h$2 type veth peer name e$2
+  ip link set h$2 master br0
+  ip link set h$2 up
+  ip link set e$2 netns \"$R/proc/$P/ns/net\"
+  N=\"nsenter --net=$R/proc/$P/ns/net\"
+  $N ip link set lo up
+  $N ip link set e$2 address $1 name eth0
+  $N ip addr add 192.0.2.$2/24 dev eth0
+  $N ip link set eth0 up
+  $N ip route add 224.0.0.0/4 dev eth0
+  if [ -n \"$3\" ]; then $N python3 -I '{resp}' '{log}' $3 192.0.2.$2 & fi
+}}
+dev 02:00:00:00:00:01 1 router
+dev 02:00:00:00:00:20 20 tv
+dev 02:00:00:00:00:30 30 pc
+dev 02:00:00:00:00:40 40 ''
+ip route add default via 192.0.2.1 dev br0
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do [ \"$(grep -c ready '{log}' 2>/dev/null)\" = 3 ] && break; sleep 0.2; done
+sleep 1
+",
+        resp = resp.display()
+    )
+}
+
+#[test]
+fn lan_scan_on_a_made_up_network_as_go() {
+    let trusted = r#"{"u1": {"ssid": "Home", "routers": ["02:00:00:00:00:01"]}}"#;
+    // a list from an earlier scan: the router and the thermostat known, so the TV and the computer are new
+    let before = r#"{"networks":[{"uuid":"u1","ssid":"Home","first_scan":"2026-11-01T10:00:00Z","last_scan":"2026-11-01T10:00:00Z","devices":[
+{"mac":"02:00:00:00:00:01","ip":"192.0.2.1","name":"router","kind":"router","first_seen":"2026-11-01T10:00:00Z","last_seen":"2026-11-01T10:00:00Z"},
+{"mac":"02:00:00:00:00:40","ip":"192.0.2.40","kind":"smart","first_seen":"2026-11-01T10:00:00Z","last_seen":"2026-11-01T10:00:00Z"}]}],
+"status":"scanned","status_uuid":"u1","status_time":"2026-11-01T10:00:00Z"}"#;
+    let Some(go) = go_or_skip("lan-net") else { return };
+    let mk = |tag: &str| {
+        let r = Root::new(tag);
+        r.write("/etc/heimdall/wifi-trusted.json", trusted);
+        r.write("/var/lib/heimdall/lan/devices.json", before);
+        // names from the router: the resolver asks DNS only where nsswitch says so
+        r.write("/etc/nsswitch.conf", "passwd: files\ngroup: files\nhosts: files dns\n");
+        r.tool("nmcli", "printf 'u1:br0:Home\\n'\n");
+        r
+    };
+    let (rg, rr) = (mk("lan-net-go"), mk("lan-net-rs"));
+    let o = |r: &Root| Opts {
+        net: true,
+        pid: true,
+        setup: made_up_network(&r.host("/packets.log").display().to_string()),
+        ..Opts::default().env("HEIMDALL_RUST_LAN_SCAN", "1")
+    };
+    let (g, r) = std::thread::scope(|s| {
+        let a = s.spawn(|| rg.run(&go, &["lan", "scan"], &o(&rg)));
+        let b = s.spawn(|| rr.run(&rust_bin(), &["lan", "scan"], &o(&rr)));
+        (a.join().unwrap(), b.join().unwrap())
+    });
+    assert_same("lan scan", &g, &r);
+    assert_eq!(g.stdout, "5 devices, 2 new\n", "{g:?}");
+    for f in ["/var/lib/heimdall/lan/devices.json", "/var/lib/heimdall/lan/events.jsonl"] {
+        assert_eq!(normalize(&rg.read_str(f)), normalize(&rr.read_str(f)), "{f}");
+    }
+    let dev = rg.read_str("/var/lib/heimdall/lan/devices.json");
+    assert!(dev.contains("Living TV") && dev.contains("DESKTOP-ABC") && dev.contains("thermostat-7"), "{dev}");
+    // every question each binary asked, in any order
+    let asked = |r: &Root| {
+        let mut l: Vec<String> = r.read_str("/packets.log").lines().map(String::from).collect();
+        l.sort();
+        l
+    };
+    assert_eq!(asked(&rg), asked(&rr), "the packets sent");
+    assert!(asked(&rg).iter().any(|l| l.starts_with("mdns")) && asked(&rg).iter().any(|l| l.starts_with("netbios")));
+    eprintln!("lan scan on a made-up network: {} questions compared", asked(&rg).len());
+}
