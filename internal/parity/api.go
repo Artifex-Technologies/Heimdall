@@ -232,13 +232,14 @@ func AllAPI(tmp func() string) (APICases, error) {
 		with(name, func(c *APICase) { c.Host, c.Headers = g.host, g.h })
 	}
 	// access_test.go TestAccessPolicy
+	// another account is 64001, an id no test machine runs as: 1001 is the GitHub runner itself, which the API always allows
 	for _, a := range []struct {
 		name string
 		peer *uint32
 		path string
 	}{{"owner (wheel)", uid(1000), "/v1/alerts"}, {"sarina", uid(954), "/v1/alerts"}, {"root", uid(0), "/v1/alerts"},
-		{"another account", uid(1001), "/v1/alerts"}, {"another account, review", uid(1001), "/v1/review"},
-		{"unidentified", nil, "/v1/alerts"}, {"health is open to all", uid(1001), "/healthz"}, {"unidentified, health", nil, "/healthz"}} {
+		{"another account", uid(64001), "/v1/alerts"}, {"another account, review", uid(64001), "/v1/review"},
+		{"unidentified", nil, "/v1/alerts"}, {"health is open to all", uid(64001), "/healthz"}, {"unidentified, health", nil, "/healthz"}} {
 		a := a
 		with("access: "+a.name, func(c *APICase) { c.Peer, c.Path = a.peer, a.path })
 	}

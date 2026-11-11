@@ -140,13 +140,13 @@ fn the_api_answers_as_go() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let d = dir.to_string_lossy().into_owned();
-    // 1000 is in wheel, 954 is sarina, 1001 is neither
+    // 1000 is in wheel, 954 is sarina, 64001 is neither (not 1001: the GitHub runner runs as 1001, and an API always allows its own account)
     std::fs::write(
         format!("{d}/passwd"),
-        "root:x:0:0::/root:/bin/sh\nowner:x:1000:1000::/home/o:/bin/sh\nsarina:x:954:954::/:/bin/false\nother:x:1001:1001::/:/bin/sh\n",
+        "root:x:0:0::/root:/bin/sh\nowner:x:1000:1000::/home/o:/bin/sh\nsarina:x:954:954::/:/bin/false\nother:x:64001:64001::/:/bin/sh\n",
     )
     .unwrap();
-    std::fs::write(format!("{d}/group"), "wheel:x:998:owner\nowner:x:1000:\nsarina:x:954:\nother:x:1001:\n").unwrap();
+    std::fs::write(format!("{d}/group"), "wheel:x:998:owner\nowner:x:1000:\nsarina:x:954:\nother:x:64001:\n").unwrap();
     let mut n = 0;
     for (i, c) in fx["cases"].as_array().unwrap().iter().enumerate() {
         let name = c["name"].as_str().unwrap();

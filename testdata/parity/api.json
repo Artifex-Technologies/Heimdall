@@ -268,7 +268,7 @@
    "method": "GET",
    "path": "/v1/alerts",
    "host": "127.0.0.1:8930",
-   "peer": 1001,
+   "peer": 64001,
    "members": [
     1000,
     954
@@ -284,7 +284,7 @@
    "method": "GET",
    "path": "/v1/review",
    "host": "127.0.0.1:8930",
-   "peer": 1001,
+   "peer": 64001,
    "members": [
     1000,
     954
@@ -316,7 +316,7 @@
    "method": "GET",
    "path": "/healthz",
    "host": "127.0.0.1:8930",
-   "peer": 1001,
+   "peer": 64001,
    "members": [
     1000,
     954
