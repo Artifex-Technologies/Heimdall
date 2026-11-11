@@ -117,7 +117,7 @@ More accurate:
 | guard status | 27.0 ms (26.3-55.9) | 2.00 ms (1.75-3.18) | −93 %, 25.0 ms faster | 14.1 → 4.3 MB (−69 %) |
 | notify: an unsafe network, one notification | 23.4 ms (23.2-24.2) | 0.63 ms (0.56-0.68) | −97 %, 22.8 ms faster | 16.7 → 4.1 MB (−75 %) |
 | notify: a network already shown, nothing to do | 23.6 ms (23.1-24.0) | 0.61 ms (0.58-0.69) | −97 %, 23.0 ms faster | 16.7 → 4.1 MB (−76 %) |
-| on disk | 39.8 KB of scripts, plus Python | 0 bytes more: links to heimdalld | |
+| on disk | 39.8 KB of scripts, plus Python | 0 bytes more: links to heimdalld | | |
 
 - Every case printed the same output in both.
 - Python's own start (`python3 -c pass`) is 9.3 ms and 9.9 MB of it; the rest is importing the modules (`json`, `ssl`,
