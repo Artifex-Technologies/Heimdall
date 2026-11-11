@@ -19,7 +19,6 @@ pub const IN_Q_OVERFLOW: u32 = 0x0000_4000;
 pub const IN_CLOSE_WRITE: u32 = 0x0000_0008;
 pub const IN_MOVED_TO: u32 = 0x0000_0080;
 pub const IN_CREATE: u32 = 0x0000_0100;
-pub const IN_ATTRIB: u32 = 0x0000_0004;
 pub const IN_DELETE_SELF: u32 = 0x0000_0400;
 pub const IN_MOVE_SELF: u32 = 0x0000_0800;
 

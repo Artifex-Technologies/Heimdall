@@ -1,4 +1,4 @@
-//! Events as JSON lines, in and out: the form the parity fixtures and the differential run use, so the Go daemon's engine
+//! Events in and alerts out, as JSON lines: the form the parity fixtures and the differential run use, so the Go daemon's engine
 //! and this one can be fed the same events (Go: rust/gotools/replay).
 //!
 //! An event line: `{"source":..,"session_id":..,"time":"RFC 3339 or empty","kind":..,"text":..,"fields":{..}}`.
@@ -8,7 +8,7 @@ use crate::config::Config;
 use crate::detect::{self, Deps};
 use crate::engine::Engine;
 use crate::event::{Event, Fields};
-use crate::gojson::{self, FromGo, ObjectWriter, Value};
+use crate::gojson::{self, FromGo, Value};
 use crate::gotime::Time;
 use crate::maintenance;
 use std::io::{BufRead, Write};
@@ -34,20 +34,6 @@ pub fn event_from_value(v: &Value) -> Result<Event, gojson::Error> {
         Time::parse_rfc3339(&j.time).ok_or_else(|| gojson::Error(format!("bad time {:?}", j.time)))?
     };
     Ok(Event { source: j.source, session_id: j.session_id, time, kind: j.kind, text: j.text, fields: j.fields })
-}
-
-/// An event's JSON form (the zero time as "").
-pub fn event_to_json(e: &Event) -> String {
-    let mut out = String::new();
-    let mut w = ObjectWriter::new(&mut out);
-    w.str("source", &e.source);
-    w.str("session_id", &e.session_id);
-    w.str("time", &if e.time.is_zero() { String::new() } else { e.time.rfc3339_nano() });
-    w.str("kind", &e.kind);
-    w.str("text", &e.text);
-    w.map("fields", &e.fields);
-    w.end();
-    out
 }
 
 struct LineSink<W: Write + Send>(W);

@@ -34,10 +34,6 @@ impl Engine {
         self.tools = Some(p);
     }
 
-    pub fn detector_ids(&self) -> Vec<&'static str> {
-        self.detectors.iter().map(|d| d.id()).collect()
-    }
-
     /// One event through every detector, in registration order.
     pub fn handle(&mut self, ev: &Event) {
         for i in 0..self.detectors.len() {
@@ -75,13 +71,6 @@ impl Engine {
         }
         let a = Alert::from_finding(&f);
         if let Err(e) = self.sink.write(&a) {
-            (self.log)(&format!("alert sink write failed: {e}"));
-        }
-    }
-
-    /// Writes an alert that did not come from a detector (an integration failure), through the same sink.
-    pub fn write_alert(&mut self, a: &Alert) {
-        if let Err(e) = self.sink.write(a) {
             (self.log)(&format!("alert sink write failed: {e}"));
         }
     }

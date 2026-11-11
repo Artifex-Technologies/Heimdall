@@ -50,9 +50,6 @@ impl Val {
     }
 }
 
-/// A replacement for the default usage (Go's `fs.Usage`).
-type UsageFn = Box<dyn Fn(&FlagSet)>;
-
 struct Def {
     usage: String,
     default: Val,
@@ -65,7 +62,6 @@ pub struct FlagSet {
     defs: BTreeMap<String, Def>,
     args: Vec<String>,
     actual: Vec<String>,
-    usage: Option<UsageFn>,
     /// The error Go's `Parse` returned, as text (`error()`).
     error: std::cell::RefCell<String>,
 }
@@ -81,7 +77,6 @@ impl FlagSet {
             defs: BTreeMap::new(),
             args: Vec::new(),
             actual: Vec::new(),
-            usage: None,
             error: std::cell::RefCell::new(String::new()),
         }
     }
@@ -109,11 +104,6 @@ impl FlagSet {
     pub fn list(&mut self, name: &str, usage: &str) {
         self.define(name, Val::List(Vec::new()), usage)
     }
-    /// `fs.Usage = ...`: printed instead of the default usage when a flag is wrong.
-    pub fn set_usage(&mut self, f: impl Fn(&FlagSet) + 'static) {
-        self.usage = Some(Box::new(f));
-    }
-
     pub fn get_str(&self, name: &str) -> String {
         match self.defs.get(name).map(|d| &d.value) {
             Some(Val::Str(s)) => s.clone(),
@@ -194,12 +184,7 @@ impl FlagSet {
     }
 
     fn print_usage(&self) {
-        match &self.usage {
-            Some(f) => f(self),
-            None => {
-                let _ = std::io::stderr().write_all(self.default_usage().as_bytes());
-            }
-        }
+        let _ = std::io::stderr().write_all(self.default_usage().as_bytes());
     }
 
     /// The text of the error the last `parse` failed with, as Go's `err.Error()` ("flag provided but not defined: -x",
