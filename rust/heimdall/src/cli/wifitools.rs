@@ -8,7 +8,10 @@
 //! systems (tests/cli_wifitools.rs) and by the parsers' properties and fuzz targets (docs/RUST_CLI.md, "Wi-Fi helpers").
 
 pub mod addr;
+pub mod check;
+pub mod der;
 pub mod guard;
+pub mod net;
 pub mod notify;
 pub mod py;
 
@@ -18,8 +21,8 @@ pub fn sha16(s: &str) -> String {
     Sha256::digest(s.as_bytes()).iter().take(8).map(|b| format!("{b:02x}")).collect()
 }
 
-pub fn wifi_check(_args: &[String]) -> Option<i32> {
-    None
+pub fn wifi_check(args: &[String]) -> Option<i32> {
+    Some(check::main(args))
 }
 
 pub fn wifi_guard(args: &[String]) -> Option<i32> {

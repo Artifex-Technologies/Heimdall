@@ -295,14 +295,16 @@ fn idna(host: &str) -> PyResult<String> {
     Ok(host.to_string())
 }
 
-/// `socket.getaddrinfo(host, port, family, 0, proto)`: the addresses, in the C library's order (duplicates kept, one per
-/// socket type). The error is Python's `socket.gaierror`.
-pub fn getaddrinfo(host: &str, service: &str, family: i32, proto: i32) -> PyResult<Vec<String>> {
+/// `socket.getaddrinfo(host, port, family, socktype, proto)`: the socket addresses, in the C library's order (duplicates
+/// kept, one per socket type). The error is Python's `socket.gaierror`.
+pub fn getaddrinfo_sock(host: &str, service: &str, family: i32, socktype: i32, proto: i32) -> PyResult<Vec<std::net::SocketAddr>> {
+    use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
     let h = idna(host)?;
     let ch = CString::new(h).map_err(|_| PyErr::value("embedded null character"))?;
     let cs = CString::new(service).map_err(|_| PyErr::value("embedded null character"))?;
     let mut hints: libc::addrinfo = unsafe { std::mem::zeroed() };
     hints.ai_family = family;
+    hints.ai_socktype = socktype;
     hints.ai_protocol = proto;
     let mut res: *mut libc::addrinfo = std::ptr::null_mut();
     let rc = unsafe { libc::getaddrinfo(ch.as_ptr(), cs.as_ptr(), &hints, &mut res) };
@@ -318,11 +320,13 @@ pub fn getaddrinfo(host: &str, service: &str, family: i32, proto: i32) -> PyResu
             match ai.ai_family {
                 libc::AF_INET => {
                     let sa = unsafe { &*(ai.ai_addr as *const libc::sockaddr_in) };
-                    out.push(v4_str(u32::from_be(sa.sin_addr.s_addr)));
+                    let ip = Ipv4Addr::from(u32::from_be(sa.sin_addr.s_addr));
+                    out.push(SocketAddr::V4(SocketAddrV4::new(ip, u16::from_be(sa.sin_port))));
                 }
                 libc::AF_INET6 => {
                     let sa = unsafe { &*(ai.ai_addr as *const libc::sockaddr_in6) };
-                    out.push(ntop6(sa.sin6_addr.s6_addr));
+                    let ip = Ipv6Addr::from(sa.sin6_addr.s6_addr);
+                    out.push(SocketAddr::V6(SocketAddrV6::new(ip, u16::from_be(sa.sin6_port), sa.sin6_flowinfo, sa.sin6_scope_id)));
                 }
                 _ => {}
             }
@@ -331,4 +335,26 @@ pub fn getaddrinfo(host: &str, service: &str, family: i32, proto: i32) -> PyResu
     }
     unsafe { libc::freeaddrinfo(res) };
     Ok(out)
+}
+
+/// The address of a socket address as Python gives it (`a[4][0]`: `inet_ntop`).
+pub fn host_of(a: &std::net::SocketAddr) -> String {
+    match a {
+        std::net::SocketAddr::V4(v) => v.ip().to_string(),
+        std::net::SocketAddr::V6(v) => ntop6(v.ip().octets()),
+    }
+}
+
+/// `socket.getaddrinfo(host, port, family, 0, proto)`, the addresses as text.
+pub fn getaddrinfo(host: &str, service: &str, family: i32, proto: i32) -> PyResult<Vec<String>> {
+    Ok(getaddrinfo_sock(host, service, family, 0, proto)?.iter().map(host_of).collect())
+}
+
+/// `ipaddress.ip_address(s).is_loopback` of a string (Python 3.13 and later: an IPv4-mapped address as its IPv4 address).
+pub fn is_loopback(s: &str) -> Option<bool> {
+    if let Some(a) = parse_v4(s) {
+        return Some(a >> 24 == 127);
+    }
+    let (a, _) = parse_v6(s)?;
+    Some(if a >> 32 == 0xffff { (a as u32) >> 24 == 127 } else { a == 1 })
 }

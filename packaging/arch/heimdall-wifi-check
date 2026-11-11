@@ -43,9 +43,11 @@ TLS_HOSTS = ["www.google.com", "github.com", "www.wikipedia.org", "www.cloudflar
 def load_json(path, default):
     try:
         with open(path) as f:
-            return json.load(f)
+            data = json.load(f)
     except (OSError, ValueError):
         return default
+    # JSON of another kind (a damaged file) counts as missing, as a file that is not JSON does
+    return data if isinstance(data, type(default)) else default
 
 
 def run(argv, timeout=15):
@@ -56,8 +58,23 @@ def run(argv, timeout=15):
 
 
 def split_nmcli(line):
-    """nmcli -t escapes ':' in values as '\\:'."""
-    return [p.replace("\\:", ":").replace("\\\\", "\\") for p in re.split(r"(?<!\\):", line)]
+    """nmcli -t writes ':' and '\\' in values as '\\:' and '\\\\'. Read left to right: a name ending in a backslash ("x\\\\"
+    before the separator) must not swallow the next field (the old split at every ':' not after a '\\' did, so an access
+    point named that way made the check report "not on Wi-Fi")."""
+    out, cur, i = [], "", 0
+    while i < len(line):
+        if line[i] == "\\" and line[i + 1:i + 2] in (":", "\\"):
+            cur += line[i + 1]
+            i += 2
+            continue
+        if line[i] == ":":
+            out.append(cur)
+            cur = ""
+        else:
+            cur += line[i]
+        i += 1
+    out.append(cur)
+    return out
 
 
 class Report:
@@ -143,15 +160,17 @@ def neighbours(dev):
 
 
 def check_gateway(r, me, known):
+    """The router: one hardware address, the one seen here before. Returns the interface and the router's hardware
+    address ("" when not known)."""
     gw, dev = gateway()
     if not gw:
         r.add("router", "skip", "no default route")
-        return dev
+        return dev, ""
     neigh = neighbours(dev)
     mac = next((n.get("lladdr", "").upper() for n in neigh if n.get("dst") == gw and n.get("lladdr")), "")
     if not mac:
         r.add("router", "skip", "the router's hardware address is not known yet")
-        return dev
+        return dev, ""
     others = [n["dst"] for n in neigh if n.get("lladdr", "").upper() == mac and n.get("dst") != gw and ":" not in n.get("dst", "")]
     if others:
         r.add("router", "bad", "another address (%s) answers with the router's hardware address: a sign of ARP spoofing (someone placing themselves between you and the router)" % ", ".join(others[:3]))
@@ -164,7 +183,16 @@ def check_gateway(r, me, known):
     if mac not in seen:
         seen.append(mac)
         del seen[:-3]
-    return dev
+    return dev, mac
+
+
+def is_trusted(uuid, mac):
+    """Trusted as heimdall-wifi-guard decides it: the profile was trusted, and its router (when known) is one remembered
+    with it. A stranger's network with the name and password of a trusted one is not trusted here either."""
+    t = load_json(TRUSTED, {}).get(uuid) if uuid else None
+    if not t:
+        return False
+    return not mac or mac in t.get("routers", [])
 
 
 def origins(ips):
@@ -347,16 +375,11 @@ def main():
     uuid = ""
     if "--uuid" in sys.argv:
         uuid = re.sub(r"[^a-f0-9-]", "", sys.argv[sys.argv.index("--uuid") + 1] if len(sys.argv) > sys.argv.index("--uuid") + 1 else "")
-    trusted = bool(uuid) and uuid in load_json(TRUSTED, {})
     guard = load_json(GUARD_STATE, {})
     r = Report()
     os.makedirs(STATE, exist_ok=True)
     known_path = os.path.join(STATE, "routers.json")
-    try:
-        with open(known_path) as f:
-            known = json.load(f)
-    except (OSError, ValueError):
-        known = {}
+    known = load_json(known_path, {})
     me = check_radio(r)
     if not me:
         print("not on Wi-Fi")
@@ -366,7 +389,8 @@ def main():
         r.add("sign-in", "warn", "the network wants you to sign in first (a captive portal); its sign-in page is not checked")
     elif state in ("none", "limited"):
         r.add("internet", "skip", "no internet yet (%s): online checks skipped" % state)
-    dev = check_gateway(r, me, known)
+    dev, router = check_gateway(r, me, known)
+    trusted = is_trusted(uuid, router)
     if guard.get("locked"):
         r.add("online checks", "skip", "untrusted network: all traffic is held for the VPN, so DNS, HTTPS and web pages are checked only through it")
     elif state not in ("none", "limited"):  # "unknown": NetworkManager does not test connectivity here; the checks themselves will tell
