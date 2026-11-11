@@ -223,12 +223,14 @@ fn the_go_fixtures_give_the_same_alerts() {
     let (mut steps, mut alerts, mut failures) = (0, 0, Vec::new());
     for path in files {
         let name = path.file_name().unwrap().to_string_lossy().to_string();
-        // functions, the audits, the correlator, the API and the responder have their own formats and tests (audits.rs,
+        // functions, the audits, the correlator, the API, the responder and the commands (cli-*.json) have their own formats
+        // and tests (audits.rs,
         // step3.rs, response.rs, contain.rs, trust.rs)
         if matches!(
             name.as_str(),
             "functions.json" | "audits.json" | "correlate.json" | "api.json" | "response.json" | "contain.json" | "trust.json"
         ) || !name.ends_with(".json")
+            || name.starts_with("cli-")
         {
             continue;
         }

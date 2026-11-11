@@ -19,6 +19,8 @@ type CLIAdmin struct {
 	Open     []MaintOpen     `json:"maintenance_open"`
 	Read     []MaintRead     `json:"maintenance_read"`
 	Round    []RoundCase     `json:"round"`
+	Grants   []GrantOp       `json:"grants"`
+	Guards   []GuardCase     `json:"guards"`
 }
 
 // MaintDescribe: the window (as the file holds it; empty: none found) at `now`, and Describe's text.
@@ -123,6 +125,13 @@ func AllCLIAdmin(tmp func() string) (CLIAdmin, error) {
 		for _, m := range ms {
 			f.Round = append(f.Round, RoundCase{D: int64(d), M: int64(m), Out: int64(d.Round(m))})
 		}
+	}
+	var err error
+	if f.Grants, err = grantOps(tmp); err != nil {
+		return f, err
+	}
+	if f.Guards, err = guardCases(tmp); err != nil {
+		return f, err
 	}
 	return f, nil
 }

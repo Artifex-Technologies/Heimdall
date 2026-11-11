@@ -135,3 +135,10 @@ path = "fuzz_targets/trust_list.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "grant_files"
+path = "fuzz_targets/grant_files.rs"
+test = false
+doc = false
+bench = false

@@ -1,5 +1,5 @@
 //! The grant gate's daemon half (Go: internal/grants): Sarina files requests (`POST /v1/requests`), the owner decides as root
-//! with `heimdalld grant` (that one-shot command stays in Go), and Sarina reads the decisions from the root-owned file. The
+//! with `heimdalld grant` (src/cli/grant.rs), and Sarina reads the decisions from the root-owned file. The
 //! daemon only reads both files and files requests; the file formats are Go's (docs/GRANTS.md).
 
 use crate::gojson::{self, ObjectWriter};

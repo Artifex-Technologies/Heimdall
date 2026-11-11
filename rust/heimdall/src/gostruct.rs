@@ -86,6 +86,9 @@ fn mismatch(v: &Value, t: &Ty, field: &str, top: &str) -> Error {
     let ty = type_name(t);
     if field.is_empty() {
         Error(format!("json: cannot unmarshal {what} into Go value of type {ty}"))
+    } else if field.rsplit('.').next().is_some_and(|last| !last.is_empty() && last.bytes().all(|b| b.is_ascii_digit())) {
+        // a list's element: Go (1.27) leaves out "Go struct field" when the path ends at an index ("into Decisions.escalations.0")
+        Error(format!("json: cannot unmarshal {what} into {top}.{field} of type {ty}"))
     } else {
         // Go 1.2x: the top struct's name, a dot, and the path from the top (slice indices included)
         Error(format!("json: cannot unmarshal {what} into Go struct field {top}.{field} of type {ty}"))
@@ -123,7 +126,8 @@ pub fn read(t: &Ty, v: &Value, into: &mut Val, field: &str, cx: &mut Ctx) {
             Some(x) => *into = Val::Time(x),
             None => fail!(Error(format!("parsing time {} as RFC 3339: cannot parse", crate::gotext::quote(s)))),
         },
-        (Ty::Time, _) => fail!(Error("Time.UnmarshalJSON: input is not a JSON string".into())),
+        // Go (1.27) names a wrong kind for a time as for any other type ("number into Go struct field X.until of type time.Time")
+        (Ty::Time, _) => fail!(mismatch(v, t, field, top)),
         (Ty::Slice(e), Value::Array(items)) => {
             // Go decodes into the elements already there and zeroes none of them
             let mut old = match std::mem::replace(into, Val::Slice(None)) {

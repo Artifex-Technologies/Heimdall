@@ -52,7 +52,7 @@ The same as the daemon's port:
 | lan | `lan scan`, `lan list` | not ported | |
 | intel | `ipdb-check`, `intel-check`, `origin`, `kernel-check`, `heimdall-intel-update` | not ported | |
 | immunity | `immunity ...`, `scan-files` | not ported | |
-| contain and admin | `contain ...`, `maintenance`, `grant`, `remote` | `maintenance` **done**; the rest not ported | `tests/cli_admin.rs`: 47 differential runs, 199 fixture cases |
+| contain and admin | `contain ...`, `maintenance`, `grant`, `remote` | `maintenance`, `grant` **done**; the rest not ported | `tests/cli_admin.rs`: 97 differential runs, 447 fixture cases |
 | Wi-Fi | `wifi-health`, `heimdall-wifi-check`, `heimdall-wifi-guard`, `heimdall-wifi-notify`, packaging/tests | not ported | |
 | trust, mesh, scan | `trust ...`, `scan` (done), `mesh ...` | trust and scan **done**; mesh not ported | `tests/cli_trust.rs`: 96 fixture cases, 67 steps; `tests/cli_scan.rs`: 21 steps; all against Go |
 | basics | `version`, `help`, unknown commands, `__write-as-owner` | **done** | `tests/cli.rs` against Go |
@@ -80,9 +80,27 @@ The same as the daemon's port:
   remaining times, `Open` + `Write`, `Read` of odd files, `Round` at the ends of the range). Properties: a window never
   lasts more than four hours (also a Kani harness, `src/maintenance.rs`), `Round` against exact arithmetic, a window read
   back is capped.
+- **grant** (`status`/`list`, `approve ID [--for D]`, `deny ID`, `tier N`, `revoke`, `off`): `src/cli/grant.rs`, both files
+  read and written through `gostruct` as Go's `encoding/json` does with Go's structs. Proved in fake roots: 23 runs with
+  standard input not a terminal (status of every combination of files, damaged, a folder or a link in a file's place, a
+  requests file the user cannot read, the refusals) and 27 on a pseudo-terminal with the answer typed in (approve, deny,
+  `--for` before and after the id, an escalation for more than a day, "no" and end of input at the prompt, `tier` with
+  Go's `fmt.Sscan` readings of `09`, `-1`, `x`, `revoke`, `off`, a missing `/etc/heimdall`, and the guard refusing
+  `SUDO_USER=sarina` and a parent process named sarina), with the requests file left to heimdalld's account as Go leaves
+  it. The fixture: 234 decisions through Go's store (every operation on nine decision files, with and without requests:
+  the files after byte for byte, the errors) and 14 made-up `/proc` trees through the guard (programs by link and by first
+  argument, a missing status, no parent, chains longer than 64). Properties (a tier is only ever 0-3; `Sscan`), fuzz
+  target `grant_files` (any bytes as either file; what reads is written back and reads the same), smoke-run in the tests.
 - Not 1:1 inside, the same outside: the daemon's JSON reader names a config's wrong type differently from Go
   ("number 5 into Go struct field net_ports"); the commands print Go's text (`cli::maintenance::go_config_error`). The
   daemon's own message on a damaged config (`run`) is unchanged.
+- `gostruct` (shared) now words two JSON type errors as Go 1.27 does: no "Go struct field" when the path ends at a list's
+  index ("into Decisions.escalations.0 of type grants.Escalation"), and a wrong kind for a time as for any type ("number
+  into Go struct field ... of type time.Time"). Only error texts of damaged files change; nothing the daemon decides.
+- Not 1:1: a time that is a string but not RFC 3339 is reported as `parsing time "x" as RFC 3339: cannot parse`, where Go
+  names the part that failed (`... as "2006-01-02T15:04:05Z07:00": cannot parse "x" as "2006"`). Only for damaged files.
+- `grant status` lists requests with equal times in the file's order; Go's sort is not stable past twelve requests (times
+  are to the nanosecond, so equal ones do not happen in practice).
 
 ## Wi-Fi
 

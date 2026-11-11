@@ -1,0 +1,1 @@
+{"access_tier":1,"escalations":[{"request_id":"x1","tier":"claude-cli","until":"2026-11-10T20:00:00-05:00","by":"owner"}],"history":[{"request_id":"x1","kind":"escalation","detail":"claude-cli","status":"approved","by":"owner","time":"2026-11-01T00:00:00Z"}]}
