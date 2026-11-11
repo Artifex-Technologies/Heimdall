@@ -82,6 +82,52 @@ fn the_owner_side_writes_what_go_writes() {
         }
         n += 1;
     }
+    // the mesh: identities from seeds, the peer rule, the owner's edits of the peers file
+    let m = &fx["mesh"];
+    for id in m["identities"].as_array().unwrap() {
+        let s = seed(id["seed"].as_str().unwrap());
+        assert_eq!(heimdall::mesh::key_pem(&s), id["key_pem"].as_str().unwrap());
+        let d = std::env::temp_dir().join(format!("heimdall-cli-mesh-{}-{n}", std::process::id()));
+        std::fs::create_dir_all(&d).unwrap();
+        std::fs::write(d.join("key.pem"), id["key_pem"].as_str().unwrap()).unwrap();
+        assert_eq!(heimdall::mesh::load_or_create(d.to_str().unwrap()).unwrap().fingerprint, id["fingerprint"].as_str().unwrap());
+        std::fs::remove_dir_all(&d).unwrap();
+        n += 1;
+    }
+    let peer = |v: &Value| heimdall::detect::Peer {
+        name: v["name"].as_str().unwrap().into(),
+        fingerprint: v["fingerprint"].as_str().unwrap().into(),
+        address: v["address"].as_str().unwrap().into(),
+    };
+    for v in m["validate"].as_array().unwrap() {
+        let p = peer(&v["peer"]);
+        let want = v["error"].as_str().unwrap();
+        assert_eq!(heimdall::mesh::validate_peer(&p).err().unwrap_or_default(), want, "{p:?}");
+        assert_eq!(heimdall::detect::valid_peer(&p), want.is_empty(), "the detectors' rule agrees: {p:?}");
+        n += 1;
+    }
+    for (i, sq) in m["sequences"].as_array().unwrap().iter().enumerate() {
+        let d = std::env::temp_dir().join(format!("heimdall-cli-mesh-s{}-{i}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        let path = d.join(format!("peers-{i}.json"));
+        let p = path.to_str().unwrap();
+        let start = sq["start"].as_str().unwrap();
+        if start != "\0none" {
+            std::fs::write(&path, start).unwrap();
+        }
+        for st in sq["steps"].as_array().unwrap() {
+            let r = heimdall::mesh::set_peer(p, &peer(&st["peer"]), st["remove"].as_bool().unwrap_or(false));
+            let names: Vec<String> = r.as_ref().map(|ps| ps.iter().map(|x| x.name.clone()).collect()).unwrap_or_default();
+            let want: Vec<String> = st["names"].as_array().into_iter().flatten().map(|x| x.as_str().unwrap().to_string()).collect();
+            assert_eq!(r.as_ref().err().map(|e| e.replace(d.to_str().unwrap(), "TMP")).unwrap_or_default(), st["error"].as_str().unwrap());
+            assert_eq!(names, want);
+            assert_eq!(std::fs::read_to_string(&path).unwrap_or_default(), st["file"].as_str().unwrap());
+            assert_eq!(std::fs::read_dir(&d).unwrap().count(), usize::from(path.exists()), "no temporary file left");
+            n += 1;
+        }
+        std::fs::remove_dir_all(&d).unwrap();
+    }
     for b in fx["base64"].as_array().unwrap() {
         let bytes = unhex(b["hex"].as_str().unwrap());
         assert_eq!(trust::std_base64_encode(&bytes), b["text"].as_str().unwrap());

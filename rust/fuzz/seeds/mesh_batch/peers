@@ -1,0 +1,8 @@
+[
+  {
+    "name": "pc",
+    "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+    "address": "100.64.0.2:8931"
+  },
+  {"NAME":"Bad","fingerprint":"x","address":"pc.lan:1"}
+]

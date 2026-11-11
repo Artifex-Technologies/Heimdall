@@ -166,6 +166,156 @@ pub fn load_or_create(dir: &str) -> Result<Identity, String> {
     }
 }
 
+/// The identity from a known seed, its key file written as Go's `LoadOrCreate` writes one (the fixtures and the fuzz target
+/// use it; a real key comes from `load_or_create`).
+pub fn key_pem(seed: &[u8; 32]) -> String {
+    let mut pem = String::from("-----BEGIN PRIVATE KEY-----\n");
+    let b = b64_encode(&pkcs8_v1(seed));
+    for line in b.as_bytes().chunks(64) {
+        pem.push_str(std::str::from_utf8(line).expect("base64"));
+        pem.push('\n');
+    }
+    pem.push_str("-----END PRIVATE KEY-----\n");
+    pem
+}
+
+// ---- the owner's peer list (Go: Peer.Validate and SetPeer), for `heimdalld mesh enroll|forget` ----
+
+/// Go's `Peer.Validate`, with its messages (`detect::valid_peer` is the same rule, answering yes or no).
+pub fn validate_peer(p: &Peer) -> Result<(), String> {
+    let n = p.name.as_bytes();
+    let name_ok = !n.is_empty()
+        && n.len() <= 32
+        && (n[0].is_ascii_lowercase() || n[0].is_ascii_digit())
+        && n.iter().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || *c == b'-');
+    if !name_ok {
+        return Err("name: 1-32 of a-z, 0-9 and -, starting with a letter or digit".into());
+    }
+    let f = p.fingerprint.as_bytes();
+    if !(f.len() == 36 && f.starts_with(b"hm1-") && f[4..].iter().all(|c| c.is_ascii_lowercase() || (b'2'..=b'7').contains(c))) {
+        return Err("fingerprint: hm1- and 32 characters, as `heimdalld mesh id` prints it on that computer".into());
+    }
+    let bad = || "address: an IP address and port, e.g. 100.64.0.2:8931 (no host names)".to_string();
+    let (host, port) = crate::gonet::split_host_port(&p.address).ok_or_else(bad)?;
+    let ip = crate::gonet::parse_ip(host).ok_or_else(bad)?;
+    if port.is_empty() || port == "0" {
+        return Err(bad());
+    }
+    if crate::gonet::is_unspecified(&ip) || crate::gonet::is_multicast(&ip) {
+        return Err("address: not a usable peer address".into());
+    }
+    Ok(())
+}
+
+/// The enrolled peers as `detect::load_peers_checked` reads them (the same file checks: root's or the reader's, writable by
+/// nobody else, links refused), with a type error in the file named as the Go that builds the command names it (1.27, json
+/// v2 underneath: "cannot unmarshal string into .0 of type mesh.Peer", "... into Go struct field .0.name of type string",
+/// "... into Go value of type []mesh.Peer").
+pub fn load_peers_go(path: &str) -> Result<Vec<Peer>, String> {
+    let e = match detect::load_peers_checked(path) {
+        Ok(ps) => return Ok(ps),
+        Err(e) => e,
+    };
+    if !e.starts_with(&format!("{path}: json: cannot unmarshal ")) {
+        return Err(e);
+    }
+    let Some(v) = std::fs::read(path).ok().and_then(|b| gojson::parse_first(&b).ok()) else { return Err(e) };
+    let what = |x: &gojson::Value| gojson::kind(x);
+    let items = match &v {
+        gojson::Value::Array(items) => items,
+        gojson::Value::Null => return Err(e),
+        other => return Err(format!("{path}: json: cannot unmarshal {} into Go value of type []mesh.Peer", what(other))),
+    };
+    for (i, it) in items.iter().enumerate() {
+        match it {
+            gojson::Value::Null => {}
+            gojson::Value::Object(members) => {
+                for (k, x) in members {
+                    let Some(field) = ["name", "fingerprint", "address"].into_iter().find(|f| gojson::key_matches(k, f)) else { continue };
+                    if !matches!(x, gojson::Value::String(_) | gojson::Value::Null) {
+                        return Err(format!("{path}: json: cannot unmarshal {} into Go struct field .{i}.{field} of type string", what(x)));
+                    }
+                }
+            }
+            other => return Err(format!("{path}: json: cannot unmarshal {} into .{i} of type mesh.Peer", what(other))),
+        }
+    }
+    Err(e)
+}
+
+/// The peers as Go's `json.MarshalIndent(out, "", "  ")` writes them (nil, an empty list, as `null`).
+pub fn peers_json(ps: &[Peer]) -> String {
+    if ps.is_empty() {
+        return "null".into();
+    }
+    let mut out = String::from("[");
+    for (i, p) in ps.iter().enumerate() {
+        out.push_str(if i == 0 { "\n  {\n    \"name\": " } else { ",\n  {\n    \"name\": " });
+        gojson::write_str(&mut out, &p.name);
+        out.push_str(",\n    \"fingerprint\": ");
+        gojson::write_str(&mut out, &p.fingerprint);
+        out.push_str(",\n    \"address\": ");
+        gojson::write_str(&mut out, &p.address);
+        out.push_str("\n  }");
+    }
+    out.push_str("\n]");
+    out
+}
+
+/// Go's `SetPeer`: adds or replaces (by name, and any entry with the same fingerprint) one peer, or removes it, and writes
+/// the file (0644) through a temporary file in the same folder and a rename. The peers now enrolled come back.
+pub fn set_peer(path: &str, p: &Peer, remove: bool) -> Result<Vec<Peer>, String> {
+    use std::os::unix::fs::OpenOptionsExt;
+    if !remove {
+        validate_peer(p)?;
+    }
+    let ps = load_peers_go(path)?;
+    let mut out: Vec<Peer> = ps.into_iter().filter(|o| o.name != p.name && (remove || o.fingerprint != p.fingerprint)).collect();
+    if !remove {
+        out.push(p.clone());
+    }
+    let body = peers_json(&out) + "\n";
+    let dir = crate::gopath::dir(path);
+    // os.CreateTemp(dir, ".mesh-peers-*"): a new name of random digits, made exclusively
+    let mut f = None;
+    let mut last = None;
+    for _ in 0..10_000 {
+        let mut r = [0u8; 4];
+        ring::rand::SecureRandom::fill(&ring::rand::SystemRandom::new(), &mut r).map_err(|_| "no random numbers".to_string())?;
+        let name = crate::gopath::join(&[&dir, &format!(".mesh-peers-{}", u32::from_le_bytes(r))]);
+        match std::fs::OpenOptions::new().read(true).write(true).create_new(true).mode(0o600).open(&name) {
+            Ok(file) => {
+                f = Some((file, name));
+                break;
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => {
+                last = Some(crate::goerr::path("open", &name, &e));
+                break;
+            }
+        }
+    }
+    // Go: the open error with the name tried; "createtemp DIR/.mesh-peers-*: file exists" after 10,000 names taken
+    let Some((mut file, tmp)) = f else {
+        let exists = std::io::Error::from_raw_os_error(libc::EEXIST);
+        return Err(last.unwrap_or_else(|| crate::goerr::path("createtemp", &crate::gopath::join(&[&dir, ".mesh-peers-*"]), &exists)));
+    };
+    let fail = |e: String, tmp: &str| {
+        let _ = std::fs::remove_file(tmp);
+        Err(e)
+    };
+    if let Err(e) = file.write_all(body.as_bytes()) {
+        return fail(crate::goerr::path("write", &tmp, &e), &tmp);
+    }
+    use std::os::unix::fs::PermissionsExt;
+    let _ = file.set_permissions(std::fs::Permissions::from_mode(0o644));
+    drop(file);
+    if let Err(e) = std::fs::rename(&tmp, path) {
+        return fail(crate::goerr::link("rename", &tmp, path, &e), &tmp);
+    }
+    Ok(out)
+}
+
 fn der_has_ed25519(pem: &[u8]) -> bool {
     pem_first(pem).is_some_and(|(_, d)| d.windows(5).any(|w| w == [0x06, 0x03, 0x2b, 0x65, 0x70]))
 }
@@ -849,6 +999,25 @@ pub fn fuzz_batch(data: &[u8]) {
     }
     if let Some(fp) = cert_fingerprint(data) {
         assert!(fp.len() == 36 && fp.starts_with("hm1-"));
+    }
+    // the same bytes as a key file (`heimdalld mesh init` reads one): a key or refused, never a panic
+    if let Some((label, der)) = pem_first(data) {
+        if let (true, Ok(id)) = (label == "PRIVATE KEY", identity(der)) {
+            assert!(id.fingerprint.len() == 36 && id.fingerprint.starts_with("hm1-"));
+        }
+    }
+    // and as a peers file: the two peer rules agree, and what `enroll` writes reads back as the same peers
+    if let Ok(v) = gojson::parse_first(data) {
+        let mut ps: Vec<Peer> = Vec::new();
+        let _ = gojson::FromGo::read_into(&mut ps, &v, "");
+        for p in &ps {
+            assert_eq!(validate_peer(p).is_ok(), detect::valid_peer(p), "{p:?}");
+        }
+        let kept: Vec<Peer> = ps.into_iter().filter(detect::valid_peer).collect();
+        let back = gojson::parse(peers_json(&kept).as_bytes()).expect("the peers file reads back");
+        let mut again: Vec<Peer> = Vec::new();
+        gojson::FromGo::read_into(&mut again, &back, "").expect("the peers file reads back");
+        assert_eq!(again, kept);
     }
 }
 

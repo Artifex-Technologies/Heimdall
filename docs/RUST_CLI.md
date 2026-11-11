@@ -54,7 +54,7 @@ The same as the daemon's port:
 | immunity | `immunity ...`, `scan-files` | not ported | |
 | contain and admin | `contain ...`, `maintenance`, `grant`, `remote` | `maintenance`, `grant`, `remote`, `contain status|evidence` **done**; `contain now|emergency|run-request|release` go to Go | `tests/cli_admin.rs`: 135 differential runs, 447 fixture cases |
 | Wi-Fi | `wifi-health`, `heimdall-wifi-check`, `heimdall-wifi-guard`, `heimdall-wifi-notify`, packaging/tests | not ported | |
-| trust, mesh, scan | `trust ...`, `scan` (done), `mesh ...` | trust and scan **done**; mesh not ported | `tests/cli_trust.rs`: 96 fixture cases, 67 steps; `tests/cli_scan.rs`: 21 steps; all against Go |
+| trust, mesh, scan | `trust ...`, `scan`, `mesh ...` | **done** | `tests/cli_trust.rs`: 155 fixture cases (trust 96, mesh 59), 67 steps; `tests/cli_scan.rs`: 21 steps; `tests/cli_mesh.rs`: 44 steps; all against Go |
 | basics | `version`, `help`, unknown commands, `__write-as-owner` | **done** | `tests/cli.rs` against Go |
 
 ## lan
@@ -165,7 +165,25 @@ Not 1:1: for a config with a wrong type inside a list or a list where none belon
 list's type ("cannot unmarshal string into Config.net_ports.1 of type int"); the port says "Go struct field
 Config.net_ports of type int" ("of type slice" for the list). Only the message of a broken config differs.
 
-**mesh**: not ported yet (it goes to the Go binary).
+**mesh** (`src/cli/mesh.rs`, the owner's side added to `src/mesh.rs`): `id`, `init`, `list`, `enroll`, `forget`, with Go's
+`flagsFirst` (flags after the words), texts and exit codes. `init` makes the key Go makes (PKCS#8 in PEM, 0600; the
+fingerprint file, 0644; the folder 0700) and hands them to the heimdall account as root; `enroll`/`forget` write the peers
+file as Go's `SetPeer` (MarshalIndent, `null` when empty, through a temporary file and a rename), behind Go's guard
+(`grants.Guard`, ported here as `cli::mesh::guard`: a terminal for the real list, no agent's sudo, no agent program or
+account among the ancestors). Peer files are read with the daemon's checks (`detect::load_peers_checked`) and Go 1.27's texts
+for a damaged one (`mesh::load_peers_go`).
+
+Proof: the fixture's mesh half (`testdata/parity/cli-trust.json`: 4 identities from seeds, key file and fingerprint byte for
+byte and read back; 23 peers through Go's `Validate`, the detectors' yes-or-no rule agreeing; 25 sequences of `SetPeer`,
+32 steps, with the file after each and Go's errors for 19 damaged files: 59 cases) and `tests/cli_mesh.rs` (fake roots, 44
+steps: usage and flag errors, `id` and `init` as root and as a user, keys made by each binary read by the other (`init` again
+and `id` print the maker's fingerprint), a known key, enrol, replace, forget, the refusals (not root, no terminal, the
+agent's sudo, a peers file not root's, writable by others, a link, damaged, in a missing folder): output, exit codes,
+files and their owners equal); 2 properties (the two peer rules agree; a key file from any seed reads back), the
+`mesh_batch` fuzz target extended to key files and peers files (with seeds).
+
+Not 1:1: a `key.pem` holding a PRIVATE KEY block whose DER is damaged or not ed25519 is refused with "is not an ed25519 key"
+(or "x509: invalid Ed25519 private key"), where Go names the x509/asn1 parse error (the daemon's reader, unchanged).
 
 ## Differences from Go
 

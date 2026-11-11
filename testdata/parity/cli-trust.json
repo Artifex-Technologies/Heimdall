@@ -523,5 +523,705 @@
    "hex": "d2f71c41668bb0d5fa1f44698eb3d8fd22476c91b6db00254a6f94b9de03284d7297bce1062b50759abfe4092e53789dc2e70c31567ba0c5ea0f34597ea3c8ed12375c81a6cb",
    "text": "0vccQWaLsNX6H0RpjrPY/SJHbJG22wAlSm+Uud4DKE1yl7zhBitQdZq/5AkuU3idwucMMVZ7oMXqDzRZfqPI7RI3XIGmyw=="
   }
- ]
+ ],
+ "mesh": {
+  "identities": [
+   {
+    "seed": "0000000000000000000000000000000000000000000000000000000000000000",
+    "key_pem": "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n-----END PRIVATE KEY-----\n",
+    "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa"
+   },
+   {
+    "seed": "0707070707070707070707070707070707070707070707070707070707070707",
+    "key_pem": "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIAcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcH\n-----END PRIVATE KEY-----\n",
+    "fingerprint": "hm1-72asyextvngonlc5w2nmguxza3frwepp"
+   },
+   {
+    "seed": "01264b7095badf04294e7398bde2072c51769bc0e50a2f54799ec3e80d32577c",
+    "key_pem": "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIAEmS3CVut8EKU5zmL3iByxRdpvA5QovVHmew+gNMld8\n-----END PRIVATE KEY-----\n",
+    "fingerprint": "hm1-gk2pldpe77dgheg5t4vfjxuxifcpf3q5"
+   },
+   {
+    "seed": "c8ed12375c81a6cbf0153a5f84a9cef3183d6287acd1f61b40658aafd4f91e43",
+    "key_pem": "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIMjtEjdcgabL8BU6X4SpzvMYPWKHrNH2G0Bliq/U+R5D\n-----END PRIVATE KEY-----\n",
+    "fingerprint": "hm1-3ii2oh33436p544jjrhkfj2rpaxzeg22"
+   }
+  ],
+  "validate": [
+   {
+    "peer": {
+     "name": "laptop",
+     "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+     "address": "100.64.0.2:8931"
+    },
+    "error": ""
+   },
+   {
+    "peer": {
+     "name": "",
+     "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+     "address": "100.64.0.2:8931"
+    },
+    "error": "name: 1-32 of a-z, 0-9 and -, starting with a letter or digit"
+   },
+   {
+    "peer": {
+     "name": "Laptop",
+     "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+     "address": "100.64.0.2:8931"
+    },
+    "error": "name: 1-32 of a-z, 0-9 and -, starting with a letter or digit"
+   },
+   {
+    "peer": {
+     "name": "-x",
+     "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+     "address": "100.64.0.2:8931"
+    },
+    "error": "name: 1-32 of a-z, 0-9 and -, starting with a letter or digit"
+   },
+   {
+    "peer": {
+     "name": "a23456789012345678901234567890123",
+     "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+     "address": "100.64.0.2:8931"
+    },
+    "error": "name: 1-32 of a-z, 0-9 and -, starting with a letter or digit"
+   },
+   {
+    "peer": {
+     "name": "a2345678901234567890123456789012",
+     "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+     "address": "[fd00::2]:8931"
+    },
+    "error": ""
+   },
+   {
+    "peer": {
+     "name": "pc",
+     "fingerprint": "HM1-COPDSQHGJNKJC4RARDM2BV2BMKH4QJXA",
+     "address": "100.64.0.2:8931"
+    },
+    "error": "fingerprint: hm1- and 32 characters, as `heimdalld mesh id` prints it on that computer"
+   },
+   {
+    "peer": {
+     "name": "pc",
+     "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjx",
+     "address": "100.64.0.2:8931"
+    },
+    "error": "fingerprint: hm1- and 32 characters, as `heimdalld mesh id` prints it on that computer"
+   },
+   {
+    "peer": {
+     "name": "pc",
+     "fingerprint": "hm1-11111111111111111111111111111111",
+     "address": "100.64.0.2:8931"
+    },
+    "error": "fingerprint: hm1- and 32 characters, as `heimdalld mesh id` prints it on that computer"
+   },
+   {
+    "peer": {
+     "name": "pc",
+     "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa\n",
+     "address": "100.64.0.2:8931"
+    },
+    "error": "fingerprint: hm1- and 32 characters, as `heimdalld mesh id` prints it on that computer"
+   },
+   {
+    "peer": {
+     "name": "pc\n",
+     "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+     "address": "100.64.0.2:8931"
+    },
+    "error": "name: 1-32 of a-z, 0-9 and -, starting with a letter or digit"
+   },
+   {
+    "peer": {
+     "name": "pc",
+     "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+     "address": "pc.lan:8931"
+    },
+    "error": "address: an IP address and port, e.g. 100.64.0.2:8931 (no host names)"
+   },
+   {
+    "peer": {
+     "name": "pc",
+     "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+     "address": "100.64.0.2"
+    },
+    "error": "address: an IP address and port, e.g. 100.64.0.2:8931 (no host names)"
+   },
+   {
+    "peer": {
+     "name": "pc",
+     "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+     "address": "100.64.0.2:"
+    },
+    "error": "address: an IP address and port, e.g. 100.64.0.2:8931 (no host names)"
+   },
+   {
+    "peer": {
+     "name": "pc",
+     "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+     "address": "100.64.0.2:0"
+    },
+    "error": "address: an IP address and port, e.g. 100.64.0.2:8931 (no host names)"
+   },
+   {
+    "peer": {
+     "name": "pc",
+     "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+     "address": "100.64.0.2:http"
+    },
+    "error": ""
+   },
+   {
+    "peer": {
+     "name": "pc",
+     "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+     "address": "0.0.0.0:8931"
+    },
+    "error": "address: not a usable peer address"
+   },
+   {
+    "peer": {
+     "name": "pc",
+     "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+     "address": "[::]:8931"
+    },
+    "error": "address: not a usable peer address"
+   },
+   {
+    "peer": {
+     "name": "pc",
+     "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+     "address": "224.0.0.1:8931"
+    },
+    "error": "address: not a usable peer address"
+   },
+   {
+    "peer": {
+     "name": "pc",
+     "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+     "address": "[ff02::1]:8931"
+    },
+    "error": "address: not a usable peer address"
+   },
+   {
+    "peer": {
+     "name": "pc",
+     "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+     "address": "[fe80::1%eth0]:8931"
+    },
+    "error": "address: an IP address and port, e.g. 100.64.0.2:8931 (no host names)"
+   },
+   {
+    "peer": {
+     "name": "pc",
+     "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+     "address": "127.0.0.1:8931"
+    },
+    "error": ""
+   },
+   {
+    "peer": {
+     "name": "pc",
+     "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+     "address": "::1:8931"
+    },
+    "error": "address: an IP address and port, e.g. 100.64.0.2:8931 (no host names)"
+   }
+  ],
+  "sequences": [
+   {
+    "start": "\u0000none",
+    "steps": [
+     {
+      "peer": {
+       "name": "laptop",
+       "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+       "address": "100.64.0.2:8931"
+      },
+      "error": "",
+      "names": [
+       "laptop"
+      ],
+      "file": "[\n  {\n    \"name\": \"laptop\",\n    \"fingerprint\": \"hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa\",\n    \"address\": \"100.64.0.2:8931\"\n  }\n]\n"
+     },
+     {
+      "peer": {
+       "name": "desk",
+       "fingerprint": "hm1-72asyextvngonlc5w2nmguxza3frwepp",
+       "address": "[fd00::2]:8931"
+      },
+      "error": "",
+      "names": [
+       "laptop",
+       "desk"
+      ],
+      "file": "[\n  {\n    \"name\": \"laptop\",\n    \"fingerprint\": \"hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa\",\n    \"address\": \"100.64.0.2:8931\"\n  },\n  {\n    \"name\": \"desk\",\n    \"fingerprint\": \"hm1-72asyextvngonlc5w2nmguxza3frwepp\",\n    \"address\": \"[fd00::2]:8931\"\n  }\n]\n"
+     },
+     {
+      "peer": {
+       "name": "laptop",
+       "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+       "address": "100.64.0.3:8931"
+      },
+      "error": "",
+      "names": [
+       "desk",
+       "laptop"
+      ],
+      "file": "[\n  {\n    \"name\": \"desk\",\n    \"fingerprint\": \"hm1-72asyextvngonlc5w2nmguxza3frwepp\",\n    \"address\": \"[fd00::2]:8931\"\n  },\n  {\n    \"name\": \"laptop\",\n    \"fingerprint\": \"hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa\",\n    \"address\": \"100.64.0.3:8931\"\n  }\n]\n"
+     },
+     {
+      "peer": {
+       "name": "other",
+       "fingerprint": "hm1-72asyextvngonlc5w2nmguxza3frwepp",
+       "address": "100.64.0.4:8931"
+      },
+      "error": "",
+      "names": [
+       "laptop",
+       "other"
+      ],
+      "file": "[\n  {\n    \"name\": \"laptop\",\n    \"fingerprint\": \"hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa\",\n    \"address\": \"100.64.0.3:8931\"\n  },\n  {\n    \"name\": \"other\",\n    \"fingerprint\": \"hm1-72asyextvngonlc5w2nmguxza3frwepp\",\n    \"address\": \"100.64.0.4:8931\"\n  }\n]\n"
+     },
+     {
+      "peer": {
+       "name": "bad",
+       "fingerprint": "",
+       "address": ""
+      },
+      "error": "fingerprint: hm1- and 32 characters, as `heimdalld mesh id` prints it on that computer",
+      "names": null,
+      "file": "[\n  {\n    \"name\": \"laptop\",\n    \"fingerprint\": \"hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa\",\n    \"address\": \"100.64.0.3:8931\"\n  },\n  {\n    \"name\": \"other\",\n    \"fingerprint\": \"hm1-72asyextvngonlc5w2nmguxza3frwepp\",\n    \"address\": \"100.64.0.4:8931\"\n  }\n]\n"
+     },
+     {
+      "peer": {
+       "name": "nobody",
+       "fingerprint": "",
+       "address": ""
+      },
+      "remove": true,
+      "error": "",
+      "names": [
+       "laptop",
+       "other"
+      ],
+      "file": "[\n  {\n    \"name\": \"laptop\",\n    \"fingerprint\": \"hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa\",\n    \"address\": \"100.64.0.3:8931\"\n  },\n  {\n    \"name\": \"other\",\n    \"fingerprint\": \"hm1-72asyextvngonlc5w2nmguxza3frwepp\",\n    \"address\": \"100.64.0.4:8931\"\n  }\n]\n"
+     },
+     {
+      "peer": {
+       "name": "laptop",
+       "fingerprint": "",
+       "address": ""
+      },
+      "remove": true,
+      "error": "",
+      "names": [
+       "other"
+      ],
+      "file": "[\n  {\n    \"name\": \"other\",\n    \"fingerprint\": \"hm1-72asyextvngonlc5w2nmguxza3frwepp\",\n    \"address\": \"100.64.0.4:8931\"\n  }\n]\n"
+     },
+     {
+      "peer": {
+       "name": "other",
+       "fingerprint": "",
+       "address": ""
+      },
+      "remove": true,
+      "error": "",
+      "names": null,
+      "file": "null\n"
+     }
+    ]
+   },
+   {
+    "start": "[{\"name\":\"x\",\"fingerprint\":\"hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa\",\"address\":\"1.2.3.4:5\"},{\"name\":\"Bad\",\"fingerprint\":\"hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa\",\"address\":\"1.2.3.4:5\"},{\"NAME\":\"y\",\"Fingerprint\":\"hm1-72asyextvngonlc5w2nmguxza3frwepp\",\"address\":\"[::1]:9\",\"extra\":1}] trailing",
+    "steps": [
+     {
+      "peer": {
+       "name": "x",
+       "fingerprint": "",
+       "address": ""
+      },
+      "remove": true,
+      "error": "",
+      "names": [
+       "y"
+      ],
+      "file": "[\n  {\n    \"name\": \"y\",\n    \"fingerprint\": \"hm1-72asyextvngonlc5w2nmguxza3frwepp\",\n    \"address\": \"[::1]:9\"\n  }\n]\n"
+     }
+    ]
+   },
+   {
+    "start": "null",
+    "steps": [
+     {
+      "peer": {
+       "name": "laptop",
+       "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+       "address": "100.64.0.2:8931"
+      },
+      "error": "",
+      "names": [
+       "laptop"
+      ],
+      "file": "[\n  {\n    \"name\": \"laptop\",\n    \"fingerprint\": \"hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa\",\n    \"address\": \"100.64.0.2:8931\"\n  }\n]\n"
+     }
+    ]
+   },
+   {
+    "start": "{\"name\":\"x\"}",
+    "steps": [
+     {
+      "peer": {
+       "name": "laptop",
+       "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+       "address": "100.64.0.2:8931"
+      },
+      "error": "TMP/peers-3.json: json: cannot unmarshal object into Go value of type []mesh.Peer",
+      "names": null,
+      "file": "{\"name\":\"x\"}"
+     }
+    ]
+   },
+   {
+    "start": "[{\"name\":5}]",
+    "steps": [
+     {
+      "peer": {
+       "name": "laptop",
+       "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+       "address": "100.64.0.2:8931"
+      },
+      "error": "TMP/peers-4.json: json: cannot unmarshal number into Go struct field .0.name of type string",
+      "names": null,
+      "file": "[{\"name\":5}]"
+     }
+    ]
+   },
+   {
+    "start": "",
+    "steps": [
+     {
+      "peer": {
+       "name": "laptop",
+       "fingerprint": "hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa",
+       "address": "100.64.0.2:8931"
+      },
+      "error": "TMP/peers-5.json: EOF",
+      "names": null,
+      "file": ""
+     }
+    ]
+   },
+   {
+    "start": "[\"x\"]",
+    "steps": [
+     {
+      "peer": {
+       "name": "x",
+       "fingerprint": "",
+       "address": ""
+      },
+      "remove": true,
+      "error": "TMP/peers-6.json: json: cannot unmarshal string into .0 of type mesh.Peer",
+      "names": null,
+      "file": "[\"x\"]"
+     }
+    ]
+   },
+   {
+    "start": "[1, {\"name\":\"x\"}]",
+    "steps": [
+     {
+      "peer": {
+       "name": "x",
+       "fingerprint": "",
+       "address": ""
+      },
+      "remove": true,
+      "error": "TMP/peers-7.json: json: cannot unmarshal number into .0 of type mesh.Peer",
+      "names": null,
+      "file": "[1, {\"name\":\"x\"}]"
+     }
+    ]
+   },
+   {
+    "start": "[{\"name\":\"a\",\"address\":[1]}]",
+    "steps": [
+     {
+      "peer": {
+       "name": "x",
+       "fingerprint": "",
+       "address": ""
+      },
+      "remove": true,
+      "error": "TMP/peers-8.json: json: cannot unmarshal array into Go struct field .0.address of type string",
+      "names": null,
+      "file": "[{\"name\":\"a\",\"address\":[1]}]"
+     }
+    ]
+   },
+   {
+    "start": "[{\"address\":{\"x\":1},\"name\":true}]",
+    "steps": [
+     {
+      "peer": {
+       "name": "x",
+       "fingerprint": "",
+       "address": ""
+      },
+      "remove": true,
+      "error": "TMP/peers-9.json: json: cannot unmarshal object into Go struct field .0.address of type string",
+      "names": null,
+      "file": "[{\"address\":{\"x\":1},\"name\":true}]"
+     }
+    ]
+   },
+   {
+    "start": "5",
+    "steps": [
+     {
+      "peer": {
+       "name": "x",
+       "fingerprint": "",
+       "address": ""
+      },
+      "remove": true,
+      "error": "TMP/peers-10.json: json: cannot unmarshal number into Go value of type []mesh.Peer",
+      "names": null,
+      "file": "5"
+     }
+    ]
+   },
+   {
+    "start": "\"s\"",
+    "steps": [
+     {
+      "peer": {
+       "name": "x",
+       "fingerprint": "",
+       "address": ""
+      },
+      "remove": true,
+      "error": "TMP/peers-11.json: json: cannot unmarshal string into Go value of type []mesh.Peer",
+      "names": null,
+      "file": "\"s\""
+     }
+    ]
+   },
+   {
+    "start": "true",
+    "steps": [
+     {
+      "peer": {
+       "name": "x",
+       "fingerprint": "",
+       "address": ""
+      },
+      "remove": true,
+      "error": "TMP/peers-12.json: json: cannot unmarshal bool into Go value of type []mesh.Peer",
+      "names": null,
+      "file": "true"
+     }
+    ]
+   },
+   {
+    "start": "[null, {\"name\":\"x\",\"fingerprint\":\"hm1-copdsqhgjnkjc4rardm2bv2bmkh4qjxa\",\"address\":\"1.2.3.4:5\"}]",
+    "steps": [
+     {
+      "peer": {
+       "name": "x",
+       "fingerprint": "",
+       "address": ""
+      },
+      "remove": true,
+      "error": "",
+      "names": null,
+      "file": "null\n"
+     }
+    ]
+   },
+   {
+    "start": "[{\"name\":null,\"fingerprint\":\"x\"}]",
+    "steps": [
+     {
+      "peer": {
+       "name": "x",
+       "fingerprint": "",
+       "address": ""
+      },
+      "remove": true,
+      "error": "",
+      "names": null,
+      "file": "null\n"
+     }
+    ]
+   },
+   {
+    "start": "[",
+    "steps": [
+     {
+      "peer": {
+       "name": "x",
+       "fingerprint": "",
+       "address": ""
+      },
+      "remove": true,
+      "error": "TMP/peers-15.json: unexpected EOF",
+      "names": null,
+      "file": "["
+     }
+    ]
+   },
+   {
+    "start": "[{\"name\":\"a\"},]",
+    "steps": [
+     {
+      "peer": {
+       "name": "x",
+       "fingerprint": "",
+       "address": ""
+      },
+      "remove": true,
+      "error": "TMP/peers-16.json: invalid character ']' looking for beginning of value",
+      "names": null,
+      "file": "[{\"name\":\"a\"},]"
+     }
+    ]
+   },
+   {
+    "start": "[{\"name\":\"a\" \"x\"}]",
+    "steps": [
+     {
+      "peer": {
+       "name": "x",
+       "fingerprint": "",
+       "address": ""
+      },
+      "remove": true,
+      "error": "TMP/peers-17.json: invalid character '\"' after object key:value pair",
+      "names": null,
+      "file": "[{\"name\":\"a\" \"x\"}]"
+     }
+    ]
+   },
+   {
+    "start": "{}",
+    "steps": [
+     {
+      "peer": {
+       "name": "x",
+       "fingerprint": "",
+       "address": ""
+      },
+      "remove": true,
+      "error": "TMP/peers-18.json: json: cannot unmarshal object into Go value of type []mesh.Peer",
+      "names": null,
+      "file": "{}"
+     }
+    ]
+   },
+   {
+    "start": "[{\"name\":\"\\ud800x\"}]",
+    "steps": [
+     {
+      "peer": {
+       "name": "x",
+       "fingerprint": "",
+       "address": ""
+      },
+      "remove": true,
+      "error": "",
+      "names": null,
+      "file": "null\n"
+     }
+    ]
+   },
+   {
+    "start": "[] [",
+    "steps": [
+     {
+      "peer": {
+       "name": "x",
+       "fingerprint": "",
+       "address": ""
+      },
+      "remove": true,
+      "error": "",
+      "names": null,
+      "file": "null\n"
+     }
+    ]
+   },
+   {
+    "start": " \n[]",
+    "steps": [
+     {
+      "peer": {
+       "name": "x",
+       "fingerprint": "",
+       "address": ""
+      },
+      "remove": true,
+      "error": "",
+      "names": null,
+      "file": "null\n"
+     }
+    ]
+   },
+   {
+    "start": "[{\"name\":\"a\",\"name\":\"b\"}]",
+    "steps": [
+     {
+      "peer": {
+       "name": "x",
+       "fingerprint": "",
+       "address": ""
+      },
+      "remove": true,
+      "error": "",
+      "names": null,
+      "file": "null\n"
+     }
+    ]
+   },
+   {
+    "start": "[{\"name\":1.5e3}]",
+    "steps": [
+     {
+      "peer": {
+       "name": "x",
+       "fingerprint": "",
+       "address": ""
+      },
+      "remove": true,
+      "error": "TMP/peers-23.json: json: cannot unmarshal number into Go struct field .0.name of type string",
+      "names": null,
+      "file": "[{\"name\":1.5e3}]"
+     }
+    ]
+   },
+   {
+    "start": "[[]]",
+    "steps": [
+     {
+      "peer": {
+       "name": "x",
+       "fingerprint": "",
+       "address": ""
+      },
+      "remove": true,
+      "error": "TMP/peers-24.json: json: cannot unmarshal array into .0 of type mesh.Peer",
+      "names": null,
+      "file": "[[]]"
+     }
+    ]
+   }
+  ]
+ }
 }
