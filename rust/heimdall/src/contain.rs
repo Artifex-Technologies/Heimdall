@@ -101,6 +101,49 @@ impl Sink for Trigger {
     }
 }
 
+// For `heimdalld contain` (src/cli/contain.rs): the switches and the lock as Go's LoadConfig and ReadMarker read them.
+
+/// Where the evidence of each containment is kept (root only).
+pub const EVIDENCE_DIR: &str = "/var/lib/heimdall-evidence";
+
+/// Go's LoadConfig: (auto_contain, auto_emergency); a missing file is both off, a damaged one keeps what was read.
+pub fn load_config(path: &str) -> (bool, bool) {
+    let Ok(b) = std::fs::read(path) else { return (false, false) };
+    let (v, _) = gostruct::unmarshal(&CONFIG, &b);
+    let on = |k: &str| matches!(gostruct::field(&CONFIG, &v, k), Some(Val::Bool(true)));
+    (on("auto_contain"), on("auto_emergency"))
+}
+
+/// The lock's content.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Marker {
+    pub since: Time,
+    pub reason: String,
+    /// "contained" or "emergency"
+    pub level: String,
+}
+
+static MARKER: Ty =
+    Ty::Struct("contain.Marker", &[Field("since", &Ty::Time, false), Field("reason", &Ty::Str, false), Field("level", &Ty::Str, false)]);
+
+/// Go's ReadMarker: the lock when there is one; a lock that is not the JSON Go wrote is still a lock ("unreadable lock").
+pub fn read_marker(path: &str) -> Option<Marker> {
+    let b = std::fs::read(path).ok()?;
+    let (v, err) = gostruct::unmarshal(&MARKER, &b);
+    if err.is_some() {
+        return Some(Marker { reason: "unreadable lock (still a lock)".into(), ..Marker::default() });
+    }
+    let since = match gostruct::field(&MARKER, &v, "since") {
+        Some(Val::Time(t)) => *t,
+        _ => Time::default(),
+    };
+    Some(Marker {
+        since,
+        reason: gostruct::str_field(&MARKER, &v, "reason").to_string(),
+        level: gostruct::str_field(&MARKER, &v, "level").to_string(),
+    })
+}
+
 #[cfg(kani)]
 mod proofs {
     use super::*;

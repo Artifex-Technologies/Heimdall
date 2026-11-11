@@ -675,6 +675,113 @@ fn remote_as_go() {
     }
 }
 
+#[test]
+fn contain_status_and_evidence_as_go() {
+    let root = Opts::default();
+    let user = Opts::user();
+    let lock = |text: &'static str| {
+        move |r: &Root| {
+            r.write("/etc/heimdall/contained", text);
+        }
+    };
+    let cases: Vec<Case> = vec![
+        ("none", Box::new(|_| {}), vec![], &root),
+        ("bogus", Box::new(|_| {}), vec!["bogus"], &root),
+        ("status-free", Box::new(|_| {}), vec!["status"], &user),
+        (
+            "status-locked",
+            Box::new(lock(r#"{"since": "2026-11-10T19:30:00Z", "reason": "an \"injection\" reached a session; ü", "level": "contained"}"#)),
+            vec!["status"],
+            &user,
+        ),
+        (
+            "status-emergency",
+            Box::new(lock(r#"{"since":"2026-07-01T01:02:03+02:00","reason":"x","level":"emergency"}"#)),
+            vec!["status"],
+            &root,
+        ),
+        ("status-garbage", Box::new(lock("locked by hand")), vec!["status"], &user),
+        ("status-empty", Box::new(lock("")), vec!["status"], &user),
+        ("status-wrongtype", Box::new(lock(r#"{"since": 5, "reason": "kept?"}"#)), vec!["status"], &user),
+        (
+            "status-folded",
+            Box::new(lock(r#"{"SINCE":"2026-11-10T19:30:00.123Z","Reason":"r","LEVEL":"contained","x":[1]}"#)),
+            vec!["status"],
+            &user,
+        ),
+        (
+            "status-dir",
+            Box::new(|r| {
+                r.mkdir("/etc/heimdall/contained", 0o755);
+            }),
+            vec!["status"],
+            &user,
+        ),
+        (
+            "status-switches",
+            Box::new(|r| {
+                r.write("/etc/heimdall/contain.json", r#"{"auto_contain": true, "auto_emergency": "yes"}"#);
+            }),
+            vec!["status"],
+            &user,
+        ),
+        (
+            "status-switches-folded",
+            Box::new(|r| {
+                r.write("/etc/heimdall/contain.json", r#"{"AUTO_Contain": true, "auto_EMERGENCY": true}"#);
+            }),
+            vec!["status", "extra"],
+            &user,
+        ),
+        (
+            "status-switches-broken",
+            Box::new(|r| {
+                r.write("/etc/heimdall/contain.json", r#"{"auto_contain": true"#);
+            }),
+            vec!["status"],
+            &user,
+        ),
+        ("evidence-none", Box::new(|_| {}), vec!["evidence"], &root),
+        (
+            "evidence",
+            Box::new(|r| {
+                for d in ["20261101T010203Z", "20261110T193000Z", "20261105T000000Z"] {
+                    r.mkdir(&format!("/var/lib/heimdall-evidence/{d}"), 0o700);
+                }
+                r.write("/var/lib/heimdall-evidence/stray file", "x");
+            }),
+            vec!["evidence"],
+            &root,
+        ),
+        (
+            "evidence-closed",
+            Box::new(|r| {
+                r.mkdir("/var/lib/heimdall-evidence/20261110T193000Z", 0o700);
+                r.mkdir("/var/lib/heimdall-evidence", 0o700);
+            }),
+            vec!["evidence"],
+            &user,
+        ),
+    ];
+    for (name, build, args, o) in &cases {
+        let mut full = vec!["contain"];
+        full.extend(args.iter());
+        if same(&format!("contain-{name}"), build, &full, o).is_none() {
+            return;
+        }
+    }
+    // the lock elsewhere (Go's tests' variable)
+    let o = Opts::user().env("HEIMDALL_CONTAIN_MARKER", "/tmp/lock");
+    let _ = same(
+        "contain-marker-env",
+        |r| {
+            r.write("/tmp/lock", "{}");
+        },
+        &["contain", "status"],
+        &o,
+    );
+}
+
 /// The fuzz targets of these commands on their seeds, cut and changed byte by byte (rust/fuzz/seeds/<target>).
 #[test]
 fn fuzz_targets_survive_their_seeds() {

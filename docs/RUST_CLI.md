@@ -52,7 +52,7 @@ The same as the daemon's port:
 | lan | `lan scan`, `lan list` | not ported | |
 | intel | `ipdb-check`, `intel-check`, `origin`, `kernel-check`, `heimdall-intel-update` | not ported | |
 | immunity | `immunity ...`, `scan-files` | not ported | |
-| contain and admin | `contain ...`, `maintenance`, `grant`, `remote` | `maintenance`, `grant`, `remote` **done**; `contain` not ported | `tests/cli_admin.rs`: 118 differential runs, 447 fixture cases |
+| contain and admin | `contain ...`, `maintenance`, `grant`, `remote` | `maintenance`, `grant`, `remote`, `contain status|evidence` **done**; `contain now|emergency|run-request|release` go to Go | `tests/cli_admin.rs`: 135 differential runs, 447 fixture cases |
 | Wi-Fi | `wifi-health`, `heimdall-wifi-check`, `heimdall-wifi-guard`, `heimdall-wifi-notify`, packaging/tests | not ported | |
 | trust, mesh, scan | `trust ...`, `scan` (done), `mesh ...` | trust and scan **done**; mesh not ported | `tests/cli_trust.rs`: 96 fixture cases, 67 steps; `tests/cli_scan.rs`: 21 steps; all against Go |
 | basics | `version`, `help`, unknown commands, `__write-as-owner` | **done** | `tests/cli.rs` against Go |
@@ -95,6 +95,12 @@ The same as the daemon's port:
   reader, the file written as Go's `SetApproved` writes it (a damaged file read as far as Go reads it, `null` kept for a
   list that never was, one-space indent). 21 runs in fake roots: as a user and as root, a missing folder, duplicates,
   partial and broken files, a command-and-control implant refused, a folder in the temporary file's place.
+- **contain status, evidence** (and the usage): `src/cli/contain.rs` on `src/contain.rs` (now also Go's `LoadConfig` and
+  `ReadMarker`). 17 runs: no lock, a lock as Go writes it, an emergency lock, a lock that is not JSON (Go shows the zero
+  time in the local zone of year 1), an empty one, a folder in its place, the switches partly damaged or spelled in
+  another case, `HEIMDALL_CONTAIN_MARKER`, the evidence folders newest first, none, and one a user cannot read.
+  `contain now|emergency|run-request|release` still go to the Go binary: they hold suspicious files in immunity's store
+  and put proven ones back, which comes with the immunity port.
 - Not 1:1 inside, the same outside: the daemon's JSON reader names a config's wrong type differently from Go
   ("number 5 into Go struct field net_ports"); the commands print Go's text (`cli::maintenance::go_config_error`). The
   daemon's own message on a damaged config (`run`) is unchanged.
