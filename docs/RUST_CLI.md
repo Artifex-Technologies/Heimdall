@@ -49,7 +49,7 @@ The same as the daemon's port:
 
 | Group | Commands | State | Proof |
 | --- | --- | --- | --- |
-| lan | `lan scan`, `lan list` | not ported | |
+| lan | `lan scan`, `lan list` | `lan list` **done**; `lan scan` written, still handed to Go | `tests/cli_lan.rs`: cli-lan.json (4,091 cases), 19 `lan list` runs and 11 `lan scan` runs without a scan against Go in fake roots |
 | intel | `ipdb-check`, `intel-check`, `origin`, `kernel-check`, `heimdall-intel-update` | not ported | |
 | immunity | `immunity ...`, `scan-files` | not ported | |
 | contain and admin | `contain ...`, `maintenance`, `grant`, `remote` | `maintenance`, `grant`, `remote`, `contain status|evidence` **done**; `contain now|emergency|run-request|release` go to Go | `tests/cli_admin.rs`: 135 differential runs, 447 fixture cases |
@@ -59,7 +59,31 @@ The same as the daemon's port:
 
 ## lan
 
-(not ported yet)
+`rust/heimdall/src/cli/lan.rs` and `src/cli/lan/` (Go: cmd/heimdalld/lan.go, internal/lan): the DNS codec (`dns.rs`), discovery
+(`discover.rs`: the sweep, multicast DNS, NetBIOS), Go's resolver as the reverse names use it (`resolver.rs`), the makers
+(`oui.rs`), the files (`store.rs`), the scan (`scan.rs`), the sockets made as Go's `net` makes them (`net.rs`), and Go's
+`strings.EqualFold`, `ToLower` and `ToUpper` on any bytes (`text.rs`; the case-folding orbits generated from Go by
+`rust/gotools/foldtable`).
+
+- **Fixture** (`testdata/parity/cli-lan.json`, written by `go test ./internal/lan -update`, `internal/lan/parity_test.go`, a
+  fixed seed): 703 DNS messages and 200 names read (records and errors), the queries, 300 runs of answers absorbed, 300
+  instance names, 400 names cleaned and judged (made up from the address, machine ids), 200 NetBIOS answers, 600 kinds, 120
+  merges, 120 route tables, 60 neighbour tables, the makers list, 16 stores read and written back, wifi-trusted.json, nmcli's
+  answers, EqualFold and the events lines. All equal in Rust.
+- **`lan list`**: 19 runs in fake roots against the Go binary (stores full, missing, empty, broken, of the wrong type, a
+  folder, unreadable; `--dir` spellings; usage errors; four time zones): standard output, standard error and exit codes equal.
+- **`lan scan` without a scan** (each in a network namespace of its own): offline, not trusted (no file, another network,
+  nmcli failing, a broken file), the router changed, a store that does not read, a folder that cannot be made, a store that
+  cannot be written: output, exit code, devices.json (times aside) and the tools called equal. `lan scan` itself is still
+  handed to Go until the whole scan is proved on a namespaced network.
+
+Not 1:1, on purpose:
+- A device announcing a name whose lowercase is longer than the name (`Ⱥ`, bytes that are not UTF-8) can make Go slice past
+  the end of the name and panic: Go's `lan scan` then dies every 5 minutes while that device answers. Rust leaves that name
+  out and goes on (`discover::instance_name`; the fixture holds two such names).
+- A devices.json with a time Go cannot read: both fail with exit 1 and the same start of the message; Go also names the
+  element of its layout where reading stopped.
+- A /proc/net/route line of exactly 7 fields would stop Go with a panic; Rust skips it (the kernel writes 11).
 
 ## intel
 
