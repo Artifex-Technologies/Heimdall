@@ -10,7 +10,7 @@
 
   "fim_paths": [
     "/home/YOUR_USER/path/to/Sarina/CLAUDE.md",
-    "/home/YOUR_USER/path/to/Sarina/pyproject.toml",
+    "/home/YOUR_USER/path/to/Sarina/go/go.mod",
     "/home/YOUR_USER/path/to/Sarina/packaging/arch/sarina-service.service"
   ],
   "fim_poll_interval_seconds": 30,
