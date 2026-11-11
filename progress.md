@@ -19,7 +19,7 @@ closed rather than deleting it -- the history of *why* is worth keeping.
 
 ---
 
-## 2026-11-11 — CI: red since 6b1c858 (the fake-root command tests on Ubuntu); the last cause found
+## 2026-11-11 — CI: red since 6b1c858 (the fake-root command tests on Ubuntu); CLOSED, green again at cc1b120
 
 - Fixed: user namespaces allowed on the runner (`66d3b50`); the fake root follows the host's lib64, Ubuntu's program loader
   (`67b416d`); the made-up Sarina is waited for, not 0.2 s (`001f956`).
@@ -30,7 +30,9 @@ closed rather than deleting it -- the history of *why* is worth keeping.
   Rust leave out exited processes (state Z/X) when they look for Sarina. The second matters on a real PC too: a killed
   Sarina process its parent has not collected yet would have called a held containment broken, and with the automatic
   emergency on, stopped the desktop for nothing.
-- If the runner still differs, the fallback is the `archlinux:latest` container (`--privileged`) as Yggdrasil's CI.
+- Then `step3` ran for the first time on the runner (cargo stops at the first failing test file): the API fixture's
+  "another account" was 1001, the runner's own id, which every API allows; now 64001 (`f54ba2a`).
+- The audit: rustix 1.1.4 is RUSTSEC-2026-0486 (unsound xattr reads); the exact pin moved to 1.1.6 (`cc1b120`).
 
 ## 2026-11-11 — The Rust port, step 5: every one-shot command DONE; the Go binary can go after the switch
 
