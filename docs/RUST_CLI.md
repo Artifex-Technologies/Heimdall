@@ -54,7 +54,7 @@ The same as the daemon's port:
 | immunity | `immunity ...`, `scan-files` | not ported | |
 | contain and admin | `contain ...`, `maintenance`, `grant`, `remote` | `maintenance` **done**; the rest not ported | `tests/cli_admin.rs`: 47 differential runs, 199 fixture cases |
 | Wi-Fi | `wifi-health`, `heimdall-wifi-check`, `heimdall-wifi-guard`, `heimdall-wifi-notify`, packaging/tests | not ported | |
-| trust, mesh, scan | `trust ...`, `mesh ...`, `scan` | not ported | |
+| trust, mesh, scan | `trust ...` (done), `mesh ...`, `scan` | trust **done**; mesh, scan not ported | trust: `tests/cli_trust.rs`, 96 fixture cases, 67 steps against Go |
 | basics | `version`, `help`, unknown commands, `__write-as-owner` | **done** | `tests/cli.rs` against Go |
 
 ## lan
@@ -90,9 +90,42 @@ The same as the daemon's port:
 
 ## trust, mesh, scan
 
-(not ported yet)
+**trust** (`src/cli/trust.rs`, the owner's side added to `src/trust.rs`): `init`, `status`, `mode`, `sign` (with
+`--watched`), `forget`, `restore`, `verify`, `watch add|remove`, with Go's texts, exit codes and files. The key is Go's
+(`owner.key`: base64 of the 64-byte ed25519 private key, the seed then the public key; `owner.pub`: base64 of the public
+key), made with ring from 32 random bytes as Go's `ed25519.GenerateKey` does; the list is Go's `json.MarshalIndent(...,
+"  ")` with a newline, signed over its exact bytes (Ed25519 is deterministic, so the same key and list give Go's signature
+byte for byte); `watch.json` and `mode` as Go's `SetWatch` and `SetMode` write them, each through `NAME.tmp` and a rename;
+restore writes through `safefs` as the file's owner. `HEIMDALL_TRUST_DIR` works as in Go (tests: no root needed, no restart).
+
+Proof:
+
+- `testdata/parity/cli-trust.json` (`internal/parity/cli_trust.go`, nothing random in it, so Go checks it is current on
+  every run): 4 keys from fixed seeds, 6 signed lists (odd paths: `<>&`, quotes, U+2028, control characters, bytes that
+  are not UTF-8, a cut sequence, U+FFFD itself, the zero time and year 9999) with their bodies and signatures byte for
+  byte, 5 watch lists (nil, empty, full), 10 modes and 71 base64 strings: 96 cases, all equal.
+- Differential runs in fake roots (`tests/cli_trust.rs`), each step's stdout, stderr, exit code, the calls to outside tools
+  (`systemctl try-restart heimdall.service`), every file under /etc/heimdall, the user's home, /etc/sarina and /srv with
+  its owner compared, then each binary's `status` and `verify` on the other's files: from `init` (20 steps: usage, before
+  init, `--user` unknown, as a user, twice, every mode spelling, `sign --watched`), signing with a known key (37 steps:
+  refusals, relative paths, folders, verify of watched/listed/given paths, changed/deleted/planted files, restore as the
+  user (uid 1000) through `__write-as-owner`, restore refused through a link, a missing approved copy, forget, watch
+  add/remove down to `null` lists, a folder of 5,001 files, a tampered list, a missing key), names that are not UTF-8
+  (6 steps) and `HEIMDALL_TRUST_DIR` (4 steps). All equal.
+- Properties (base64 round trip; any signed list reads back and one flipped byte is refused), the `trust_list` fuzz target
+  extended to key files, the owner's list writer and base64, a Kani harness for the base64 writer with an exhaustive
+  stand-in test.
+
+Not 1:1: a key file whose public half does not belong to its seed (only a damaged file) is refused ("the signing key
+cannot be read ... is not a key"); Go would sign with it and write a list that never verifies.
+
+**mesh, scan**: not ported yet (they go to the Go binary).
 
 ## Differences from Go
+
+- The Go that builds heimdalld (1.27, json v2 underneath `encoding/json`) writes each byte of a string that is not UTF-8 as
+  U+FFFD itself, not as the escape `\ufffd` (checked for map keys and struct fields; trust's list follows it).
+  `gostruct::write_bytes` still writes the escape.
 
 - `help` prints Go's usage, then the commands only the Rust heimdalld has (`run --shadow`, `replay`, `rules check`).
 - `__write-as-owner` (safefs): the child started as a file's owner has no supplementary groups; Go's kept root's
