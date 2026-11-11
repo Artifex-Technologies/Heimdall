@@ -43,7 +43,20 @@ fn request(port: u16, method: &str, path: &str, body: &str) -> std::io::Result<S
     Ok(out)
 }
 
-fn start(dir: &str, shadow: bool) -> Child {
+/// A started daemon. Dropped without [`stop`] (a test that failed half-way) it is killed and reaped, so a failing test
+/// leaves no daemon behind (two did on 2026-11-10, running for hours).
+struct Daemon(Option<Child>);
+
+impl Drop for Daemon {
+    fn drop(&mut self) {
+        if let Some(mut c) = self.0.take() {
+            let _ = c.kill();
+            let _ = c.wait();
+        }
+    }
+}
+
+fn start(dir: &str, shadow: bool) -> Daemon {
     let mut args = vec!["run", "--config"];
     let cfg = format!("{dir}/config.json");
     args.push(&cfg);
@@ -56,10 +69,12 @@ fn start(dir: &str, shadow: bool) -> Child {
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
         .spawn()
+        .map(|c| Daemon(Some(c)))
         .unwrap()
 }
 
-fn stop(c: Child) -> (i32, String) {
+fn stop(mut d: Daemon) -> (i32, String) {
+    let c = d.0.take().unwrap();
     // SAFETY: kill with a child's own pid.
     unsafe { libc::kill(c.id() as i32, libc::SIGTERM) };
     let out = c.wait_with_output().unwrap();
@@ -323,6 +338,7 @@ fn trust_watching_runs_in_both_modes() {
             .stderr(Stdio::piped())
             .spawn()
             .unwrap();
+        let c = Daemon(Some(c));
         std::thread::sleep(Duration::from_millis(800));
         stop(c)
     };
