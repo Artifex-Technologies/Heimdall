@@ -186,7 +186,7 @@ impl Opts {
 }
 
 /// What a command did.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Out {
     pub code: i32,
     pub stdout: String,

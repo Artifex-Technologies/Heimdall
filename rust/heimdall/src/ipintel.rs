@@ -563,6 +563,11 @@ pub fn parse_list(name: &str, data: &[u8]) -> Option<List> {
 }
 
 impl List {
+    /// How many IPv4 addresses the list covers (Go's `V4Addresses`; `intel-check` compares an update with the last copy).
+    pub fn v4_addresses(&self) -> u64 {
+        self.ranges.iter().filter(|r| r.0 .0 == 4).map(|r| (r.1 - r.0 .1) as u64 + 1).sum()
+    }
+
     pub fn contains(&self, ip: &IpAddr) -> bool {
         let k = key(ip);
         let i = self.ranges.partition_point(|r| r.0 <= k);

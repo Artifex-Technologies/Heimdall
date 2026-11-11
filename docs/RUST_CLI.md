@@ -50,7 +50,7 @@ The same as the daemon's port:
 | Group | Commands | State | Proof |
 | --- | --- | --- | --- |
 | lan | `lan scan`, `lan list` | `lan list` **done**; `lan scan` written, still handed to Go | `tests/cli_lan.rs`: cli-lan.json (4,091 cases), 19 `lan list` runs and 11 `lan scan` runs without a scan against Go in fake roots |
-| intel | `ipdb-check`, `intel-check`, `origin`, `kernel-check`, `heimdall-intel-update` | not ported | |
+| intel | `ipdb-check`, `intel-check`, `origin`, `kernel-check`, `heimdall-intel-update` | the four commands **done**; `heimdall-intel-update` stays the shell script that calls them | `tests/cli_intel.rs`: 98 runs against Go in fake roots (kernel lists of 1,300+ made-up records byte for byte, zip and zip64) |
 | immunity | `immunity ...`, `scan-files` | not ported | |
 | contain and admin | `contain ...`, `maintenance`, `grant`, `remote` | `maintenance`, `grant`, `remote`, `contain status|evidence` **done**; `contain now|emergency|run-request|release` go to Go | `tests/cli_admin.rs`: 135 differential runs, 447 fixture cases |
 | Wi-Fi | `wifi-health`, `heimdall-wifi-check`, `heimdall-wifi-guard`, `heimdall-wifi-notify`, packaging/tests | `wifi-health` **done**; the helpers not ported | cli-wifi.json: 3,361 parser cases and 160 whole reports byte for byte; 19 runs of both binaries in fake roots with a made-up Wi-Fi, the speed test over TLS included |
@@ -87,7 +87,40 @@ Not 1:1, on purpose:
 
 ## intel
 
-(not ported yet)
+`rust/heimdall/src/cli/intel.rs` and `src/cli/intel/zip.rs` (Go: cmd/heimdalld/origin.go, kernel.go), on the daemon's own
+readers (`ipintel.rs`: the IP databases, origins, threat lists; `audit/`: the tracker, the kernel list, CVSS).
+
+- **ipdb-check** (heimdall-intel-update runs it on every IP database download): 11 runs as root and as a user: the two
+  made-up databases, halves of one, an empty file, an error page, a metadata marker with nothing after it, a folder, a
+  missing file and one the user cannot read: output and exit codes equal.
+- **intel-check list|tracker** (the daily threat lists and Arch's tracker): 26 runs: good lists, a list grown or shrunk too
+  far against the last good copy, a missing or unreadable last copy, too few entries, an error page, a line over 1 MiB
+  (Go's scanner stops there; so does the port), Windows line ends, trackers short, of the wrong shape, with a wrong type
+  inside, cut short, missing, and every usage error.
+- **intel-check kernel** (osv.dev's archive, weekly): Go's `archive/zip` read as Go reads it (`zip.rs`: the end record found
+  the same way, zip64, Go's base-offset guess, stored and deflated entries, the central directory read until a header that
+  is not one) and Go's record decoding (any type error anywhere drops the record; keys matched without regard to case; the
+  last of duplicate keys; the first JSON value of an entry, trailing text ignored). 15 runs: an archive of 2,200 made-up
+  records in 13 shapes (open and closed ranges, other ecosystems, a summary of 150 é cut inside a character, `<b> & </b>`,
+  U+2028, duplicate keys, null events, numbers where strings belong, a top-level array, a cut record, `.txt` entries), the
+  same as zip64, with and without CISA's list (good, too short, a wrong type, not JSON, missing), too few records, an
+  archive cut short, its second half only, not a zip, empty, missing, a folder, and an output folder that does not exist:
+  standard output and error, exit codes and the written `linux-kernel.json` (its time aside) byte for byte. A unit test
+  feeds every one-byte change and cut of a small archive, and random bytes, to the reader (no panic, no read outside).
+- **origin** (Sarina's network map reads its `IP  ORIGIN` lines): 8 runs: the made-up databases and threat lists, a config
+  naming a missing database, a broken config, a missing one, the default, IPv4-mapped and IPv6 addresses, private and
+  link-local ones, words that are not addresses, usage errors.
+- **kernel-check**: 20 runs (as root, and as a user in another time zone): made-up kernels with and without `vmlinuz`, more
+  than ten holes with and without `--all`, a list with an offset in its time, lists that are missing, not an object, or
+  with a wrong type deep inside (Go's wording of JSON type errors is carried for these messages), a flag Go does not know.
+
+Not 1:1:
+- `kernel-check` with a config that has a wrong type somewhere: Go keeps the fields it read before the error (its
+  `kernel_vulns` among them); the port then uses the default list path.
+- `intel-check kernel`: two records with the same id are kept in the archive's order (Go's sort is not stable; the daemon
+  reads both either way).
+- `heimdall-intel-update` is not ported: it stays the shell script (curl and the checks above), which the package already
+  ships; porting it means an HTTPS client or curl from Rust for no gain in what runs (it runs once a day for seconds).
 
 ## immunity
 
