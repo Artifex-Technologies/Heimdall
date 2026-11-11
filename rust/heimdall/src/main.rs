@@ -1,29 +1,14 @@
-//! heimdalld-rs: Heimdall's always-on daemon in Rust. Until the switch it runs beside the Go heimdalld in shadow mode.
+//! heimdalld-rs: Heimdall's always-on daemon in Rust, and the one-shot commands ported from the Go heimdalld (src/cli). Until
+//! the switch it runs beside the Go heimdalld in shadow mode.
 
 use heimdall::{config::Config, replay, rules};
 use std::process::ExitCode;
 
-const VERSION: &str = env!("CARGO_PKG_VERSION");
-
 fn usage() {
-    eprint!(
-        "heimdalld-rs -- Heimdall's daemon in Rust (shadow mode until the switch)
-
-Usage:
-  heimdalld-rs run --shadow --config PATH
-                                    The daemon beside the Go one: real sources, its own alert log, no responses
-                                    (docs/RUST_SHADOW.md). Refuses any state or log path in /var/lib/heimdall/.
-  heimdalld-rs replay --config PATH [--approvals PATH] < events.jsonl > alerts.jsonl
-                                    Run event lines through the detectors (the parity and differential tests use it).
-  heimdalld-rs rules check [FILE]   Check a text rule file (default: the built-in rules); every problem is printed.
-  heimdalld-rs version
-  heimdalld-rs OTHER ...            Any other command goes to the Go heimdalld kept for them (/usr/lib/heimdall/heimdalld-go,
-                                    HEIMDALL_GO), when it is installed (after the switch, docs/RUST_SWITCH.md).
-"
-    );
+    eprint!("{}{}", heimdall::cli::USAGE, heimdall::cli::RUST_USAGE);
 }
 
-/// The Go heimdalld kept for the one-shot commands after the switch (HEIMDALL_GO for tests).
+/// The Go heimdalld kept for the commands not ported yet, after the switch (HEIMDALL_GO for tests).
 fn go_binary() -> String {
     std::env::var("HEIMDALL_GO").unwrap_or_else(|_| "/usr/lib/heimdall/heimdalld-go".into())
 }
@@ -34,13 +19,27 @@ fn flag(args: &[String], name: &str) -> Option<String> {
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().collect();
-    // the built-in rules are checked before anything else: the daemon does not run with a refused rule
-    if let Err(problems) = rules::check_builtin() {
-        eprintln!("heimdalld-rs: the built-in text rules are refused:");
-        for p in problems {
-            eprintln!("  {p}");
+    // started by a helper's name (a link to this program, after the switch): that helper
+    let name = args.first().map(|a| a.rsplit('/').next().unwrap_or(a).to_string()).unwrap_or_default();
+    if name.starts_with("heimdall-") {
+        return match heimdall::cli::tool(&name, &args[1..]) {
+            Some(code) => ExitCode::from(code as u8),
+            None => {
+                eprintln!("heimdalld: {name} is not part of this program");
+                ExitCode::from(2)
+            }
+        };
+    }
+    // the built-in rules are checked before anything that runs the detectors: the daemon does not run with a refused rule
+    let detecting = matches!(args.get(1).map(String::as_str), Some("run" | "replay" | "scan"));
+    if detecting {
+        if let Err(problems) = rules::check_builtin() {
+            eprintln!("heimdalld-rs: the built-in text rules are refused:");
+            for p in problems {
+                eprintln!("  {p}");
+            }
+            return ExitCode::from(2);
         }
-        return ExitCode::from(2);
     }
     match args.get(1).map(String::as_str) {
         Some("run") => {
@@ -96,23 +95,27 @@ fn main() -> ExitCode {
                 }
             }
         }
-        Some("version") => {
-            println!("heimdalld-rs {VERSION}");
-            ExitCode::SUCCESS
-        }
         Some("-h" | "--help" | "help") => {
             usage();
             ExitCode::SUCCESS
         }
-        // every one-shot command (scan, lan, immunity, contain, grant, mesh, trust, ...) stays in Go until ported: when this
-        // binary is /usr/bin/heimdalld (after the switch), it hands them to the Go one with the same arguments
-        Some(_) if std::path::Path::new(&go_binary()).exists() => {
-            use std::os::unix::process::CommandExt;
-            let e = std::process::Command::new(go_binary()).args(&args[1..]).exec();
-            eprintln!("heimdalld: {}: {e}", go_binary());
+        Some(cmd) => {
+            // the one-shot commands ported to Rust (src/cli), with the Go heimdalld's arguments, output and exit codes
+            if let Some(code) = heimdall::cli::dispatch(cmd, &args[2..]) {
+                return ExitCode::from(code as u8);
+            }
+            // a command not ported yet goes to the Go heimdalld kept beside (after the switch), with the same arguments
+            if std::path::Path::new(&go_binary()).exists() {
+                use std::os::unix::process::CommandExt;
+                let e = std::process::Command::new(go_binary()).args(&args[1..]).exec();
+                eprintln!("heimdalld: {}: {e}", go_binary());
+                return ExitCode::from(2);
+            }
+            eprint!("heimdalld: unknown command {}\n\n", heimdall::gotext::quote(cmd));
+            usage();
             ExitCode::from(2)
         }
-        _ => {
+        None => {
             usage();
             ExitCode::from(2)
         }

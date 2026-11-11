@@ -80,13 +80,15 @@ fn wait_for(what: &str, mut f: impl FnMut() -> bool) {
 fn one_shot_commands_go_to_the_go_binary() {
     let run =
         |go: &str, args: &[&str]| Command::new(env!("CARGO_BIN_EXE_heimdalld-rs")).args(args).env("HEIMDALL_GO", go).output().unwrap();
-    let o = run("/usr/bin/echo", &["lan", "scan", "--json", "a b"]);
+    // a command Rust does not know (here a made-up one; until every command is ported, the ones not ported yet)
+    let o = run("/usr/bin/echo", &["frobnicate", "scan", "--json", "a b"]);
     assert!(o.status.success());
-    assert_eq!(String::from_utf8_lossy(&o.stdout), "lan scan --json a b\n");
-    let o = run("/usr/bin/false", &["immunity", "list"]);
+    assert_eq!(String::from_utf8_lossy(&o.stdout), "frobnicate scan --json a b\n");
+    let o = run("/usr/bin/false", &["frobnicate", "list"]);
     assert_eq!(o.status.code(), Some(1), "the Go command's exit code");
-    let o = run("/nonexistent/heimdalld-go", &["lan", "scan"]);
+    let o = run("/nonexistent/heimdalld-go", &["frobnicate", "scan"]);
     assert_eq!(o.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&o.stderr).starts_with("heimdalld: unknown command \"frobnicate\"\n\n"));
     let o = run("/usr/bin/echo", &["rules", "check"]);
     assert!(String::from_utf8_lossy(&o.stdout).contains("rules, all checked"), "the Rust commands stay Rust's");
 }

@@ -199,6 +199,336 @@ impl Time {
     }
 }
 
+/// Local time and Go's layouts, for the one-shot commands that print times as Go's `t.Local().Format(...)` and Go's `log`.
+impl Time {
+    /// The same instant in this computer's time zone (Go's `Local()`): the offset glibc's `localtime_r` gives, which reads
+    /// `TZ` and `/etc/localtime` as Go's `time.Local` does.
+    pub fn local(self) -> Time {
+        let t = self.unix() as libc::time_t;
+        // SAFETY: localtime_r writes only into the tm given; a zeroed tm is a valid starting value.
+        let mut tm: libc::tm = unsafe { std::mem::zeroed() };
+        let ok = unsafe { !libc::localtime_r(&t, &mut tm).is_null() };
+        Time { offset: if ok { tm.tm_gmtoff as i32 } else { 0 }, ..self }
+    }
+
+    /// The same instant shown at a fixed offset (seconds east of UTC).
+    pub fn at_offset(self, offset: i32) -> Time {
+        Time { offset, ..self }
+    }
+
+    /// Nanoseconds within the second.
+    pub fn nanos(&self) -> u32 {
+        self.nanos
+    }
+
+    /// Weekday, 0 = Sunday.
+    pub fn weekday(&self) -> u32 {
+        let local = self.secs + self.offset as i64 - GO_ZERO_TO_UNIX;
+        (local.div_euclid(86_400) + 4).rem_euclid(7) as u32 // 1970-01-01 was a Thursday
+    }
+
+    /// Go's `Format(layout)` for the parts of Go's layout language the commands use: 2006 06 01 1 Jan January 02 2 _2 15
+    /// 3 03 04 4 05 5 PM pm Mon Monday -0700 -07:00 -07 Z0700 Z07:00 and fractions (.000 .999 ,000). A zone name (MST) is
+    /// not known without the zone database and is written as Go writes a zone it has no name for: the offset ("+0200").
+    pub fn format(&self, layout: &str) -> String {
+        const MONTHS: [&str; 12] =
+            ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        const DAYS: [&str; 7] = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        let (y, mo, d, h, mi, s) = self.civil();
+        let mut out = String::new();
+        let b = layout.as_bytes();
+        let mut i = 0;
+        let starts = |i: usize, p: &str| layout[i..].starts_with(p);
+        let zone = |out: &mut String, colon: bool, secs_too: bool, z: bool, hours_only: bool| {
+            let off = self.offset;
+            if z && off == 0 {
+                out.push('Z');
+                return;
+            }
+            let sign = if off < 0 { '-' } else { '+' };
+            let a = off.unsigned_abs();
+            out.push(sign);
+            out.push_str(&format!("{:02}", a / 3600));
+            if hours_only {
+                return;
+            }
+            if colon {
+                out.push(':');
+            }
+            out.push_str(&format!("{:02}", a / 60 % 60));
+            if secs_too {
+                if colon {
+                    out.push(':');
+                }
+                out.push_str(&format!("{:02}", a % 60));
+            }
+        };
+        while i < b.len() {
+            if starts(i, "January") {
+                out.push_str(MONTHS[mo as usize - 1]);
+                i += 7;
+            } else if starts(i, "Jan") {
+                out.push_str(&MONTHS[mo as usize - 1][..3]);
+                i += 3;
+            } else if starts(i, "Monday") {
+                out.push_str(DAYS[self.weekday() as usize]);
+                i += 6;
+            } else if starts(i, "Mon") {
+                out.push_str(&DAYS[self.weekday() as usize][..3]);
+                i += 3;
+            } else if starts(i, "MST") {
+                zone(&mut out, false, false, false, false);
+                i += 3;
+            } else if starts(i, "2006") {
+                out.push_str(&format!("{y:04}"));
+                i += 4;
+            } else if starts(i, "Z07:00:00") {
+                zone(&mut out, true, true, true, false);
+                i += 9;
+            } else if starts(i, "-07:00:00") {
+                zone(&mut out, true, true, false, false);
+                i += 9;
+            } else if starts(i, "Z070000") {
+                zone(&mut out, false, true, true, false);
+                i += 7;
+            } else if starts(i, "-070000") {
+                zone(&mut out, false, true, false, false);
+                i += 7;
+            } else if starts(i, "Z07:00") {
+                zone(&mut out, true, false, true, false);
+                i += 6;
+            } else if starts(i, "-07:00") {
+                zone(&mut out, true, false, false, false);
+                i += 6;
+            } else if starts(i, "Z0700") {
+                zone(&mut out, false, false, true, false);
+                i += 5;
+            } else if starts(i, "-0700") {
+                zone(&mut out, false, false, false, false);
+                i += 5;
+            } else if starts(i, "Z07") {
+                zone(&mut out, false, false, true, true);
+                i += 3;
+            } else if starts(i, "-07") {
+                zone(&mut out, false, false, false, true);
+                i += 3;
+            } else if starts(i, "01") {
+                out.push_str(&format!("{mo:02}"));
+                i += 2;
+            } else if starts(i, "02") {
+                out.push_str(&format!("{d:02}"));
+                i += 2;
+            } else if starts(i, "_2") && !starts(i, "_2006") {
+                out.push_str(&format!("{d:>2}"));
+                i += 2;
+            } else if starts(i, "03") {
+                out.push_str(&format!("{:02}", if h % 12 == 0 { 12 } else { h % 12 }));
+                i += 2;
+            } else if starts(i, "04") {
+                out.push_str(&format!("{mi:02}"));
+                i += 2;
+            } else if starts(i, "05") {
+                out.push_str(&format!("{s:02}"));
+                i += 2;
+            } else if starts(i, "06") {
+                out.push_str(&format!("{:02}", y.rem_euclid(100)));
+                i += 2;
+            } else if starts(i, "15") {
+                out.push_str(&format!("{h:02}"));
+                i += 2;
+            } else if starts(i, "PM") {
+                out.push_str(if h >= 12 { "PM" } else { "AM" });
+                i += 2;
+            } else if starts(i, "pm") {
+                out.push_str(if h >= 12 { "pm" } else { "am" });
+                i += 2;
+            } else if (b[i] == b'.' || b[i] == b',') && i + 1 < b.len() && (b[i + 1] == b'0' || b[i + 1] == b'9') {
+                // a fraction: as many digits as the layout has 0s (kept) or 9s (trailing zeros dropped), when no digit follows
+                let digit = b[i + 1];
+                let mut j = i + 1;
+                while j < b.len() && b[j] == digit {
+                    j += 1;
+                }
+                if j < b.len() && b[j].is_ascii_digit() {
+                    out.push(b[i] as char);
+                    i += 1;
+                    continue;
+                }
+                let n = j - i - 1;
+                let digits = format!("{:09}", self.nanos);
+                let mut f = digits[..n.min(9)].to_string();
+                if digit == b'9' {
+                    while f.ends_with('0') {
+                        f.pop();
+                    }
+                    if !f.is_empty() {
+                        out.push(b[i] as char);
+                        out.push_str(&f);
+                    }
+                } else {
+                    out.push(b[i] as char);
+                    out.push_str(&f);
+                }
+                i = j;
+            } else if b[i] == b'1' {
+                out.push_str(&mo.to_string());
+                i += 1;
+            } else if b[i] == b'2' {
+                out.push_str(&d.to_string());
+                i += 1;
+            } else if b[i] == b'3' {
+                out.push_str(&(if h % 12 == 0 { 12 } else { h % 12 }).to_string());
+                i += 1;
+            } else if b[i] == b'4' {
+                out.push_str(&mi.to_string());
+                i += 1;
+            } else if b[i] == b'5' {
+                out.push_str(&s.to_string());
+                i += 1;
+            } else {
+                let c = layout[i..].chars().next().unwrap_or('?');
+                out.push(c);
+                i += c.len_utf8();
+            }
+        }
+        out
+    }
+}
+
+/// Go's `time.ParseDuration`: "1h30m", "2.5s", "-1m", "300ms", "0"; the units ns, us, µs, μs, ms, s, m, h. The error is Go's
+/// text (`time: invalid duration "x"`, `time: missing unit in duration "1"`, `time: unknown unit "d" in duration "1d"`).
+pub fn parse_duration(s: &str) -> Result<i64, String> {
+    let orig = s;
+    let quoted = time_quote(orig);
+    let invalid = || format!("time: invalid duration {quoted}");
+    let mut s = s;
+    let mut neg = false;
+    if let Some(c) = s.chars().next() {
+        if c == '-' || c == '+' {
+            neg = c == '-';
+            s = &s[1..];
+        }
+    }
+    if s == "0" {
+        return Ok(0);
+    }
+    if s.is_empty() {
+        return Err(invalid());
+    }
+    let mut d: u64 = 0;
+    while !s.is_empty() {
+        let b = s.as_bytes();
+        if !(b[0] == b'.' || b[0].is_ascii_digit()) {
+            return Err(invalid());
+        }
+        // the whole part
+        let mut i = 0;
+        let mut v: u64 = 0;
+        let mut overflow = false;
+        while i < b.len() && b[i].is_ascii_digit() {
+            if v > (1u64 << 63) / 10 {
+                overflow = true;
+            }
+            v = v.wrapping_mul(10).wrapping_add((b[i] - b'0') as u64);
+            if v > 1u64 << 63 {
+                overflow = true;
+            }
+            i += 1;
+        }
+        if overflow {
+            return Err(invalid());
+        }
+        let pre = i != 0;
+        let mut post = false;
+        let (mut f, mut scale) = (0u64, 1f64);
+        if i < b.len() && b[i] == b'.' {
+            i += 1;
+            let start = i;
+            let mut of = false;
+            while i < b.len() && b[i].is_ascii_digit() {
+                if !of {
+                    if f > (1u64 << 63) / 10 {
+                        of = true; // too many digits: the rest only rounds
+                    } else {
+                        let y = f * 10 + (b[i] - b'0') as u64;
+                        if y > 1u64 << 63 {
+                            of = true;
+                        } else {
+                            f = y;
+                            scale *= 10.0;
+                        }
+                    }
+                }
+                i += 1;
+            }
+            post = i != start;
+        }
+        if !pre && !post {
+            return Err(invalid());
+        }
+        // the unit
+        let ustart = i;
+        while i < b.len() && b[i] != b'.' && !b[i].is_ascii_digit() {
+            i += 1;
+        }
+        if i == ustart {
+            return Err(format!("time: missing unit in duration {quoted}"));
+        }
+        let u = &s[ustart..i];
+        let unit: u64 = match u {
+            "ns" => 1,
+            "us" | "\u{b5}s" | "\u{3bc}s" => 1_000,
+            "ms" => 1_000_000,
+            "s" => 1_000_000_000,
+            "m" => 60_000_000_000,
+            "h" => 3_600_000_000_000,
+            _ => return Err(format!("time: unknown unit {} in duration {quoted}", time_quote(u))),
+        };
+        if v > (1u64 << 63) / unit {
+            return Err(invalid());
+        }
+        v *= unit;
+        if f > 0 {
+            v += (f as f64 * (unit as f64 / scale)) as u64;
+            if v > 1u64 << 63 {
+                return Err(invalid());
+            }
+        }
+        d += v;
+        if d > 1u64 << 63 {
+            return Err(invalid());
+        }
+        s = &s[i..];
+    }
+    if neg {
+        return Ok((d as i64).wrapping_neg());
+    }
+    if d > (1u64 << 63) - 1 {
+        return Err(invalid());
+    }
+    Ok(d as i64)
+}
+
+/// The time package's own `quote` (not strconv's): ASCII printable as it is, every byte of anything else as \\xNN.
+fn time_quote(s: &str) -> String {
+    let mut out = String::from("\"");
+    for c in s.chars() {
+        if (c as u32) >= 0x80 || c < ' ' {
+            let mut buf = [0u8; 4];
+            for b in c.encode_utf8(&mut buf).bytes() {
+                out.push_str(&format!("\\x{b:02x}"));
+            }
+        } else {
+            if c == '"' || c == '\\' {
+                out.push('\\');
+            }
+            out.push(c);
+        }
+    }
+    out.push('"');
+    out
+}
+
 fn is_leap(y: i64) -> bool {
     y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)
 }
