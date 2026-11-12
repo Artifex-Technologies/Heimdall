@@ -210,6 +210,10 @@ default.
 [`docs/REFERENCES.md`](docs/REFERENCES.md) is the ledger of every external project cited and what was taken from it.
 [`docs/INTEGRATION-FAILURES.md`](docs/INTEGRATION-FAILURES.md) is the runbook for when Heimdall and Sarina do not reach each other.
 
+## Version
+
+`VERSION` is Heimdall's own version (1.0.0 since 2026-11-11, its first numbered release); its package is `heimdall-git` `VERSION-<build number>`. How the numbers work and how to make a release: [Labyrinth_OS docs/VERSIONING.md](https://github.com/Artifex-Technologies/Labyrinth_OS/blob/main/docs/VERSIONING.md).
+
 ## License
 
 MPL 2.0. See [`LICENSE`](LICENSE).
