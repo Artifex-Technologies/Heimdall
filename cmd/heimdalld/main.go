@@ -10,6 +10,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	heimdall "github.com/Artifex-Technologies/Heimdall"
 	"github.com/Artifex-Technologies/Heimdall/internal/remoteaccess"
 	"github.com/Artifex-Technologies/Heimdall/internal/safefs"
 	"github.com/Artifex-Technologies/Heimdall/internal/sources/rasource"
@@ -53,8 +54,6 @@ import (
 	"github.com/Artifex-Technologies/Heimdall/internal/toolrules"
 	"github.com/Artifex-Technologies/Heimdall/internal/trust"
 )
-
-const version = "0.1.0"
 
 func main() {
 	if len(os.Args) < 2 {
@@ -102,7 +101,7 @@ func main() {
 	case "lan": // the device list of trusted home networks (internal/lan)
 		os.Exit(cmdLAN(os.Args[2:]))
 	case "version":
-		fmt.Println("heimdalld " + version)
+		fmt.Println("heimdalld " + heimdall.Version)
 	case "-h", "--help", "help":
 		usage()
 	default:

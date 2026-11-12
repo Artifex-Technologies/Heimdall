@@ -146,7 +146,7 @@ ls /var/cache/pacman/pkg/heimdall-git-* | tail -2          # note the previous v
 sudo pacman -U heimdall-git-*.pkg.tar.zst
 sudo systemctl daemon-reload && sudo systemctl restart heimdall
 # 3. check
-heimdalld version; /usr/lib/heimdall/heimdalld-go version   # both "heimdalld 0.1.0"
+heimdalld version; /usr/lib/heimdall/heimdalld-go version   # both "heimdalld 1.0.0" (VERSION)
 journalctl -u heimdall -n 40 --no-pager                    # the sources it watches; "status API listening"; "Limbo quarantine response enabled", "mesh on as", "trust watch" where they apply
 curl -s http://127.0.0.1:8930/healthz                      # ok
 curl -s 'http://127.0.0.1:8930/v1/alerts?n=3' | head -c 400; echo

@@ -21,8 +21,9 @@ pub mod trust;
 pub mod wifihealth;
 pub mod wifitools;
 
-/// Go's `const version` in cmd/heimdalld.
-pub const VERSION: &str = "0.1.0";
+/// Heimdall's version, as Go's heimdalld prints it: the VERSION file at the top of the repository, read when this is built
+/// (Labyrinth_OS's docs/VERSIONING.md).
+pub const VERSION: &str = include_str!("../../../../VERSION").trim_ascii();
 
 /// Runs the one-shot command `cmd` with the words after it; None when it is not ported (the caller hands it to Go).
 pub fn dispatch(cmd: &str, args: &[String]) -> Option<i32> {
