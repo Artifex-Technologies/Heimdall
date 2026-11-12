@@ -3,9 +3,9 @@ name: rust
 on:
   push:
     # packaging/: the Wi-Fi helpers' Python programs, which tests/cli_wifitools.rs runs beside their Rust ports
-    paths: ["rust/**", "internal/**", "testdata/**", "cmd/**", "packaging/**", "VERSION", "version.go", ".github/workflows/rust.yml"]
+    paths: ["rust/**", "internal/**", "testdata/**", "cmd/**", "packaging/**", "VERSION", "*.go", ".github/workflows/rust.yml"]
   pull_request:
-    paths: ["rust/**", "internal/**", "testdata/**", "cmd/**", "packaging/**", "VERSION", "version.go", ".github/workflows/rust.yml"]
+    paths: ["rust/**", "internal/**", "testdata/**", "cmd/**", "packaging/**", "VERSION", "*.go", ".github/workflows/rust.yml"]
   schedule:
     - cron: "17 5 * * 1" # the audit weekly, for advisories published after the last change
 permissions:
@@ -21,6 +21,11 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.27"
+      - name: every Go file is gofmt-formatted
+        working-directory: .
+        run: |
+          unformatted=$(gofmt -l .)
+          [ -z "$unformatted" ] || { echo "run gofmt -w on:"; echo "$unformatted"; exit 1; }
       - name: the Go fixtures are current
         working-directory: .
         run: go test ./internal/parity ./cmd/heimdalld ./internal/detect -run 'Fixtures|ParityDetectors|RustRuleFile'
