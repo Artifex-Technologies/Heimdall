@@ -46,7 +46,8 @@ pub fn wireguard(data: &[u8]) {
         vpn.set("endpoints", Val::List(eps));
         vpn.set("iface", py::s(&text));
         let rs = guard::ruleset(&Val::Dict(vpn)).expect("endpoints read from a file make rules");
-        assert!(rs.contains("policy drop;") && !rs.contains("tcp"));
+        // no TCP rule; the interface name is the fuzzed text cut to [A-Za-z0-9_.-], so its own line may spell "tcp"
+        assert!(rs.contains("policy drop;") && rs.lines().all(|l| l.trim_start().starts_with("oifname ") || !l.contains("tcp")));
     }
 }
 
