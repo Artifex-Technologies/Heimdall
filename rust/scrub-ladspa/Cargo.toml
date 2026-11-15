@@ -1,0 +1,17 @@
+[package]
+name = "heimdall-scrub-ladspa"
+version = "0.1.0"
+description = "The live scrub as a LADSPA plugin, for PipeWire's filter-chain: the private microphone"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+# installed as /usr/lib/ladspa/heimdall-scrub.so (packaging/install.sh)
+[lib]
+name = "heimdall_scrub_ladspa"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+heimdall-scrub = { path = "../scrub" }

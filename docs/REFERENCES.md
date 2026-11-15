@@ -60,6 +60,7 @@ happened.
 | [tensorflow/tensorflow](https://github.com/tensorflow/tensorflow) | ML framework | Design reference (explicitly not to vendor) | Phase 5 — see Sarina's own onnxruntime-not-TensorFlow precedent | 2026-09-25 |
 | [google/deepvariant](https://github.com/google/deepvariant) | Genomic variant calling | Methodology-only | Phase 5 — "sequence → fixed-shape representation → small model scores it" | 2026-09-25 |
 | [mortazavilab/TALON](https://github.com/mortazavilab/TALON) | Long-read transcript classification | Methodology-only | Phase 5 — see note below (known/novel-variant/novel classification); also the agent baseline's never-used-before tool | 2026-11-05 |
+| [lizTheDeveloper/flyover-scrub](https://github.com/lizTheDeveloper/flyover-scrub) (MIT) | Audio location privacy | Adapted (rewritten in Rust; read, not run) | `rust/scrub` (scrub.py, enf.py), `rust/flyover-attack` (attack.py, trace.py, physics.py); notice `rust/scrub/NOTICE`; `docs/LOCATION_SOUNDS.md` | 2026-11-15 |
 
 ## Notes on the newer or less obvious entries
 

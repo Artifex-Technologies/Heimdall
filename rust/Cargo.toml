@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["heimdall", "scrub", "flyover-attack"]
+members = ["heimdall", "scrub", "scrub-ladspa", "flyover-attack"]
 # cargo-fuzz targets build with a nightly toolchain of their own; they are not part of the normal build
 exclude = ["fuzz"]
 

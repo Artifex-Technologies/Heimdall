@@ -7,7 +7,11 @@ arch=('x86_64')
 url="https://github.com/Artifex-Technologies/Heimdall"
 license=('MPL2')
 depends=('glibc' 'curl' 'gzip' 'python' 'iproute2' 'iw' 'networkmanager' 'dnsmasq' 'nftables')
-makedepends=('go' 'git')
+makedepends=('go' 'git' 'rust')
+# heimdall-scrub decodes and encodes through ffmpeg; the private microphone is a PipeWire filter driven by WirePlumber
+optdepends=('ffmpeg: heimdall-scrub, scrubbed copies of audio and video files'
+            'pipewire: the private microphone'
+            'wireplumber: the private microphone made the input every app records')
 provides=('heimdall')
 conflicts=('heimdall')
 backup=('etc/heimdall/dns-allow.txt' 'etc/NetworkManager/dnsmasq.d/heimdall-blocklist.conf')
@@ -73,11 +77,14 @@ build() {
 	cd "$srcdir/Heimdall"
 	export CGO_ENABLED=0
 	go build -trimpath -ldflags "-s -w" -o heimdalld ./cmd/heimdalld
+	# location sounds: heimdall-scrub, heimdall-private-mic and the LADSPA filter (docs/LOCATION_SOUNDS.md)
+	(cd rust && cargo build --release --locked -p heimdall-scrub -p heimdall-scrub-ladspa)
 }
 
 check() {
 	cd "$srcdir/Heimdall"
 	go test ./...
+	(cd rust && cargo test --release --locked -p heimdall-scrub -p heimdall-scrub-ladspa -p flyover-attack)
 }
 
 package() {

@@ -90,6 +90,10 @@ docs/
 packaging/arch/            PKGBUILD, systemd unit, sysusers -- mirrors Sarina's own layout
 internal/parity/          The Go table tests as scenarios; writes testdata/parity, the fixtures the Rust port must match
 rust/                      The Rust port of the daemon (heimdalld-rs, shadow mode until the switch): docs/RUST_PORT.md
+rust/scrub/                heimdall-scrub: aircraft tones and mains hum out of audio (file tool, live DSP): docs/LOCATION_SOUNDS.md
+rust/scrub-ladspa/         the live scrub as a LADSPA plugin: the private microphone (PipeWire filter-chain)
+rust/flyover-attack/       the flyover scorer as a library; its tests prove the scrub defeats it
+packaging/privacy/         the private microphone's PipeWire and WirePlumber files, and its isolated end-to-end test
 testdata/parity/           Fixtures both languages run (go test ./internal/parity -update rewrites them)
 ```
 
@@ -258,6 +262,26 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   Both are in Sarina's `docs/ECOSYSTEM.md` port registry.
 
 ### Coordination Log (newest first)
+
+### 2026-11-15 — Location sounds: heimdall-scrub and the private microphone
+- New (`docs/LOCATION_SOUNDS.md`): `rust/scrub` (heimdall-scrub: the file tool, and the live DSP), `rust/scrub-ladspa` (the
+  live scrub as LADSPA plugin `heimdall_scrub`), `rust/flyover-attack` (the scorer the tests measure it with), a Rust
+  rewrite of flyover-scrub (MIT, `rust/scrub/NOTICE`). `packaging/privacy/`: the PipeWire filter-chain fragment ("Microphone
+  (private)", node `heimdall.private-mic`), the WirePlumber fragment and script (default input, links redirected, device
+  microphones hidden from clients while `heimdall.private-mic.enforce` is on, the default), `isolated-test.sh`.
+- `packaging/install.sh` installs them when the recipe built them (`cd rust && cargo build --release --locked -p
+  heimdall-scrub -p heimdall-scrub-ladspa`); packaging/arch's recipe does, with `rust` in makedepends.
+- **For Labyrinth (heimdall-git):** build the two crates in build() (rust in makedepends) and the files come with the
+  package; optional ffmpeg (on the ISO already for the file tool). The private microphone appears after PipeWire and
+  WirePlumber restart.
+- **For LykanOS (heimdall-git):** nothing changes until its recipe builds the crates; install.sh skips the files without
+  them. Whether the private microphone is on there is LykanOS's choice.
+- **For Yggdrasil:** Settings runs `heimdall-private-mic status --json` (`{"enforce":bool,"node":bool}`) and `on|off`; Minos
+  runs `heimdall-scrub --progress IN OUT` (`progress 0.42` lines, then `wrote OUT`; exit 0/1/2; never over IN or an existing
+  OUT). Changing those outputs is a contract change for both repos.
+- **For Sarina:** her voice input records the private microphone like every app (no exception: nothing to bypass); speech
+  is kept.
+— Signed: Heimdall / Claude Opus 5.5
 
 ### 2026-11-11 (2) — The Wi-Fi helpers in Rust; three fixes in the Python ones (installed as before; Rust on a branch)
 - `heimdall-wifi-check`, `heimdall-wifi-guard` and `heimdall-wifi-notify` are ported (the Rust heimdalld answers to their

@@ -15,6 +15,10 @@ path = "src/lib.rs"
 name = "heimdall-scrub"
 path = "src/bin/heimdall-scrub.rs"
 
+[[bin]]
+name = "heimdall-private-mic"
+path = "src/bin/heimdall-private-mic.rs"
+
 # The DSP has no dependencies at all (its own FFT, random numbers and filters), so it builds the same for a Raspberry Pi and
 # runs inside PipeWire without pulling anything in. libc: the file tool's SIGTERM/SIGINT handler (a stopped scrub cleans up
 # its temporary files and the ffmpeg it started), the same pinned version as heimdalld.

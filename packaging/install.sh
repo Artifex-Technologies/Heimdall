@@ -73,6 +73,21 @@ i 755 $p/net/heimdall-wifi-notify                usr/bin/heimdall-wifi-notify
 i 644 $p/net/user-units/heimdall-wifi-notify.path    usr/lib/systemd/user/heimdall-wifi-notify.path
 i 644 $p/net/user-units/heimdall-wifi-notify.service usr/lib/systemd/user/heimdall-wifi-notify.service
 
+# location sounds (docs/LOCATION_SOUNDS.md): the file tool, the private microphone's switch, its LADSPA filter and the
+# PipeWire and WirePlumber files that make every app record it. Built by the recipe in rust/ (cargo build --release
+# --locked -p heimdall-scrub -p heimdall-scrub-ladspa); a recipe that does not build them yet installs the rest as before.
+r=rust/target/release
+if [ -x $r/heimdall-scrub ]; then
+  i 755 $r/heimdall-scrub                        usr/bin/heimdall-scrub
+  i 755 $r/heimdall-private-mic                  usr/bin/heimdall-private-mic
+  i 755 $r/libheimdall_scrub_ladspa.so           usr/lib/ladspa/heimdall-scrub.so
+  i 644 $p/privacy/pipewire-private-mic.conf     usr/share/pipewire/pipewire.conf.d/60-heimdall-private-mic.conf
+  i 644 $p/privacy/wireplumber-private-mic.conf  usr/share/wireplumber/wireplumber.conf.d/60-heimdall-private-mic.conf
+  i 644 $p/privacy/private-mic.lua               usr/share/wireplumber/scripts/heimdall/private-mic.lua
+  i 644 rust/scrub/NOTICE                        usr/share/licenses/heimdall/NOTICE.flyover-scrub
+  i 644 docs/LOCATION_SOUNDS.md                  usr/share/doc/heimdall/LOCATION_SOUNDS.md
+fi
+
 # switched on by itself on a fresh install (never again on upgrades, so the owner's choices stay)
 i 755 $p/net/heimdall-enable-defaults            usr/bin/heimdall-enable-defaults
 i 644 $p/net/heimdall-install.hook               usr/share/libalpm/hooks/heimdall-install.hook
