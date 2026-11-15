@@ -1,0 +1,10 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Path
+Target = usr/bin/heimdall-private-mic
+
+[Action]
+Description = Private microphone: the LykanOS-only part on LykanOS, nothing elsewhere...
+When = PostTransaction
+Exec = /usr/bin/heimdall-private-mic os-setup

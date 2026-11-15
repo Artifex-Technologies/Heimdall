@@ -13,7 +13,13 @@
 --    (browsers, Teams, Zoom, Discord, OBS) sees only the private microphone.
 --
 -- The filter's own input is linked to the physical microphone the owner chose (default.configured.audio.source), or the
--- best one. Turn it off with `heimdall-private-mic off` (Settings > Security > Privacy): everything goes back to normal at
+-- best one.
+--
+-- LykanOS only: with its fragment (heimdall.private-mic.os.lykanos, linked by `heimdall-private-mic os-setup` where
+-- /etc/os-release says ID=lykanos) and the setting heimdall.private-mic.sarina-raw on (off by default), the one stream
+-- marked heimdall.private-mic.exempt = "sarina-voice" (Sarina's voice input, from Yggdrasil's panel) is linked to the
+-- physical microphone. On Labyrinth OS the fragment is never there, so this is not either: Sarina records the private
+-- microphone like every app. Turn it off with `heimdall-private-mic off` (Settings > Security > Privacy): everything goes back to normal at
 -- once, no restart. What it cannot stop: a program that opens the sound card directly (ALSA hw: while PipeWire is not
 -- using it), a portal client's own manual links, recordings on other devices. docs/LOCATION_SOUNDS.md.
 
@@ -24,6 +30,21 @@ log = Log.open_topic ("s-heimdall-private-mic")
 PRIVATE = "heimdall.private-mic"
 CAPTURE = "heimdall.private-mic.capture"
 KEY = "heimdall.private-mic.enforce"
+SARINA_KEY = "heimdall.private-mic.sarina-raw"
+EXEMPT = "sarina-voice"
+
+-- The LykanOS fragment's marker; read once (configuration does not change while WirePlumber runs).
+lykanos = false
+do
+  local ok, os_section = pcall (function ()
+    return Conf.get_section_as_json ("heimdall.private-mic.os", Json.Object {}):parse ()
+  end)
+  lykanos = ok and type (os_section) == "table" and os_section.lykanos == true
+end
+
+function sarinaRaw ()
+  return lykanos and Settings.get_boolean (SARINA_KEY) == true
+end
 
 function enforcing ()
   local v = Settings.get_boolean (KEY)
@@ -102,6 +123,17 @@ SimpleEventHook {
       return
     end
     local own = nodeProps (si)
+    if own ~= nil and own ["heimdall.private-mic.exempt"] == EXEMPT and sarinaRaw () then
+      -- LykanOS, the owner's choice: Sarina's voice input hears the real microphone
+      if target == nil or not isPhysicalSource (nodeProps (target)) then
+        local t = bestPhysical (source, om, si_props)
+        if t ~= nil then
+          log:info (si, "Sarina's voice input records " .. tostring (nodeProps (t) ["node.name"]) .. " (LykanOS setting)")
+          event:set_data ("target", t)
+        end
+      end
+      return
+    end
     if own ~= nil and own ["node.name"] == CAPTURE then
       -- the filter's input: a physical microphone, never itself
       if target == nil or not isPhysicalSource (nodeProps (target)) then
@@ -198,6 +230,17 @@ for name, pm in pairs ({ ["private"] = private_pm, ["private-restricted"] = priv
   pm:activate (Features.ALL, function (_, e)
     if e then
       log:warning ("failed to activate the " .. name .. " permission manager: " .. tostring (e))
+    end
+  end)
+end
+
+if lykanos then
+  log:notice ("LykanOS: Sarina's voice input may use the real microphone when " .. SARINA_KEY .. " is on (now " ..
+      tostring (sarinaRaw ()) .. ")")
+  Settings.subscribe (SARINA_KEY, function ()
+    local source = Plugin.find ("standard-event-source")
+    if source ~= nil then
+      source:call ("schedule-rescan", "linking")
     end
   end)
 end

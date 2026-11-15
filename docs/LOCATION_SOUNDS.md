@@ -23,6 +23,12 @@ Both keep speech and everything above 2 kHz. In the band where aircraft tones an
 re-synthesise the quiet background with fresh noise at the same level, remove long slowly gliding tones and steady mains
 harmonics, and leave loud foreground (a voice) untouched. It is evidence, not a guarantee: read [the limits](#limits).
 
+## The package
+
+Everything here is in its own package, `heimdall-private-mic-git` (provides `heimdall-private-mic`), not in heimdall-git:
+every Labyrinth OS and LykanOS install gets it, with or without Heimdall (I decided that on 2026-11-15). The two packages
+share no file; `packaging/install.sh DESTDIR private-mic` is its file list, beside heimdall-git's in the same script.
+
 ## Using it
 
 ```bash
@@ -61,8 +67,23 @@ microphone; a client listing nodes did not see the device microphone and a manua
 permitted"); with enforcement off the device microphone was visible and the default again; the feed had 60 Hz mains hum
 (ENF present, +40 to +49 dB) and both recordings had none. PipeWire reports the filter's latency (1024 samples).
 
-Why not keep the raw microphone for Sarina: no exception is simpler and leaves nothing to bypass. Speech recognition reads
-the voice, which the scrub keeps; Sarina's voice input records the private microphone like everything else.
+**Sarina.** On Labyrinth OS there is no exception: Sarina's voice input records the private microphone like every app
+(speech is kept, and an exception would be something to bypass). On LykanOS it is my choice: a setting, off by default,
+lets only Sarina's voice input record the real microphone (Settings > Security > Privacy there, or
+`heimdall-private-mic sarina-raw on|off`); every other app stays private. How it is kept off Labyrinth:
+
+- The setting is declared in a WirePlumber fragment of its own (`/usr/share/heimdall-private-mic/lykanos.conf`, which also
+  carries a marker the script checks). The package's pacman hook runs `heimdall-private-mic os-setup`, which links it into
+  `/etc/wireplumber/wireplumber.conf.d/` only where `/etc/os-release` says `ID=lykanos`, and removes its own link elsewhere
+  and when the package goes. Without the fragment the setting does not exist, and even forcing it by hand changes nothing
+  (tested).
+- Sarina's stream is the one Yggdrasil's panel starts for Super+S, marked `heimdall.private-mic.exempt = "sarina-voice"`.
+  A program running as me could put the same mark on its own stream; with the setting on (LykanOS only) it would get the
+  real microphone. That is the price of the option, which is why it is off by default.
+
+Tested in the isolated PipeWire as Labyrinth (Sarina's stream got the private microphone, also with the setting forced) and
+as LykanOS (off: private; on: Sarina's stream had the device microphone's hum, while a recording asking for the device
+microphone by name and the default recording stayed private).
 
 Trade-offs I accepted:
 
@@ -152,6 +173,9 @@ measured instead of assumed: audio and flights in, ranked places out. It has no 
 
 ## Files
 
+In `heimdall-private-mic-git` (recipes: Labyrinth_OS's `packages/pkgbuilds/heimdall-private-mic-git`, and
+`packaging/arch-private-mic/PKGBUILD` here):
+
 | Installed | From |
 | --- | --- |
 | `/usr/bin/heimdall-scrub`, `/usr/bin/heimdall-private-mic` | `rust/scrub` |
@@ -159,7 +183,9 @@ measured instead of assumed: audio and flights in, ranked places out. It has no 
 | `/usr/share/pipewire/pipewire.conf.d/60-heimdall-private-mic.conf` | `packaging/privacy/pipewire-private-mic.conf` |
 | `/usr/share/wireplumber/wireplumber.conf.d/60-heimdall-private-mic.conf` | `packaging/privacy/wireplumber-private-mic.conf` |
 | `/usr/share/wireplumber/scripts/heimdall/private-mic.lua` | `packaging/privacy/private-mic.lua` |
-| `/usr/share/licenses/heimdall/NOTICE.flyover-scrub` | `rust/scrub/NOTICE` |
+| `/usr/share/heimdall-private-mic/lykanos.conf` (linked into `/etc/wireplumber/wireplumber.conf.d/` on LykanOS only) | `packaging/privacy/wireplumber-private-mic-lykanos.conf` |
+| `/usr/share/libalpm/hooks/heimdall-private-mic.hook`, `heimdall-private-mic-remove.hook` (run `os-setup`) | `packaging/privacy/` |
+| `/usr/share/licenses/heimdall-private-mic/` (LICENSE, NOTICE.flyover-scrub) | `LICENSE`, `rust/scrub/NOTICE` |
 
 After installing, the private microphone appears when PipeWire and WirePlumber restart (log out and in, or
 `systemctl --user restart pipewire wireplumber`).

@@ -1,0 +1,9 @@
+[Trigger]
+Operation = Remove
+Type = Path
+Target = usr/bin/heimdall-private-mic
+
+[Action]
+Description = Private microphone: removing the LykanOS-only link...
+When = PreTransaction
+Exec = /usr/bin/heimdall-private-mic os-setup --remove

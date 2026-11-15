@@ -93,7 +93,8 @@ rust/                      The Rust port of the daemon (heimdalld-rs, shadow mod
 rust/scrub/                heimdall-scrub: aircraft tones and mains hum out of audio (file tool, live DSP): docs/LOCATION_SOUNDS.md
 rust/scrub-ladspa/         the live scrub as a LADSPA plugin: the private microphone (PipeWire filter-chain)
 rust/flyover-attack/       the flyover scorer as a library; its tests prove the scrub defeats it
-packaging/privacy/         the private microphone's PipeWire and WirePlumber files, and its isolated end-to-end test
+packaging/privacy/         the private microphone's PipeWire and WirePlumber files, hooks, and its isolated end-to-end test
+packaging/arch-private-mic/ the recipe of heimdall-private-mic-git (its own package; install.sh DESTDIR private-mic)
 testdata/parity/           Fixtures both languages run (go test ./internal/parity -update rewrites them)
 ```
 
@@ -262,6 +263,23 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   Both are in Sarina's `docs/ECOSYSTEM.md` port registry.
 
 ### Coordination Log (newest first)
+
+### 2026-11-15 (2) — The private microphone is a package of its own; Sarina's LykanOS-only option
+- I decided: `heimdall-private-mic-git` (provides `heimdall-private-mic`) holds the private microphone and heimdall-scrub,
+  and every Labyrinth OS and LykanOS install gets it, with or without Heimdall. heimdall-git no longer ships those files
+  (no file in both): `packaging/install.sh DESTDIR` is heimdall-git's list, `packaging/install.sh DESTDIR private-mic` the
+  new package's; recipes `packaging/arch-private-mic/PKGBUILD` here and Labyrinth's `packages/pkgbuilds/heimdall-private-mic-git`.
+  heimdall-git's recipes no longer need rust.
+- Sarina: no exception on Labyrinth OS. On LykanOS a setting, off by default (`heimdall.private-mic.sarina-raw`), lets only
+  her voice input (the stream marked `heimdall.private-mic.exempt = "sarina-voice"`) record the real microphone. Its
+  WirePlumber fragment is linked by `heimdall-private-mic os-setup` (the package's pacman hook) only where /etc/os-release
+  says ID=lykanos; without it the setting does not exist and forcing it changes nothing.
+- **For Yggdrasil (done there, `9da6c69`, `a5ed5d6`):** the panel's Super+S pw-record carries the mark; Settings shows the
+  LykanOS-only switch. `heimdall-private-mic status --json` is now `{"enforce","node","lykanos","sarina_raw"}` (two fields
+  added); `heimdall-private-mic sarina-raw on|off` (exit 1 off LykanOS).
+- **For LykanOS:** add `heimdall-private-mic-git` to the package list (done on its board); its install copies the live
+  image, so the link made on the ISO comes along.
+— Signed: Heimdall / Claude Opus 5.5
 
 ### 2026-11-15 — Location sounds: heimdall-scrub and the private microphone
 - New (`docs/LOCATION_SOUNDS.md`): `rust/scrub` (heimdall-scrub: the file tool, and the live DSP), `rust/scrub-ladspa` (the

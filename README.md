@@ -152,7 +152,8 @@ within a few hundred metres; mains hum dates it and names the power grid. **The 
 microphone as it is recorded (21 ms added, 1.4 % of a desktop core) and WirePlumber makes it the input every app records:
 calls in the browser, Teams, Zoom, Webex, Discord, and every recording. `heimdall-private-mic on|off` (Settings > Security >
 Privacy) switches it. **`heimdall-scrub IN OUT`** writes a scrubbed copy of an audio file or a video (video untouched,
-metadata removed). Speech and everything above 2 kHz are kept. A Rust rewrite of
+metadata removed). Speech and everything above 2 kHz are kept. Both are the package `heimdall-private-mic-git`, which every
+Labyrinth OS and LykanOS install has, with or without Heimdall. A Rust rewrite of
 [flyover-scrub](https://github.com/lizTheDeveloper/flyover-scrub) (MIT).
 
 ## Commands
