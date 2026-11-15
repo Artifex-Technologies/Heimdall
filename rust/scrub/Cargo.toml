@@ -1,0 +1,22 @@
+[package]
+name = "heimdall-scrub"
+version = "0.1.0"
+description = "Removes what can place or date a recording from audio: aircraft flyover tones and mains hum (ENF)"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+name = "heimdall_scrub"
+path = "src/lib.rs"
+
+[[bin]]
+name = "heimdall-scrub"
+path = "src/bin/heimdall-scrub.rs"
+
+# The DSP has no dependencies at all (its own FFT, random numbers and filters), so it builds the same for a Raspberry Pi and
+# runs inside PipeWire without pulling anything in. libc: the file tool's SIGTERM/SIGINT handler (a stopped scrub cleans up
+# its temporary files and the ffmpeg it started), the same pinned version as heimdalld.
+[dependencies]
+libc = { version = "=0.2.186", default-features = false }

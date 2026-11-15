@@ -145,6 +145,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "flyover-attack"
+version = "0.1.0"
+dependencies = [
+ "heimdall-scrub",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -191,6 +198,13 @@ dependencies = [
  "rustls",
  "serde_json",
  "sha2",
+]
+
+[[package]]
+name = "heimdall-scrub"
+version = "0.1.0"
+dependencies = [
+ "libc",
 ]
 
 [[package]]

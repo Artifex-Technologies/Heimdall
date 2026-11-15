@@ -1,0 +1,16 @@
+[package]
+name = "flyover-attack"
+version = "0.1.0"
+description = "The Doppler flyover scorer: how well a recording's aircraft tones match candidate places, given flight tracks"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+name = "flyover_attack"
+path = "src/lib.rs"
+
+# No network code and no flight-data format: tracks come in as plain points (FlightPoint). The FFT is heimdall-scrub's.
+[dependencies]
+heimdall-scrub = { path = "../scrub" }

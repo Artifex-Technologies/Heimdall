@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["heimdall"]
+members = ["heimdall", "scrub", "flyover-attack"]
 # cargo-fuzz targets build with a nightly toolchain of their own; they are not part of the normal build
 exclude = ["fuzz"]
 
@@ -16,3 +16,11 @@ codegen-units = 1
 strip = true
 # unwinding stays on: a detector that panics on hostile input loses that one event, not the daemon (engine.rs)
 panic = "unwind"
+
+# The scrub's DSP and the flyover scorer do millions of operations per second of audio: their tests take seconds only when
+# optimised, so they are built that way in test builds too (the daemon's crate keeps the default).
+[profile.dev.package.heimdall-scrub]
+opt-level = 3
+
+[profile.dev.package.flyover-attack]
+opt-level = 3
