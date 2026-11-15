@@ -500,7 +500,11 @@ fn scrub_file(a: &Args) -> Result<(), String> {
     for s in summary {
         println!("  {s}");
     }
-    println!("wrote {}{}", output.display(), if a.keep_metadata { "" } else { " (metadata removed)" });
+    if !a.keep_metadata {
+        println!("  metadata removed (tags, chapters, location, dates, encoder)");
+    }
+    // the last line, exactly "wrote PATH": Minos reads the path from it
+    println!("wrote {}", output.display());
     Ok(())
 }
 
