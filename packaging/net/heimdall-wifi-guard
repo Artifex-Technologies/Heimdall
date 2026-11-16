@@ -370,7 +370,11 @@ def quiet_table(on, discoverable=False):
 
 def quiet_router(iface):
     """This connection's router (its IPv4 gateway) for the quiet table: a router that looks at its clients (a device map) is
-    reported once per connection, with a prefix of its own, not once an hour as a device would be."""
+    reported once per connection, with a prefix of its own, not once an hour as a device would be. What the table remembers
+    of the last network goes first (the table stays from one network to the next): its router, and the senders it saw, so the
+    last router's week-long entry never hides a device of this network that has its address."""
+    sh(["nft", "flush", "set", "inet", QUIET, "router4"])
+    sh(["nft", "flush", "set", "inet", QUIET, "seen4"])
     try:
         routes = json.loads(sh(["ip", "-j", "route", "show", "default", "dev", iface]).stdout or "[]")
     except ValueError:
@@ -381,9 +385,7 @@ def quiet_router(iface):
             return
     except ValueError:
         return
-    sh(["nft", "flush", "set", "inet", QUIET, "router4"])
     sh(["nft", "add", "element", "inet", QUIET, "router4", "{ %s }" % gw])
-    sh(["nft", "delete", "element", "inet", QUIET, "seen4", "{ %s }" % gw])  # told anew on this connection
 
 
 def quiet_counters():
@@ -727,6 +729,7 @@ def cmd_trust(args):
         # in force now, not only from the next connection: the quiet table, Avahi off and the private profile
         quiet_table(True, disc)
         quiet(uuid, True, disc)
+        quiet_router(iface)  # the table may be a fresh one: it learns this network's router again
     else:
         if real:
             # at home the computer may use its own hardware address and name (routers show it, and reservations keep working)
@@ -799,7 +802,8 @@ def cmd_discoverable(args):
     traffic out), the owner's choice for that network whatever its trust level (home always is). Every other protection stays:
     the firewall, the inbound log, the VPN and its lockdown, the router watch, its own hardware address and no name sent. On the
     network connected now it applies at once. Without on/off it only says it (no root needed). For Settings:
-    heimdall-wifi-discoverable-on@UUID.service and heimdall-wifi-discoverable-off@UUID.service run it as root."""
+    heimdall-wifi-discoverable-on@UUID.service and heimdall-wifi-discoverable-off@UUID.service run it as root. --uuid takes a
+    UUID as NetworkManager writes it (8-4-4-4-12 lowercase hex digits), nothing else."""
     want, uuid, i = None, None, 0
     while i < len(args):
         if args[i] == "--uuid":
@@ -810,6 +814,8 @@ def cmd_discoverable(args):
             sys.exit("discoverable: unknown word %r (discoverable [on|off] [--uuid UUID]): nothing changed" % args[i])
         want = args[i]
         i += 1
+    if uuid is not None and not re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", uuid):
+        sys.exit("discoverable: %r is not a connection UUID: nothing changed" % uuid)
     if want is not None:
         root()
     iface, now, _ = active_wifi()
@@ -817,7 +823,7 @@ def cmd_discoverable(args):
         uuid = now
     if not uuid:
         sys.exit("not connected to Wi-Fi: name the network with --uuid UUID")
-    ssid = sh(["nmcli", "-g", "802-11-wireless.ssid", "connection", "show", uuid]).stdout.strip()
+    ssid = sh(["nmcli", "-g", "802-11-wireless.ssid", "connection", "show", "uuid", uuid]).stdout.strip()
     if not ssid:
         sys.exit("%s is not a saved Wi-Fi network: nothing changed" % uuid)
     t = load(TRUSTED, {})
@@ -845,6 +851,7 @@ def cmd_discoverable(args):
         disc = discoverable_of(t.get(uuid), ssid)
         quiet_table(True, disc)
         quiet(uuid, True, disc)
+        quiet_router(iface)  # a fresh table: it learns this network's router again
         p = st.get("protections")
         set_state(protections=protections(iface, uuid, isinstance(p, dict) and p.get("vpn") is True, disc))
     if home:

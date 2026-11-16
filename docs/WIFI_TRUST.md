@@ -122,9 +122,18 @@ minutes; the owner's choice):
 - read: `heimdall-wifi-guard discoverable --uuid UUID` prints `NAME: discoverable on`, `on (home)` or `off`;
 - change: start the unit `heimdall-wifi-discoverable-on@UUID.service` or `heimdall-wifi-discoverable-off@UUID.service`
   (systemd's D-Bus `org.freedesktop.systemd1.Manager.StartUnit(name, "replace")`, or `systemctl start NAME`). The units run
-  `heimdall-wifi-guard discoverable on|off --uuid UUID` as root; the polkit rule
-  `/usr/share/polkit-1/rules.d/50-heimdall-wifi-discoverable.rules` lets members of `wheel` in an active local session start
-  exactly these two units once they give their password. The guard refuses a UUID that is not a saved Wi-Fi profile.
+  `heimdall-wifi-guard discoverable on|off --uuid UUID` as root. Starting a unit is polkit's
+  `org.freedesktop.systemd1.manage-units`, whose own default for an active local session is the administrator's password,
+  remembered for a few minutes (`auth_admin_keep`): exactly what the owner asked for, so Heimdall ships no rule of its own for
+  it. The guard takes only a UUID as NetworkManager writes it (8-4-4-4-12 lowercase hex digits) and refuses one that is not a
+  saved Wi-Fi profile.
+
+What being discoverable means beyond "this computer announces itself":
+- On a network nobody needs a password for (open, or a discoverable untrusted network generally), this computer also announces
+  itself to any copy of the network with the same name, since nothing tells the two apart.
+- Devices answering what it announces (or what it asks, such as mDNS questions) send packets to this computer that the quiet
+  table counts as starting something; on a busy network these can raise the hourly "a device tried to reach this computer"
+  warning for those devices.
 
 ## The quiet table
 

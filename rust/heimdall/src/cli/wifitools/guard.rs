@@ -688,7 +688,11 @@ impl Guard {
     }
 
     /// This connection's router (its IPv4 gateway) for the quiet table: reported once per connection, not once an hour.
+    /// What the table remembers of the last network goes first (it stays from one network to the next): its router and the
+    /// senders it saw, so the last router's week-long entry never hides a device of this network that has its address.
     fn quiet_router(&self, iface: &str) -> PyResult<()> {
+        self.sh(&["nft", "flush", "set", "inet", QUIET, "router4"])?;
+        self.sh(&["nft", "flush", "set", "inet", QUIET, "seen4"])?;
         let routes = match self.json(&self.out(&["ip", "-j", "route", "show", "default", "dev", iface])?) {
             Ok(v) => v,
             Err(e) if e.kind == "ValueError" => return Ok(()),
@@ -705,9 +709,7 @@ impl Guard {
         if !matches!(addr::ip_address(&py::s(&gw)), Ok(ip) if ip.version() == 4) {
             return Ok(());
         }
-        self.sh(&["nft", "flush", "set", "inet", QUIET, "router4"])?;
         self.sh(&["nft", "add", "element", "inet", QUIET, "router4", &format!("{{ {gw} }}")])?;
-        self.sh(&["nft", "delete", "element", "inet", QUIET, "seen4", &format!("{{ {gw} }}")])?; // told anew on this connection
         Ok(())
     }
 
@@ -1083,6 +1085,7 @@ impl Guard {
             // in force now, not only from the next connection: the quiet table, Avahi off and the private profile
             self.quiet_table(true, disc)?;
             self.quiet(&uuid, true, disc)?;
+            self.quiet_router(&iface)?; // the table may be a fresh one: it learns this network's router again
         } else {
             if real {
                 // at home the computer may use its own hardware address and name (routers show it, and reservations keep working)
@@ -1213,6 +1216,11 @@ impl Guard {
             want = Some(if args[i] == "on" { "on" } else { "off" });
             i += 1;
         }
+        if let Some(u) = &uuid {
+            if !is_uuid(u) {
+                return Err(exit(format!("discoverable: {} is not a connection UUID: nothing changed", py::repr_str(u))));
+            }
+        }
         if want.is_some() {
             self.root()?;
         }
@@ -1221,7 +1229,7 @@ impl Guard {
         if uuid.is_empty() {
             return Err(exit("not connected to Wi-Fi: name the network with --uuid UUID"));
         }
-        let ssid = self.ssid_of(&uuid)?;
+        let ssid = py::strip(&self.out(&["nmcli", "-g", "802-11-wireless.ssid", "connection", "show", "uuid", &uuid])?).to_string();
         if ssid.is_empty() {
             return Err(exit(format!("{uuid} is not a saved Wi-Fi network: nothing changed")));
         }
@@ -1270,6 +1278,7 @@ impl Guard {
             let disc = discoverable_of(t.get(&uuid), &ssid);
             self.quiet_table(true, disc)?;
             self.quiet(&uuid, true, disc)?;
+            self.quiet_router(&iface)?; // a fresh table: it learns this network's router again
             let vpn_on = matches!(st.get("protections"), Some(Val::Dict(p)) if matches!(p.get("vpn"), Some(Val::Bool(true))));
             let p = self.protections(&iface, &uuid, vpn_on, disc)?;
             self.set_state(&[("protections", Val::Dict(p))])?;
@@ -1522,6 +1531,19 @@ fn write_with_mode(p: &Path, text: &str, mode: u32) -> PyResult<()> {
     let mut f = std::fs::OpenOptions::new().write(true).create(true).truncate(true).mode(mode).open(p).map_err(|e| PyErr::os(&e, &ps))?;
     f.set_permissions(std::fs::Permissions::from_mode(mode)).map_err(|e| PyErr::os(&e, &ps))?;
     f.write_all(text.as_bytes()).map_err(|e| PyErr::os(&e, &ps))
+}
+
+/// A connection UUID as NetworkManager writes it: 8-4-4-4-12 lowercase hex digits (`re.fullmatch` in Python).
+pub fn is_uuid(s: &str) -> bool {
+    let b = s.as_bytes();
+    b.len() == 36
+        && b.iter().enumerate().all(|(i, &c)| {
+            if matches!(i, 8 | 13 | 18 | 23) {
+                c == b'-'
+            } else {
+                c.is_ascii_digit() || (b'a'..=b'f').contains(&c)
+            }
+        })
 }
 
 /// `re.search(r"\(([0-9a-f-]{36})\)", out)`: the connection NetworkManager made.

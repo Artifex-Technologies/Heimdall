@@ -1011,6 +1011,7 @@ fn guard_trust_level_fixes_as_python() {
         argv_log(&t).contains("nft [add] [element] [inet] [heimdall_wifi_quiet] [router4] [{ 192.0.2.1 }]"),
         "the router, once per connection"
     );
+    assert!(argv_log(&t).contains("nft [flush] [set] [inet] [heimdall_wifi_quiet] [seen4]"), "the last network's senders forgotten");
     // discoverable: the owner's choice per network, at once on the network connected now, kept by trust and untrust
     let mut t = guard_twin("discoverable", &|r| {
         on_wifi(r, "cafe-uuid", ROUTER);
@@ -1030,7 +1031,9 @@ fn guard_trust_level_fixes_as_python() {
     t.step(&["discoverable"], &o);
     t.step(&["untrust", "Cafe"], &o);
     assert!(t.rs.read_str("/etc/heimdall/wifi-trusted.json").contains("\"discoverable\": true"));
-    t.step(&["discoverable", "off", "--uuid", "cafe-uuid"], &o);
+    let (py, _) = t.step(&["discoverable", "off", "--uuid", "cafe-uuid"], &o); // only a UUID as NetworkManager writes it
+    assert!(py.stderr.contains("is not a connection UUID"), "{}", py.stderr);
+    t.step(&["discoverable", "off"], &o);
     assert!(!t.rs.read_str("/srv/quiet-rules").contains("discoverable") && t.rs.read("/srv/avahi-on").is_none());
     for args in [
         &["discoverable", "maybe"][..],
@@ -1044,8 +1047,14 @@ fn guard_trust_level_fixes_as_python() {
     t.both(|r| {
         r.write("/srv/ssid", "\n"); // not a saved Wi-Fi profile
     });
-    let (py, _) = t.step(&["discoverable", "on", "--uuid", "other-uuid"], &o);
+    let (py, _) = t.step(&["discoverable", "on", "--uuid", "0e3f5a1c-2222-4333-8444-955566667777"], &o);
     assert!(py.stderr.contains("not a saved Wi-Fi network"), "{}", py.stderr);
+    assert!(argv_log(&t).contains("[connection] [show] [uuid] [0e3f5a1c-2222-4333-8444-955566667777]"));
+    for odd in ["0E3F5A1C-2222-4333-8444-955566667777", "0e3f5a1c-2222-4333-8444-95556666777", "", "0e3f5a1c-2222-4333-8444-9555666677770"]
+    {
+        let (py, _) = t.step(&["discoverable", "--uuid", odd], &o);
+        assert_eq!(py.code, 1, "{odd:?}");
+    }
     // untrust on the network connected now: closed up at once
     let mut t = guard_twin("untrust-now", &|r| {
         on_wifi(r, "0e3f5a1c-2222-4333-8444-955566667777", ROUTER);

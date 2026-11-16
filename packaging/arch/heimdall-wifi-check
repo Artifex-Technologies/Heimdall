@@ -3,8 +3,9 @@
 
 Run by NetworkManager's dispatcher (through heimdall-wifi-check@.service, as the heimdall user) each time a Wi-Fi connection comes up.
 Everything it does is what any device on the network does anyway: it reads what NetworkManager and the kernel already know, looks up a
-few well-known names and opens a few well-known web pages, then compares the answers with what they must be. It never scans or
-touches other devices on the network. Nothing about the network is sent anywhere.
+few well-known names and opens a few well-known web pages, then compares the answers with what they must be. It never scans other
+devices on the network; the only one it may contact is an address on it that DNS gave for a well-known name, asked once for that
+name's certificate (an answer leading there must show it). Otherwise it only listens. Nothing about the network is sent anywhere.
 
 Checks: encryption; an "evil twin" (the same network name nearby with different security, Enhanced Open included); a network with
 the name of one you trust but not its lock; a sign-in page; a second device answering for the router's address (ARP spoofing), and

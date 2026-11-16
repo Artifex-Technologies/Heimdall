@@ -43,7 +43,9 @@ adversarial reviews said NOT READY; every blocking and should-fix item is fixed 
 | third review: discovery drops only toward the local network (PPTP/H.323 to the internet pass); router logged once per connection, info | done (guard; Go + Rust parser and detector) | veth packet test; Go tests; parity steps |
 | third review: `untrust` takes effect at once; the check's time limit (240 s, writes "could not finish") | done | Python tests; `untrust-now`, `out-of-time` scenarios |
 | owner A: "no VPN" notice on every connection again (untrusted) | done | Python test; `no-vpn` guard scenario |
-| owner B: per-network `discoverable` (on/off/status, --uuid), units + polkit rule for Settings | done | Python tests; `discoverable` guard scenario; packet test of the discoverable table; install.sh dry run |
+| owner B: per-network `discoverable` (on/off/status, strict --uuid), units for Settings (systemd's own polkit default: the admin password) | done | Python tests; `discoverable` guard scenario; packet test of the discoverable table; install.sh dry run |
+
+| final review's follow-ups: the quiet table forgets the last network's router and senders on each connection; trust and discoverable re-add the router; no polkit rule (systemd's own default is the admin password the owner wants); strict UUID for `discoverable --uuid` | done | Python tests; `ufw-written`, `discoverable` guard scenarios |
 
 - **Verified here (kernel 7.3.4):** gofmt, go vet, go build, go test, parity goldens regenerated; Rust suite with the
   Python↔Rust differential runs (fake roots, network namespaces); cargo fmt and clippy `-D warnings`; Python tests.

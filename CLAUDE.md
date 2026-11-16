@@ -317,7 +317,8 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 - **For Yggdrasil Settings (Wi-Fi network page, a "Discoverable" switch; not built there yet):** read with
   `heimdall-wifi-guard discoverable --uuid UUID` (`NAME: discoverable on|on (home)|off`); change by starting
   `heimdall-wifi-discoverable-on@UUID.service` / `heimdall-wifi-discoverable-off@UUID.service` (systemd D-Bus StartUnit);
-  polkit rule `50-heimdall-wifi-discoverable.rules` allows exactly those two for `wheel`, active local sessions, after the password (auth_admin_keep; the owner's choice 2026-11-15).
+  polkit's own default for `manage-units` applies (the administrator's password, kept a few minutes: the owner's choice
+  2026-11-15), so Heimdall ships no polkit rule for it.
   Details in `docs/WIFI_TRUST.md`, "Discoverable".
 - The quiet table also logs the network's router once per connection with prefix `heimdall-wifi-in-router:`; heimdalld makes
   it a `lan-watch` info (field `router: true`), not a warning.

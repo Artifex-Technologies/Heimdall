@@ -488,13 +488,22 @@ class Guard(unittest.TestCase):
         os.remove(self.m.CONF)
         self.routes = '[{"dst":"default","gateway":"192.168.0.1","dev":"wlan0"}]'
         self.m.up("wlan0", "cafe-uuid")
-        self.assertIn("nft flush set inet heimdall_wifi_quiet router4", self.calls)
-        self.assertIn("nft add element inet heimdall_wifi_quiet router4 { 192.168.0.1 }", self.calls)
-        self.assertIn("nft delete element inet heimdall_wifi_quiet seen4 { 192.168.0.1 }", self.calls)
+        # the last network's router and senders go first (the table stays from one network to the next)
+        flush = [self.calls.index("nft flush set inet heimdall_wifi_quiet " + s) for s in ("router4", "seen4")]
+        self.assertLess(max(flush), self.calls.index("nft add element inet heimdall_wifi_quiet router4 { 192.168.0.1 }"))
         self.calls.clear()
-        self.routes = '[{"gateway":"fe80::1"}]'  # not an IPv4 address: nothing set
+        self.routes = '[{"gateway":"fe80::1"}]'  # not an IPv4 address: the old router forgotten, no new one
         self.m.up("wlan0", "cafe-uuid")
-        self.assertFalse(any("router4" in c for c in self.calls))
+        self.assertIn("nft flush set inet heimdall_wifi_quiet router4", self.calls)
+        self.assertFalse(any("add element" in c for c in self.calls))
+        # a fresh table from trust, or from discoverable on the network connected now, learns the router again
+        self.routes = '[{"dst":"default","gateway":"192.168.0.1","dev":"wlan0"}]'
+        self.wifi = "wlan0:wifi:connected:Cafe\n"
+        for run in (lambda: self.m.cmd_trust([]), lambda: self.m.cmd_discoverable(["on"])):
+            self.m.set_state(wifi="phone-uuid")
+            self.calls.clear()
+            run()
+            self.assertIn("nft add element inet heimdall_wifi_quiet router4 { 192.168.0.1 }", self.calls)
 
     def test_discoverable_is_the_owners_choice_per_network(self):
         self.wifi = "wlan0:wifi:connected:Cafe\n"
@@ -529,7 +538,9 @@ class Guard(unittest.TestCase):
         with open(self.m.TRUSTED) as f:
             self.assertEqual(json.load(f), {"phone-uuid": {"ssid": "Cafe", "level": "untrusted", "discoverable": True}})
         self.avahi = "active"
-        self.m.cmd_discoverable(["off", "--uuid", "phone-uuid"])
+        with self.assertRaises(SystemExit):  # only a UUID as NetworkManager writes it
+            self.m.cmd_discoverable(["off", "--uuid", "phone-uuid"])
+        self.m.cmd_discoverable(["off"])
         self.assertIs(self.quiet, True)
         self.assertTrue(any("systemctl stop avahi-daemon" in c for c in self.calls))
         with open(self.m.TRUSTED) as f:
@@ -537,9 +548,15 @@ class Guard(unittest.TestCase):
         for args in (["maybe"], ["on", "off"], ["on", "--uuid"]):
             with self.assertRaises(SystemExit, msg=args):
                 self.m.cmd_discoverable(args)
+        self.calls.clear()
+        self.m.cmd_discoverable(["--uuid", "0e3f5a1c-2222-4333-8444-955566667777"])
+        self.assertIn("nmcli -g 802-11-wireless.ssid connection show uuid 0e3f5a1c-2222-4333-8444-955566667777", self.calls)
         self.ssid = ""  # not a saved Wi-Fi profile
         with self.assertRaises(SystemExit):
-            self.m.cmd_discoverable(["on", "--uuid", "other-uuid"])
+            self.m.cmd_discoverable(["on", "--uuid", "0e3f5a1c-2222-4333-8444-955566667777"])
+        for odd in ("0E3F5A1C-2222-4333-8444-955566667777", "0e3f5a1c-2222-4333-8444-95556666777", "0e3f5a1c22224333844495556666777700", ""):
+            with self.assertRaises(SystemExit, msg=odd):
+                self.m.cmd_discoverable(["--uuid", odd])
 
     def test_untrust_takes_effect_at_once(self):
         self.trusted({"phone-uuid": {"ssid": "Example-Phone", "routers": [self.mac]}})  # home

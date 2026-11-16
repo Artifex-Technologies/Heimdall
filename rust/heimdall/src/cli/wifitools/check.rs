@@ -1,7 +1,8 @@
 //! `heimdall-wifi-check` (packaging/arch/heimdall-wifi-check): is the Wi-Fi network this computer just joined safe to use?
 //! Run by NetworkManager's dispatcher through heimdall-wifi-check@.service, as the heimdall account, sandboxed, on every
 //! Wi-Fi connection. It reads what NetworkManager and the kernel know, looks up a few well-known names, opens a few
-//! well-known pages, and listens (only) for other devices; the verdict goes to results.jsonl (Heimdall's alert),
+//! well-known pages, and listens for other devices (it scans none; the only one it may contact is a local address DNS gave
+//! for a well-known name, asked for that name's certificate); the verdict goes to results.jsonl (Heimdall's alert),
 //! current.json (the router watch) and /run/heimdall-wifi/last.json (the notification). Every step, file and tool call is
 //! the Python program's.
 
