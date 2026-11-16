@@ -1,7 +1,7 @@
 //! The service in a made-up network (tests/netns.sh): spreading, weights, failover, backup, share limit, data cap, the VPN
 //! pause, and the clean restore after a stop or a crash, in IPv4 and IPv6. It runs in a user + network + mount namespace
 //! of its own (`unshare -rnm`), so it never touches this computer's real network. Where such namespaces are not allowed
-//! (some containers), it says so and passes; CI allows them.
+//! (some containers), it says so and passes, except in CI, which must run it.
 
 use std::process::Command;
 
@@ -10,6 +10,8 @@ fn the_service_in_a_made_up_network() {
     let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
     let probe = Command::new("unshare").args(["-rnm", "ip", "link", "add", "t0", "type", "veth", "peer", "name", "t1"]).output();
     if !probe.as_ref().is_ok_and(|o| o.status.success()) {
+        // CI allows the namespaces (the workflow lifts Ubuntu's AppArmor limit): there, a skip would hide a broken test
+        assert!(std::env::var_os("CI").is_none(), "CI must run the namespace test: {probe:?}");
         eprintln!("skipped: no user and network namespaces with veth here ({probe:?})");
         return;
     }
