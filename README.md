@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/icon.png" width="128" alt="Heimdall icon"></p>
+
 # Heimdall
 
 The security agent of the **Artifex Ecosystem**. It runs on Labyrinth OS and on LykanOS (formerly Chymaera OS). It
