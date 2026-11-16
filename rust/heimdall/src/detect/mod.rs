@@ -48,7 +48,7 @@ pub fn daemon_detectors(cfg: &Config, deps: Deps) -> Vec<Box<dyn Detector>> {
         Box::new(KernelVulnerabilityDetector),
         Box::new(HardeningDetector),
         Box::new(WifiDetector),
-        Box::new(LanDetector),
+        Box::new(LanDetector::default()),
         Box::new(BaselineDriftDetector::with_floors(cfg.baseline_min_samples, cfg.baseline_z_threshold, default_baseline_floors())),
         Box::new(AgentBaselineDetector::new(cfg.baseline_min_samples, cfg.baseline_z_threshold, &cfg.agent_baseline_state_path)),
         Box::new(LimboGuestDetector::default()),

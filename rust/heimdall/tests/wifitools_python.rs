@@ -208,6 +208,20 @@ fn port(q: &Q, raw: &[Vec<u8>]) -> String {
         "parse_wg" => res(guard::parse_wg_with(&a(0), &fake_resolve).map(Val::List)),
         "ruleset" => res(guard::ruleset(&py::loads(&q.args[0]).unwrap()).map(Val::Str)),
         "mac_is_real" => ok(Val::Bool(guard::mac_is_real(&a(0)))),
+        "level_of" => {
+            let v: Vec<Val> = q.args.iter().map(|x| py::loads(x).unwrap()).collect();
+            let l = guard::level_of(Some(&v[0]), v[1].as_str(), v[2].as_str(), v[3].as_str()).to_string();
+            ok(strs(vec![l.clone(), l]))
+        }
+        "locally_administered" => ok(Val::Bool(check::locally_administered(&a(0)))),
+        "ufw_allowed" => {
+            let svc = check::listening_services(&a(0));
+            // the file as Python's open() reads it back (universal newlines)
+            let text = a(1).replace("\r\n", "\n").replace('\r', "\n");
+            let allowed = guard::ufw_allowed(&svc, &guard::ufw_in_rules(&text));
+            ok(Val::List(vec![strs(svc), strs(allowed)]))
+        }
+        "port_in" => ok(Val::Bool(guard::port_in(&a(0), &a(1)))),
         "ip_address" => res(addr::ip_address(&py::loads(&q.args[0]).unwrap())
             .map(|ip| Val::List(vec![Val::Int(ip.version().to_string()), Val::Str(ip.to_string())]))),
         "is_private" => match addr::parse_v4(&a(0)) {
@@ -398,6 +412,27 @@ fn questions(rng: &mut Rng) -> (Vec<Q>, Vec<Vec<Vec<u8>>>) {
         push("guard_split", vec![s(&line)], vec![]);
         push("security_class", vec![s(&rng.compose(&nm, 3))], vec![]);
         push("mac_is_real", vec![s(&rng.compose(&["permanent", "preserve", "--", " ", "\n", "random", "\u{2003}"], 3))], vec![]);
+        // trust levels: entries of every shape (from before the levels, trusted, home, damaged) against names, locks, routers
+        let mut members = Vec::new();
+        for (k, vals) in [
+            ("level", &["\"trusted\"", "\"home\"", "\"admin\"", "5", "null", "true"][..]),
+            ("ssid", &["\"Example-Phone\"", "\"Other\"", "\"\"", "5", "null"]),
+            ("key_mgmt", &["\"sae\"", "\"wpa-psk\"", "\"\"", "[\"sae\"]", "null"]),
+            ("routers", &["[]", "[\"02:00:00:00:00:01\"]", "\"02:00:00:00:00:01\"", "[1, \"02:00:00:00:00:01\", null]", "null", "[\"\"]"]),
+        ] {
+            if rng.chance(70) {
+                members.push(format!("\"{k}\": {}", rng.pick(vals)));
+            }
+        }
+        let entry = match rng.below(10) {
+            0 => rng.pick(&["null", "[]", "5", "\"x\"", "{}"]).to_string(),
+            _ => format!("{{{}}}", members.join(", ")),
+        };
+        let ssid = rng.pick(&["null", "\"Example-Phone\"", "\"Other\"", "\"\""]).to_string();
+        let key = rng.pick(&["null", "\"sae\"", "\"wpa-psk\"", "\"\"", "\"owe\"", "\"none\"", "\"wpa-eap\"", "\"SAE\""]).to_string();
+        let mac = rng.pick(&["null", "\"\"", "\"02:00:00:00:00:01\"", "\"02:00:00:00:00:09\""]).to_string();
+        push("level_of", vec![entry, ssid, key, mac], vec![]);
+        push("locally_administered", vec![s(&rng.compose(&["02", "0", "A", "e", ":", "\u{e9}", "F2", "x"], 3))], vec![]);
         let out =
             (0..rng.below(5)).map(|_| rng.compose(&nm, 9)).collect::<Vec<_>>().join(rng.pick(&["\n", "\r\n", "\r", "\u{2028}", "\u{85}"]));
         push("wifi_networks", vec![s(&out)], vec![]);
@@ -407,6 +442,49 @@ fn questions(rng: &mut Rng) -> (Vec<Q>, Vec<Vec<Vec<u8>>>) {
         push("origins", vec![s(&oo)], vec![]);
         let so = (0..rng.below(4)).map(|_| rng.compose(&ss, 12)).collect::<Vec<_>>().join("\n");
         push("listening_services", vec![s(&so)], vec![]);
+        // ufw's own rules against what listens: the tuples ufw writes, damaged ones, ports and ranges
+        let ufw = [
+            "### tuple ### ",
+            "allow ",
+            "limit ",
+            "deny ",
+            "route:allow ",
+            "tcp ",
+            "udp ",
+            "any ",
+            "22 ",
+            "8000 ",
+            "7990:8010 ",
+            "80,443 ",
+            "1:99999999 ",
+            "x ",
+            "0.0.0.0/0 ",
+            "::/0 ",
+            "in",
+            "in_wlan0",
+            "in_eth0",
+            "out",
+            " ",
+            "\t",
+            "\u{2003}",
+            "\u{663}",
+            "\r",
+            " comment=4865",
+            "comment=",
+            "allow_log ",
+            "limit_log-all ",
+            "deny_log ",
+            "route:allow_log ",
+            "OpenSSH ",
+            "- ",
+            "_",
+        ];
+        let rules = (0..rng.below(5)).map(|_| rng.compose(&ufw, 12)).collect::<Vec<_>>().join("\n");
+        let svc = ["tcp LISTEN 0 128 0.0.0.0:22 0.0.0.0:*", "tcp LISTEN 0 128 [::]:8000 [::]:*", "udp UNCONN 0 0 *:8005 *:*", "\n"];
+        let so = (0..rng.below(5)).map(|_| rng.compose(&svc, 3)).collect::<Vec<_>>().join("\n");
+        push("ufw_allowed", vec![s(&so), s(&rules)], vec![]);
+        let ports = ["22", "80,443", "6000:6007", "any", ":", ",", "x", "\u{663}", "99999", "100000", "0", "+5", " 5"];
+        push("port_in", vec![s(&rng.compose(&ports, 3)), s(&rng.compose(&ports, 2))], vec![]);
         let w = rng.compose(&wg, 8);
         push("endpoint", vec![s(&w)], vec![]);
         let wf = (0..rng.below(4)).map(|_| rng.compose(&wg, 6)).collect::<Vec<_>>().join("\n");

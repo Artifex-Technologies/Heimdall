@@ -37,6 +37,8 @@ func cmdLAN(args []string) int {
 			fmt.Printf("%d devices, %d new\n", r.Devices, len(r.New))
 		case "not_trusted":
 			fmt.Println("this network is not trusted: no scan (heimdall-wifi-guard trust, at home)")
+		case "not_home":
+			fmt.Println("this network is trusted, but not as your home network: no scan (heimdall-wifi-guard trust --home turns the device list on)")
 		case "router_changed":
 			fmt.Println("the router is not the one recorded when this network was trusted: no scan")
 		default:

@@ -22,6 +22,12 @@ pub fn sha16(s: &str) -> String {
     Sha256::digest(s.as_bytes()).iter().take(8).map(|b| format!("{b:02x}")).collect()
 }
 
+/// `hashlib.sha256(s.encode()).hexdigest()`.
+pub fn sha256_hex(s: &str) -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(s.as_bytes()).iter().map(|b| format!("{b:02x}")).collect()
+}
+
 pub fn wifi_check(args: &[String]) -> Option<i32> {
     Some(check::main(args))
 }

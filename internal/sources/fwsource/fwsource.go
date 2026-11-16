@@ -109,9 +109,17 @@ func (w *Watcher) entry(line []byte) (ev detect.Event, cursor string, ok bool) {
 	return ev, e.Cursor, ok
 }
 
+// wifiInPrefix starts each line of heimdall-wifi-guard's quiet table: a new packet aimed at this computer over Wi-Fi;
+// wifiInRouterPrefix the same from the network's router (once per connection: routers that list their clients do this).
+const (
+	wifiInPrefix       = "heimdall-wifi-in: "
+	wifiInRouterPrefix = "heimdall-wifi-in-router: "
+)
+
 var (
 	ufwRx   = regexp.MustCompile(`\[UFW (BLOCK|LIMIT BLOCK)\]`)
 	kvRx    = regexp.MustCompile(`\b(IN|SRC|DST|PROTO|SPT|DPT)=(\S*)`)
+	wifiKV  = regexp.MustCompile(`\b(IN|SRC|PROTO|DPT|MAC|TYPE)=(\S*)`)
 	sshFail = []*regexp.Regexp{
 		regexp.MustCompile(`^Failed (?:password|publickey|keyboard-interactive/pam) for (?:invalid user )?(\S+) from (\S+) port \d+`),
 		regexp.MustCompile(`^Invalid user (\S*) from (\S+) port \d+`),
@@ -121,6 +129,12 @@ var (
 )
 
 func (w *Watcher) parse(msg, ident string, t time.Time) (detect.Event, bool) {
+	if router := strings.HasPrefix(msg, wifiInRouterPrefix); router || strings.HasPrefix(msg, wifiInPrefix) {
+		if ident != "kernel" { // the journal filter already lets only the kernel's lines in; a program's are not believed
+			return detect.Event{}, false
+		}
+		return wifiInbound(msg, t, router)
+	}
 	if ufwRx.MatchString(msg) {
 		kv := map[string]string{}
 		for _, m := range kvRx.FindAllStringSubmatch(msg, -1) {
@@ -157,6 +171,37 @@ func (w *Watcher) parse(msg, ident string, t time.Time) (detect.Event, bool) {
 			Text: fmt.Sprintf("failed SSH login as %q from %s (%s)", f["user"], ip, o)}, true
 	}
 	return detect.Event{}, false
+}
+
+// wifiInbound reads a line of heimdall-wifi-guard's quiet table: a device on a Wi-Fi network started something aimed at this
+// computer (a connection attempt, a ping, a direct question). The table only logs it; ufw decides whether it gets in. Only the
+// kernel writes these lines (the journal's _TRANSPORT=kernel), and only for a Wi-Fi interface and a sender on the network
+// itself (a private or link-local address); a line saying otherwise is not one of the table's.
+func wifiInbound(msg string, t time.Time, router bool) (detect.Event, bool) {
+	kv := map[string]string{}
+	for _, m := range wifiKV.FindAllStringSubmatch(msg, -1) {
+		kv[m[1]] = m[2]
+	}
+	ip := net.ParseIP(kv["SRC"])
+	if ip == nil || !strings.HasPrefix(kv["IN"], "wl") || !(ip.IsPrivate() || ip.IsLinkLocalUnicast()) {
+		return detect.Event{}, false
+	}
+	f := map[string]string{"src": ip.String(), "src_mac": sourceMAC(kv["MAC"]), "proto": kv["PROTO"], "dst_port": kv["DPT"],
+		"icmp_type": kv["TYPE"], "iface": kv["IN"], "inbound": "wifi"}
+	if router {
+		f["router"] = "true"
+	}
+	return detect.Event{Source: "host-wifi", Time: t, Kind: "wifi_inbound", Fields: f,
+		Text: fmt.Sprintf("a device %s tried to reach this computer over Wi-Fi (%s %s)", ip, kv["PROTO"], kv["DPT"])}, true
+}
+
+// sourceMAC is the sender's hardware address from the log's MAC= (destination, source, then the frame type), "" without one.
+func sourceMAC(m string) string {
+	p := strings.Split(m, ":")
+	if len(p) < 12 {
+		return ""
+	}
+	return strings.ToUpper(strings.Join(p[6:12], ":"))
 }
 
 func (w *Watcher) origin(ip net.IP, f map[string]string) ipintel.Origin {

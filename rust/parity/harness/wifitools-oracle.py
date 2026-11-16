@@ -118,6 +118,26 @@ def json_view(s):
     return [json.dumps(v), json.dumps(v, indent=1), json.dumps(v, indent=2), repr(v), str(v), bool(v)]
 
 
+def ufw_allowed(ss, rules):
+    """The guard's services listening here and those ufw's own rules let in, with ss's answer and a rules file given."""
+    import tempfile
+    import types
+    d = tempfile.mkdtemp()
+    path = os.path.join(d, "user.rules")
+    with open(path, "w") as f:
+        f.write(rules)
+    guard.UFW_RULES = (path,)
+    real = guard.sh
+    guard.sh = lambda argv, **k: types.SimpleNamespace(returncode=0, stdout=ss, stderr="")
+    try:
+        svc = guard.listening_services()
+        return [svc, guard.ufw_allowed(svc)]
+    finally:
+        guard.sh = real
+        os.remove(path)
+        os.rmdir(d)
+
+
 def lines(s):
     return [s.splitlines(), s.strip(), s.split(), "".join(c for c in s if c.isprintable())[:64]]
 
@@ -134,6 +154,11 @@ FUNCS = {
     "parse_wg": guard.parse_wg,
     "ruleset": guard.ruleset,
     "mac_is_real": guard.mac_is_real,
+    # the trust level, as the guard and the check each decide it (the two Python copies must agree with each other too)
+    "level_of": lambda e, ssid, key, mac: [guard.level_of(e, ssid, key, mac), check.level_of(e, ssid, key, mac)],
+    "locally_administered": check.locally_administered,
+    "ufw_allowed": ufw_allowed,
+    "port_in": guard.port_in,
     "ip_address": ip_address,
     "is_private": lambda s: ipaddress.ip_address(s).is_private,
     "is_loopback": loopback,

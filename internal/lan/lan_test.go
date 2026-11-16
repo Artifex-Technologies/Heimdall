@@ -240,3 +240,39 @@ func TestDefaultRoute(t *testing.T) {
 		t.Fatalf("%s %s (the lowest metric wins)", iface, gw)
 	}
 }
+
+// A network trusted but not as home is never looked around: no sweep, no device list (the owner asked for quiet there). The
+// levels are heimdall-wifi-guard's; an entry from before them is home, and a level it does not know is untrusted.
+func TestATrustedNetworkThatIsNotHomeIsNotScanned(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "proc", "net"), 0o755)
+	os.WriteFile(filepath.Join(dir, "proc", "net", "route"), []byte("Iface\tDestination\tGateway \tFlags\tRefCnt\tUse\tMetric\tMask\t\tMTU\tWindow\tIRTT\n"+
+		"lan0\t00000000\t010200C0\t0003\t0\t0\t600\t00000000\t0\t0\t0\n"), 0o644)
+	bin := filepath.Join(dir, "bin")
+	os.MkdirAll(bin, 0o755)
+	os.WriteFile(filepath.Join(bin, "nmcli"), []byte("#!/bin/sh\nprintf 'u1:lan0:Example-Phone\\n'\n"), 0o755)
+	t.Setenv("PATH", bin)
+	oldTrusted, oldProc := TrustedPath, ProcRoot
+	defer func() { TrustedPath, ProcRoot = oldTrusted, oldProc }()
+	TrustedPath, ProcRoot = filepath.Join(dir, "trusted.json"), filepath.Join(dir, "proc")
+	for _, c := range []struct{ file, want string }{
+		{`{"u1": {"ssid": "Example-Phone", "level": "trusted", "key_mgmt": "sae", "routers": []}}`, "not_home"},
+		// a level heimdall-wifi-guard does not know (or an empty, null or odd one) is untrusted there, so here too
+		{`{"u1": {"ssid": "Example-Phone", "level": "someday", "routers": ["02:00:00:00:00:01"]}}`, "not_trusted"},
+		{`{"u1": {"ssid": "Example-Phone", "level": "", "routers": ["02:00:00:00:00:01"]}}`, "not_trusted"},
+		{`{"u1": {"ssid": "Example-Phone", "level": null, "routers": ["02:00:00:00:00:01"]}}`, "not_trusted"},
+		{`{"u1": {"ssid": "Example-Phone", "level": 5, "routers": ["02:00:00:00:00:01"]}}`, "not_trusted"},
+		{`{"u1": {"ssid": "Example-Phone", "level": ["home"], "routers": ["02:00:00:00:00:01"]}}`, "not_trusted"},
+		{`{"u2": {"ssid": "Other", "level": "home", "routers": ["02:00:00:00:00:01"]}}`, "not_trusted"},
+	} {
+		os.WriteFile(TrustedPath, []byte(c.file), 0o644)
+		r, err := Scan(Options{Dir: dir})
+		if err != nil || r.Status != c.want {
+			t.Errorf("%s: %q %v, want %q", c.file, r.Status, err, c.want)
+		}
+		st, _ := Load(filepath.Join(dir, "devices.json"))
+		if st.Status != c.want || len(st.Networks) != 0 {
+			t.Errorf("%s: stored %+v", c.file, st)
+		}
+	}
+}

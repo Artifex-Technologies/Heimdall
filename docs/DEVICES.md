@@ -8,11 +8,11 @@ Heimdall keeps a list of the devices on each network you trust: what each one is
 
 It only looks when all three of these hold:
 
-- the connection carrying the default route is one you trusted (`heimdall-wifi-guard trust`, kept in `/etc/heimdall/wifi-trusted.json`);
+- the connection carrying the default route is your home network (`heimdall-wifi-guard trust --home`, kept in `/etc/heimdall/wifi-trusted.json`; an entry from before the trust levels, with no `level`, is home too). A network that is only trusted (`trust`, quiet but private: [WIFI_TRUST.md](WIFI_TRUST.md)) is never looked around (`not_home`), and an entry with any other `level` (empty, null, a number) counts as not trusted, as the guard counts it;
 - the router answers with the hardware address that was recorded when you trusted it (the same network name with another router is not your network);
 - the subnet is no larger than /22 (1022 addresses).
 
-Otherwise it records only why it did not look (`status` in the file: `not_trusted`, `router_changed`, `offline`). Looking around somebody else's network is not ours to do.
+Otherwise it records only why it did not look (`status` in the file: `not_trusted`, `not_home`, `router_changed`, `offline`). Looking around somebody else's network is not ours to do.
 
 The first scan of a network learns what is already there without alerting. After that, every new hardware address is recorded in `events.jsonl` and becomes a `lan-watch` warning (event kind `new_lan_device`).
 

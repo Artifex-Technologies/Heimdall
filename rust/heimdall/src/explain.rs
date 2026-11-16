@@ -224,6 +224,18 @@ pub fn for_alert(detector: &str, severity: &str, fields: &Fields) -> Text {
         "wifi-safety" => {
             t.what = format!("A check of the Wi-Fi network {} found something that can expose your traffic (an open network, a weak lock, or a network pretending to be another).", or_unknown(q("ssid"), "you joined"));
             t.r#do = "Avoid signing in to anything important on this network, or turn on a VPN first.".into();
+            if get(fields, "verdict") == "protected" {
+                t.what = format!("A check of the Wi-Fi network {} found that other devices there can see this computer, and that the protections in force cover it: it does not announce itself, its firewall turns their connections away (it answers pings, as ufw does by default) and it uses its own hardware address there.", or_unknown(q("ssid"), "you joined"));
+                t.r#do = "Nothing to do. The network itself can still see which sites you visit and how much you send; a VPN (heimdall-wifi-guard vpn-import) hides both.".into();
+            }
+        }
+        "lan-watch" if get(fields, "inbound") == "wifi" => {
+            t.what = format!(
+                "A device on the Wi-Fi network ({}) tried to reach this computer directly: a connection, a ping or a question about it.",
+                or_unknown(c("src", 60), "an unknown address")
+            );
+            t.done = "Heimdall noted it. The firewall drops what it does not allow (it answers pings, as ufw does by default), so nothing got in unless a rule allows that port.".into();
+            t.r#do = "Usually nothing. If it keeps happening, find out which device it is (Settings > Wi-Fi & Network); on a network you do not control, a VPN also hides your traffic.".into();
         }
         "lan-watch" => {
             t.what = format!("Something on your local network is pretending to be your router or another device (its hardware address changed to {}). That is how traffic on a shared network gets intercepted.", or_unknown(c("new_mac", 40), "a new one"));

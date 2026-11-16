@@ -19,6 +19,44 @@ closed rather than deleting it -- the history of *why* is worth keeping.
 
 ---
 
+## 2026-11-15 — Wi-Fi trust levels: DONE in the working tree, both reviews' findings fixed (not committed; owner checks below)
+
+**My ask:** mark a network trusted so it stops saying "untrusted" each time, still see devices that try to connect or ask for
+this computer's information, and find out why my phone's hotspot is always "needs care". Design: the session's design.md
+(trust levels, the quiet table, the protected verdict, DNS decided by certificate). Spec: `docs/WIFI_TRUST.md`. Two
+adversarial reviews said NOT READY; every blocking and should-fix item is fixed below (same day).
+
+| Item | State | Proof |
+| --- | --- | --- |
+| levels untrusted / trusted / home, recognized by profile + name + lock + a fingerprint of the saved password (root-only keys file) | done (Python guard + check, Rust ports) | Python tests; `wifitools_python.rs` (level_of against both Python copies); `cli_wifitools.rs` `guard_trust_level_fixes_as_python` |
+| `trust` (quiet only; unknown options refused; home made trusted closes up at once and says to reconnect), `--home`, `--real-address`, `--uuid`; `untrust`; `status` (incl. whether inbound devices are reported, ports ufw lets in); `quiet-check` | done | `test_heimdall_wifi_guard.py`; `cli_wifitools.rs` guard runs (Python vs Rust, fake roots) |
+| quiet table `inet heimdall_wifi_quiet`: discovery out dropped (mDNS, LLMNR, SSDP, NetBIOS, WS-Discovery, KDE Connect, Syncthing, Steam, Dropbox); in: logs only new TCP SYN / new UDP / ping, unicast to this computer, from private or link-local senders, once per sender an hour | done | loaded on kernel 7.3.4 in a throwaway namespace (`unshare -rn`) with a veth peer: SYN, UDP, ping from a private address logged; lone ACK, reply traffic, public sender not; discovery ports held back, DNS not |
+| hotspot fixes: gateway not counted; router change "ok" only for a `trusted`-level entry and a locally administered new router (home / old entries warn as before); no-vpn and home-router-changed once a day | done | Python tests; check and guard differential runs |
+| verdict `protected`: firewall must not let in a listening port (ufw user rules), not_announcing = quiet table, ping answered said plainly; the check waits for the guard's up (pre-up's `pending` mark, at most 45 s); a late `down` leaves the next connection alone | done | Python tests; `hotspot-*` check scenarios; `late-down` guard scenario |
+| DNS: no AS8075 shortcut; each distinct off-network answer probed (4 a name), the rest "could not confirm"; a local answer must show the certificate, one to this computer is bad unasked | done (Python + Rust) | Python tests; `dns-cloud-*`, `dns-local*` scenarios with real TLS servers in namespaces |
+| `wifi_inbound` (fwsource, journal.rs: kernel lines only, `IN=wl*`, private/link-local sender) and `lan-watch` warning: once per device an hour, 5 an hour then one summary, hour on either side of the event | done (Go + Rust) | Go tests; Rust unit tests; parity steps + goldens |
+| device list: `not_home` for trusted; any `level` but "home"/"trusted" (or missing) is `not_trusted` | done (Go + Rust) | Go test; `cli-lan.json` levels fixture; `cli_lan.rs` against Go |
+| privacy: results.jsonl keeps a count of devices heard, created 0640; saved files made with their mode from the start | done | Python tests; differential runs |
+
+| third review: ufw rules with `comment=`, logged actions, application rules, no direction (docs/MESH.md's rule detected) | done | Python tests; `ufw-written` guard scenario; oracle `ufw_allowed` |
+| third review: hotspot exception only if the guard did not find the profile changed; OWE copy is an evil twin | done | Python tests; `hotspot-password-changed`, `owe-twin` check scenarios |
+| third review: discovery drops only toward the local network (PPTP/H.323 to the internet pass); router logged once per connection, info | done (guard; Go + Rust parser and detector) | veth packet test; Go tests; parity steps |
+| third review: `untrust` takes effect at once; the check's time limit (240 s, writes "could not finish") | done | Python tests; `untrust-now`, `out-of-time` scenarios |
+| owner A: "no VPN" notice on every connection again (untrusted) | done | Python test; `no-vpn` guard scenario |
+| owner B: per-network `discoverable` (on/off/status, --uuid), units + polkit rule for Settings | done | Python tests; `discoverable` guard scenario; packet test of the discoverable table; install.sh dry run |
+
+- **Verified here (kernel 7.3.4):** gofmt, go vet, go build, go test, parity goldens regenerated; Rust suite with the
+  Python↔Rust differential runs (fake roots, network namespaces); cargo fmt and clippy `-D warnings`; Python tests.
+- **Owner steps:** build and install the package, then `sudo heimdall-wifi-guard quiet-check` (nft says ok), join the hotspot,
+  `sudo heimdall-wifi-guard trust`, reconnect, `heimdall-wifi-guard status`, and look for `protected` in
+  `/var/lib/heimdall/wifi/results.jsonl`. For inbound alerts: the firewall watch drop-in (`status` says whether they are
+  reported). For Settings: the "Discoverable" switch is Yggdrasil's to build (CLAUDE.md log says how to call Heimdall).
+- **Not done here:** Yggdrasil `docs/INSTALLER.md` and Labyrinth `docs/FIRST_BOOT.md`, `docs/LAPTOP.md` still describe the old
+  `trust` (CLAUDE.md log says what they need).
+- **Later (Phase 2+):** notification buttons and polkit unit, Settings selector, boot-time quiet table and no more stopping
+  Avahi, neighbour-table "looked for this computer", new devices on trusted networks, IPv6 listener, EAP, encrypted DNS,
+  Yggdrasil `not_home` text.
+
 ## 2026-11-11 — The Wi-Fi helpers in Rust: DONE (the package change on branch `wifi-helpers-rust`, not merged)
 
 **My ask:** port `heimdall-wifi-check`, `heimdall-wifi-guard` and `heimdall-wifi-notify` (Python) to Rust with the same

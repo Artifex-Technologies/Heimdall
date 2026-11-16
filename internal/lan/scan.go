@@ -16,13 +16,30 @@ import (
 
 // Paths the scan reads; variables so tests can point them elsewhere.
 var (
-	TrustedPath = "/etc/heimdall/wifi-trusted.json" // heimdall-wifi-guard's trusted networks: {uuid: {ssid, routers: [mac]}}
+	TrustedPath = "/etc/heimdall/wifi-trusted.json" // heimdall-wifi-guard's trusted networks: {uuid: {ssid, level, routers: [mac]}}
 	ProcRoot    = "/proc"
 )
 
+// trustedNet is one network of heimdall-wifi-guard's file. Level is kept as written, so that a missing key (an entry from
+// before the levels, which is home) is told apart from an empty, null or odd one (which heimdall-wifi-guard counts as
+// untrusted): see level.
 type trustedNet struct {
-	SSID    string   `json:"ssid"`
-	Routers []string `json:"routers"`
+	SSID    string          `json:"ssid"`
+	Routers []string        `json:"routers"`
+	Level   json.RawMessage `json:"level,omitempty"`
+}
+
+// level is the entry's level as heimdall-wifi-guard reads it: "home" (the device list may look around; also an entry with no
+// level), "trusted" (quiet only: the owner did not ask for the device list there), or "" for any other value (untrusted).
+func (t trustedNet) level() string {
+	if t.Level == nil {
+		return "home"
+	}
+	var s string
+	if json.Unmarshal(t.Level, &s) == nil && (s == "home" || s == "trusted") {
+		return s
+	}
+	return ""
 }
 
 // active is the network the default route goes through.
@@ -139,8 +156,12 @@ func Scan(o Options) (Result, error) {
 		_ = json.Unmarshal(b, &trusted)
 	}
 	t, ok := trusted[a.uuid]
-	if a.uuid == "" || !ok {
+	if a.uuid == "" || !ok || t.level() == "" {
 		return status("not_trusted", a.uuid)
+	}
+	if t.level() == "trusted" {
+		// trusted but not home: the owner asked for quiet there, not for the device list, so nothing is sent to look around
+		return status("not_home", a.uuid)
 	}
 	if t.SSID != "" {
 		a.ssid = t.SSID

@@ -51,6 +51,9 @@ fn scan_command(dir: &str) -> i32 {
             match r.status.as_str() {
                 "scanned" => println!("{} devices, {} new", r.devices, r.new.len()),
                 "not_trusted" => println!("this network is not trusted: no scan (heimdall-wifi-guard trust, at home)"),
+                "not_home" => println!(
+                    "this network is trusted, but not as your home network: no scan (heimdall-wifi-guard trust --home turns the device list on)"
+                ),
                 "router_changed" => println!("the router is not the one recorded when this network was trusted: no scan"),
                 s => println!("{s}"),
             }

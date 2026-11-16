@@ -930,6 +930,14 @@ pub fn append_text(path: &Path, text: &str) -> PyResult<()> {
     f.write_all(text.as_bytes()).map_err(|e| PyErr::os(&e, &path.to_string_lossy()))
 }
 
+/// `open(os.open(path, O_WRONLY | O_APPEND | O_CREAT, mode), "a").write(text)`: a new file is made with `mode` (less the umask).
+pub fn append_text_mode(path: &Path, text: &str, mode: u32) -> PyResult<()> {
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut f =
+        std::fs::OpenOptions::new().append(true).create(true).mode(mode).open(path).map_err(|e| PyErr::os(&e, &path.to_string_lossy()))?;
+    f.write_all(text.as_bytes()).map_err(|e| PyErr::os(&e, &path.to_string_lossy()))
+}
+
 /// `os.chmod(path, mode)`.
 pub fn chmod(path: &Path, mode: u32) -> PyResult<()> {
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).map_err(|e| PyErr::os(&e, &path.to_string_lossy()))
@@ -961,7 +969,12 @@ pub fn dirname(p: &str) -> &str {
 
 /// `time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())`.
 pub fn utc_stamp() -> String {
-    let (y, mo, d, h, mi, se) = crate::gotime::Time::now().utc().civil();
+    utc_stamp_ago(0)
+}
+
+/// `time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - ago))`: the time `ago` seconds before now.
+pub fn utc_stamp_ago(ago: i64) -> String {
+    let (y, mo, d, h, mi, se) = crate::gotime::Time::now().add(-ago * 1_000_000_000).utc().civil();
     format!("{y:04}-{mo:02}-{d:02}T{h:02}:{mi:02}:{se:02}Z")
 }
 

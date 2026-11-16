@@ -67,3 +67,19 @@ func TestLimboNetworkAndExchangeWords(t *testing.T) {
 		t.Errorf("fail: %+v", fail)
 	}
 }
+
+// Wi-Fi: a protected network is not described as exposed, and a device reaching for this computer gets its own words, not the
+// router-impersonation ones.
+func TestWifiProtectedAndInboundWords(t *testing.T) {
+	p := For("wifi-safety", "info", map[string]string{"ssid": "Example-Phone", "verdict": "protected"})
+	if strings.Contains(p.What, "can expose your traffic") || !strings.Contains(p.What, "“Example-Phone”") || !strings.Contains(p.Do, "VPN") {
+		t.Errorf("protected: %+v", p)
+	}
+	in := For("lan-watch", "warning", map[string]string{"src": "192.0.2.23", "inbound": "wifi"})
+	if strings.Contains(in.What, "pretending") || !strings.Contains(in.What, "192.0.2.23") || in.Done == logged {
+		t.Errorf("inbound: %+v", in)
+	}
+	if !strings.Contains(For("lan-watch", "critical", map[string]string{"new_mac": "aa"}).What, "pretending") {
+		t.Error("the router watch keeps its words")
+	}
+}

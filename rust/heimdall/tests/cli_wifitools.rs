@@ -317,6 +317,39 @@ fn notify_as_python() {
     report("notify_as_python", before);
 }
 
+/// A protected network: told once, quietly, with what is still visible.
+#[test]
+fn notify_protected_as_python() {
+    let o = notify_opts();
+    let exp = "Protected on Example-Phone: other devices can see this computer is there.\\u0007";
+    for (name, public, seen) in [
+        (
+            "protected",
+            format!(r#"{{"time": "t1", "ssid": "Example-Phone", "verdict": "protected", "reasons": [], "exposure": "{exp}"}}"#),
+            None,
+        ),
+        ("protected-no-exposure", r#"{"time": "t1", "ssid": "Example-Phone", "verdict": "protected", "reasons": []}"#.to_string(), None),
+        (
+            "protected-odd-exposure",
+            r#"{"time": "t1", "ssid": "Example-Phone", "verdict": "protected", "exposure": [1, 2]}"#.to_string(),
+            None,
+        ),
+        ("protected-seen", r#"{"time": "t2", "ssid": "Example-Phone", "verdict": "protected"}"#.to_string(), Some(r#"{"last": "t1"}"#)),
+    ] {
+        let mut seen = seen.map(str::to_string);
+        if name == "protected-seen" {
+            seen = Some(format!(r#"{{"last": "t1", "{}": "protected"}}"#, heimdall::cli::wifitools::sha16("Example-Phone")));
+        }
+        let p = notify_case(name, Some(&public), None, seen.as_deref(), &o);
+        let argv = p.py.1.read_str("/.fake-argv");
+        if name == "protected-seen" {
+            assert!(!argv.contains("notify-send"), "{argv}");
+        } else {
+            assert!(argv.contains("[-u] [low]") && argv.contains("[Wi-Fi protected: Example-Phone]"), "{argv}");
+        }
+    }
+}
+
 #[test]
 fn notify_send_that_hangs_is_killed_after_ten_seconds() {
     let hang = |r: &Root| {
@@ -348,6 +381,8 @@ fn guard_root(r: &Root) {
   "-g GENERAL.CON-UUID device show "*) cat /srv/con-uuid 2>/dev/null ;;
   "-g 802-11-wireless.ssid connection show "*) if [ -e /srv/ssid ]; then cat /srv/ssid; else echo Cafe; fi ;;
   "-g 802-11-wireless.cloned-mac-address connection show "*) cat /srv/cloned 2>/dev/null ;;
+  "-g 802-11-wireless-security.key-mgmt connection show "*) if [ -e /srv/key ]; then cat /srv/key; else echo wpa-psk; fi ;;
+  "-s -g 802-11-wireless-security.psk connection show "*) cat /srv/psk 2>/dev/null ;;
   "connection up "*) [ -e /srv/vpn-fails ] && exit 4; exit 0 ;;
   "connection import type wireguard file "*)
     f=$6; { stat -c 'mode %a' "$f"; cat "$f"; } >> /srv/import-seen
@@ -365,7 +400,11 @@ esac
         r#"case "$*" in
   "list table inet heimdall_wifi_guard") [ -e /srv/table ] ;;
   "delete table inet heimdall_wifi_guard") if [ -e /srv/table ]; then rm /srv/table; else echo 'Error: No such file or directory' >&2; exit 1; fi ;;
-  "-f -") cat > /srv/nft-rules; if [ -e /srv/nft-fails ]; then echo 'Error: syntax error, unexpected junk' >&2; exit 1; fi; touch /srv/table ;;
+  "list table inet heimdall_wifi_quiet") [ -e /srv/quiet ] || exit 1; cat /srv/quiet-listing 2>/dev/null || { grep -o 'comment "[^"]*"' /srv/quiet-rules 2>/dev/null || echo 'comment "heimdall quiet 3"'; printf '\t\tudp dport { 137, 138 } counter packets 12 bytes 900 drop\n\t\tudp sport { 137, 138 } counter packets 3 bytes 200 drop\n'; } ;;
+  "delete table inet heimdall_wifi_quiet") if [ -e /srv/quiet ]; then rm /srv/quiet; else echo 'Error: No such file or directory' >&2; exit 1; fi ;;
+  "-f -") cat > /srv/nft-in
+    if [ -e /srv/nft-fails ]; then echo 'Error: syntax error, unexpected junk' >&2; exit 1; fi
+    if grep -q heimdall_wifi_quiet /srv/nft-in; then mv /srv/nft-in /srv/quiet-rules; touch /srv/quiet; else mv /srv/nft-in /srv/nft-rules; touch /srv/table; fi ;;
   "-c -f -") cat > /srv/nft-check; if [ -e /srv/nft-fails ]; then echo 'Error: syntax error, unexpected junk' >&2; exit 1; fi ;;
   *) exit 1 ;;
 esac
@@ -382,6 +421,7 @@ esac
 "#,
     );
     recorder(r, "ping", "if [ -e /srv/neigh-later ]; then mv /srv/neigh-later /srv/neigh; exit 0; fi\nexit 1\n");
+    recorder(r, "ss", "cat /srv/ss 2>/dev/null\n");
     recorder(
         r,
         "systemctl",
@@ -389,6 +429,9 @@ esac
   "is-active avahi-daemon.service") if [ -e /srv/avahi-on ]; then echo active; else echo inactive; exit 3; fi ;;
   "stop avahi-daemon.socket avahi-daemon.service") rm -f /srv/avahi-on ;;
   "start avahi-daemon.socket avahi-daemon.service") touch /srv/avahi-on ;;
+  "is-active ufw") if [ -e /srv/ufw-on ]; then echo active; else echo inactive; exit 3; fi ;;
+  "is-active heimdall.service") if [ -e /srv/heimdalld-on ]; then echo active; else echo inactive; exit 3; fi ;;
+  "show -p SupplementaryGroups --value heimdall.service") cat /srv/heimdalld-groups 2>/dev/null ;;
   *) exit 1 ;;
 esac
 "#,
@@ -486,10 +529,17 @@ fn guard_cases_of_the_python_tests() {
     t.step(&["pre-up", "wlan0", "0e3f5a1c-2222-4333-8444-955566667777"], &o);
     t.step(&["up", "wlan0", "0e3f5a1c-2222-4333-8444-955566667777"], &o);
     assert!(!argv_log(&t).contains("nft [-f]") && !argv_log(&t).contains("[connection] [up]"), "{}", argv_log(&t));
+    // another router: not home any more; recognized by its password, so trusted, with every protection (the VPN too)
     t.both(|r| on_wifi(r, "0e3f5a1c-2222-4333-8444-955566667777", STRANGER));
     t.step(&["up", "wlan0", "0e3f5a1c-2222-4333-8444-955566667777"], &o);
     assert!(argv_log(&t).contains("nft [-f] [-]") && argv_log(&t).contains("nmcli [connection] [up] [vpn-uuid]"));
-    assert!(t.rs.read_str("/run/heimdall-wifi-guard/last.json").contains("vpn-up"));
+    assert!(t.rs.read_str("/run/heimdall-wifi-guard/last.json").contains("device list is paused"));
+    // ... and with no password to recognize it by: untrusted
+    t.both(|r| {
+        r.write("/srv/key", "\n");
+    });
+    t.step(&["up", "wlan0", "0e3f5a1c-2222-4333-8444-955566667777"], &o);
+    assert!(t.rs.read_str("/run/heimdall-wifi-guard/last.json").contains("its router is different: treating it as untrusted"));
     // the real hardware address is replaced by one of the network's own, unless one was chosen
     for cloned in ["", "permanent", "preserve", "--", "  permanent  ", "random", "stable", "00:00:5E:00:53:5E"] {
         let mut t = guard_twin(&format!("cloned-{}", cloned.trim()), &|r| {
@@ -500,12 +550,62 @@ fn guard_cases_of_the_python_tests() {
         let stable = argv_log(&t).contains("[802-11-wireless.cloned-mac-address] [stable]");
         assert_eq!(stable, matches!(cloned.trim(), "" | "permanent" | "preserve" | "--"), "{cloned:?}");
     }
-    // no VPN: quiet, not locked, and told
+    // no VPN: quiet (the quiet table, no lockdown), and told on every connection (the owner's choice)
     let mut t = guard_twin("no-vpn", &|r| on_wifi(r, "cafe-uuid", ROUTER));
     t.step(&["pre-up", "wlan0", "cafe-uuid"], &o);
     t.step(&["up", "wlan0", "cafe-uuid"], &o);
-    assert!(!argv_log(&t).contains("nft [-f]"));
+    assert!(t.rs.read("/srv/table").is_none() && t.rs.read("/srv/quiet").is_some(), "{}", argv_log(&t));
     assert!(t.rs.read_str("/run/heimdall-wifi-guard/last.json").contains("no-vpn"));
+    t.both(|r| {
+        r.write("/run/heimdall-wifi-guard/last.json", "{}");
+    });
+    t.step(&["up", "wlan0", "cafe-uuid"], &o);
+    assert!(t.rs.read_str("/run/heimdall-wifi-guard/last.json").contains("no-vpn"), "again on the next connection");
+    // a trusted phone hotspot: no notices, every protection kept, its router's address new on each restart
+    let phone = "1b4e28ba-2fa1-11d2-883f-0016d3cca427";
+    let mut t = guard_twin("trusted-hotspot", &|r| {
+        on_wifi(r, phone, "02:00:00:00:00:01");
+        r.write("/srv/ssid", "Example-Phone\n");
+        r.write("/srv/key", "sae\n");
+        r.write("/srv/avahi-on", "");
+        r.write(
+            "/etc/heimdall/wifi-trusted.json",
+            format!(r#"{{"{phone}": {{"ssid": "Example-Phone", "level": "trusted", "key_mgmt": "sae", "routers": []}}}}"#),
+        );
+    });
+    for mac in ["02:00:00:00:00:01", "06:00:00:00:00:02"] {
+        t.both(|r| on_wifi(r, phone, mac));
+        t.step(&["pre-up", "wlan0", phone], &o);
+        t.step(&["up", "wlan0", phone], &o);
+        assert!(t.rs.read("/run/heimdall-wifi-guard/last.json").is_none(), "no notice on a trusted network");
+        assert!(t.rs.read("/srv/quiet").is_some() && argv_log(&t).contains("[connection.mdns] [no]"), "{}", argv_log(&t));
+        assert!(t.rs.read_str("/run/heimdall-wifi-guard/state.json").contains("\"level\": \"trusted\""));
+    }
+    t.step(&["down", "wlan0", phone], &o);
+    assert!(t.rs.read("/srv/quiet").is_some(), "the quiet table stays for the next network");
+    // with a VPN set up: it is used, and its dropping still drops the Wi-Fi
+    t.both(vpn_conf);
+    t.step(&["pre-up", "wlan0", phone], &o);
+    t.step(&["up", "wlan0", phone], &o);
+    assert!(argv_log(&t).contains("nmcli [connection] [up] [vpn-uuid]") && t.rs.read("/run/heimdall-wifi-guard/last.json").is_none());
+    t.step(&["down", "wg-heimdall", "vpn-uuid"], &o);
+    assert!(t.rs.read_str("/run/heimdall-wifi-guard/last.json").contains("\"event\": \"dropped\""));
+    // the trusted name with a weaker lock: untrusted, and told why
+    t.both(|r| {
+        r.write("/srv/key", "wpa-psk\n");
+    });
+    t.step(&["up", "wlan0", phone], &o);
+    assert!(t.rs.read_str("/run/heimdall-wifi-guard/last.json").contains("not its lock (WPA2-Personal now)"));
+    // home takes the quiet table away
+    t.both(|r| {
+        r.write(
+            "/etc/heimdall/wifi-trusted.json",
+            format!(r#"{{"{phone}": {{"ssid": "Example-Phone", "routers": ["{}"]}}}}"#, ROUTER.to_uppercase()),
+        );
+        on_wifi(r, phone, ROUTER);
+    });
+    t.step(&["up", "wlan0", phone], &o);
+    assert!(t.rs.read("/srv/quiet").is_none() && t.rs.read("/srv/table").is_none());
     // the rules allow only DHCP and the VPN; a WireGuard file is read
     let mut t = guard_twin("ruleset", &|r| {
         r.write(
@@ -581,17 +681,62 @@ fn guard_commands_as_python() {
         on_wifi(r, "0e3f5a1c-2222-4333-8444-955566667777", ROUTER);
         r.write("/srv/neigh", "[]");
     });
-    let (py, _) = t.step(&["trust"], &o);
+    let (py, _) = t.step(&["trust", "--home"], &o);
     assert!(py.stderr.contains("could not be read"), "{}", py.stderr);
     t.both(|r| {
         r.write("/srv/neigh-later", format!(r#"[{{"dst":"192.0.2.1","lladdr":"{ROUTER}"}}]"#));
     });
-    t.step(&["trust"], &o);
+    t.step(&["trust", "--home"], &o);
     t.both(|r| {
         r.write("/srv/modify-fails", "");
     });
     t.step(&["untrust", "0e3f5a1c-2222-4333-8444-955566667777"], &o);
-    t.step(&["trust"], &o);
+    t.step(&["trust", "--home", "--real-address"], &o);
+    // trust levels: home, home with the real address, by profile, refused locks; status with protections; untrust
+    let phone = "1b4e28ba-2fa1-11d2-883f-0016d3cca427";
+    let mut t = guard_twin("trust-levels", &|r| {
+        on_wifi(r, phone, ROUTER);
+        r.write("/srv/ssid", "Example-Phone\n");
+        r.write("/srv/key", "sae\n");
+        r.write("/srv/avahi-on", "");
+        r.write("/srv/quiet", "");
+        r.write("/srv/cloned", "permanent\n");
+    });
+    for args in [&["trust", "--real-address"][..], &["trust", "--uuid", "other"], &["trust", "--uuid"], &["trust", "--uuid", phone]] {
+        t.step(args, &o);
+    }
+    t.both(|r| {
+        r.write(
+            "/run/heimdall-wifi-guard/state.json",
+            format!(r#"{{"wifi": "{phone}", "level": "trusted", "protections": {{"firewall": true, "not_announcing": true, "own_address": false, "no_name": true, "vpn": false}}}}"#),
+        );
+    });
+    t.step(&["status"], &o);
+    t.step(&["status"], &user);
+    t.step(&["trust", "--home"], &o);
+    t.step(&["trust", "--home", "--real-address"], &o);
+    t.step(&["status"], &o);
+    t.step(&["untrust", "Example-Phone"], &o);
+    for key in ["\n", "owe\n", "none\n", "wpa-eap\n", "wpa-eap-suite-b-192\n", "something-new\n"] {
+        t.both(|r| {
+            r.write("/srv/key", key);
+        });
+        let (py, _) = t.step(&["trust"], &o);
+        assert_eq!(py.code, 1, "{key:?}");
+    }
+    t.both(|r| {
+        r.write(
+            "/etc/heimdall/wifi-trusted.json",
+            r#"{"a": {"ssid": "x", "level": "trusted", "key_mgmt": ["sae"], "routers": "AB"}, "b": {"level": 5}, "c": [], "d": {}}"#,
+        );
+        r.write(
+            "/srv/quiet-listing",
+            "comment \"heimdall quiet 3\" counter packets 99999999999999999999 bytes 1 counter packets \u{663}2 counter packets 7\n",
+        );
+    });
+    t.step(&["status"], &o);
+    t.step(&["quiet-check"], &o);
+    t.step(&["quiet-check"], &user);
     // vpn-import: endpoints by address and by name, CRLF line ends, the file private while NetworkManager reads it
     let wg = "[Interface]\r\nPrivateKey = cHJpdmF0ZQ==\r\nAddress = 10.2.0.2/32\r\n\r\n[Peer]\r\nPublicKey = cHVibGlj\r\nEndpoint = vpn.example:51820\r\n  ENDPOINT\t=  [2001:DB8:0:0:0:0:0:5]:443  # second\r\nEndpoint = 203.0.113.5:0051820\r\n";
     let mut t = guard_twin("vpn-import", &|r| {
@@ -692,6 +837,231 @@ fn guard_commands_as_python() {
     t.step(&["up", "eth0", "wired-uuid"], &o);
     t.step(&["down", "eth0", "wired-uuid"], &o);
     report("guard_commands_as_python", before);
+}
+
+/// The fixes of the reviews of the trust levels, as whole runs of both programs: a late down beside the next connection, home
+/// made trusted (closed up at once), unknown options, the saved password's fingerprint, ufw's allow rules, whether inbound
+/// devices are reported, and the note of a hotspot trusted before the levels.
+#[test]
+fn guard_trust_level_fixes_as_python() {
+    let before = RUNS.with(Cell::get);
+    let o = root_opts();
+    // a late down: NetworkManager does not wait for it, so it can run after the next connection's pre-up or up
+    let mut t = guard_twin("late-down", &|r| {
+        vpn_conf(r);
+        on_wifi(r, "cafe-uuid", ROUTER);
+    });
+    t.step(&["pre-up", "wlan0", "cafe-uuid"], &o);
+    t.step(&["up", "wlan0", "cafe-uuid"], &o);
+    t.both(|r| {
+        r.write("/srv/devices", "wlan0:wifi:connecting (prepare):Other\n").write("/srv/con-uuid", "other-uuid\n");
+    });
+    t.step(&["pre-up", "wlan0", "other-uuid"], &o);
+    t.step(&["down", "wlan0", "cafe-uuid"], &o);
+    assert!(t.rs.read("/srv/table").is_some(), "the next connection's lockdown stays: {}", argv_log(&t));
+    t.step(&["up", "wlan0", "other-uuid"], &o);
+    t.step(&["down", "wlan0", "cafe-uuid"], &o);
+    assert!(t.rs.read_str("/run/heimdall-wifi-guard/state.json").contains("\"wifi\": \"other-uuid\""));
+    t.both(|r| {
+        r.write("/srv/devices", "wlan0:wifi:connected:Other\n").write("/srv/con-uuid", "other-uuid\n");
+    });
+    t.step(&["down", "wlan0", "other-uuid"], &o); // a reconnect: the interface is connected again by now
+    assert!(t.rs.read_str("/run/heimdall-wifi-guard/state.json").contains("\"wifi\": \"other-uuid\""));
+    t.both(|r| {
+        r.write("/srv/devices", "eth0:ethernet:unavailable:--\n");
+        r.write(
+            "/run/heimdall-wifi-guard/state.json",
+            r#"{"wifi": "other-uuid", "pending": "other-uuid", "pending_at": "2020-01-01T00:00:00Z", "locked": true}"#,
+        );
+    });
+    t.step(&["down", "wlan0", "other-uuid"], &o); // a mark of long ago holds nothing up
+    assert!(t.rs.read("/srv/table").is_none());
+    // home (an entry from before the levels) made trusted: closed up now, and told to reconnect
+    let phone = "1b4e28ba-2fa1-11d2-883f-0016d3cca427";
+    let mut t = guard_twin("home-to-trusted", &|r| {
+        vpn_conf(r);
+        on_wifi(r, phone, ROUTER);
+        r.write("/srv/ssid", "Example-Phone\n");
+        r.write("/srv/avahi-on", "");
+        r.write("/srv/cloned", "permanent\n");
+        r.write(
+            "/etc/heimdall/wifi-trusted.json",
+            format!(r#"{{"{phone}": {{"ssid": "Example-Phone", "routers": ["{}"]}}}}"#, ROUTER.to_uppercase()),
+        );
+        r.write("/run/heimdall-wifi-guard/state.json", format!(r#"{{"wifi": "{phone}", "level": "home", "trusted": true}}"#));
+    });
+    let (py, _) = t.step(&["trust"], &o);
+    assert!(
+        py.stdout.contains("Reconnect to it") && t.rs.read("/srv/quiet").is_some() && t.rs.read("/srv/avahi-on").is_none(),
+        "{}",
+        py.stdout
+    );
+    // unknown options: nothing changed
+    for args in [&["trust", "--hom"][..], &["trust", "--home", "x"], &["trust", "--real-address", "--weird='q'"], &["trust", "-"]] {
+        let (py, _) = t.step(args, &o);
+        assert_eq!(py.code, 1, "{args:?}");
+    }
+    // the saved password's fingerprint: trusted while it holds, untrusted (and told) when the profile has another password
+    let mut t = guard_twin("password", &|r| {
+        on_wifi(r, phone, "02:00:00:00:00:01");
+        r.write("/srv/ssid", "Example-Phone\n");
+        r.write("/srv/psk", "a long made-up password\n");
+    });
+    t.step(&["trust"], &o);
+    assert!(!t.rs.read_str("/etc/heimdall/wifi-trusted-keys.json").contains("made-up"), "only a fingerprint is kept");
+    t.step(&["pre-up", "wlan0", phone], &o);
+    t.step(&["up", "wlan0", phone], &o);
+    t.both(|r| {
+        r.write("/srv/psk", "another password\n");
+    });
+    t.step(&["pre-up", "wlan0", phone], &o);
+    t.step(&["up", "wlan0", phone], &o);
+    assert!(t.rs.read_str("/run/heimdall-wifi-guard/last.json").contains("its saved password changed"));
+    t.both(|r| {
+        std::fs::remove_file(r.host("/srv/psk")).unwrap();
+    });
+    t.step(&["up", "wlan0", phone], &o); // a password the system no longer holds: not the trusted one either
+    t.step(&["untrust", "Example-Phone"], &o);
+    t.step(&["untrust", "Example-Phone"], &o);
+    // ufw's own allow rules against what listens here; whether inbound devices are reported
+    let mut t = guard_twin("ufw-rules", &|r| {
+        on_wifi(r, "cafe-uuid", ROUTER);
+        r.write("/srv/ufw-on", "");
+        r.write("/etc/default/ufw", "IPV6=yes\nDEFAULT_INPUT_POLICY=\"DROP\"\n");
+        r.write("/etc/ufw/ufw.conf", "ENABLED=yes\n");
+        r.write(
+            "/srv/ss",
+            "tcp LISTEN 0 128 0.0.0.0:22 0.0.0.0:*\ntcp LISTEN 0 128 [::]:8000 [::]:*\nudp UNCONN 0 0 0.0.0.0:68 0.0.0.0:*\n",
+        );
+    });
+    t.step(&["up", "wlan0", "cafe-uuid"], &o);
+    assert!(t.rs.read_str("/run/heimdall-wifi-guard/state.json").contains("\"firewall\": true"));
+    t.both(|r| {
+        r.write(
+            "/etc/ufw/user.rules",
+            "### tuple ### allow tcp 22 0.0.0.0/0 any 0.0.0.0/0 in\n### tuple ### route:allow tcp 8000 0.0.0.0/0 any 0.0.0.0/0 in\n",
+        );
+        r.write(
+            "/etc/ufw/user6.rules",
+            "### tuple ### limit tcp 7990:8010 ::/0 any ::/0 in_wlan0\n### tuple ### allow any any ::/0 any ::/0 in_eth0\n\u{ff}\n",
+        );
+    });
+    t.step(&["up", "wlan0", "cafe-uuid"], &o);
+    let (py, _) = t.step(&["status"], &o);
+    assert!(py.stdout.contains("the firewall lets in (a ufw rule allows them, and they listen here): tcp/22, tcp/8000"), "{}", py.stdout);
+    assert!(py.stdout.contains("devices reaching this computer: not reported: heimdalld is not running"), "{}", py.stdout);
+    t.both(|r| {
+        r.write("/srv/heimdalld-on", "");
+    });
+    t.step(&["status"], &o);
+    t.both(|r| {
+        r.write("/srv/heimdalld-groups", "limbo-heimdall systemd-journal\n");
+    });
+    let (py, _) = t.step(&["status"], &o);
+    assert!(py.stdout.contains("devices reaching this computer: reported"), "{}", py.stdout);
+    for conf in [r#"{"firewall": false}"#, r#"{"firewall": 1}"#, "[]", "{"] {
+        t.both(|r| {
+            r.write("/etc/heimdall/config.json", conf);
+        });
+        t.step(&["status"], &o);
+    }
+    // a hotspot trusted before the levels (home, bound to its router): its restarts are noted once a day
+    let mut t = guard_twin("legacy-hotspot", &|r| {
+        on_wifi(r, phone, "06:00:00:00:00:02");
+        r.write("/srv/ssid", "Example-Phone\n");
+        r.write(
+            "/etc/heimdall/wifi-trusted.json",
+            format!(r#"{{"{phone}": {{"ssid": "Example-Phone", "routers": ["02:00:00:00:00:01"]}}}}"#),
+        );
+    });
+    t.step(&["up", "wlan0", phone], &o);
+    assert!(t.rs.read_str("/run/heimdall-wifi-guard/last.json").contains("If it is a phone hotspot"));
+    t.both(|r| {
+        std::fs::remove_file(r.host("/run/heimdall-wifi-guard/last.json")).unwrap();
+        on_wifi(r, phone, "0a:00:00:00:00:03");
+    });
+    t.step(&["up", "wlan0", phone], &o);
+    assert!(t.rs.read("/run/heimdall-wifi-guard/last.json").is_none(), "said once today already");
+    // a trusted profile renamed to another network
+    t.both(|r| {
+        r.write(
+            "/etc/heimdall/wifi-trusted.json",
+            format!(r#"{{"{phone}": {{"ssid": "Example-Phone", "level": "trusted", "key_mgmt": "wpa-psk", "routers": []}}}}"#),
+        );
+        r.write("/srv/ssid", "Example-Other\n");
+    });
+    t.step(&["up", "wlan0", phone], &o);
+    assert!(t.rs.read_str("/run/heimdall-wifi-guard/last.json").contains("now names another network (Example-Other)"));
+    // ufw's rules as ufw writes them: a comment (docs/MESH.md's own rule), logging, an application rule, no direction
+    let mut t = guard_twin("ufw-written", &|r| {
+        on_wifi(r, "cafe-uuid", ROUTER);
+        r.write("/srv/ufw-on", "");
+        r.write("/etc/default/ufw", "DEFAULT_INPUT_POLICY=\"DROP\"\n");
+        r.write("/etc/ufw/ufw.conf", "ENABLED=yes\n");
+        r.write("/srv/ss", "tcp LISTEN 0 128 0.0.0.0:8931 0.0.0.0:*\ntcp LISTEN 0 128 0.0.0.0:2222 0.0.0.0:*\ntcp LISTEN 0 128 0.0.0.0:22 0.0.0.0:*\nudp UNCONN 0 0 0.0.0.0:9 0.0.0.0:*\ntcp LISTEN 0 128 0.0.0.0:80 0.0.0.0:*\n");
+        r.write(
+            "/etc/ufw/user.rules",
+            "### tuple ### allow tcp 8931 0.0.0.0/0 any 192.168.0.7 in comment=4865696d64616c6c206d657368\n### tuple ### allow_log tcp 2222 0.0.0.0/0 any 0.0.0.0/0 in\n### tuple ### allow tcp 22 0.0.0.0/0 any 0.0.0.0/0 OpenSSH - in\n### tuple ### allow udp 9 0.0.0.0/0 any 0.0.0.0/0\n### tuple ### route:allow_log tcp 80 0.0.0.0/0 any 0.0.0.0/0 in\n",
+        );
+    });
+    t.step(&["up", "wlan0", "cafe-uuid"], &o);
+    let (py, _) = t.step(&["status"], &o);
+    assert!(py.stdout.contains("they listen here): tcp/22, tcp/2222, tcp/8931, udp/9"), "{}", py.stdout);
+    assert!(
+        argv_log(&t).contains("nft [add] [element] [inet] [heimdall_wifi_quiet] [router4] [{ 192.0.2.1 }]"),
+        "the router, once per connection"
+    );
+    // discoverable: the owner's choice per network, at once on the network connected now, kept by trust and untrust
+    let mut t = guard_twin("discoverable", &|r| {
+        on_wifi(r, "cafe-uuid", ROUTER);
+        r.write("/srv/avahi-on", "");
+    });
+    t.step(&["pre-up", "wlan0", "cafe-uuid"], &o);
+    t.step(&["up", "wlan0", "cafe-uuid"], &o);
+    t.step(&["discoverable"], &Opts::user());
+    t.step(&["discoverable", "on"], &Opts::user()); // root only
+    t.step(&["discoverable", "on"], &o);
+    assert!(t.rs.read_str("/srv/quiet-rules").contains("heimdall quiet 3 discoverable") && t.rs.read("/srv/avahi-on").is_some());
+    t.step(&["up", "wlan0", "cafe-uuid"], &o);
+    let (py, _) = t.step(&["status"], &o);
+    assert!(py.stdout.contains("Cafe: untrusted, discoverable") && py.stdout.contains("discoverable here: yes"), "{}", py.stdout);
+    assert!(!t.rs.read_str("/run/heimdall-wifi-guard/last.json").contains("not announcing"));
+    t.step(&["trust"], &o);
+    t.step(&["discoverable"], &o);
+    t.step(&["untrust", "Cafe"], &o);
+    assert!(t.rs.read_str("/etc/heimdall/wifi-trusted.json").contains("\"discoverable\": true"));
+    t.step(&["discoverable", "off", "--uuid", "cafe-uuid"], &o);
+    assert!(!t.rs.read_str("/srv/quiet-rules").contains("discoverable") && t.rs.read("/srv/avahi-on").is_none());
+    for args in [
+        &["discoverable", "maybe"][..],
+        &["discoverable", "on", "off"],
+        &["discoverable", "on", "--uuid"],
+        &["discoverable", "--uuid", "x", "x"],
+    ] {
+        let (py, _) = t.step(args, &o);
+        assert_eq!(py.code, 1, "{args:?}");
+    }
+    t.both(|r| {
+        r.write("/srv/ssid", "\n"); // not a saved Wi-Fi profile
+    });
+    let (py, _) = t.step(&["discoverable", "on", "--uuid", "other-uuid"], &o);
+    assert!(py.stderr.contains("not a saved Wi-Fi network"), "{}", py.stderr);
+    // untrust on the network connected now: closed up at once
+    let mut t = guard_twin("untrust-now", &|r| {
+        on_wifi(r, "0e3f5a1c-2222-4333-8444-955566667777", ROUTER);
+        trusted_home(r);
+        r.write("/srv/ssid", "Home\n");
+        r.write("/srv/avahi-on", "");
+    });
+    t.step(&["up", "wlan0", "0e3f5a1c-2222-4333-8444-955566667777"], &o);
+    assert!(t.rs.read("/srv/quiet").is_none());
+    let (py, _) = t.step(&["untrust", "Home"], &o);
+    assert!(
+        py.stdout.contains("Home is untrusted now") && t.rs.read("/srv/quiet").is_some() && t.rs.read("/srv/avahi-on").is_none(),
+        "{}",
+        py.stdout
+    );
+    report("guard_trust_level_fixes_as_python", before);
 }
 
 #[test]
@@ -1002,7 +1372,7 @@ fn check_root(r: &Root, a: &Air) {
     for (p, data) in &a.files {
         r.write(p, data);
     }
-    recorder(r, "nmcli", "case \"$*\" in\n  '-t -f ACTIVE,SSID,BSSID,SECURITY dev wifi list --rescan no') cat /srv/scan ;;\n  '-t -f CONNECTIVITY general') cat /srv/connectivity ;;\n  *) exit 1 ;;\nesac\n");
+    recorder(r, "nmcli", "case \"$*\" in\n  '-t -f ACTIVE,SSID,BSSID,SECURITY dev wifi list --rescan no') cat /srv/scan ;;\n  '-t -f CONNECTIVITY general') cat /srv/connectivity ;;\n  '-g 802-11-wireless.ssid connection show '*) cat /srv/pssid 2>/dev/null || exit 1 ;;\n  '-g 802-11-wireless-security.key-mgmt connection show '*) cat /srv/pkey 2>/dev/null || exit 1 ;;\n  *) exit 1 ;;\nesac\n");
     recorder(r, "ip", "case \"$*\" in\n  '-j route show default') cat /srv/routes ;;\n  '-j neigh show dev '*) cat /srv/neigh ;;\n  '-j addr') cat /srv/addr ;;\n  *) exit 1 ;;\nesac\n");
     recorder(r, "ss", "cat /srv/ss\n");
     recorder(r, "systemctl", "[ \"$*\" = 'is-active ufw' ] || exit 1\ncat /srv/ufw\ngrep -qx active /srv/ufw\n");
@@ -1031,6 +1401,10 @@ fn check_opts(a: &Air) -> Opts {
     s.push_str(&format!(
         "python3 -I '{h}' http \"$R/srv/http.json\" \"$R/srv/http-log\" 192.0.2.81 443 '{c}/portal.crt' '{c}/portal.key' </dev/null >/dev/null 2>&1 &\n"
     ));
+    for (addr, _) in a.tls.iter().filter(|(addr, _)| !addr.contains(':')) {
+        s.push_str(&format!("ip addr add {addr}/32 dev wlan0\n")); // an IPv4 answer of the DNS check's, with a server of its own
+    }
+    let at = |addr: &str| if addr.contains(':') { format!("[{addr}]") } else { addr.to_string() };
     for (addr, kind) in &a.tls {
         if *kind == "junk" {
             s.push_str(&format!("python3 -I '{h}' junk '{addr}' 443 </dev/null >/dev/null 2>&1 &\n"));
@@ -1041,7 +1415,8 @@ fn check_opts(a: &Air) -> Opts {
             k => (k, String::new()),
         };
         s.push_str(&format!(
-            "openssl s_server -quiet -www -accept '[{addr}]:443' -cert '{c}/{cert}.crt' -key '{c}/{cert}.key'{chain} </dev/null >/dev/null 2>&1 &\n"
+            "openssl s_server -quiet -www -accept '{}:443' -cert '{c}/{cert}.crt' -key '{c}/{cert}.key'{chain} </dev/null >/dev/null 2>&1 &\n",
+            at(addr)
         ));
     }
     if a.lying_dns {
@@ -1052,7 +1427,7 @@ fn check_opts(a: &Air) -> Opts {
     }
     // wait until the servers listen
     let mut ports: Vec<String> = vec!["192.0.2.80:80".into(), "192.0.2.81:443".into()];
-    ports.extend(a.tls.iter().map(|(addr, _)| format!("[{addr}]:443")));
+    ports.extend(a.tls.iter().map(|(addr, _)| format!("{}:443", at(addr))));
     s.push_str(&format!(
         "for p in {}; do for i in $(seq 100); do python3 -I -c 'import socket,sys; h,_,p=sys.argv[1].rpartition(\":\"); socket.create_connection((h.strip(\"[]\"), int(p)), 0.2).close()' \"$p\" 2>/dev/null && break; sleep 0.05; done; done\n",
         ports.join(" ")
@@ -1228,9 +1603,99 @@ fn check_as_python() {
     let mut off = base.clone();
     off.scan = "no:Cafe:00\\:00\\:5E\\:00\\:53\\:21:WPA2\n".into();
     add("not-on-wifi", off, &["--json"]);
+    // a trusted phone hotspot (by its password: a new router address is expected), another device heard, the protections the
+    // guard verified: protected; then the same name open, as a stranger's copy would be
+    let phone = "1b4e28ba-2fa1-11d2-883f-0016d3cca427";
+    let mut hotspot = base.clone();
+    hotspot.scan = "yes:Example-Phone:02\\:00\\:00\\:00\\:00\\:AA:WPA3\n".into();
+    hotspot.neigh = r#"[{"dst":"192.0.2.1","lladdr":"06:00:00:00:00:02"},{"dst":"fe80::1","lladdr":"06:00:00:00:00:02"}]"#.into();
+    hotspot.devices = true;
+    hotspot.files.push((
+        "/etc/heimdall/wifi-trusted.json",
+        format!(r#"{{"{phone}": {{"ssid": "Example-Phone", "level": "trusted", "key_mgmt": "sae", "routers": []}}}}"#).into_bytes(),
+    ));
+    hotspot.files.push(("/srv/pssid", b"Example-Phone\n".to_vec()));
+    hotspot.files.push(("/srv/pkey", b"sae\n".to_vec()));
+    hotspot.files.push((
+        "/var/lib/heimdall/wifi/routers.json",
+        format!(r#"{{"{}": ["02:00:00:00:00:01"]}}"#, heimdall::cli::wifitools::sha16("Example-Phone|02:00:00:00:00:AA")).into_bytes(),
+    ));
+    hotspot.files.push((
+        "/run/heimdall-wifi-guard/state.json",
+        format!(r#"{{"wifi": "{phone}", "locked": false, "protections": {{"firewall": true, "not_announcing": true, "own_address": true, "no_name": true, "vpn": false}}}}"#)
+            .into_bytes(),
+    ));
+    add("hotspot-trusted", hotspot.clone(), &["--uuid", phone, "--json"]);
+    let mut uncovered = hotspot.clone();
+    uncovered.files.retain(|(p, _)| *p != "/run/heimdall-wifi-guard/state.json");
+    add("hotspot-not-covered", uncovered, &["--uuid", phone]);
+    let mut copy = hotspot.clone();
+    copy.scan = "yes:Example-Phone:02\\:00\\:00\\:00\\:00\\:BB:--\n".into();
+    copy.files.retain(|(p, _)| *p != "/srv/pkey");
+    add("hotspot-copy-open", copy, &["--uuid", "0e3f5a1c-2222-4333-8444-955566667777"]);
+    // the guard: a port its firewall lets in; its mark of a pre-up long ago (no waiting); the profile's password changed (untrusted)
+    let mut open_port = hotspot.clone();
+    open_port.files.retain(|(p, _)| *p != "/run/heimdall-wifi-guard/state.json");
+    open_port.files.push((
+        "/run/heimdall-wifi-guard/state.json",
+        format!(r#"{{"wifi": "{phone}", "pending": "{phone}", "pending_at": "2020-01-01T00:00:00Z", "protections": {{"firewall": false, "allowed_in": ["tcp/22", 5], "not_announcing": true, "own_address": true}}}}"#)
+            .into_bytes(),
+    ));
+    add("hotspot-open-port", open_port, &["--uuid", phone]);
+    let mut repinned = hotspot.clone();
+    repinned.files.retain(|(p, _)| *p != "/run/heimdall-wifi-guard/state.json");
+    repinned.files.push((
+        "/run/heimdall-wifi-guard/state.json",
+        format!(r#"{{"wifi": "{phone}", "level": "untrusted", "protections": {{"firewall": true, "not_announcing": true, "own_address": true}}}}"#).into_bytes(),
+    ));
+    add("hotspot-password-changed", repinned, &["--uuid", phone, "--json"]);
+    // a trusted network whose router changed to a factory address: still a warning
+    let mut factory = hotspot.clone();
+    factory.neigh = r#"[{"dst":"192.0.2.1","lladdr":"00:00:5e:00:53:07"}]"#.into();
+    add("hotspot-factory-router", factory, &["--uuid", phone]);
+    // an Enhanced Open copy of a WPA2 network nearby; a check that runs out of time
+    let mut owe = base.clone();
+    owe.scan = "yes:Cafe:00\\:00\\:5E\\:00\\:53\\:21:WPA2\nno:Cafe:00\\:00\\:5E\\:00\\:53\\:29:OWE\n".into();
+    add("owe-twin", owe, &[]);
+    let mut slow = base.clone();
+    slow.connectivity = String::new(); // NetworkManager says nothing: the check waits 20 seconds for it
+    slow.env.push(("HEIMDALL_WIFI_CHECK_LIMIT".into(), "3".into()));
+    add("out-of-time", slow.clone(), &[]);
+    add("out-of-time-json", slow, &["--json"]);
+    // GitHub answered from another company's network (made-up: the shared address space, which Python does not call
+    // private): no shortcut by its network, one secure connection to that address decides
+    let mut cloud = base.clone();
+    cloud.hosts = cloud.hosts.replace("233.252.0.2 github.com", "100.64.0.20 github.com");
+    cloud.origins.push_str("100.64.0.20  US, AS8075 Example Cloud\n");
+    cloud.tls.push(("100.64.0.20", "good"));
+    add("dns-cloud-genuine", cloud.clone(), &[]);
+    cloud.tls.retain(|(a, _)| *a != "100.64.0.20");
+    cloud.tls.push(("100.64.0.20", "evil"));
+    add("dns-cloud-evil", cloud.clone(), &[]);
+    cloud.tls.retain(|(a, _)| *a != "100.64.0.20");
+    add("dns-cloud-silent", cloud, &[]);
+    // a local answer that shows the genuine certificate (a proxy the owner set up, say), and one to this computer itself
+    let mut local = base.clone();
+    local.hosts = local.hosts.replace("233.252.0.2 github.com", "192.0.2.78 github.com\n127.0.0.2 github.com");
+    local.tls.push(("192.0.2.78", "good"));
+    add("dns-local", local.clone(), &[]);
+    local.hosts = local.hosts.replace("127.0.0.2 github.com", "");
+    add("dns-local-genuine", local, &[]);
     let out = check_scenarios(list);
     // what the scenarios are about, beyond Python and Rust agreeing
     let stdout = |n: &str| find(&out, n).py.0.stdout.clone();
+    let h = stdout("hotspot-trusted");
+    for want in [
+        "\"verdict\": \"protected\"",
+        "\"level\": \"trusted\"",
+        "recognized by its password",
+        "not counting the router or hotspot",
+        "DNS is not encrypted",
+    ] {
+        assert!(h.contains(want), "hotspot: {want} missing in\n{h}");
+    }
+    assert!(stdout("hotspot-not-covered").contains("Example-Phone: caution"), "{}", stdout("hotspot-not-covered"));
+    assert!(stdout("hotspot-copy-open").contains("but not its lock (open now)"), "{}", stdout("hotspot-copy-open"));
     assert!(
         stdout("safe-json").contains("\"verdict\": \"safe\"") && stdout("safe-json").contains("\"trusted\": true"),
         "{}",
@@ -1242,8 +1707,7 @@ fn check_as_python() {
         "\"verdict\": \"unsafe\"",
         "ARP spoofing",
         "invents answers",
-        "github.com -> 192.0.2.50 (a local address)",
-        "AS64496",
+        "github.com -> 192.0.2.50 (a local address), which does not show the site's certificate",
         "www.google.com (self-signed certificate)",
         "github.com (self-signed certificate in certificate chain)",
         "www.wikipedia.org (Hostname mismatch, certificate is not valid for 'www.wikipedia.org'.)",
@@ -1253,6 +1717,28 @@ fn check_as_python() {
     ] {
         assert!(e.contains(want), "evil: {want} missing in\n{e}");
     }
+    let c = stdout("owe-twin");
+    assert!(c.contains("bad   another network with the same name (Cafe) but different security is nearby"), "{c}");
+    let c = stdout("out-of-time");
+    assert!(c.contains("Cafe: caution") && c.contains("warn  the check could not finish within 3 seconds"), "{c}");
+    assert!(find(&out, "out-of-time").rs.1.read_str("/var/lib/heimdall/wifi/results.jsonl").contains("could not finish"));
+    let c = stdout("hotspot-open-port");
+    assert!(c.contains("not in force here: the firewall turning connections away (a rule lets in tcp/22, 5)"), "{c}");
+    let c = stdout("hotspot-password-changed");
+    // untrusted by the guard: no exception for the router's new address either
+    assert!(c.contains("\"level\": \"untrusted\"") && c.contains("different from the last time on this network"), "{c}");
+    let c = stdout("hotspot-factory-router");
+    assert!(c.contains("warn  the router's hardware address is different from the last time"), "{c}");
+    let c = stdout("dns-cloud-genuine");
+    assert!(c.contains("ok    well-known sites resolve into their own networks, or to another company's that shows their genuine certificate (github.com -> 100.64.0.20 (US, AS8075 Example Cloud))"), "{c}");
+    let c = stdout("dns-cloud-evil");
+    assert!(c.contains("bad   well-known sites resolve to addresses that are not theirs: github.com -> 100.64.0.20 (US, AS8075 Example Cloud), whose certificate this computer does not trust"), "{c}");
+    let c = stdout("dns-cloud-silent");
+    assert!(c.contains("warn  could not confirm where well-known sites resolve, outside their own networks: github.com -> 100.64.0.20 (US, AS8075 Example Cloud), which did not answer"), "{c}");
+    let c = stdout("dns-local");
+    assert!(c.contains("bad   well-known sites resolve to addresses that are not theirs: github.com -> 127.0.0.2 (a local address), this computer itself"), "{c}");
+    let c = stdout("dns-local-genuine");
+    assert!(c.contains("github.com -> 192.0.2.78 (a local address))") && c.contains("ok    well-known sites resolve into"), "{c}");
     let c = stdout("certs-bad");
     assert!(c.contains("www.google.com (unable to get local issuer certificate), github.com (certificate has expired)"), "{c}");
     let c = stdout("certs-blocked");

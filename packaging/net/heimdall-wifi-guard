@@ -1,24 +1,39 @@
 #!/usr/bin/env python3
 """heimdall-wifi-guard: trusted and untrusted Wi-Fi networks, and the VPN with a kill switch.
 
-A network is trusted when you said so while on it (sudo heimdall-wifi-guard trust): its NetworkManager profile and the hardware
-address of its router are remembered together, so a stranger's network with the same name is not trusted. Every other network is
-untrusted, and there:
-  - before the connection comes up, nothing may leave this computer except the address request (DHCP) and the VPN's own traffic
-    (a small nftables table of its own, beside ufw; removed when you leave the network);
-  - once up, the VPN connects; if it cannot, or drops later, the Wi-Fi is disconnected (no traffic ever goes out unprotected);
-  - this computer does not announce itself: Avahi is stopped while there, the profile stops sending the computer's name and uses a
-    random hardware address per network from the next connection on.
-With no VPN set up yet, untrusted networks are only made quiet (no lockdown, nothing dropped) and you are told.
+Each Wi-Fi network is untrusted, trusted or home:
+  - untrusted (every network you have not marked): before the connection comes up, nothing may leave this computer except the
+    address request (DHCP) and the VPN's own traffic (a small nftables table of its own, beside ufw; removed when you leave the
+    network); once up, the VPN connects, and if it cannot, or drops later, the Wi-Fi is disconnected (no traffic ever goes out
+    unprotected). With no VPN set up yet, untrusted networks are only made quiet (no lockdown, nothing dropped) and you are told,
+    once a day per network.
+  - trusted (sudo heimdall-wifi-guard trust, while on it): no more "untrusted" notices, and that is all. Every protection stays:
+    the firewall, not announcing this computer, its own hardware address for the network, no computer name sent, and the VPN if
+    one is set up. A trusted network is recognized by its saved profile, its name and its lock (WPA2/WPA3-Personal): only a
+    device that knows the password can finish the connection, so a phone hotspot that changes its hardware address stays
+    trusted. Open, Enhanced Open (OWE), WEP and enterprise networks cannot be trusted.
+  - home (sudo heimdall-wifi-guard trust --home): the device list (heimdalld lan scan), discovery (Avahi), no router watch and no
+    VPN. It is also bound to the router's hardware address, as trust was before the levels. --real-address also sends the
+    computer's real hardware address and name there.
+On every network except home, this computer does not announce itself: Avahi is stopped and Heimdall's own nftables table drops
+its discovery traffic on Wi-Fi (mDNS, LLMNR, SSDP, NetBIOS, WS-Discovery, KDE Connect, Syncthing, Steam and Dropbox discovery),
+the profile stops sending the computer's name and uses a hardware address of its own for the network. The same table logs (does
+not allow) each device on the network itself that starts a connection, sends a packet or pings this computer over Wi-Fi, once
+per device an hour: heimdalld reports it. The firewall (ufw) itself is never changed.
 
-  heimdall-wifi-guard status                    what is trusted, whether the VPN is set up, what is in force now
-  heimdall-wifi-guard trust                     trust the Wi-Fi network you are on now (root)
-  heimdall-wifi-guard untrust NAME              stop trusting it (root)
+  heimdall-wifi-guard status                    each network's level, the VPN, what is in force now
+  heimdall-wifi-guard trust                     trust the Wi-Fi network you are on now: quiet, every protection stays (root)
+  heimdall-wifi-guard trust --home              make it your home network: the device list, discovery, no VPN (root)
+  heimdall-wifi-guard trust --home --real-address   ... and send the real hardware address and computer name there (root)
+  heimdall-wifi-guard trust --uuid UUID [--home]    the same, only if UUID is the connection that is up now (root)
+  heimdall-wifi-guard untrust NAME|UUID         back to untrusted; the profile goes back to a private address and no name (root)
+  heimdall-wifi-guard discoverable [on|off] [--uuid UUID]   may this computer announce itself there? (on/off: root)
   heimdall-wifi-guard vpn-import FILE.conf      set up the VPN from a WireGuard file (from your Proton VPN account) (root)
   heimdall-wifi-guard vpn-remove                remove it (root)
   heimdall-wifi-guard sign-in                   on a network with a sign-in page: open it for 5 minutes, then the VPN (root)
 NetworkManager's dispatcher calls the rest (pre-up, up, down, vpn-down).
 """
+import hashlib
 import ipaddress
 import json
 import os
@@ -29,14 +44,48 @@ import time
 
 CONF = os.environ.get("HEIMDALL_WIFI_GUARD_CONF", "/etc/heimdall/wifi-guard.json")
 TRUSTED = os.environ.get("HEIMDALL_WIFI_TRUSTED", "/etc/heimdall/wifi-trusted.json")
+# root's only (0600): a fingerprint of each trusted profile's saved password, so a profile edited to another password (and so
+# another access point) is not trusted any more
+KEYS = os.environ.get("HEIMDALL_WIFI_KEYS", "/etc/heimdall/wifi-trusted-keys.json")
 RUN = "/run/heimdall-wifi-guard"
 TABLE = "heimdall_wifi_guard"
+QUIET = "heimdall_wifi_quiet"
+QUIET_MARK = "heimdall quiet 3"  # in the table's comment: a table of an older Heimdall is replaced, not kept
+QUIET_MARK_OPEN = "heimdall quiet 3 discoverable"  # the same table, its discovery traffic let out (a network made discoverable)
 VPN_NAME = "Heimdall VPN"
 ENV = {"PATH": "/usr/bin:/bin", "LANG": "C"}
+UFW_DEFAULT = "/etc/default/ufw"
+UFW_CONF = "/etc/ufw/ufw.conf"
+UFW_RULES = ("/etc/ufw/user.rules", "/etc/ufw/user6.rules")  # the rules `ufw allow` and `ufw limit` add
+HEIMDALL_CONFIG = "/etc/heimdall/config.json"
+# the discovery traffic the quiet table keeps in on Wi-Fi: NetBIOS (137, 138), KDE Connect (1714-1764), SSDP (1900), WS-Discovery
+# (3702), mDNS (5353), LLMNR (5355), Dropbox LAN sync (17500), Syncthing (21027), Steam (27036); LLMNR and KDE Connect over TCP too
+DISCOVERY_UDP = "137, 138, 1714-1764, 1900, 3702, 5353, 5355, 17500, 21027, 27036"
+DISCOVERY_TCP = "1714-1764, 5355"
+# the local network: discovery traffic is held back only on its way there (multicast, broadcast, private and link-local
+# addresses), never on its way to the internet (PPTP 1723 and H.323 1719/1720 share the KDE Connect ports)
+LOCAL4 = "10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16"
+LOCAL6 = "fc00::/7, fe80::/10"
+PENDING_FOR = 120  # seconds a connection's pre-up counts as "coming up" without its up having finished
+LEVELS = ("trusted", "home")
+# the locks a trusted network may have: a password every device must prove it knows (WPA2-Personal, WPA3-Personal)
+TRUSTABLE = ("wpa-psk", "sae")
+LOCK_NAMES = {"wpa-psk": "WPA2-Personal", "sae": "WPA3-Personal"}
+UNTRUSTABLE = {
+    "": "it is open: there is no password, so anyone can make a network of the same name",
+    "owe": "it is Enhanced Open (OWE): encrypted, but nobody has to know a password, so anyone can make a network of the same name",
+    "none": "it uses WEP, which is broken",
+    "ieee8021x": "it uses WEP, which is broken",
+    "wpa-eap": "it is an enterprise network (a sign-in per person), which cannot be trusted yet",
+    "wpa-eap-suite-b-192": "it is an enterprise network (a sign-in per person), which cannot be trusted yet",
+}
+# what the guard checks is in force on a network, and how status names it
+PROTECTIONS = [("firewall", "the firewall drops connections in"), ("not_announcing", "not announcing this computer"),
+               ("own_address", "its own hardware address here"), ("no_name", "no computer name sent"), ("vpn", "the VPN")]
 
 
-def sh(argv, timeout=30, check=False):
-    p = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, env=ENV)
+def sh(argv, timeout=30, check=False, input=None):
+    p = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, env=ENV, input=input)
     if check and p.returncode != 0:
         raise RuntimeError("%s: %s" % (" ".join(argv[:3]), (p.stderr or p.stdout).strip()))
     return p
@@ -55,17 +104,34 @@ def load(path, default):
 
 def save(path, data, mode=0o644):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path + ".tmp", "w") as f:
+    # made with its mode from the start (the keys file is root's only), also over a file left there before
+    fd = os.open(path + ".tmp", os.O_WRONLY | os.O_CREAT | os.O_TRUNC, mode)
+    os.fchmod(fd, mode)
+    with os.fdopen(fd, "w") as f:
         json.dump(data, f, indent=1)
     os.chmod(path + ".tmp", mode)
     os.replace(path + ".tmp", path)
+
+
+def stamp(ago=0):
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - ago))
 
 
 def note(event, ssid, message):
     """For the desktop notification (heimdall-wifi-notify watches this file)."""
     os.makedirs(RUN, exist_ok=True)
     os.chmod(RUN, 0o755)
-    save(os.path.join(RUN, "last.json"), {"time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "event": event, "ssid": ssid, "message": message})
+    save(os.path.join(RUN, "last.json"), {"time": stamp(), "event": event, "ssid": ssid, "message": message})
+
+
+def pending(st):
+    """The connection whose pre-up ran and whose up has not finished yet ("" for none): heimdall-wifi-check waits for its
+    protections, and an earlier connection's "down", which can run after it (NetworkManager does not wait for those jobs), leaves
+    it alone. A mark older than PENDING_FOR seconds (an up that never came) does not count."""
+    u, at = st.get("pending"), st.get("pending_at")
+    if isinstance(u, str) and u and isinstance(at, str) and stamp(PENDING_FOR) <= at <= stamp(-60):
+        return u
+    return ""
 
 
 def root():
@@ -107,13 +173,63 @@ def is_wifi(iface):
     return os.path.isdir("/sys/class/net/%s/wireless" % iface)
 
 
-def is_trusted(uuid, mac=None):
-    t = load(TRUSTED, {}).get(uuid)
-    if not t:
-        return False
-    # mac None: the profile alone (before the link is up, and for status). A router that did not answer ("") is not trusted:
-    # a stranger copying a trusted network could stay silent to ARP; the VPN at home when the router is slow is the lesser cost
-    return mac is None or mac in t.get("routers", [])
+def lock_holds(recorded, now):
+    """Whether a profile's lock (its key management now) still lets it be trusted: a password every device must prove it knows,
+    and no weaker than when it was trusted (WPA3 recorded, WPA2 now, is a downgrade)."""
+    return now in TRUSTABLE and not (recorded == "sae" and now != "sae")
+
+
+def level_of(entry, ssid=None, key_mgmt=None, mac=None):
+    """A network's trust level from its entry in the trusted file: "untrusted", "trusted" or "home".
+
+    A trusted network is recognized by its saved profile (the entry's key), the profile's network name and its lock: NetworkManager
+    brings the profile up only after the access point proved it knows the password (WPA2's 4-way handshake, WPA3's SAE), so a
+    look-alike without the password never gets this far, whatever its hardware address. A home network is also bound to its
+    router's hardware address, because the device list must not sweep a stranger's network; a home network whose router changed
+    (or did not answer) is only trusted. An entry from before the levels (no "level") is home, exactly as such an entry was.
+    None for ssid, key_mgmt or mac: not known yet (before the link is up there is no router; status asks about the profile)."""
+    if not isinstance(entry, dict) or not entry:
+        return "untrusted"
+    level = entry.get("level", "home")
+    if level not in LEVELS:
+        return "untrusted"
+    routers = entry.get("routers")
+    routers = routers if isinstance(routers, list) else []
+    if "level" not in entry:
+        if mac is None or (mac and mac in routers):
+            return "home"
+        # the router is not the remembered one: still recognized by the password, unless the profile lost its lock
+        return "trusted" if key_mgmt is not None and lock_holds(None, key_mgmt) else "untrusted"
+    if ssid is not None and entry.get("ssid") != ssid:
+        return "untrusted"
+    if key_mgmt is not None and not lock_holds(entry.get("key_mgmt"), key_mgmt):
+        return "untrusted"
+    if level == "home" and mac is not None and not (mac and mac in routers):
+        return "trusted"
+    return level
+
+
+def profile_key(uuid):
+    """The profile's key management: "wpa-psk", "sae", "owe", "none" (WEP), "wpa-eap"..., or "" (open)."""
+    return sh(["nmcli", "-g", "802-11-wireless-security.key-mgmt", "connection", "show", uuid]).stdout.strip()
+
+
+def lock_name(key):
+    return LOCK_NAMES.get(key, "open" if not key else key)
+
+
+def psk_pin(uuid):
+    """A fingerprint of the profile's saved password (only root can read it), kept in the root-only KEYS file: "" when
+    NetworkManager keeps no password for the system (one in the desktop's keyring), and then nothing is compared."""
+    psk = sh(["nmcli", "-s", "-g", "802-11-wireless-security.psk", "connection", "show", uuid]).stdout.strip()
+    return hashlib.sha256(("heimdall wifi psk\n%s\n%s" % (uuid, psk)).encode()).hexdigest() if psk else ""
+
+
+def pin_holds(uuid):
+    """Whether a trusted profile still has the password it had when it was trusted. Changing the password (and the name) of a
+    saved profile is all it takes to make it join somebody else's network; the lock alone would not show it."""
+    want = load(KEYS, {}).get(uuid)
+    return not (isinstance(want, str) and want) or psk_pin(uuid) == want
 
 
 # ---- the lockdown (outgoing traffic only; incoming stays with ufw)
@@ -162,40 +278,304 @@ def locked():
     return sh(["nft", "list", "table", "inet", TABLE]).returncode == 0
 
 
-# ---- quiet on untrusted networks
+# ---- quiet on every network but home
 
 def mac_is_real(value):
     """Whether a profile's cloned-mac-address setting means the real hardware address (unset, or "permanent"/"preserve")."""
     return value.strip() in ("", "permanent", "preserve", "--")
 
-def quiet(uuid, on):
+
+def private_profile(uuid):
+    """From the next connection on: no computer name in address requests, no name questions answered by the resolver (LLMNR,
+    mDNS; they matter only if systemd-resolved is ever turned on), and not the real hardware address: one of its own for this
+    network ("stable"). An address chosen in Settings (a new random one each time, or one typed in) is kept as it is."""
+    args = ["ipv4.dhcp-send-hostname", "no", "ipv6.dhcp-send-hostname", "no", "connection.llmnr", "no", "connection.mdns", "no"]
+    if mac_is_real(sh(["nmcli", "-g", "802-11-wireless.cloned-mac-address", "connection", "show", uuid]).stdout):
+        args += ["802-11-wireless.cloned-mac-address", "stable"]
+    sh(["nmcli", "connection", "modify", uuid] + args)
+
+
+def quiet_ruleset(discoverable=False):
+    """Heimdall's quiet table, beside ufw (never instead of it), on Wi-Fi interfaces only ("wl*"; a wired network never matches).
+    Its output chain drops this computer's discovery traffic (DISCOVERY_UDP, DISCOVERY_TCP) on its way to the local network
+    (multicast, broadcast, private and link-local addresses; never to the internet), whatever program sends it and whenever: the
+    computer does not announce itself. On a network made discoverable (discoverable=True) that chain lets everything out. Its
+    input chain only logs and accepts, and only what a device on the network itself starts: a new connection (a TCP SYN), a new
+    UDP packet or a ping aimed at this computer, from a local address (a private or link-local one: an internet server's late or
+    stray packet is never logged), once per sender an hour, for heimdalld's lan-watch alert; the router (router4, set by up) once
+    per connection, with a prefix of its own. ufw's own chains still decide, and they drop what they do not allow (a packet has
+    to pass every base chain). Loaded and replaced in one transaction."""
+    log = 'log prefix "heimdall-wifi-in: " level info'
+    out = [] if discoverable else [
+        "    ip daddr != { %s, 224.0.0.0/4, 255.255.255.255 } accept" % LOCAL4,
+        "    ip6 daddr != { %s, ff00::/8 } accept" % LOCAL6,
+        "    udp dport { %s } counter drop" % DISCOVERY_UDP,
+        "    udp sport { %s } counter drop" % DISCOVERY_UDP,
+        "    tcp dport { %s } counter drop" % DISCOVERY_TCP,
+    ]
+    return "\n".join([
+        "table inet %s {}" % QUIET,
+        "delete table inet %s" % QUIET,
+        "table inet %s {" % QUIET,
+        '  comment "%s"' % (QUIET_MARK_OPEN if discoverable else QUIET_MARK),
+        "  set seen4 { type ipv4_addr; flags dynamic, timeout; timeout 1h; size 16384; }",
+        "  set seen6 { type ipv6_addr; flags dynamic, timeout; timeout 1h; size 16384; }",
+        "  set router4 { type ipv4_addr; size 16; }",
+        "  chain in {",
+        "    type filter hook input priority -10; policy accept;",
+        '    iifname != "wl*" accept',
+        "    ct state != new accept",
+        "    fib daddr type != local accept",
+        "    ip saddr != { %s } accept" % LOCAL4,
+        "    ip6 saddr != { %s } accept" % LOCAL6,
+        "    meta l4proto != { tcp, udp, icmp, ipv6-icmp } accept",
+        "    tcp flags & (syn | ack) != syn accept",
+        "    icmp type != echo-request accept",
+        "    icmpv6 type != echo-request accept",
+        "    udp dport { 68, 546 } accept",
+        "    ip saddr @seen4 accept",
+        "    ip6 saddr @seen6 accept",
+        '    ip saddr @router4 limit rate 30/minute log prefix "heimdall-wifi-in-router: " level info add @seen4 { ip saddr timeout 7d } accept',
+        "    ip saddr @router4 accept",
+        "    meta nfproto ipv4 limit rate 30/minute " + log + " add @seen4 { ip saddr }",
+        "    meta nfproto ipv6 limit rate 30/minute " + log + " add @seen6 { ip6 saddr }",
+        "  }",
+        "  chain out {",
+        "    type filter hook output priority 0; policy accept;",
+        '    oifname != "wl*" accept',
+        *out,
+        "  }",
+        "}",
+    ]) + "\n"
+
+
+def quiet_loaded(discoverable=False):
+    """Whether this version of the quiet table is in place, as asked: muting discovery, or letting it out (discoverable)."""
+    p = sh(["nft", "list", "table", "inet", QUIET])
+    return p.returncode == 0 and ('"%s"' % (QUIET_MARK_OPEN if discoverable else QUIET_MARK)) in p.stdout
+
+
+def quiet_table(on, discoverable=False):
+    """Load Heimdall's quiet table (on), unless this version of it is in place, or remove it. It is loaded before a Wi-Fi
+    connection other than home carries traffic and left in place when the network goes (it is there for the next one, and it
+    matches Wi-Fi only); it goes only when a home network comes up. On a network made discoverable it is loaded with its
+    discovery traffic let out. Whether it took is in the protections status shows."""
+    if not on:
+        sh(["nft", "delete", "table", "inet", QUIET])
+        return True
+    if quiet_loaded(discoverable):
+        return True
+    return sh(["nft", "-f", "-"], input=quiet_ruleset(discoverable)).returncode == 0
+
+
+def quiet_router(iface):
+    """This connection's router (its IPv4 gateway) for the quiet table: a router that looks at its clients (a device map) is
+    reported once per connection, with a prefix of its own, not once an hour as a device would be."""
+    try:
+        routes = json.loads(sh(["ip", "-j", "route", "show", "default", "dev", iface]).stdout or "[]")
+    except ValueError:
+        return
+    gw = next((r.get("gateway") for r in routes if isinstance(r, dict) and r.get("gateway")), None) if isinstance(routes, list) else None
+    try:
+        if not isinstance(gw, str) or ipaddress.ip_address(gw).version != 4:
+            return
+    except ValueError:
+        return
+    sh(["nft", "flush", "set", "inet", QUIET, "router4"])
+    sh(["nft", "add", "element", "inet", QUIET, "router4", "{ %s }" % gw])
+    sh(["nft", "delete", "element", "inet", QUIET, "seen4", "{ %s }" % gw])  # told anew on this connection
+
+
+def quiet_counters():
+    """How many discovery packets the quiet table held back, as status shows it (root: nft lists only for root)."""
+    p = sh(["nft", "list", "table", "inet", QUIET])
+    if p.returncode == 0 and ('"%s"' % QUIET_MARK_OPEN) in p.stdout:
+        return "on, discoverable here: discovery traffic is let out"
+    if p.returncode != 0 or ('"%s"' % QUIET_MARK) not in p.stdout:
+        return "off"
+    n = 0
+    for word in p.stdout.split("counter packets ")[1:]:
+        digits = word.split(" ")[0]
+        if digits.isascii() and digits.isdigit() and len(digits) < 20:
+            n += int(digits)
+    return "on, %d discovery packet(s) held back since it was loaded" % n
+
+
+def conf_value(path, key):
+    """KEY=value from a shell-style settings file (/etc/default/ufw, /etc/ufw/ufw.conf), "" when it is not there."""
+    try:
+        with open(path) as f:
+            text = f.read()
+    except (OSError, ValueError):
+        return ""
+    value = ""
+    for line in text.splitlines():
+        k, _, v = line.partition("=")
+        if k.strip() == key:
+            value = v.strip().strip('"').strip()
+    return value
+
+
+def ufw_drops():
+    """Whether ufw is on and drops (or refuses) incoming connections by default. Heimdall never changes ufw; it only looks."""
+    if sh(["systemctl", "is-active", "ufw"]).stdout.strip() != "active":
+        return False
+    if conf_value(UFW_CONF, "ENABLED").lower() != "yes":
+        return False
+    return conf_value(UFW_DEFAULT, "DEFAULT_INPUT_POLICY").upper() in ("DROP", "REJECT")
+
+
+def listening_services():
+    """This computer's services that listen for connections from the network (not only from itself), as heimdall-wifi-check
+    names them ("tcp/22"); the address request (DHCP) and local discovery, which ufw lets in by default, left out."""
+    try:
+        text = sh(["ss", "-tulnH"]).stdout
+    except OSError:
+        return []
+    out = []
+    for line in text.splitlines():
+        f = line.split()
+        if len(f) < 5:
+            continue
+        proto, local = f[0], f[4]
+        host, _, port = local.rpartition(":")
+        host = host.strip("[]").split("%")[0]
+        try:
+            if ipaddress.ip_address(host).is_loopback:
+                continue
+        except ValueError:
+            if host not in ("*", ""):
+                continue
+        if proto == "udp" and port in ("68", "546", "5353", "1900"):
+            continue
+        out.append("%s/%s" % (proto, port))
+    return sorted(set(out))
+
+
+def port_in(spec, port):
+    """Whether a ufw rule's ports ("22", "80,443", "6000:6007", "any") take in port."""
+    if spec == "any":
+        return True
+    if not (port.isascii() and port.isdigit() and len(port) < 6):
+        return False
+    for part in spec.split(","):
+        lo, _, hi = part.partition(":")
+        hi = hi or lo
+        if lo.isascii() and lo.isdigit() and hi.isascii() and hi.isdigit() and len(lo) < 6 and len(hi) < 6 and int(lo) <= int(port) <= int(hi):
+            return True
+    return False
+
+
+def ufw_rules_in(text):
+    """The (protocol, ports) of ufw's own rules that let connections in from the network, on every interface or a Wi-Fi one: the
+    "### tuple ###" lines of user.rules and user6.rules, read as ufw's backend reads them. A rule's comment (" comment=", hex)
+    comes off first; a logged rule's action is allow_log, limit_log, allow_log-all...; an application rule has two fields more
+    ("OpenSSH -"); a rule with no direction (six or eight fields) is incoming. Forwarded rules (route:allow) are not ours."""
+    rules = []
+    for line in text.splitlines():
+        if not line.startswith("### tuple ### "):
+            continue
+        rest = line[len("### tuple ### "):]
+        if " comment=" in rest:
+            rest = rest[:rest.index(" comment=")]
+        f = rest.split()
+        if not 6 <= len(f) <= 9 or f[0].split("_")[0] not in ("allow", "limit"):
+            continue
+        direction = "in" if len(f) in (6, 8) else f[-1]
+        if direction == "in" or direction.startswith("in_wl"):
+            rules.append((f[1], f[2]))
+    return rules
+
+
+def ufw_allowed(services):
+    """The services listening here ("tcp/22") that one of ufw's own rules lets in from the network (user.rules, user6.rules: what
+    `ufw allow` and `ufw limit` add, comments and logging included). The firewall dropping connections in covers none of them.
+    Heimdall never changes ufw; it only reads its rules."""
+    rules = []
+    for path in UFW_RULES:
+        try:
+            with open(path) as f:
+                rules += ufw_rules_in(f.read())
+        except (OSError, ValueError):
+            continue
+    return [s for s in services if any(proto in ("any", s.partition("/")[0]) and port_in(ports, s.partition("/")[2]) for proto, ports in rules)]
+
+
+def own_address(iface):
+    """Whether the interface uses a hardware address other than its own: ip names the real one (permaddr) only then."""
+    try:
+        links = json.loads(sh(["ip", "-j", "link", "show", "dev", iface]).stdout or "[]")
+    except ValueError:
+        return False
+    return isinstance(links, list) and any(isinstance(n, dict) and bool(n.get("permaddr")) for n in links)
+
+
+def protections(iface, uuid, vpn_up, discoverable=False):
+    """What is in force on this network now, as checked, not as configured: heimdall-wifi-check reads it from state.json and
+    counts an exposure as covered only when these hold. The firewall counts only when no service listening here is let in by
+    one of its rules (allowed_in names them); not announcing is the quiet table muting discovery, on this interface (one the
+    table covers), whatever announces (Avahi or another program); discoverable says the owner let this computer announce here."""
+    allowed = ufw_allowed(listening_services())
+    return {
+        "firewall": ufw_drops() and not allowed,
+        "allowed_in": allowed,
+        "not_announcing": iface.startswith("wl") and not discoverable and quiet_loaded(),
+        "discoverable": discoverable,
+        "own_address": own_address(iface),
+        "no_name": sh(["nmcli", "-g", "ipv4.dhcp-send-hostname", "connection", "show", uuid]).stdout.strip() == "no",
+        "vpn": vpn_up,
+    }
+
+
+def quiet(uuid, on, discoverable=False):
+    """on: the private profile (from the next connection on), and not announcing: Avahi stopped (whether it ran is remembered),
+    unless the network was made discoverable; then Avahi runs as it did. Off (home, or no Wi-Fi any more): Avahi back if it ran."""
     state = load(os.path.join(RUN, "state.json"), {})
-    if on:
+    mute = on and not discoverable
+    if mute:
         if sh(["systemctl", "is-active", "avahi-daemon.service"]).stdout.strip() == "active":
             state["avahi_was_on"] = True
             sh(["systemctl", "stop", "avahi-daemon.socket", "avahi-daemon.service"])
-        # from the next connection on: no computer name in address requests, and not the real hardware address: one of its own for
-        # this network ("stable"). An address chosen in Settings (a new random one each time, or one typed in) is kept as it is.
-        args = ["ipv4.dhcp-send-hostname", "no", "ipv6.dhcp-send-hostname", "no"]
-        if mac_is_real(sh(["nmcli", "-g", "802-11-wireless.cloned-mac-address", "connection", "show", uuid]).stdout):
-            args += ["802-11-wireless.cloned-mac-address", "stable"]
-        sh(["nmcli", "connection", "modify", uuid] + args)
     elif state.pop("avahi_was_on", False):
         sh(["systemctl", "start", "avahi-daemon.socket", "avahi-daemon.service"])
+    if on:
+        private_profile(uuid)
     set_state(**{k: v for k, v in state.items()})
-    if not on:
+    if not mute:
         set_state(avahi_was_on=False)
 
 
+def discoverable_of(entry, ssid):
+    """Whether the owner let this computer announce itself on the network of this entry (its "discoverable", for the network
+    named in it: a profile renamed to another network is not it). Home always is."""
+    return isinstance(entry, dict) and entry.get("discoverable") is True and entry.get("ssid") == ssid
+
+
 # ---- events from NetworkManager's dispatcher
+
+def note_daily(event, uuid, ssid, message):
+    """A note that would say the same thing on every connection: at most once a day (UTC) for each network."""
+    path = os.path.join(RUN, "notes.json")
+    seen = load(path, {})
+    key = "%s %s" % (event, uuid)
+    now = stamp()
+    last = seen.get(key)
+    if isinstance(last, str) and last[:10] == now[:10]:
+        return
+    seen[key] = now
+    save(path, seen)
+    note(event, ssid, message)
+
 
 def pre_up(iface, uuid):
     vpn = load(CONF, {}).get("vpn")
     if not is_wifi(iface):
         return
-    if is_trusted(uuid):
+    set_state(pending=uuid, pending_at=stamp())  # coming up: see pending()
+    if level_of(load(TRUSTED, {}).get(uuid)) == "home" and pin_holds(uuid):
         unlock()
         return
+    quiet_table(True)  # before any traffic: this computer's discovery traffic stays in
     if vpn:
         lock(vpn)  # before any traffic: only DHCP and the VPN may leave
 
@@ -204,27 +584,59 @@ def up(iface, uuid):
     if not is_wifi(iface):
         return
     ssid = sh(["nmcli", "-g", "802-11-wireless.ssid", "connection", "show", uuid]).stdout.strip()
+    key = profile_key(uuid)
     mac = router_mac(iface)
-    if is_trusted(uuid, mac):
+    entry = load(TRUSTED, {}).get(uuid)
+    level = level_of(entry, ssid, key, mac)
+    repinned = level != "untrusted" and not pin_holds(uuid)  # the profile's password is not the one trusted
+    if repinned:
+        level = "untrusted"
+    if level == "home":
         unlock()
+        quiet_table(False)
         quiet(uuid, False)
-        set_state(wifi=uuid, iface=iface, trusted=True)
+        set_state(wifi=uuid, iface=iface, trusted=True, level="home", protections=protections(iface, uuid, False, True), pending=None)
         return
-    if is_trusted(uuid):  # the profile is trusted but its router is not the one remembered, or did not answer: a stranger
-        if mac:
-            note("router-changed", ssid, "This network has the name of a trusted one, but its router is different: treating it as untrusted.")
+    named = level_of(entry)
+    told = named != level  # the one note of this connection (notify shows the last one written): why the level is not the entry's
+    if named == "home" and level == "trusted":
+        # a phone hotspot trusted before the levels gets this after each restart: once a day is enough
+        note_daily("router-changed", uuid, ssid, "Your home network's router is different (or did not answer). It is still recognized by its "
+                   "password, so it stays trusted, but the device list is paused and this computer stays private here. If it is a phone "
+                   "hotspot (they change their address when they restart): sudo heimdall-wifi-guard trust. If you replaced the router: "
+                   "sudo heimdall-wifi-guard trust --home")
+    elif named != "untrusted" and level == "untrusted":
+        named_as = "This network has the name of a trusted one, but "
+        again = ". If you changed it yourself: sudo heimdall-wifi-guard trust"
+        if repinned:
+            why = named_as + "its saved password changed since you trusted it: treating it as untrusted" + again
+        elif "level" not in entry:  # an entry from before the levels: bound to its router
+            why = named_as + ("its router did not answer" if not mac else "its router is different") + ": treating it as untrusted."
+        elif entry.get("ssid") != ssid:
+            why = "The saved profile of a trusted network now names another network (%s): treating it as untrusted%s" % (ssid, again)
         else:
-            note("router-changed", ssid, "This network has the name of a trusted one, but its router did not answer: treating it as untrusted.")
-    quiet(uuid, True)
+            why = named_as + "not its lock (%s now): treating it as untrusted." % lock_name(key)
+        note("router-changed", ssid, why)
+    # discoverable: the owner let this computer announce itself here (not on a trusted profile found changed: told above)
+    disc = discoverable_of(entry, ssid) and not (named != "untrusted" and level == "untrusted")
+    quiet_table(True, disc)
+    quiet(uuid, True, disc)
+    quiet_router(iface)
     vpn = load(CONF, {}).get("vpn")
-    set_state(wifi=uuid, iface=iface, trusted=False)
+    p = protections(iface, uuid, False, disc)
+    set_state(wifi=uuid, iface=iface, trusted=False, level=level, protections=p, pending=None)
     if not vpn:
-        note("no-vpn", ssid, "Untrusted network: this computer is not announcing itself, but there is no VPN set up to protect traffic (heimdall-wifi-guard vpn-import).")
+        if level == "untrusted" and not told:
+            note("no-vpn", ssid, "Untrusted network: " + ("" if disc else "this computer is not announcing itself, but ")
+                 + "there is no VPN set up to protect traffic (heimdall-wifi-guard vpn-import).")
         return
     if not locked():
         lock(vpn)
     if sh(["nmcli", "connection", "up", vpn["uuid"]], timeout=45).returncode == 0:
-        note("vpn-up", ssid, "Untrusted network: all traffic goes through the VPN.")
+        p["vpn"] = True
+        set_state(protections=p)
+        if level == "untrusted" and not told:
+            note("vpn-up", ssid, "Untrusted network: all traffic goes through the VPN.")
         return
     sh(["nmcli", "device", "disconnect", iface])
     note("dropped", ssid, "The VPN could not connect, so the Wi-Fi was disconnected (nothing went out unprotected). On a network with a sign-in page: sudo heimdall-wifi-guard sign-in.")
@@ -234,7 +646,7 @@ def down(iface, uuid):
     st = load(os.path.join(RUN, "state.json"), {})
     vpn = load(CONF, {}).get("vpn")
     if vpn and uuid == vpn.get("uuid"):
-        # the VPN went down: if the untrusted Wi-Fi is still up, it goes too
+        # the VPN went down: if the Wi-Fi it protected (any network but home) is still up, it goes too
         if st.get("wifi") and not st.get("trusted") and st.get("iface") and not os.path.exists(os.path.join(RUN, "signing-in")):
             ssid = sh(["nmcli", "-g", "802-11-wireless.ssid", "connection", "show", st["wifi"]]).stdout.strip()
             sh(["nmcli", "device", "disconnect", st["iface"]])
@@ -242,44 +654,206 @@ def down(iface, uuid):
         return
     if not is_wifi(iface) and uuid != st.get("wifi"):
         return
+    # NetworkManager does not wait for this job: it can run after the next connection's pre-up or up. That connection keeps its
+    # state, its lockdown and its VPN: it is another one in the state, or it is coming up, or this interface is connected again.
+    if st.get("wifi") not in (None, uuid) or pending(st):
+        return
+    now_iface, now_uuid, _ = active_wifi()
+    if now_uuid and now_iface == iface:
+        return
     if vpn:
         sh(["nmcli", "connection", "down", vpn["uuid"]])
     unlock()
-    quiet(uuid, False)
-    set_state(wifi=None, iface=None, trusted=None)
+    # the quiet table stays, for the next network before it carries traffic (it matches Wi-Fi only); Avahi comes back only when no
+    # Wi-Fi is connected any more (on a wired network), and even then the table keeps it from announcing on the next Wi-Fi
+    if not now_uuid:
+        quiet(uuid, False)
+    set_state(wifi=None, iface=None, trusted=None, level=None, protections=None)
 
 
 # ---- commands
 
-def cmd_trust():
+def cmd_trust(args):
+    """Trust the Wi-Fi network this computer is on: the owner's own act, as root. Trusted keeps every protection and only stops
+    the notices; --home is the separate choice to open up (the device list, discovery, no VPN)."""
     root()
+    home, real = "--home" in args, "--real-address" in args
+    want, i = None, 0
+    while i < len(args):
+        if args[i] == "--uuid":
+            want = args[i + 1] if i + 1 < len(args) else ""
+            i += 2
+            continue
+        if args[i] not in ("--home", "--real-address"):
+            sys.exit("trust: unknown option %r (trust [--home [--real-address]] [--uuid UUID]): nothing changed" % args[i])
+        i += 1
+    if real and not home:
+        sys.exit("--real-address is for a home network: heimdall-wifi-guard trust --home --real-address")
     iface, uuid, ssid = active_wifi()
     if not uuid:
         sys.exit("not connected to Wi-Fi")
-    mac = router_mac(iface)
-    if not mac:
-        sys.exit("the router's hardware address could not be read; try again in a moment")
+    if want is not None and want != uuid:
+        sys.exit("the Wi-Fi network connected now is not the one asked for: nothing changed")
+    key = profile_key(uuid)
+    if key not in TRUSTABLE:
+        sys.exit("%s cannot be trusted: %s" % (ssid, UNTRUSTABLE.get(key, "only networks with a password (WPA2/WPA3-Personal) can be")))
+    mac = ""
+    if home:
+        mac = router_mac(iface)
+        if not mac:
+            sys.exit("the router's hardware address could not be read; try again in a moment")
     t = load(TRUSTED, {})
-    e = t.setdefault(uuid, {"ssid": ssid, "routers": []})
-    e["ssid"] = ssid
-    if mac not in e["routers"]:
-        e["routers"].append(mac)
+    old = t.get(uuid)
+    was = level_of(old)  # home before (or an entry from before the levels): trusted now opens nothing, and closes what home opened
+    routers = old.get("routers") if isinstance(old, dict) else None
+    routers = list(routers) if isinstance(routers, list) and home else []
+    if home and mac not in routers:
+        routers.append(mac)
+    level = "home" if home else "trusted"
+    t[uuid] = {"ssid": ssid, "level": level, "key_mgmt": key, "trusted_at": stamp(), "routers": routers}
+    disc = isinstance(old, dict) and old.get("discoverable") is True  # the owner's choice, whatever the level
+    if disc:
+        t[uuid]["discoverable"] = True
     save(TRUSTED, t)
-    # at home the computer may use its own hardware address and name (routers show it, and reservations keep working)
-    sh(["nmcli", "connection", "modify", uuid, "802-11-wireless.cloned-mac-address", "permanent", "ipv4.dhcp-send-hostname", "yes", "ipv6.dhcp-send-hostname", "yes"])
-    unlock()
-    quiet(uuid, False)
-    print("trusted: %s (router %s)" % (ssid, mac))
+    pins = load(KEYS, {})
+    pin = psk_pin(uuid)
+    if pin:
+        pins[uuid] = pin
+    else:
+        pins.pop(uuid, None)  # the password is kept by the desktop's keyring, not the system: nothing to compare later
+    save(KEYS, pins, 0o600)
+    vpn = load(CONF, {}).get("vpn")
+    if not home:
+        # in force now, not only from the next connection: the quiet table, Avahi off and the private profile
+        quiet_table(True, disc)
+        quiet(uuid, True, disc)
+    else:
+        if real:
+            # at home the computer may use its own hardware address and name (routers show it, and reservations keep working)
+            sh(["nmcli", "connection", "modify", uuid, "802-11-wireless.cloned-mac-address", "permanent", "ipv4.dhcp-send-hostname", "yes", "ipv6.dhcp-send-hostname", "yes"])
+        unlock()
+        quiet_table(False)
+        quiet(uuid, False)
+    st = load(os.path.join(RUN, "state.json"), {})
+    if st.get("wifi") == uuid:
+        p = st.get("protections")
+        set_state(level=level, trusted=home, protections=protections(iface, uuid, isinstance(p, dict) and p.get("vpn") is True, home or disc))
+    if not home:
+        print("Trusted %s (%s): no more notices that it is untrusted." % (ssid, lock_name(key)))
+        if was == "home":
+            print("It is not your home network any more: the device list and discovery are off here now. Reconnect to it (nmcli connection up %s) "
+                  "so that its own hardware address here, no computer name sent%s apply too." % (uuid, " and the VPN" if vpn else ""))
+        else:
+            print("Protections unchanged: the firewall, not announcing this computer, its own hardware address here, no computer name sent%s."
+                  % (", the VPN" if vpn else ""))
+        print("Anyone who knows its password can make a copy of this network: a long password%s keeps it yours."
+              % ("" if key == "sae" else ", and WPA3 if the network offers it,"))
+        return
+    print("Home network: %s (router %s). The device list and discovery are on here, and the VPN is not used." % (ssid, mac))
+    if real:
+        print("From the next connection on, this computer uses its real hardware address and sends its name here.")
+    else:
+        print("This computer still uses its own hardware address here and sends no name (--real-address changes that).")
 
 
 def cmd_untrust(name):
+    """Back to untrusted, at once on the network connected now (the quiet table, Avahi off; the VPN from the next connection).
+    Whether a network is discoverable is the owner's separate choice and stays."""
     root()
     t = load(TRUSTED, {})
-    gone = [u for u, e in t.items() if name in (u, e.get("ssid"))]
+    gone = [u for u, e in t.items() if name == u or (isinstance(e, dict) and e.get("ssid") == name and level_of(e) != "untrusted")]
+    kept = {}
     for u in gone:
-        del t[u]
+        e = t.pop(u)
+        if isinstance(e, dict) and e.get("discoverable") is True:
+            kept[u] = t[u] = {"ssid": e.get("ssid"), "level": "untrusted", "discoverable": True}
     save(TRUSTED, t)
-    print("no longer trusted: %d network(s)" % len(gone) if gone else "no trusted network by that name")
+    pins = load(KEYS, {})
+    if any(u in pins for u in gone):
+        for u in gone:
+            pins.pop(u, None)
+        save(KEYS, pins, 0o600)
+    for u in gone:
+        private_profile(u)  # undoes --real-address (and trust before the levels): a private address, no name
+    iface, now, ssid = active_wifi()
+    st = load(os.path.join(RUN, "state.json"), {})
+    if now and now in gone and st.get("wifi") == now and iface:
+        disc = discoverable_of(kept.get(now), ssid)
+        quiet_table(True, disc)
+        quiet(now, True, disc)
+        quiet_router(iface)
+        p = st.get("protections")
+        set_state(level="untrusted", trusted=False, protections=protections(iface, now, isinstance(p, dict) and p.get("vpn") is True, disc))
+    if not gone:
+        print("no trusted network by that name")
+        return
+    print("no longer trusted: %d network(s); from the next connection on they are untrusted" % len(gone))
+    if now and now in gone:
+        print("%s is untrusted now: the device list and discovery are off here%s. Reconnect (nmcli connection up %s) for the rest: its "
+              "own hardware address, no computer name sent%s." % (ssid, " (it stays discoverable, as you chose)" if now in kept else "",
+                                                                 now, " and the VPN" if load(CONF, {}).get("vpn") else ""))
+
+
+def cmd_discoverable(args):
+    """discoverable [on|off] [--uuid UUID]: whether this computer may announce itself on a Wi-Fi network (Avahi, and its discovery
+    traffic out), the owner's choice for that network whatever its trust level (home always is). Every other protection stays:
+    the firewall, the inbound log, the VPN and its lockdown, the router watch, its own hardware address and no name sent. On the
+    network connected now it applies at once. Without on/off it only says it (no root needed). For Settings:
+    heimdall-wifi-discoverable-on@UUID.service and heimdall-wifi-discoverable-off@UUID.service run it as root."""
+    want, uuid, i = None, None, 0
+    while i < len(args):
+        if args[i] == "--uuid":
+            uuid = args[i + 1] if i + 1 < len(args) else ""
+            i += 2
+            continue
+        if args[i] not in ("on", "off") or want is not None:
+            sys.exit("discoverable: unknown word %r (discoverable [on|off] [--uuid UUID]): nothing changed" % args[i])
+        want = args[i]
+        i += 1
+    if want is not None:
+        root()
+    iface, now, _ = active_wifi()
+    if uuid is None:
+        uuid = now
+    if not uuid:
+        sys.exit("not connected to Wi-Fi: name the network with --uuid UUID")
+    ssid = sh(["nmcli", "-g", "802-11-wireless.ssid", "connection", "show", uuid]).stdout.strip()
+    if not ssid:
+        sys.exit("%s is not a saved Wi-Fi network: nothing changed" % uuid)
+    t = load(TRUSTED, {})
+    e = t.get(uuid)
+    home = level_of(e) == "home"
+    if want is None:
+        print("%s: discoverable %s" % (ssid, "on (home)" if home else "on" if discoverable_of(e, ssid) else "off"))
+        return
+    if isinstance(e, dict):
+        e = dict(e)
+        if want == "on":
+            e["discoverable"] = True
+            e["ssid"] = e.get("ssid") if level_of(e) != "untrusted" else ssid
+        else:
+            e.pop("discoverable", None)
+        if e.get("level") == "untrusted" and "discoverable" not in e:
+            t.pop(uuid)  # nothing left to remember about it
+        else:
+            t[uuid] = e
+    elif want == "on":
+        t[uuid] = {"ssid": ssid, "level": "untrusted", "discoverable": True}
+    save(TRUSTED, t)
+    st = load(os.path.join(RUN, "state.json"), {})
+    if uuid == now and st.get("wifi") == now and iface and not home:
+        disc = discoverable_of(t.get(uuid), ssid)
+        quiet_table(True, disc)
+        quiet(uuid, True, disc)
+        p = st.get("protections")
+        set_state(protections=protections(iface, uuid, isinstance(p, dict) and p.get("vpn") is True, disc))
+    if home:
+        print("%s is your home network: this computer announces itself there anyway." % ssid)
+    elif want == "on":
+        print("%s: discoverable. This computer announces itself there (its name and services, through Avahi); every other protection "
+              "stays." % ssid)
+    else:
+        print("%s: not discoverable. This computer does not announce itself there." % ssid)
 
 
 def parse_wg(text):
@@ -370,18 +944,65 @@ def cmd_sign_in():
             pass
 
 
+def exposure(p):
+    """What a network can still see of this computer, in a line (p: the protections in force)."""
+    seen = "that this computer is there" + (", its name and the services it announces (discoverable here)" if p.get("discoverable") is True else "")
+    if p.get("vpn"):
+        return seen + " and how much it sends; the VPN hides where it goes"
+    return seen + ", the names of the sites it visits (DNS is not encrypted) and how much it sends; a VPN would hide the last two"
+
+
+def inbound_watch():
+    """Whether the alerts for devices reaching this computer can appear: heimdalld turns the quiet table's log into them, with
+    its firewall watch, which needs heimdalld running, the systemd-journal group (packaging/arch/heimdall-firewall.conf.example)
+    and the watch not turned off in its config."""
+    if sh(["systemctl", "is-active", "heimdall.service"]).stdout.strip() != "active":
+        return "not reported: heimdalld is not running"
+    if "systemd-journal" not in sh(["systemctl", "show", "-p", "SupplementaryGroups", "--value", "heimdall.service"]).stdout.split():
+        return "not reported: heimdalld cannot read the kernel log (install packaging/arch/heimdall-firewall.conf.example as its drop-in)"
+    if load(HEIMDALL_CONFIG, {}).get("firewall", True) is not True:
+        return 'not reported: heimdalld\'s firewall watch is off ("firewall" in /etc/heimdall/config.json)'
+    return "reported (heimdalld's firewall watch reads the quiet table's log)"
+
+
 def cmd_status():
     t = load(TRUSTED, {})
     vpn = load(CONF, {}).get("vpn")
-    print("trusted networks:" if t else "trusted networks: none")
+    st = load(os.path.join(RUN, "state.json"), {})
+    print("networks you trust:" if t else "networks you trust: none")
     for u, e in t.items():
-        print("  %s (router %s)" % (e.get("ssid"), ", ".join(e.get("routers", []))))
+        if not isinstance(e, dict):
+            continue
+        level = level_of(e)
+        line = "  %s: %s" % (e.get("ssid"), level)
+        if e.get("discoverable") is True and level != "home":
+            line += ", discoverable"
+        if isinstance(e.get("key_mgmt"), str) and e["key_mgmt"] in LOCK_NAMES:
+            line += " (%s)" % LOCK_NAMES[e["key_mgmt"]]
+        routers = e.get("routers")
+        if level == "home" and isinstance(routers, list):
+            line += ", router " + ", ".join(r for r in routers if isinstance(r, str))
+        print(line)
     print("VPN: " + ("set up, %d endpoint(s)" % len(vpn["endpoints"]) if vpn else "not set up (heimdall-wifi-guard vpn-import FILE.conf)"))
     iface, uuid, ssid = active_wifi()
     if uuid:
-        print("now on: %s, %s" % (ssid, "trusted" if is_trusted(uuid) else "untrusted"))
+        key = profile_key(uuid)
+        here = st.get("wifi") == uuid
+        level = st.get("level") if here and st.get("level") in ("untrusted",) + LEVELS else level_of(t.get(uuid), ssid, key)
+        print("now on: %s, %s (%s)" % (ssid, level, lock_name(key)))
+        p = st.get("protections") if here else None
+        if isinstance(p, dict):
+            print("protections: " + "; ".join("%s: %s" % (label, "yes" if p.get(k) else "no") for k, label in PROTECTIONS))
+            if p.get("discoverable") is True:
+                print("discoverable here: yes (this computer announces itself; heimdall-wifi-guard discoverable off)")
+            allowed = p.get("allowed_in")
+            if isinstance(allowed, list) and allowed:
+                print("the firewall lets in (a ufw rule allows them, and they listen here): " + ", ".join(str(a) for a in allowed))
+            print("still visible to the network: " + exposure(p))
+    print("devices reaching this computer: " + inbound_watch())
     if os.geteuid() == 0:
         print("lockdown: " + ("on" if locked() else "off"))
+        print("quiet table: " + quiet_counters())
 
 
 def main(a):
@@ -395,9 +1016,11 @@ def main(a):
     elif c == "status":
         cmd_status()
     elif c == "trust":
-        cmd_trust()
+        cmd_trust(a[2:])
     elif c == "untrust" and len(a) > 2:
         cmd_untrust(a[2])
+    elif c == "discoverable":
+        cmd_discoverable(a[2:])
     elif c == "vpn-import" and len(a) > 2:
         cmd_vpn_import(a[2])
     elif c == "vpn-remove":
@@ -408,6 +1031,13 @@ def main(a):
         root()
         vpn = {"endpoints": parse_wg(open(a[2]).read()) if len(a) > 2 else [{"ip": "203.0.113.5", "port": 51820}], "iface": "wg-heimdall"}
         rs = ruleset(vpn)
+        print(rs)
+        p = subprocess.run(["nft", "-c", "-f", "-"], input=rs, capture_output=True, text=True, env=ENV)
+        print("nft check: " + ("ok" if p.returncode == 0 else p.stderr.strip()))
+        return p.returncode
+    elif c == "quiet-check":  # print and check Heimdall's quiet table, without applying it (root)
+        root()
+        rs = quiet_ruleset()
         print(rs)
         p = subprocess.run(["nft", "-c", "-f", "-"], input=rs, capture_output=True, text=True, env=ENV)
         print("nft check: " + ("ok" if p.returncode == 0 else p.stderr.strip()))

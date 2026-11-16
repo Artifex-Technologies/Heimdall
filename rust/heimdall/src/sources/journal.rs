@@ -16,9 +16,15 @@ use std::time::{Duration, Instant};
 
 const MAX_LINE: usize = 1 << 20;
 
+/// Starts each line of heimdall-wifi-guard's quiet table: a new packet aimed at this computer over Wi-Fi.
+const WIFI_IN_PREFIX: &str = "heimdall-wifi-in: ";
+/// The same from the network's router (once per connection: routers that list their clients do this).
+const WIFI_IN_ROUTER_PREFIX: &str = "heimdall-wifi-in-router: ";
+
 struct Rx {
     ufw: Regex,
     kv: Regex,
+    wifi_kv: Regex,
     ssh: Vec<Regex>,
 }
 
@@ -29,6 +35,7 @@ fn rx() -> &'static Rx {
         Rx {
             ufw: c(r"\[UFW (BLOCK|LIMIT BLOCK)\]"),
             kv: c(r"\b(IN|SRC|DST|PROTO|SPT|DPT)=(\S*)"),
+            wifi_kv: c(r"\b(IN|SRC|PROTO|DPT|MAC|TYPE)=(\S*)"),
             ssh: vec![
                 c(r"^Failed (?:password|publickey|keyboard-interactive/pam) for (?:invalid user )?(\S+) from (\S+) port \d+"),
                 c(r"^Invalid user (\S*) from (\S+) port \d+"),
@@ -114,6 +121,11 @@ impl Parser {
 
     pub fn parse(&mut self, msg: &str, ident: &str, t: Time) -> Option<Event> {
         let rx = rx();
+        let router = msg.starts_with(WIFI_IN_ROUTER_PREFIX);
+        if router || msg.starts_with(WIFI_IN_PREFIX) {
+            // the journal filter already lets only the kernel's lines in; a program's are not believed
+            return if ident == "kernel" { wifi_inbound(msg, t, router) } else { None };
+        }
         if rx.ufw.is_match(msg) {
             let mut kv = std::collections::BTreeMap::new();
             for c in rx.kv.captures_iter(msg) {
@@ -385,6 +397,51 @@ impl Source for JournalSource {
     }
 }
 
+/// A line of heimdall-wifi-guard's quiet table: a device on a Wi-Fi network started something aimed at this computer (Go:
+/// fwsource.wifiInbound). The table only logs it; ufw decides whether it gets in. Only for a Wi-Fi interface and a sender on
+/// the network itself (a private or link-local address); a line saying otherwise is not one of the table's.
+fn wifi_inbound(msg: &str, t: Time, router: bool) -> Option<Event> {
+    let mut kv = std::collections::BTreeMap::new();
+    for c in rx().wifi_kv.captures_iter(msg) {
+        kv.insert(c[1].to_string(), c[2].to_string());
+    }
+    let g = |k: &str| kv.get(k).cloned().unwrap_or_default();
+    let ip = crate::gonet::parse_ip(&g("SRC"))?;
+    if !g("IN").starts_with("wl") || !(crate::gonet::is_private(&ip) || crate::gonet::is_link_local_unicast(&ip)) {
+        return None;
+    }
+    let src = crate::sources::net::ip_text(&ip);
+    let mut fields = Fields::from([
+        ("src".to_string(), src.clone()),
+        ("src_mac".to_string(), source_mac(&g("MAC"))),
+        ("proto".to_string(), g("PROTO")),
+        ("dst_port".to_string(), g("DPT")),
+        ("icmp_type".to_string(), g("TYPE")),
+        ("iface".to_string(), g("IN")),
+        ("inbound".to_string(), "wifi".to_string()),
+    ]);
+    if router {
+        fields.insert("router".to_string(), "true".to_string());
+    }
+    Some(Event {
+        source: "host-wifi".into(),
+        session_id: String::new(),
+        time: t,
+        kind: "wifi_inbound".into(),
+        text: format!("a device {src} tried to reach this computer over Wi-Fi ({} {})", g("PROTO"), g("DPT")),
+        fields,
+    })
+}
+
+/// The sender's hardware address from the log's MAC= (destination, source, then the frame type), "" without one.
+fn source_mac(m: &str) -> String {
+    let p: Vec<&str> = m.split(':').collect();
+    if p.len() < 12 {
+        return String::new();
+    }
+    crate::cli::lan::text::to_upper(p[6..12].join(":").as_bytes())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -406,5 +463,31 @@ mod tests {
         assert!(e.f("user").starts_with("r?oot?") && e.f("user").ends_with("..."), "{}", e.f("user"));
         let bytes = r#"{"MESSAGE":[1,2,3],"__CURSOR":"s=d"}"#;
         assert_eq!(p.entry(bytes.as_bytes()), (None, "s=d".to_string()));
+    }
+
+    #[test]
+    fn reads_the_quiet_tables_lines_like_go() {
+        let mut p = Parser { origins: None, threats: None };
+        let t = Time::from_unix(1761170000, 0);
+        let tcp = "heimdall-wifi-in: IN=wlan0 OUT= MAC=02:00:00:00:00:10:0e:00:00:00:00:05:08:00 SRC=192.168.0.23 DST=192.168.0.10 LEN=60 PROTO=TCP SPT=51000 DPT=445 SYN";
+        let e = p.parse(tcp, "kernel", t).unwrap();
+        assert_eq!(
+            (e.kind.as_str(), e.source.as_str(), e.f("src"), e.f("src_mac"), e.f("proto"), e.f("dst_port"), e.f("inbound")),
+            ("wifi_inbound", "host-wifi", "192.168.0.23", "0E:00:00:00:00:05", "TCP", "445", "wifi")
+        );
+        let ping = "heimdall-wifi-in: IN=wlp2s0 OUT= SRC=fe80:0::23 DST=fe80::10 PROTO=ICMPv6 TYPE=128 CODE=0";
+        let e = p.parse(ping, "kernel", t).unwrap();
+        assert_eq!((e.f("src"), e.f("src_mac"), e.f("icmp_type"), e.f("dst_port")), ("fe80::23", "", "128", ""));
+        assert!(p.parse("heimdall-wifi-in: IN=wlan0 SRC=fd00::23 PROTO=UDP DPT=137", "kernel", t).is_some());
+        assert!(p.parse("heimdall-wifi-in: IN= OUT=wlan0 SRC=192.168.0.10 PROTO=UDP DPT=137", "kernel", t).is_none());
+        assert!(p.parse("heimdall-wifi-in: IN=wlan0 SRC=x PROTO=TCP DPT=22", "kernel", t).is_none());
+        // an internet server's stray packet, a wired interface, a line a program wrote: never one of the table's
+        assert!(p.parse("heimdall-wifi-in: IN=wlan0 SRC=203.0.113.9 PROTO=TCP DPT=51000", "kernel", t).is_none());
+        assert!(p.parse("heimdall-wifi-in: IN=eth0 SRC=192.168.0.23 PROTO=TCP DPT=22", "kernel", t).is_none());
+        assert!(p.parse("heimdall-wifi-in: IN=wlan0 SRC=192.168.0.23 PROTO=TCP DPT=22", "sshd", t).is_none());
+        let r = p.parse("heimdall-wifi-in-router: IN=wlan0 SRC=192.168.0.1 PROTO=ICMP TYPE=8", "kernel", t).unwrap();
+        assert_eq!((r.f("src"), r.f("router")), ("192.168.0.1", "true"));
+        assert_eq!(p.parse(tcp, "kernel", t).unwrap().f("router"), "");
+        assert!(p.parse("heimdall-wifi-in-router: IN=wlan0 SRC=192.168.0.1 PROTO=ICMP TYPE=8", "nm-dispatcher", t).is_none());
     }
 }

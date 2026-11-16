@@ -12,7 +12,8 @@ StateDirectory=heimdall heimdall/wifi
 RuntimeDirectory=heimdall-wifi
 RuntimeDirectoryMode=0755
 RuntimeDirectoryPreserve=yes
-TimeoutStartSec=3min
+# up to 4 secure connections per well-known name to the addresses DNS gave (8 s each), and up to 45 s waiting for the guard
+TimeoutStartSec=5min
 # a check of the network just joined: it never waits, but takes a small share when the computer is busy
 Nice=10
 CPUWeight=20

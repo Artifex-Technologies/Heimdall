@@ -121,12 +121,18 @@ order. `sudo heimdalld kernel-check` lists the holes per kernel.
 | `network-exposure` | An ecosystem port (8765, 8899, 44700, 8930) bound or reached from somewhere other than loopback |
 | `connection-watch` | Each program's first connection to a new destination, and any connection to an address on a threat list (Spamhaus DROP, FireHOL Level 1, Emerging Threats): critical, with the `ufw` command to cut it off |
 | `inbound` | Failed SSH logins from one address, port scans, an address the firewall keeps blocking |
-| `wifi-safety` | The verdict on each Wi-Fi network joined: encryption, evil twins, sign-in pages, ARP and DNS spoofing, untrusted certificates, injected pages |
+| `wifi-safety` | The verdict on each Wi-Fi network joined: encryption, evil twins, sign-in pages, ARP and DNS spoofing, untrusted certificates, injected pages; "protected" (info) when other devices can see the computer but verified protections cover it |
 
 - **Where an address belongs.** Every remote address is named with its country and network from an offline IP database
   (IPinfo Lite or DB-IP Lite). Nothing is looked up online.
-- **Wi-Fi guard.** `heimdall-wifi-guard` sets up trusted networks (remembered with their router's hardware address) and a VPN
-  with a kill switch on every other network. It keeps the computer quiet on untrusted networks.
+- **Wi-Fi guard ([docs/WIFI_TRUST.md](docs/WIFI_TRUST.md)).** `heimdall-wifi-guard` keeps the computer quiet on every network
+  but home: no announcing (its own nftables table drops mDNS, LLMNR, SSDP, NetBIOS, WS-Discovery, KDE Connect, Syncthing,
+  Steam and Dropbox discovery out on Wi-Fi), no name sent, a hardware address of its own per network, and a VPN with a kill
+  switch if one is set up. `trust` marks a network trusted: no more "untrusted" notices, every protection kept, recognized by
+  its password, so a phone hotspot stays trusted. `trust --home` is the separate choice to open up (device list, discovery, no
+  VPN); `discoverable on` lets the computer announce itself on one network whatever its level, every other protection kept. A
+  device on the network itself starting a connection to this computer, sending it a packet or pinging it over Wi-Fi is a
+  `lan-watch` warning on every network but home (with heimdalld's firewall watch on).
 - **DNS block list.** NetworkManager's local DNS cache refuses malware, phishing and scam domains, updated daily.
 - **Limbo.** Heimdall reads Limbo's audit log. With `limbo_auto_quarantine`, it restricts a guest that misbehaves and attaches
   Sarina's advisory. It can tighten a guest but never loosen one. Detectors: `limbo-guest` (a guest started without its

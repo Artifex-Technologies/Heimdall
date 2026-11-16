@@ -334,14 +334,97 @@ impl Detector for WifiDetector {
                 "Wi-Fi {ssid} is not safe: {}. Disconnect, or use a VPN for everything (Proton VPN) and do not sign in to anything without it", e.f("reasons")), e),
             "caution" => one(self.id(), Severity::Warning, format!("Wi-Fi {ssid} needs care: {}. A VPN is a good idea here", e.f("reasons")), e),
             "safe" => one(self.id(), Severity::Info, format!("Wi-Fi {ssid} checked: nothing wrong found"), e),
+            // other devices can see this computer there, but the protections the guard verified cover it: nothing to do
+            "protected" => one(self.id(), Severity::Info, format!(
+                "Wi-Fi {ssid} is protected: other devices there can see this computer, but it does not announce itself, its firewall turns their connections away (it answers pings) and it uses its own hardware address"), e),
             _ => Vec::new(),
         }
     }
 }
 
-/// The local-network watches: router impersonation, new listeners, new devices on a trusted network.
+/// How many devices reaching for this computer over Wi-Fi are reported in an hour (Go: inboundPerHour).
+pub const INBOUND_PER_HOUR: usize = 5;
+const HOUR: i64 = 3_600_000_000_000;
+
+/// The local-network watches: router impersonation, new listeners, new devices on a trusted network, and devices on Wi-Fi
+/// reaching for this computer on every network but home (once per device an hour, at most `INBOUND_PER_HOUR` devices an hour,
+/// then one summary for the rest of the hour; the hours are kept in memory).
 #[derive(Default)]
-pub struct LanDetector;
+pub struct LanDetector {
+    inbound_seen: std::collections::BTreeMap<String, crate::gotime::Time>,
+    inbound_times: Vec<crate::gotime::Time>,
+    /// when the summary for devices past the cap was given
+    inbound_capped: Option<crate::gotime::Time>,
+}
+
+impl LanDetector {
+    /// A device that started something aimed at this computer over Wi-Fi (heimdall-wifi-guard's quiet table logged it). The
+    /// hour lies on either side of the event (the journal can hand lines over out of order) (Go: LANDetector.inbound).
+    fn inbound(&mut self, e: &Event) -> Vec<Finding> {
+        let src = e.f("src");
+        if src.is_empty() {
+            return Vec::new();
+        }
+        let within = |t: &crate::gotime::Time| {
+            let a = e.time.sub(t);
+            a > -HOUR && a < HOUR
+        };
+        if self.inbound_seen.get(src).is_some_and(within) {
+            return Vec::new();
+        }
+        if e.f("router") == "true" {
+            // the network's router (logged once per connection): routers that keep a list of their devices look at each one;
+            // worth knowing, not a warning, and not counted against the devices of the hour
+            self.inbound_seen.insert(src.to_string(), e.time);
+            return one(self.id(), Severity::Info, format!(
+                "the router of this Wi-Fi network ({src}) reached for this computer: {}. Routers that keep a list of their devices do this; it is noted once per connection",
+                inbound_what(e.f("proto"), e.f("dst_port"), e.f("icmp_type"))), e);
+        }
+        self.inbound_times.retain(within);
+        if self.inbound_seen.len() > 1024 {
+            // forget devices reported long ago, so a flood of made-up senders cannot grow memory
+            self.inbound_seen.retain(|_, t| within(t));
+        }
+        self.inbound_seen.insert(src.to_string(), e.time);
+        let mut who = src.to_string();
+        if !e.f("src_mac").is_empty() {
+            who += &format!(", hardware address {}", e.f("src_mac"));
+        }
+        if self.inbound_times.len() >= INBOUND_PER_HOUR {
+            if self.inbound_capped.as_ref().is_some_and(within) {
+                return Vec::new();
+            }
+            self.inbound_capped = Some(e.time);
+            return one(self.id(), Severity::Warning, format!(
+                "more than {INBOUND_PER_HOUR} devices on Wi-Fi tried to reach this computer within an hour (the latest: {who}): the others this hour are not reported one by one. Many at once can be one device sweeping the network with made-up addresses; on a network you do not control, disconnect or use a VPN"), e);
+        }
+        self.inbound_times.push(e.time);
+        let what = inbound_what(e.f("proto"), e.f("dst_port"), e.f("icmp_type"));
+        let gate = if what == "a ping" {
+            "This computer answers pings (ufw does by default), and nothing else gets in that way"
+        } else {
+            "The firewall drops it unless a rule allows it"
+        };
+        one(self.id(), Severity::Warning, format!(
+            "a device on Wi-Fi ({who}) tried to reach this computer: {what}. {gate}; if you do not know the device, see Settings > Wi-Fi & Network"), e)
+    }
+}
+
+/// What a device asked of this computer, from the protocol, port and ICMP type the kernel logged (Go: inboundWhat).
+pub fn inbound_what(proto: &str, port: &str, icmp_type: &str) -> String {
+    match (proto, port) {
+        _ if (proto == "ICMP" && icmp_type == "8") || (proto == "ICMPv6" && icmp_type == "128") => "a ping".into(),
+        ("UDP", "137") => "a NetBIOS question for this computer's name (port 137)".into(),
+        ("UDP", "5353") => "a multicast DNS question asked of this computer directly (port 5353)".into(),
+        (_, "5355") => "an LLMNR name question (port 5355)".into(),
+        ("UDP", "1900") => "a UPnP question (port 1900)".into(),
+        ("UDP", "161") => "an SNMP question for its details (port 161)".into(),
+        ("TCP", "445" | "139") => format!("a connection to Windows file sharing (port {port})"),
+        ("TCP", "22") => "a connection to SSH (port 22)".into(),
+        (_, p) if !p.is_empty() => format!("a connection to port {p} ({proto})"),
+        _ => format!("a packet ({proto})"),
+    }
+}
 
 impl Detector for LanDetector {
     fn id(&self) -> &'static str {
@@ -373,6 +456,7 @@ impl Detector for LanDetector {
             "new_listener" => one(id, Severity::Warning, format!(
                 "a program started listening for connections from the network on {}/{}. The firewall blocks it unless a rule allows it; to see which program: sudo ss -tulpn | grep ':{} '",
                 f("proto"), f("port"), f("port")), e),
+            "wifi_inbound" => self.inbound(e),
             _ => Vec::new(),
         }
     }

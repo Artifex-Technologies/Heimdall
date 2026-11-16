@@ -10,7 +10,7 @@ use std::io::BufRead;
 use std::net::Ipv4Addr;
 use std::time::Duration;
 
-/// heimdall-wifi-guard's trusted networks: {uuid: {ssid, routers: [mac]}}.
+/// heimdall-wifi-guard's trusted networks: {uuid: {ssid, level, routers: [mac]}}.
 pub const TRUSTED_PATH: &str = "/etc/heimdall/wifi-trusted.json";
 pub const PROC_ROOT: &str = "/proc";
 
@@ -108,11 +108,14 @@ pub fn arp_table(proc_root: &str, iface: &str) -> BTreeMap<String, String> {
     out
 }
 
-/// One trusted network as heimdall-wifi-guard records it.
+/// One trusted network as heimdall-wifi-guard records it. `level`, as heimdall-wifi-guard reads it (Go's trustedNet.level):
+/// "home" (the device list may look around; also an entry with no level, from before the levels), "trusted" (quiet only) or
+/// "" for any other value (untrusted).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Trusted {
     pub ssid: String,
     pub routers: Vec<String>,
+    pub level: String,
 }
 
 static TRUSTED_NET: crate::gostruct::Ty = crate::gostruct::Ty::Struct(
@@ -134,6 +137,16 @@ pub fn parse_trusted(b: &[u8]) -> BTreeMap<String, Trusted> {
         let mut val = crate::gostruct::zero(&TRUSTED_NET);
         let mut cx = crate::gostruct::Ctx { top: "", first: None };
         crate::gostruct::read(&TRUSTED_NET, &v, &mut val, "", &mut cx);
+        // the level as written (Go keeps it raw): missing is home, only "home" and "trusted" are levels
+        let raw = match crate::gojson::struct_members(&v, &["ssid", "routers", "level"], "lan.trustedNet") {
+            Ok(Some(m)) => m.into_iter().filter(|(i, _)| *i == 2).map(|(_, x)| x).next_back(),
+            _ => None,
+        };
+        let level = match raw {
+            None => "home".to_string(),
+            Some(Value::String(s)) if s == "home" || s == "trusted" => s.clone(),
+            Some(_) => String::new(),
+        };
         let t = match &val {
             Val::Struct(f) => Trusted {
                 ssid: match &f[0] {
@@ -150,8 +163,9 @@ pub fn parse_trusted(b: &[u8]) -> BTreeMap<String, Trusted> {
                         .collect(),
                     _ => Vec::new(),
                 },
+                level,
             },
-            _ => Trusted::default(),
+            _ => Trusted { level, ..Trusted::default() },
         };
         out.insert(k, t);
     }
@@ -189,6 +203,13 @@ pub fn scan(dir: &str, wait: Duration, log: &dyn Fn(&str)) -> Result<Outcome, St
         Some(t) if !uuid.is_empty() => t.clone(),
         _ => return status(&mut st, "not_trusted", &uuid),
     };
+    if t.level.is_empty() {
+        return status(&mut st, "not_trusted", &uuid);
+    }
+    if t.level == "trusted" {
+        // trusted but not home: the owner asked for quiet there, not for the device list, so nothing is sent to look around
+        return status(&mut st, "not_home", &uuid);
+    }
     if !t.ssid.is_empty() {
         ssid = t.ssid.clone();
     }

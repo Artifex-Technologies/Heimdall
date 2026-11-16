@@ -247,6 +247,19 @@ pub fn tls_probe(host: &str) -> Tls {
     }
 }
 
+/// One secure connection to this exact address with `host`'s name (the DNS check asks an answer outside the name's own
+/// networks for its certificate): "ok" (the genuine one), "cert" (one this computer does not trust), "none" (no answer).
+pub fn tls_probe_at(ip: &str, host: &str) -> &'static str {
+    match create_connection(ip, 443, TIMEOUT) {
+        Some(tcp) => match tls_connect(tcp, host) {
+            Tls::Ok(_) => "ok",
+            Tls::Cert(_) => "cert",
+            Tls::Blocked => "none",
+        },
+        None => "none",
+    }
+}
+
 // ---- plain web pages, as urllib fetches them
 
 /// A URL split as Python 3.14's `_urlsplit` splits it: a part that is absent is None, not "".

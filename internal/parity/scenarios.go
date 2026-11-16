@@ -402,11 +402,27 @@ func translatorScenarios() []Scenario {
 		step(ev("", "wifi_check", "", map[string]string{"ssid": "Home", "verdict": "caution", "reasons": "WPA2 only"}), want("wifi-safety", W)),
 		step(ev("", "wifi_check", "", map[string]string{"ssid": "Home", "verdict": "safe"}), want("wifi-safety", I)),
 		step(ev("", "wifi_check", "", map[string]string{"ssid": "Home", "verdict": "?"}), want("wifi-safety")),
+		step(ev("", "wifi_check", "", map[string]string{"ssid": "Example-Phone", "verdict": "protected"}), want("wifi-safety", I).has("protected")),
 		step(ev("", "router_changed", "", map[string]string{"ssid": "Hotel", "expected_mac": "aa", "new_mac": "bb"}), want("lan-watch", C)),
 		step(ev("", "router_impersonated", "", map[string]string{"ssid": "Hotel", "other_ip": "192.0.2.5", "expected_mac": "aa"}), want("lan-watch", C)),
 		step(ev("", "new_lan_device", "", map[string]string{"ssid": "Home", "name": "TV", "vendor": "Samsung", "ip": "192.168.1.30"}), want("lan-watch", W).has("made by Samsung")),
 		step(ev("", "new_lan_device", "", map[string]string{"ssid": "Home", "private_mac": "true", "ip": "192.168.1.31"}), want("lan-watch", W).has("a device, using a private address")),
 		step(ev("", "new_listener", "", map[string]string{"proto": "tcp", "port": "9091"}), want("lan-watch", W)),
+		step(ev("host-wifi", "wifi_inbound", "", map[string]string{"src": "192.0.2.23", "src_mac": "0E:00:00:00:00:05", "proto": "TCP", "dst_port": "445", "iface": "wlan0", "inbound": "wifi"}),
+			want("lan-watch", W).has("Windows file sharing")),
+		step(ev("host-wifi", "wifi_inbound", "", map[string]string{"src": "192.0.2.23", "proto": "UDP", "dst_port": "137", "iface": "wlan0", "inbound": "wifi"}), want("lan-watch")),
+		step(ev("host-wifi", "wifi_inbound", "", map[string]string{"src": "192.0.2.24", "proto": "ICMP", "icmp_type": "8", "iface": "wlan0", "inbound": "wifi"}), want("lan-watch", W).has("answers pings")),
+		step(ev("host-wifi", "wifi_inbound", "", map[string]string{"src": "192.0.2.25", "proto": "UDP", "dst_port": "5353", "iface": "wlan0", "inbound": "wifi"}), want("lan-watch", W)),
+		step(ev("host-wifi", "wifi_inbound", "", map[string]string{"src": "192.0.2.26", "proto": "UDP", "dst_port": "1900", "iface": "wlan0", "inbound": "wifi"}), want("lan-watch", W)),
+		step(ev("host-wifi", "wifi_inbound", "", map[string]string{"src": "192.0.2.27", "proto": "TCP", "dst_port": "22", "iface": "wlan0", "inbound": "wifi"}), want("lan-watch", W)),
+		// past five devices in an hour: one summary, then nothing for the rest of the hour
+		step(ev("host-wifi", "wifi_inbound", "", map[string]string{"src": "192.0.2.28", "src_mac": "0E:00:00:00:00:08", "proto": "TCP", "dst_port": "80", "iface": "wlan0", "inbound": "wifi"}),
+			want("lan-watch", W).has("more than 5 devices")),
+		step(ev("host-wifi", "wifi_inbound", "", map[string]string{"src": "192.0.2.29", "proto": "TCP", "dst_port": "80", "iface": "wlan0", "inbound": "wifi"}), want("lan-watch")),
+		// the network's router: info, once per connection, past the cap too
+		step(ev("host-wifi", "wifi_inbound", "", map[string]string{"src": "192.0.2.1", "proto": "ICMP", "icmp_type": "8", "iface": "wlan0", "inbound": "wifi", "router": "true"}),
+			want("lan-watch", I).has("the router of this Wi-Fi network")),
+		step(ev("host-wifi", "wifi_inbound", "", map[string]string{"src": "192.0.2.1", "proto": "TCP", "dst_port": "80", "iface": "wlan0", "inbound": "wifi", "router": "true"}), want("lan-watch")),
 	}}
 	base := map[string]string{"process": "firefox", "remote_addr": "5.0.0.10", "remote_port": "443"}
 	conn := func(extra map[string]string) *EventJSON { return ev("", "new_connection", "", merge(base, extra)) }

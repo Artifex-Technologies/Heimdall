@@ -144,6 +144,10 @@ fn the_list_and_its_files_as_go_keeps_them() {
         assert_eq!(s.marshal().unwrap(), st(&c["Out"]), "{c}");
     }
     for c in arr(&f, "trusted") {
+        let levels: BTreeMap<String, Value> =
+            scan::parse_trusted(st(&c["in"]).as_bytes()).into_iter().map(|(k, t)| (k, Value::String(t.level))).collect();
+        let want: BTreeMap<String, Value> = c["levels"].as_object().unwrap().clone().into_iter().collect();
+        assert_eq!(levels, want, "levels of {}", c["in"]);
         let got: BTreeMap<String, Value> = scan::parse_trusted(st(&c["in"]).as_bytes())
             .into_iter()
             .map(|(k, t)| (k, serde_json::json!({"ssid": t.ssid, "routers": if t.routers.is_empty() { Value::Null } else { serde_json::json!(t.routers) }})))
@@ -328,6 +332,34 @@ fn lan_scan_without_a_scan_as_go() {
         ("not trusted: nmcli fails", DUMMY_NET, Some(trusted), "exit 1\n", None, vec!["lan", "scan"], false),
         ("not trusted: broken file", DUMMY_NET, Some("{"), nmcli, None, vec!["lan", "scan"], false),
         ("router changed", DUMMY_NET, Some(trusted), nmcli, Some(DEVICES), vec!["lan", "scan"], false),
+        // trusted by heimdall-wifi-guard, but not as the home network: nothing is swept
+        (
+            "trusted, not home",
+            DUMMY_NET,
+            Some(r#"{"u1": {"ssid": "Home", "level": "trusted", "key_mgmt": "sae", "routers": []}}"#),
+            nmcli,
+            Some(DEVICES),
+            vec!["lan", "scan"],
+            false,
+        ),
+        (
+            "a level that is not one",
+            DUMMY_NET,
+            Some(r#"{"u1": {"ssid": "Home", "level": null, "routers": ["00:00:5e:00:53:01"]}}"#),
+            nmcli,
+            None,
+            vec!["lan", "scan"],
+            false,
+        ),
+        (
+            "home, router changed",
+            DUMMY_NET,
+            Some(r#"{"u1": {"ssid": "Home", "level": "home", "routers": ["00:00:5e:00:53:01"]}}"#),
+            nmcli,
+            None,
+            vec!["lan", "scan"],
+            false,
+        ),
         ("router changed, as root, own dir", DUMMY_NET, Some(trusted), nmcli, None, vec!["lan", "scan", "--dir", "/srv//new/lan/"], true),
         ("store unreadable", DUMMY_NET, None, nmcli, Some("{\"status\": 5}"), vec!["lan", "scan"], false),
         ("dir not makeable", "", None, nmcli, None, vec!["lan", "scan", "--dir", "/proc/nope"], false),

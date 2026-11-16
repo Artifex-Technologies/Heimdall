@@ -1,0 +1,8 @@
+[Unit]
+Description=Heimdall -- let this computer announce itself on the Wi-Fi network %i (from Settings)
+Documentation=file:///usr/share/doc/heimdall/WIFI_TRUST.md
+
+[Service]
+# Settings starts this unit (polkit: 50-heimdall-wifi-discoverable.rules); the guard checks the network is a saved Wi-Fi profile
+Type=oneshot
+ExecStart=/usr/bin/heimdall-wifi-guard discoverable on --uuid %i

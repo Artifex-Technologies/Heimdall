@@ -4126,12 +4126,14 @@
   {"In":"ff","Out":"{\n \"networks\": null,\n \"status\": \"\",\n \"status_time\": \"0001-01-01T00:00:00Z\"\n}","Err":"invalid character '\\xff' looking for beginning of value"}
  ],
  "trusted": [
-  {"in":"{\"u1\": {\"ssid\": \"Home\", \"routers\": [\"00:00:5e:00:53:01\"]}}","out":{"u1":{"ssid":"Home","routers":["00:00:5e:00:53:01"]}}},
-  {"in":"{\"u1\": 5, \"u2\": {\"SSID\": \"x\"}}","out":{"u1":{"ssid":"","routers":null},"u2":{"ssid":"x","routers":null}}},
-  {"in":"[]","out":{}},
-  {"in":"null","out":null},
-  {"in":"{","out":{}},
-  {"in":"{\"u\": {\"ssid\": \"a\", \"routers\": [\"x\"]}, \"u\": {\"ssid\": \"b\"}}","out":{"u":{"ssid":"b","routers":null}}},
-  {"in":"{\"u\": {\"routers\": [1, \"y\"]}}","out":{"u":{"ssid":"","routers":["","y"]}}}
+  {"in":"{\"u1\": {\"ssid\": \"Home\", \"routers\": [\"00:00:5e:00:53:01\"]}}","out":{"u1":{"ssid":"Home","routers":["00:00:5e:00:53:01"]}},"levels":{"u1":"home"}},
+  {"in":"{\"u1\": 5, \"u2\": {\"SSID\": \"x\"}}","out":{"u1":{"ssid":"","routers":null},"u2":{"ssid":"x","routers":null}},"levels":{"u1":"home","u2":"home"}},
+  {"in":"[]","out":{},"levels":{}},
+  {"in":"null","out":null,"levels":{}},
+  {"in":"{","out":{},"levels":{}},
+  {"in":"{\"u\": {\"ssid\": \"a\", \"routers\": [\"x\"]}, \"u\": {\"ssid\": \"b\"}}","out":{"u":{"ssid":"b","routers":null}},"levels":{"u":"home"}},
+  {"in":"{\"u\": {\"routers\": [1, \"y\"]}}","out":{"u":{"ssid":"","routers":["","y"]}},"levels":{"u":"home"}},
+  {"in":"{\"a\": {\"level\": \"home\"}, \"b\": {\"level\": \"trusted\"}, \"c\": {\"level\": \"\"}, \"d\": {\"level\": null}, \"e\": {\"level\": 5}, \"f\": {\"level\": [\"home\"]}, \"g\": {\"level\": \"Home\"}, \"h\": null}","out":{"a":{"ssid":"","routers":null,"level":"home"},"b":{"ssid":"","routers":null,"level":"trusted"},"c":{"ssid":"","routers":null,"level":""},"d":{"ssid":"","routers":null,"level":null},"e":{"ssid":"","routers":null,"level":5},"f":{"ssid":"","routers":null,"level":["home"]},"g":{"ssid":"","routers":null,"level":"Home"},"h":{"ssid":"","routers":null}},"levels":{"a":"home","b":"trusted","c":"","d":"","e":"","f":"","g":"","h":"home"}},
+  {"in":"{\"a\": {\"Level\": \"trusted\"}, \"b\": {\"level\": \"home\", \"LEVEL\": 1}, \"c\": {\"level\": \"ho\\u006de\"}, \"d\": {\"level\": \"home\", \"level\": \"trusted\"}}","out":{"a":{"ssid":"","routers":null,"level":"trusted"},"b":{"ssid":"","routers":null,"level":1},"c":{"ssid":"","routers":null,"level":"ho\u006de"},"d":{"ssid":"","routers":null,"level":"trusted"}},"levels":{"a":"trusted","b":"","c":"home","d":"trusted"}}
  ]
 }

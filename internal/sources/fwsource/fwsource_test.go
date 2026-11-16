@@ -187,3 +187,47 @@ func TestNoJournalAccessIsReportedOnce(t *testing.T) {
 		t.Errorf("unavailable %d times, %d starts", r.unavailable, len(f.args()))
 	}
 }
+
+// Lines of heimdall-wifi-guard's quiet table: a device on Wi-Fi reaching for this computer (made-up addresses).
+func TestWifiInboundLinesAreRead(t *testing.T) {
+	w := NewWatcher(filepath.Join(t.TempDir(), "cursor"), nil)
+	now := time.Unix(1761170000, 0)
+	for _, c := range []struct {
+		msg, ident                    string
+		ok                            bool
+		src, mac, proto, port, icmpTy string
+	}{
+		{"heimdall-wifi-in: IN=wlan0 OUT= MAC=02:00:00:00:00:10:0e:00:00:00:00:05:08:00 SRC=192.168.0.23 DST=192.168.0.10 LEN=60 TOS=0x00 PREC=0x00 TTL=64 ID=1 DF PROTO=TCP SPT=51000 DPT=445 WINDOW=64240 RES=0x00 SYN URGP=0",
+			"kernel", true, "192.168.0.23", "0E:00:00:00:00:05", "TCP", "445", ""},
+		{"heimdall-wifi-in: IN=wlan0 OUT= MAC=02:00:00:00:00:10:0e:00:00:00:00:05:08:00 SRC=172.20.0.3 DST=172.20.0.2 LEN=84 PROTO=ICMP TYPE=8 CODE=0 ID=7 SEQ=1",
+			"kernel", true, "172.20.0.3", "0E:00:00:00:00:05", "ICMP", "", "8"},
+		{"heimdall-wifi-in: IN=wlp2s0 OUT= SRC=fe80:0::23 DST=fe80::10 LEN=72 PROTO=UDP SPT=40000 DPT=5353 LEN=32",
+			"kernel", true, "fe80::23", "", "UDP", "5353", ""},
+		{"heimdall-wifi-in: IN=wlan0 OUT= SRC=fd00::23 DST=fd00::10 PROTO=UDP SPT=40000 DPT=137", "kernel", true, "fd00::23", "", "UDP", "137", ""},
+		{"heimdall-wifi-in: IN= OUT=wlan0 SRC=192.168.0.10 DST=192.168.0.23 PROTO=UDP DPT=137", "kernel", false, "", "", "", "", ""},
+		{"heimdall-wifi-in: IN=wlan0 SRC=not-an-address PROTO=TCP DPT=22", "kernel", false, "", "", "", "", ""},
+		// an internet server's stray packet, a wired interface, a line a program wrote: never one of the table's
+		{"heimdall-wifi-in: IN=wlan0 OUT= SRC=203.0.113.9 DST=192.168.0.10 PROTO=TCP SPT=443 DPT=51000", "kernel", false, "", "", "", "", ""},
+		{"heimdall-wifi-in: IN=eth0 OUT= SRC=192.168.0.23 DST=192.168.0.10 PROTO=TCP SPT=51000 DPT=22", "kernel", false, "", "", "", "", ""},
+		{"heimdall-wifi-in: IN=wlan0 OUT= SRC=192.168.0.23 DST=192.168.0.10 PROTO=TCP SPT=51000 DPT=22", "sshd", false, "", "", "", "", ""},
+		{"heimdall-wifi-in-router: IN=wlan0 OUT= SRC=192.168.0.1 DST=192.168.0.10 PROTO=ICMP TYPE=8 CODE=0", "kernel", true, "192.168.0.1", "", "ICMP", "", "8"},
+		{"heimdall-wifi-in-router: IN=wlan0 OUT= SRC=192.168.0.1 PROTO=ICMP TYPE=8", "nm-dispatcher", false, "", "", "", "", ""},
+	} {
+		e, ok := w.parse(c.msg, c.ident, now)
+		if ok != c.ok {
+			t.Errorf("%q: read %v, want %v", c.msg, ok, c.ok)
+			continue
+		}
+		if !ok {
+			continue
+		}
+		f := e.Fields
+		if e.Kind != "wifi_inbound" || e.Source != "host-wifi" || f["src"] != c.src || f["src_mac"] != c.mac || f["proto"] != c.proto ||
+			f["dst_port"] != c.port || f["icmp_type"] != c.icmpTy || !strings.HasPrefix(f["iface"], "wl") || f["inbound"] != "wifi" || !e.Time.Equal(now) {
+			t.Errorf("%q: %+v", c.msg, e)
+		}
+		if router := strings.HasPrefix(c.msg, "heimdall-wifi-in-router: "); (f["router"] == "true") != router {
+			t.Errorf("%q: router %q", c.msg, f["router"])
+		}
+	}
+}

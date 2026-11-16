@@ -87,6 +87,7 @@ docs/
   REFERENCES.md            Tracked ledger of every external reference project cited anywhere in this repo
   DEVICES.md               The device list of trusted home networks (heimdalld lan, /v1/lan/devices)
   WIFI_HEALTH.md           Wi-Fi checks: why the Wi-Fi is slow (heimdalld wifi-health)
+  WIFI_TRUST.md            Wi-Fi trust levels (untrusted, trusted, home), the quiet table, the "protected" verdict
 packaging/arch/            PKGBUILD, systemd unit, sysusers -- mirrors Sarina's own layout
 internal/parity/          The Go table tests as scenarios; writes testdata/parity, the fixtures the Rust port must match
 rust/                      The Rust port of the daemon (heimdalld-rs, shadow mode until the switch): docs/RUST_PORT.md
@@ -263,6 +264,42 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   Both are in Sarina's `docs/ECOSYSTEM.md` port registry.
 
 ### Coordination Log (newest first)
+
+### 2026-11-15 (3) — Wi-Fi trust levels: trusted stops the notices and keeps every protection
+- `heimdall-wifi-guard trust` now means **trusted**: no "untrusted"/"no VPN" notices, nothing loosened (private address, no
+  name, not announcing, the router warning unless the router is a phone hotspot, the VPN if set up). Recognized by profile,
+  name, lock (WPA2/WPA3-Personal) and a fingerprint of the saved password (root-only `/etc/heimdall/wifi-trusted-keys.json`),
+  not the router's address, so a phone hotspot stays trusted. Open, OWE, WEP and EAP networks are refused; unknown options too.
+  The old meaning is `trust --home` (`--real-address` for the real hardware address and name). `docs/WIFI_TRUST.md`.
+- `/etc/heimdall/wifi-trusted.json` entries gain `level` ("trusted"|"home"), `key_mgmt`, `trusted_at`; an entry without
+  `level` is home, exactly as before; any other `level` value is untrusted (the device list too). `current.json`'s `trusted`
+  still means home (router watch off only there) and gains `level`; `results.jsonl` gains `level`, `heard` (a count, no
+  addresses), `exposure` (and is created 0640); `/run/heimdall-wifi/last.json` gains `exposure`;
+  `/run/heimdall-wifi-guard/state.json` gains `level`, `protections` (with `allowed_in`), `pending`, `pending_at`.
+- New verdict **protected** (`wifi-safety` info); new `lan-watch` event kind `wifi_inbound` (fields `src`, `src_mac`, `proto`,
+  `dst_port`, `icmp_type`, `iface`, `inbound: wifi`) from the guard's new nftables table `inet heimdall_wifi_quiet`
+  (Wi-Fi only; logs new TCP SYNs, new UDP and pings from private/link-local senders with prefix `heimdall-wifi-in:`; drops this
+  computer's mDNS/LLMNR/SSDP/NetBIOS/WS-Discovery/KDE Connect/Syncthing/Steam/Dropbox discovery out). ufw untouched. The DNS
+  check no longer takes GitHub's AS8075 as its own: the certificate of each answer decides.
+- **For Yggdrasil Settings:** the device list's `status` can now be `not_home` (a trusted network that is not home: no scan);
+  until Settings knows it, it shows the raw word. The notification (heimdall-wifi-notify) shows `protected` once, low urgency.
+- **For Yggdrasil (`docs/INSTALLER.md:118`) and Labyrinth (`docs/FIRST_BOOT.md:56`, `docs/LAPTOP.md`):** they tell users that
+  `sudo heimdall-wifi-guard trust` keeps the real hardware address. It no longer does: a network that reserves addresses needs
+  `trust --home --real-address`, and a home network `trust --home`. Nothing changes on the desktop (wired; any existing entry
+  is home). Not changed in those repos from here.
+- **Owner decided (2026-11-15):** the "no VPN" notice stays on every connection to an untrusted network (trusted: never).
+- **Discoverable, per network (owner's ask):** `heimdall-wifi-guard discoverable [on|off] [--uuid UUID]` (on/off as root) lets
+  this computer announce itself on one network whatever its level (Avahi as it was, the quiet table without its outgoing
+  discovery drops, comment `heimdall quiet 3 discoverable`); every other protection stays. Stored as `"discoverable": true` in
+  the network's wifi-trusted.json entry; a network not trusted gets `{"ssid", "level": "untrusted", "discoverable": true}`,
+  which every reader (guard, check, Go/Rust device list) counts as untrusted. state.json `protections` gains `discoverable`.
+- **For Yggdrasil Settings (Wi-Fi network page, a "Discoverable" switch; not built there yet):** read with
+  `heimdall-wifi-guard discoverable --uuid UUID` (`NAME: discoverable on|on (home)|off`); change by starting
+  `heimdall-wifi-discoverable-on@UUID.service` / `heimdall-wifi-discoverable-off@UUID.service` (systemd D-Bus StartUnit);
+  polkit rule `50-heimdall-wifi-discoverable.rules` allows exactly those two for `wheel`, active local sessions, after the password (auth_admin_keep; the owner's choice 2026-11-15).
+  Details in `docs/WIFI_TRUST.md`, "Discoverable".
+- The quiet table also logs the network's router once per connection with prefix `heimdall-wifi-in-router:`; heimdalld makes
+  it a `lan-watch` info (field `router: true`), not a warning.
 
 ### 2026-11-15 (2) — The private microphone is a package of its own; Sarina's LykanOS-only option
 - I decided: `heimdall-private-mic-git` (provides `heimdall-private-mic`) holds the private microphone and heimdall-scrub,

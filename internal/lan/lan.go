@@ -44,7 +44,8 @@ type Network struct {
 // Store is the whole file (devices.json).
 type Store struct {
 	Networks []Network `json:"networks"`
-	// Status says why the last scan did or did not look (for Settings): "scanned", "not_trusted", "router_changed", "offline".
+	// Status says why the last scan did or did not look (for Settings): "scanned", "not_trusted", "not_home" (trusted, but not as
+	// the home network), "router_changed", "offline".
 	Status     string    `json:"status"`
 	StatusUUID string    `json:"status_uuid,omitempty"`
 	StatusTime time.Time `json:"status_time"`

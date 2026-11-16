@@ -5,14 +5,32 @@
 //! current.json (the router watch) and /run/heimdall-wifi/last.json (the notification). Every step, file and tool call is
 //! the Python program's.
 
+use super::guard::{level_of, lock_holds, lock_name};
 use super::py::{self, Dict, PyErr, PyResult, Val};
 use super::{addr, net};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-/// Well-known names and the network (autonomous system) their addresses must belong to, wherever in the world one asks.
-const PINNED: [(&str, &str); 4] =
-    [("www.google.com", "AS15169"), ("github.com", "AS36459"), ("www.wikipedia.org", "AS14907"), ("www.cloudflare.com", "AS13335")];
+/// Well-known names and the networks (autonomous systems) their addresses belong to, wherever in the world one asks. An
+/// answer elsewhere is not judged by its network alone: one secure connection to that address decides. Only a name's own
+/// network is listed: a cloud anyone can rent space in (GitHub's other addresses are in Microsoft's) is asked too.
+const PINNED: [(&str, &[&str]); 4] = [
+    ("www.google.com", &["AS15169"]),
+    ("github.com", &["AS36459"]),
+    ("www.wikipedia.org", &["AS14907"]),
+    ("www.cloudflare.com", &["AS13335"]),
+];
+/// Secure connections asked per name at most; an address beyond them is "could not confirm".
+const PROBES: usize = 4;
+/// Seconds to wait for heimdall-wifi-guard to finish bringing this connection up (its up runs beside the check).
+const GUARD_WAIT: usize = 45;
+/// The protections heimdall-wifi-guard checked that make other devices seeing this computer a covered exposure.
+const COVERING: [(&str, &str); 3] = [
+    ("firewall", "the firewall turning connections away"),
+    ("not_announcing", "not announcing this computer"),
+    ("own_address", "its own hardware address here (from the next connection on)"),
+];
 const GUARD_STATE: &str = "/run/heimdall-wifi-guard/state.json";
 const TRUSTED: &str = "/etc/heimdall/wifi-trusted.json";
 const TLS_HOSTS: [&str; 4] = ["www.google.com", "github.com", "www.wikipedia.org", "www.cloudflare.com"];
@@ -59,6 +77,8 @@ pub fn security_class(s: &str) -> &'static str {
     let s = py::upper(s);
     if s.is_empty() || s == "--" {
         "open"
+    } else if s.contains("OWE") {
+        "owe" // encrypted, but without a password: anyone can make a copy of a WPA2 network this way
     } else if s.contains("WEP") {
         "wep"
     } else {
@@ -125,26 +145,36 @@ pub fn listening_services(out: &str) -> Vec<String> {
     res
 }
 
+/// The checks so far, shared with the watchdog that writes them when the check's time runs out.
+#[derive(Clone, Default)]
 struct Report {
-    checks: Vec<(String, String, String)>,
+    checks: Arc<Mutex<Vec<(String, String, String)>>>,
 }
 
 impl Report {
-    fn add(&mut self, name: &str, status: &str, detail: &str) {
-        self.checks.push((name.into(), status.into(), detail.into()));
+    fn add(&self, name: &str, status: &str, detail: &str) {
+        self.checks.lock().unwrap().push((name.into(), status.into(), detail.into()));
     }
+    fn list(&self) -> Vec<(String, String, String)> {
+        self.checks.lock().unwrap().clone()
+    }
+    /// unsafe on any sign of an attack, caution on an exposure nothing covers, protected when every exposure is covered by a
+    /// protection checked to be in force, safe otherwise. "bad" is never covered.
     fn verdict(&self) -> &'static str {
-        if self.checks.iter().any(|c| c.1 == "bad") {
+        let checks = self.list();
+        if checks.iter().any(|c| c.1 == "bad") {
             "unsafe"
-        } else if self.checks.iter().any(|c| c.1 == "warn") {
+        } else if checks.iter().any(|c| c.1 == "warn") {
             "caution"
+        } else if checks.iter().any(|c| c.1 == "covered") {
+            "protected"
         } else {
             "safe"
         }
     }
     fn json(&self) -> Val {
         Val::List(
-            self.checks
+            self.list()
                 .iter()
                 .map(|(c, s, d)| {
                     let mut x = Dict::new();
@@ -156,6 +186,22 @@ impl Report {
                 .collect(),
         )
     }
+}
+
+/// The seconds the check may take: HEIMDALL_WIFI_CHECK_LIMIT, or 240 (its unit gives it 300).
+pub fn limit() -> u64 {
+    let v = std::env::var("HEIMDALL_WIFI_CHECK_LIMIT").unwrap_or_default();
+    match v.parse::<u64>() {
+        Ok(n) if !v.is_empty() && v.len() < 6 && v.bytes().all(|b| b.is_ascii_digit()) && n > 0 => n,
+        _ => 240,
+    }
+}
+
+/// What is known so far, for a check that runs out of time; `done` once one side (the check, or the watchdog) writes.
+struct Partial {
+    state: String,
+    level: &'static str,
+    done: bool,
 }
 
 /// `run(argv, timeout)`: a tool's output, "" when it is missing or too slow (a reply that is not UTF-8 stops the program,
@@ -207,6 +253,9 @@ struct Check {
     state: PathBuf,
     public: PathBuf,
     r: Report,
+    /// when the check began, and the seconds it may take
+    start: std::time::Instant,
+    limit: u64,
 }
 
 impl Check {
@@ -271,8 +320,10 @@ impl Check {
         run_json(&py::argv(&["ip", "-j", "neigh", "show", "dev", &d]))
     }
 
-    /// The router: one hardware address, the one seen here before; the device and the router's hardware address.
-    fn check_gateway(&mut self, me: &Net, known: &mut Dict) -> PyResult<(Val, String)> {
+    /// The router: one hardware address, the one seen here before. `hotspot(mac)`: whether a new one is expected (trusted as
+    /// trusted, not home, and an address a phone hotspot makes up); anywhere else a new router address is still a warning.
+    /// Returns the device and the router's hardware address.
+    fn check_gateway(&mut self, me: &Net, known: &mut Dict, hotspot: &dyn Fn(&str) -> bool) -> PyResult<(Val, String)> {
         let (gw, dev) = self.gateway()?;
         if !gw.truthy() {
             self.r.add("router", "skip", "no default route");
@@ -321,14 +372,23 @@ impl Check {
         let seen = known.setdefault(&key, Val::List(Vec::new()));
         let m = py::s(&mac);
         if seen.truthy() && !seen.contains(&m)? {
-            self.r.add(
-                "router",
-                "warn",
-                &format!(
-                    "the router's hardware address is different from the last time on this network ({}): it may have been replaced, or someone is imitating it",
-                    me.ssid
-                ),
-            );
+            if hotspot(&mac) {
+                self.r.add(
+                    "router",
+                    "ok",
+                    "the router's hardware address changed to one its device made up (phone hotspots do this when they restart); this trusted network is recognized by its password",
+                );
+            } else {
+                let hint = if locally_administered(&mac) { " (phone hotspots change it when they restart)" } else { "" };
+                self.r.add(
+                    "router",
+                    "warn",
+                    &format!(
+                        "the router's hardware address is different from the last time on this network ({}): it may have been replaced, or someone is imitating it{hint}",
+                        me.ssid
+                    ),
+                );
+            }
         } else if others.is_empty() {
             let again = if seen.truthy() { " (same as before)" } else { "" };
             self.r.add("router", "ok", &format!("one router, as expected{again}"));
@@ -390,24 +450,64 @@ impl Check {
             self.r.add("dns: well-known names", "skip", "no IP database yet to check addresses against (heimdall-intel-update)");
             return Ok(());
         }
-        let mut wrong = Vec::new();
-        for ((name, asn), (_, ips)) in PINNED.iter().zip(&answers) {
+        // every distinct answer outside the name's own network is asked for the name's certificate (at most PROBES a name);
+        // a local address must show it too, and one that sends the name to this computer itself is never the real site
+        let (mut wrong, mut unsure, mut confirmed) = (Vec::new(), Vec::new(), Vec::new());
+        for ((name, asns), (_, ips)) in PINNED.iter().zip(&answers) {
+            let mut asked = 0;
             for ip in ips {
                 let (got, desc) = org.iter().find(|(k, _)| k == ip).map(|(_, v)| v.clone()).unwrap_or_default();
-                let private = addr::parse_v4(ip).is_some_and(addr::v4_is_private);
-                if private {
-                    wrong.push(format!("{name} -> {ip} (a local address)"));
-                } else if !got.is_empty() && got != *asn {
-                    wrong.push(format!("{name} -> {ip} ({desc})"));
+                let local = addr::parse_v4(ip).is_some_and(addr::v4_is_private);
+                let place = if local {
+                    "a local address".to_string()
+                } else if !got.is_empty() && !asns.contains(&got.as_str()) {
+                    desc
+                } else {
+                    continue;
+                };
+                let said = format!("{name} -> {ip} ({place})");
+                if this_computer(ip) {
+                    wrong.push(format!("{said}, this computer itself"));
+                    continue;
+                }
+                if asked >= PROBES {
+                    unsure.push(format!("{said}, not asked (more than {PROBES} such answers)"));
+                    continue;
+                }
+                if self.start.elapsed().as_secs_f64() > self.limit as f64 / 2.0 {
+                    unsure.push(format!("{said}, not asked (the check is short of time)"));
+                    continue;
+                }
+                asked += 1;
+                match net::tls_probe_at(ip, name) {
+                    "ok" => confirmed.push(said),
+                    "cert" => wrong.push(format!("{said}, whose certificate this computer does not trust")),
+                    _ if local => wrong.push(format!("{said}, which does not show the site's certificate")),
+                    _ => unsure.push(format!("{said}, which did not answer a secure connection")),
                 }
             }
         }
+        let first = |v: &[String]| v.iter().take(3).cloned().collect::<Vec<_>>().join("; ");
         if !wrong.is_empty() {
-            let w: Vec<String> = wrong.into_iter().take(3).collect();
             self.r.add(
                 "dns: well-known names",
                 "bad",
-                &format!("well-known sites resolve to addresses outside their own networks: {}. This is DNS spoofing", w.join("; ")),
+                &format!("well-known sites resolve to addresses that are not theirs: {}. This is DNS spoofing", first(&wrong)),
+            );
+        } else if !unsure.is_empty() {
+            self.r.add(
+                "dns: well-known names",
+                "warn",
+                &format!("could not confirm where well-known sites resolve, outside their own networks: {}", first(&unsure)),
+            );
+        } else if !confirmed.is_empty() {
+            self.r.add(
+                "dns: well-known names",
+                "ok",
+                &format!(
+                    "well-known sites resolve into their own networks, or to another company's that shows their genuine certificate ({})",
+                    first(&confirmed)
+                ),
             );
         } else if answers.iter().any(|(_, v)| !v.is_empty()) {
             self.r.add("dns: well-known names", "ok", "well-known sites resolve into their own networks");
@@ -490,23 +590,94 @@ impl Check {
         Ok(out)
     }
 
-    fn check_neighbourhood(&mut self, untrusted: bool) -> PyResult<()> {
-        match net::listen_for_devices(8.0, || self.own_addresses())? {
-            None => self.r.add("isolation", "skip", "could not listen for other devices"),
-            Some(heard) if !heard.is_empty() => {
-                let status = if untrusted { "warn" } else { "ok" };
-                let tail = if untrusted { " (it does not announce itself here, and the firewall blocks connections in)" } else { "" };
+    /// The router's (or the phone hotspot's) own addresses: the gateway, and any address with its hardware address.
+    fn router_addresses(&self, dev: &Val, gw: &Val, gmac: &str) -> PyResult<Vec<String>> {
+        let mut out = Vec::new();
+        if let Val::Str(g) = gw {
+            if !g.is_empty() {
+                out.push(g.clone());
+            }
+        }
+        if !gmac.is_empty() && dev.truthy() {
+            for n in self.neighbours(dev)?.iter()? {
+                if let Val::Dict(d) = &n {
+                    if let (Some(Val::Str(ll)), Some(Val::Str(dst))) = (d.get("lladdr"), d.get("dst")) {
+                        if py::upper(ll) == gmac && !dst.contains(':') {
+                            out.push(dst.clone());
+                        }
+                    }
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    /// Other devices heard, the router or hotspot itself not counted: expected at home; elsewhere covered when the guard
+    /// verified the protections that make being seen harmless (`g`: its state for this connection), an exposure (warn)
+    /// otherwise. Returns how many were heard (only the number goes to results.jsonl: nobody's address is kept).
+    fn check_neighbourhood(&mut self, dev: &Val, level: &str, g: &Dict, gw: &Val, gmac: &str) -> PyResult<Val> {
+        let heard = net::listen_for_devices(8.0, || self.own_addresses())?;
+        let listened = heard.is_some();
+        let mut found: Vec<String> = Vec::new();
+        if let Some(heard) = heard {
+            let skip = self.router_addresses(dev, gw, gmac)?;
+            found = heard.into_iter().filter(|ip| !skip.contains(ip)).collect();
+            found.sort();
+            found.dedup();
+        }
+        let head = format!("{} other device(s) heard on this network (not counting the router or hotspot)", found.len());
+        if !listened {
+            self.r.add("isolation", "skip", "could not listen for other devices");
+        } else if found.is_empty() {
+            self.r.add(
+                "isolation",
+                "ok",
+                "no other device heard in 8 seconds (not counting the router or hotspot): the network may keep devices apart (or they are quiet)",
+            );
+        } else if level == "home" {
+            self.r.add("isolation", "ok", &head);
+        } else {
+            let p = match g.get("protections") {
+                Some(Val::Dict(p)) => p.clone(),
+                _ => Dict::new(),
+            };
+            // the owner let this computer announce itself here
+            let disc = matches!(p.get("discoverable"), Some(Val::Bool(true)));
+            let mut missing: Vec<String> = COVERING
+                .iter()
+                .filter(|(k, _)| !matches!(p.get(k), Some(Val::Bool(true))) && !(disc && *k == "not_announcing"))
+                .map(|(_, l)| l.to_string())
+                .collect();
+            if let Some(Val::List(allowed)) = p.get("allowed_in") {
+                if let Some(m) = missing.iter_mut().find(|m| *m == "the firewall turning connections away") {
+                    if !allowed.is_empty() {
+                        let names: Vec<String> = allowed.iter().take(6).map(py::str_of).collect();
+                        m.push_str(&format!(" (a rule lets in {})", names.join(", ")));
+                    }
+                }
+            }
+            if missing.is_empty() {
                 self.r.add(
                     "isolation",
-                    status,
+                    "covered",
                     &format!(
-                        "{} other device(s) heard on this network, so devices are not kept apart and they can see this computer too{tail}",
-                        heard.len()
+                        "{head}{} its firewall turns their connections away (it answers pings, as ufw does by default) and it uses its own hardware address here",
+                        if disc {
+                            ": they can see this computer is here and what it announces (you made it discoverable here), but"
+                        } else {
+                            ": they can see this computer is here, but it does not announce itself,"
+                        }
                     ),
                 );
-            }
-            Some(_) => {
-                self.r.add("isolation", "ok", "no other device heard in 8 seconds: the network may keep devices apart (or they are quiet)")
+            } else {
+                self.r.add(
+                    "isolation",
+                    "warn",
+                    &format!(
+                        "{head}, so devices are not kept apart and they can see this computer too; not in force here: {}",
+                        missing.join(", ")
+                    ),
+                );
             }
         }
         let fw = py::strip(&run_words(&["systemctl", "is-active", "ufw"])?).to_string();
@@ -531,23 +702,116 @@ impl Check {
         } else {
             self.r.add("firewall", "ok", "the firewall is on and nothing on this computer listens for connections from the network");
         }
-        Ok(())
+        Ok(Val::Int(found.len().to_string()))
+    }
+
+    /// The saved profile's network name and key management; Nones without a profile.
+    fn profile(&self, uuid: &str) -> PyResult<(Option<String>, Option<String>)> {
+        if uuid.is_empty() {
+            return Ok((None, None));
+        }
+        let ssid = py::strip(&run_words(&["nmcli", "-g", "802-11-wireless.ssid", "connection", "show", uuid])?).to_string();
+        let key = py::strip(&run_words(&["nmcli", "-g", "802-11-wireless-security.key-mgmt", "connection", "show", uuid])?).to_string();
+        Ok((Some(ssid), Some(key)))
+    }
+
+    /// A network with the name of one the owner trusts but not its lock: a copy a stranger without the password can make
+    /// (bad), or the trusted profile itself edited to a weaker lock (warn). Never quiet, whatever the level.
+    fn check_trusted_name(&mut self, me: &Net, uuid: &str, key: &str, trusted: &Dict) {
+        if uuid.is_empty() || me.ssid.is_empty() {
+            return;
+        }
+        for (u, e) in &trusted.0 {
+            let Val::Dict(d) = e else { continue };
+            if level_of(Some(e), None, None, None) == "untrusted" || !matches!(d.get("ssid"), Some(Val::Str(x)) if *x == me.ssid) {
+                continue;
+            }
+            if u == uuid && !d.contains_key("level") {
+                continue; // an entry from before the levels recorded no lock to compare with
+            }
+            if lock_holds(d.get("key_mgmt"), key) {
+                continue;
+            }
+            if u == uuid {
+                self.r.add(
+                    "trusted name",
+                    "warn",
+                    &format!(
+                        "the saved profile of this trusted network now has a weaker lock ({}) than when you trusted it: it is treated as untrusted; trust it again if you changed it",
+                        lock_name(key)
+                    ),
+                );
+            } else {
+                self.r.add(
+                    "trusted name",
+                    "bad",
+                    &format!(
+                        "this network has the name of one you trust ({}) but not its lock ({} now): someone may be imitating it; do not use it",
+                        me.ssid,
+                        lock_name(key)
+                    ),
+                );
+            }
+            return;
+        }
     }
 }
 
-/// Trusted as heimdall-wifi-guard decides it: the profile was trusted, and its router (when known) is one remembered with it.
-fn is_trusted(uuid: &str, mac: &str) -> PyResult<bool> {
-    if uuid.is_empty() {
-        return Ok(false);
+/// A hardware address made up by its device (the second hex digit has bit 2 set), as phone hotspots' are.
+pub fn locally_administered(mac: &str) -> bool {
+    mac.chars().count() > 1 && mac.chars().nth(1).is_some_and(|c| "2367ABEFabef".contains(c))
+}
+
+/// 0.0.0.0/8 and 127.0.0.0/8: an answer that sends a well-known name to this computer itself, never the real site.
+pub fn this_computer(ip: &str) -> bool {
+    ip.starts_with("0.") || ip.starts_with("127.")
+}
+
+/// heimdall-wifi-guard's state.json for this connection (empty for another network's, or none), waiting while the guard's
+/// pre-up mark says this connection is still coming up (at most `GUARD_WAIT` seconds): its up runs beside the check.
+fn guard_state(uuid: &str) -> PyResult<Dict> {
+    let mut g = Dict::new();
+    for _ in 0..GUARD_WAIT {
+        g = py::load_dict(Path::new(GUARD_STATE))?;
+        let coming = match (g.get("pending"), g.get("pending_at")) {
+            (Some(Val::Str(u)), Some(Val::Str(at))) => {
+                !uuid.is_empty()
+                    && u == uuid
+                    && py::utc_stamp_ago(120).as_str() <= at.as_str()
+                    && at.as_str() <= py::utc_stamp_ago(-60).as_str()
+            }
+            _ => false,
+        };
+        if !coming {
+            break;
+        }
+        std::thread::sleep(Duration::from_secs(1));
     }
-    let t = py::load_dict(Path::new(TRUSTED))?.get(uuid).cloned().unwrap_or(Val::None);
-    if !t.truthy() {
-        return Ok(false);
+    Ok(if !uuid.is_empty() && py::eq(g.get("wifi").unwrap_or(&Val::None), &py::s(uuid)) { g } else { Dict::new() })
+}
+
+/// What the network can still see of this computer when the verdict is protected, said plainly; "" otherwise.
+fn exposure(verdict: &str, me: &Net, g: &Dict) -> String {
+    if verdict != "protected" {
+        return String::new();
     }
-    if mac.is_empty() {
-        return Ok(false); // a router that did not answer is not trusted (as the guard decides)
+    let vpn = matches!(g.get("protections"), Some(Val::Dict(p)) if matches!(p.get("vpn"), Some(Val::Bool(true))));
+    let disc = matches!(g.get("protections"), Some(Val::Dict(p)) if matches!(p.get("discoverable"), Some(Val::Bool(true))));
+    let tail = if vpn {
+        "Still visible to the network itself: that this computer is there and how much it sends; the VPN hides where it goes."
+    } else {
+        "Still visible to the network itself: the names of the sites you visit (DNS is not encrypted) and how much you send. A VPN would hide both."
+    };
+    if disc {
+        return format!(
+            "Protected on {}: other devices can see this computer is there, what it announces (you made it discoverable here) and that it answers pings, but its firewall turns their connections away and it uses its own hardware address here. {tail}",
+            me.ssid
+        );
     }
-    t.get("routers", Val::List(Vec::new()))?.contains(&py::s(mac))
+    format!(
+        "Protected on {}: other devices can see this computer is there and that it answers pings, but it does not announce itself, its firewall turns their connections away and it uses its own hardware address here. {tail}",
+        me.ssid
+    )
 }
 
 fn text_line(c: &(String, String, String)) -> String {
@@ -555,7 +819,58 @@ fn text_line(c: &(String, String, String)) -> String {
     format!("  {} {} {}", pad(&c.0, 22), pad(&c.1, 5), c.2)
 }
 
+/// The verdict for heimdalld (results.jsonl) and for the desktop notification (last.json; an OSError there is ignored).
+fn write_results(dir: &Path, public: &Path, r: &Report, res: &Dict) -> PyResult<()> {
+    // Heimdall's own (heimdalld reads it as heimdall): the networks joined are named in it, from the first byte on
+    py::append_text_mode(&dir.join("results.jsonl"), &format!("{}\n", py::dumps(&Val::Dict(res.clone()), None)), 0o640)?;
+    let _ = write_public(public, r, res);
+    Ok(())
+}
+
+fn show(json: bool, r: &Report, res: &Dict) {
+    if json {
+        println!("{}", py::dumps(&Val::Dict(res.clone()), Some(2)));
+    } else {
+        println!("{}: {}", py::str_of(res.get("ssid").unwrap_or(&Val::None)), r.verdict());
+        for ch in &r.list() {
+            println!("{}", text_line(ch));
+        }
+    }
+}
+
+/// When the check's time runs out: what it found so far, with a warning, written as a whole result; then the program ends.
+fn out_of_time(dir: &Path, public: &Path, r: &Report, me: &Net, p: &Partial, limit: u64, json: bool) {
+    r.add(
+        "finish",
+        "warn",
+        &format!("the check could not finish within {limit} seconds (the network answers too slowly, or holds answers back): the checks after these were not run"),
+    );
+    let mut res = Dict::new();
+    res.set("time", py::s(&py::utc_stamp()));
+    res.set("ssid", py::s(&me.ssid));
+    res.set("bssid", py::s(&me.bssid));
+    res.set("security", py::s(&me.security));
+    res.set("connectivity", py::s(&p.state));
+    res.set("trusted", Val::Bool(p.level == "home"));
+    res.set("level", py::s(p.level));
+    res.set("verdict", py::s(r.verdict()));
+    res.set("checks", r.json());
+    res.set("heard", Val::Int("0".into()));
+    res.set("exposure", py::s(""));
+    let code = match write_results(dir, public, r, &res) {
+        Ok(()) => {
+            show(json, r, &res);
+            0
+        }
+        Err(e) => py::traceback("heimdall-wifi-check", &e),
+    };
+    use std::io::Write;
+    let _ = std::io::stdout().flush();
+    std::process::exit(code);
+}
+
 fn check(args: &[String]) -> PyResult<i32> {
+    let start = std::time::Instant::now();
     let mut uuid = String::new();
     if let Some(i) = args.iter().position(|a| a == "--uuid") {
         uuid = args
@@ -563,11 +878,14 @@ fn check(args: &[String]) -> PyResult<i32> {
             .map(|v| v.chars().filter(|c| c.is_ascii_digit() || ('a'..='f').contains(c) || *c == '-').collect())
             .unwrap_or_default();
     }
+    let json = args.iter().any(|a| a == "--json");
     let guard = py::load_dict(Path::new(GUARD_STATE))?;
     let mut c = Check {
         state: std::env::var_os("HEIMDALL_WIFI_DIR").map_or_else(|| PathBuf::from("/var/lib/heimdall/wifi"), PathBuf::from),
         public: std::env::var_os("HEIMDALL_WIFI_PUBLIC").map_or_else(|| PathBuf::from("/run/heimdall-wifi/last.json"), PathBuf::from),
-        r: Report { checks: Vec::new() },
+        r: Report::default(),
+        start,
+        limit: limit(),
     };
     py::makedirs(&c.state)?;
     let known_path = c.state.join("routers.json");
@@ -576,14 +894,45 @@ fn check(args: &[String]) -> PyResult<i32> {
         println!("not on Wi-Fi");
         return Ok(0);
     };
+    // the watchdog: at the check's limit, what was found so far is written (Python: the alarm)
+    let partial = Arc::new(Mutex::new(Partial { state: "unknown".into(), level: "untrusted", done: false }));
+    {
+        let (r, partial, me, dir, public, limit) = (c.r.clone(), partial.clone(), me.clone(), c.state.clone(), c.public.clone(), c.limit);
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_secs(limit));
+            let mut p = partial.lock().unwrap();
+            if p.done {
+                return;
+            }
+            p.done = true;
+            out_of_time(&dir, &public, &r, &me, &p, limit, json);
+        });
+    }
     let state = c.connectivity()?;
+    partial.lock().unwrap().state = state.clone();
     if state == "portal" {
         c.r.add("sign-in", "warn", "the network wants you to sign in first (a captive portal); its sign-in page is not checked");
     } else if state == "none" || state == "limited" {
         c.r.add("internet", "skip", &format!("no internet yet ({state}): online checks skipped"));
     }
-    let (_dev, router) = c.check_gateway(&me, &mut known)?;
-    let trusted = is_trusted(&uuid, &router)?;
+    let trusted_file = py::load_dict(Path::new(TRUSTED))?;
+    let entry = if uuid.is_empty() { None } else { trusted_file.get(&uuid).cloned() };
+    let (pssid, key) = c.profile(&uuid)?;
+    let g = guard_state(&uuid)?;
+    // the entry's own level: a home network's router stays bound to it, and only a trusted hotspot's may change, unless the
+    // guard found its profile changed (its saved password)
+    let own_trusted = matches!(&entry, Some(Val::Dict(e)) if matches!(e.get("level"), Some(Val::Str(l)) if l == "trusted"));
+    let guard_untrusted = matches!(g.get("level"), Some(Val::Str(l)) if l == "untrusted");
+    let hotspot = |mac: &str| {
+        own_trusted
+            && !guard_untrusted
+            && level_of(entry.as_ref(), pssid.as_deref(), key.as_deref(), Some(mac)) == "trusted"
+            && locally_administered(mac)
+    };
+    let (dev, router) = c.check_gateway(&me, &mut known, &hotspot)?;
+    let mut level = level_of(entry.as_ref(), pssid.as_deref(), key.as_deref(), Some(&router));
+    partial.lock().unwrap().level = level;
+    c.check_trusted_name(&me, &uuid, key.as_deref().unwrap_or(""), &trusted_file);
     if guard.get("locked").is_some_and(Val::truthy) {
         c.r.add(
             "online checks",
@@ -595,18 +944,6 @@ fn check(args: &[String]) -> PyResult<i32> {
         c.check_tls();
         c.check_http(&state);
     }
-    c.check_neighbourhood(!trusted)?;
-    let time = py::utc_stamp();
-    let mut res = Dict::new();
-    res.set("time", py::s(&time));
-    res.set("ssid", py::s(&me.ssid));
-    res.set("bssid", py::s(&me.bssid));
-    res.set("security", py::s(&me.security));
-    res.set("connectivity", py::s(&state));
-    res.set("trusted", Val::Bool(trusted));
-    res.set("verdict", py::s(c.r.verdict()));
-    res.set("checks", c.r.json());
-    // what Heimdall's router watch follows while on this network (untrusted networks only)
     let (gw, gdev) = c.gateway()?;
     let mut gmac = String::new();
     if gw.truthy() {
@@ -618,6 +955,38 @@ fn check(args: &[String]) -> PyResult<i32> {
             }
         }
     }
+    let g = guard_state(&uuid)?;
+    if matches!(g.get("level"), Some(Val::Str(l)) if l == "untrusted") {
+        level = "untrusted"; // the guard knows more (the saved password, which only root can read): untrusted it is
+        partial.lock().unwrap().level = level;
+    }
+    let heard = c.check_neighbourhood(&dev, level, &g, &gw, &gmac)?;
+    {
+        let mut p = partial.lock().unwrap();
+        if p.done {
+            // the watchdog writes the result and ends the program
+            drop(p);
+            loop {
+                std::thread::sleep(Duration::from_secs(60));
+            }
+        }
+        p.done = true; // done: the files are written whole
+    }
+    let time = py::utc_stamp();
+    let verdict = c.r.verdict();
+    let mut res = Dict::new();
+    res.set("time", py::s(&time));
+    res.set("ssid", py::s(&me.ssid));
+    res.set("bssid", py::s(&me.bssid));
+    res.set("security", py::s(&me.security));
+    res.set("connectivity", py::s(&state));
+    res.set("trusted", Val::Bool(level == "home"));
+    res.set("level", py::s(level));
+    res.set("verdict", py::s(verdict));
+    res.set("checks", c.r.json());
+    res.set("heard", heard);
+    res.set("exposure", py::s(&exposure(verdict, &me, &g)));
+    // what Heimdall's router watch follows while on this network: "trusted" means home (the watch is off only there)
     let mut cur = Dict::new();
     cur.set("time", py::s(&time));
     cur.set("ssid", py::s(&me.ssid));
@@ -625,43 +994,37 @@ fn check(args: &[String]) -> PyResult<i32> {
     cur.set("iface", gdev);
     cur.set("gateway", gw);
     cur.set("gateway_mac", py::s(&gmac));
-    cur.set("trusted", Val::Bool(trusted));
+    cur.set("trusted", Val::Bool(level == "home"));
+    cur.set("level", py::s(level));
     let tmp = c.state.join("current.json.tmp");
     py::write_text(&tmp, &py::dumps(&Val::Dict(cur), None))?;
     py::replace(&tmp, &c.state.join("current.json"))?;
     let ktmp = c.state.join("routers.json.tmp");
     py::write_text(&ktmp, &py::dumps(&Val::Dict(known), None))?;
     py::replace(&ktmp, &known_path)?;
-    py::append_text(&c.state.join("results.jsonl"), &format!("{}\n", py::dumps(&Val::Dict(res.clone()), None)))?;
-    let _ = write_public(&c, &time, &me, &res);
-    if args.iter().any(|a| a == "--json") {
-        println!("{}", py::dumps(&Val::Dict(res), Some(2)));
-    } else {
-        println!("{}: {}", me.ssid, c.r.verdict());
-        for ch in &c.r.checks {
-            println!("{}", text_line(ch));
-        }
-    }
+    write_results(&c.state, &c.public, &c.r, &res)?;
+    show(json, &c.r, &res);
     Ok(0)
 }
 
 /// The network's name and verdict for the desktop notification (an OSError here is ignored, as in Python).
-fn write_public(c: &Check, time: &str, me: &Net, res: &Dict) -> PyResult<()> {
+fn write_public(public: &Path, r: &Report, res: &Dict) -> PyResult<()> {
     use std::os::unix::ffi::OsStrExt;
-    let pb = c.public.as_os_str().as_bytes();
+    let pb = public.as_os_str().as_bytes();
     py::makedirs(Path::new(std::ffi::OsStr::from_bytes(py::dirname_bytes(pb))))?;
     let mut pubd = Dict::new();
-    pubd.set("time", py::s(time));
-    pubd.set("ssid", py::s(&me.ssid));
+    pubd.set("time", res.get("time").cloned().unwrap_or(Val::None));
+    pubd.set("ssid", res.get("ssid").cloned().unwrap_or(Val::None));
     pubd.set("verdict", res.get("verdict").cloned().unwrap_or(Val::None));
-    let reasons: Vec<Val> = c.r.checks.iter().filter(|x| x.1 == "bad" || x.1 == "warn").take(4).map(|x| py::s(&x.2)).collect();
+    let reasons: Vec<Val> = r.list().iter().filter(|x| x.1 == "bad" || x.1 == "warn").take(4).map(|x| py::s(&x.2)).collect();
     pubd.set("reasons", Val::List(reasons));
+    pubd.set("exposure", res.get("exposure").cloned().unwrap_or(Val::None));
     let mut tb = pb.to_vec();
     tb.extend_from_slice(b".tmp");
     let tmp = PathBuf::from(std::ffi::OsStr::from_bytes(&tb));
     py::write_text(&tmp, &py::dumps(&Val::Dict(pubd), None))?;
     py::chmod(&tmp, 0o644)?;
-    py::replace(&tmp, &c.public)
+    py::replace(&tmp, public)
 }
 
 /// The program (`args`: the words after its name).

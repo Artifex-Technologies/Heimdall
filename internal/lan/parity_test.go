@@ -472,15 +472,23 @@ func TestRustFixture(t *testing.T) {
 
 	// wifi-trusted.json as the scan reads it
 	type pTrusted struct {
-		In  string                `json:"in"`
-		Out map[string]trustedNet `json:"out"`
+		In     string                `json:"in"`
+		Out    map[string]trustedNet `json:"out"`
+		Levels map[string]string     `json:"levels"`
 	}
 	var trusts []pTrusted
 	for _, d := range []string{"{\"u1\": {\"ssid\": \"Home\", \"routers\": [\"00:00:5e:00:53:01\"]}}", "{\"u1\": 5, \"u2\": {\"SSID\": \"x\"}}", "[]", "null", "{",
-		"{\"u\": {\"ssid\": \"a\", \"routers\": [\"x\"]}, \"u\": {\"ssid\": \"b\"}}", "{\"u\": {\"routers\": [1, \"y\"]}}"} {
+		"{\"u\": {\"ssid\": \"a\", \"routers\": [\"x\"]}, \"u\": {\"ssid\": \"b\"}}", "{\"u\": {\"routers\": [1, \"y\"]}}",
+		// the trust levels: missing is home; only "home" and "trusted" are levels, anything else is untrusted
+		"{\"a\": {\"level\": \"home\"}, \"b\": {\"level\": \"trusted\"}, \"c\": {\"level\": \"\"}, \"d\": {\"level\": null}, \"e\": {\"level\": 5}, \"f\": {\"level\": [\"home\"]}, \"g\": {\"level\": \"Home\"}, \"h\": null}",
+		"{\"a\": {\"Level\": \"trusted\"}, \"b\": {\"level\": \"home\", \"LEVEL\": 1}, \"c\": {\"level\": \"ho\\u006de\"}, \"d\": {\"level\": \"home\", \"level\": \"trusted\"}}"} {
 		m := map[string]trustedNet{}
 		_ = json.Unmarshal([]byte(d), &m)
-		trusts = append(trusts, pTrusted{d, m})
+		levels := map[string]string{}
+		for k, v := range m {
+			levels[k] = v.level()
+		}
+		trusts = append(trusts, pTrusted{d, m, levels})
 	}
 	out["trusted"] = trusts
 

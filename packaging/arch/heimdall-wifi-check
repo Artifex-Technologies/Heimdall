@@ -6,18 +6,25 @@ Everything it does is what any device on the network does anyway: it reads what 
 few well-known names and opens a few well-known web pages, then compares the answers with what they must be. It never scans or
 touches other devices on the network. Nothing about the network is sent anywhere.
 
-Checks: encryption; an "evil twin" (the same network name nearby with different security); a sign-in page; a second device answering
-for the router's address (ARP spoofing); DNS answers that point well-known names somewhere else, or invent answers for names that do
-not exist; HTTPS certificates this computer does not trust (someone in the middle); plain web pages changed on the way; whether other
-devices are visible, and whether the firewall is on.
+Checks: encryption; an "evil twin" (the same network name nearby with different security, Enhanced Open included); a network with
+the name of one you trust but not its lock; a sign-in page; a second device answering for the router's address (ARP spoofing), and
+the router's hardware address changing (expected only of a trusted phone hotspot); DNS answers that lead well-known names to an
+address that cannot show their genuine certificate, or invent answers for names that do not exist; HTTPS certificates this
+computer does not trust (someone in the middle); plain web pages changed on the way; whether other devices are heard (the router
+or hotspot itself not counted), and whether the firewall is on.
 
-The verdict (safe, caution, unsafe) and the reasons go to /var/lib/heimdall/wifi/results.jsonl (Heimdall raises an alert from it)
-and, network name and verdict only, to /run/heimdall-wifi/last.json (the desktop shows a notification from it).
+The verdict: unsafe (signs of an attack), caution (something exposed and not covered), protected (other devices can see this
+computer, but the protections heimdall-wifi-guard checked are in force: ufw turning connections away with no listening port let
+in, not announcing unless the owner made the network discoverable, its own hardware address), or safe. It goes with the reasons
+to /var/lib/heimdall/wifi/results.jsonl (Heimdall raises an alert from it) and, network name, verdict and reasons only, to
+/run/heimdall-wifi/last.json (the desktop shows a notification from it). A check that runs out of time (HEIMDALL_WIFI_CHECK_LIMIT
+seconds, 240 by default) writes what it found so far, with a warning that it could not finish.
 """
 import hashlib
 import ipaddress
 import json
 import select
+import signal
 import struct
 import os
 import re
@@ -33,11 +40,38 @@ STATE = os.environ.get("HEIMDALL_WIFI_DIR", "/var/lib/heimdall/wifi")
 PUBLIC = os.environ.get("HEIMDALL_WIFI_PUBLIC", "/run/heimdall-wifi/last.json")
 ENV = {"PATH": "/usr/bin:/bin", "LANG": "C"}
 
-# Well-known names and the network (autonomous system) their addresses must belong to, wherever in the world one asks.
-PINNED = [("www.google.com", "AS15169"), ("github.com", "AS36459"), ("www.wikipedia.org", "AS14907"), ("www.cloudflare.com", "AS13335")]
+# Well-known names and the networks (autonomous systems) their addresses belong to, wherever in the world one asks. An answer
+# elsewhere is not judged by its network alone: one secure connection to that address decides (its genuine certificate, or not).
+# Only a name's own network is listed: a cloud anyone can rent space in (GitHub's other addresses are in Microsoft's) is asked too.
+PINNED = [("www.google.com", ("AS15169",)), ("github.com", ("AS36459",)), ("www.wikipedia.org", ("AS14907",)),
+          ("www.cloudflare.com", ("AS13335",))]
+PROBES = 4  # secure connections asked per name at most; an address beyond them is "could not confirm"
+GUARD_WAIT = 45  # seconds to wait for heimdall-wifi-guard to finish bringing this connection up (its up runs beside the check)
 GUARD_STATE = "/run/heimdall-wifi-guard/state.json"
 TRUSTED = "/etc/heimdall/wifi-trusted.json"
+LEVELS = ("trusted", "home")
+TRUSTABLE = ("wpa-psk", "sae")
+LOCK_NAMES = {"wpa-psk": "WPA2-Personal", "sae": "WPA3-Personal"}
+# the protections heimdall-wifi-guard checked on this network that make other devices seeing this computer a covered exposure
+COVERING = [("firewall", "the firewall turning connections away"), ("not_announcing", "not announcing this computer"),
+            ("own_address", "its own hardware address here (from the next connection on)")]
 TLS_HOSTS = ["www.google.com", "github.com", "www.wikipedia.org", "www.cloudflare.com"]
+START, LIMIT = float("inf"), 240  # when the check began (main sets it; never short of time before), and the seconds it may take
+
+
+class OutOfTime(BaseException):
+    """The check's time (LIMIT) ran out: what it found so far is written, with a warning. A BaseException, so that no
+    `except Exception` on the way swallows it."""
+
+
+def limit():
+    """The seconds the check may take: HEIMDALL_WIFI_CHECK_LIMIT, or 240 (its unit gives it 300)."""
+    v = os.environ.get("HEIMDALL_WIFI_CHECK_LIMIT", "")
+    return int(v) if v.isascii() and v.isdigit() and len(v) < 6 and int(v) > 0 else 240
+
+
+def out_of_time(signum, frame):
+    raise OutOfTime()
 
 
 def load_json(path, default):
@@ -85,8 +119,10 @@ class Report:
         self.checks.append({"check": name, "status": status, "detail": detail})
 
     def verdict(self):
+        """unsafe on any sign of an attack, caution on an exposure nothing covers, protected when every exposure is covered by a
+        protection checked to be in force (a "covered" check), safe otherwise. "bad" is never covered."""
         st = {c["status"] for c in self.checks}
-        return "unsafe" if "bad" in st else "caution" if "warn" in st else "safe"
+        return "unsafe" if "bad" in st else "caution" if "warn" in st else "protected" if "covered" in st else "safe"
 
 
 def wifi_networks():
@@ -103,6 +139,8 @@ def security_class(s):
     s = (s or "").upper()
     if s in ("", "--"):
         return "open"
+    if "OWE" in s:
+        return "owe"  # encrypted, but without a password: anyone can make a copy of a WPA2 network this way
     if "WEP" in s:
         return "wep"
     return "secured"
@@ -159,9 +197,16 @@ def neighbours(dev):
         return []
 
 
-def check_gateway(r, me, known):
-    """The router: one hardware address, the one seen here before. Returns the interface and the router's hardware
-    address ("" when not known)."""
+def locally_administered(mac):
+    """A hardware address made up by its device (the second hex digit has bit 2 set), as phones' hotspots and privacy features do."""
+    return len(mac) > 1 and mac[1] in "2367ABEFabef"
+
+
+def check_gateway(r, me, known, hotspot):
+    """The router: one hardware address, the one seen here before. hotspot(mac): whether a new one is expected, because the network
+    was trusted (as trusted, not home) and the new address is one a phone hotspot makes up when it restarts; anywhere else a new
+    router address is still a warning (another device on the network taking the router's place looks the same). Returns the
+    interface and the router's hardware address ("" when not known)."""
     gw, dev = gateway()
     if not gw:
         r.add("router", "skip", "no default route")
@@ -177,7 +222,11 @@ def check_gateway(r, me, known):
     key = hashlib.sha256((me["ssid"] + "|" + me["bssid"]).encode()).hexdigest()[:16]
     seen = known.setdefault(key, [])
     if seen and mac not in seen:
-        r.add("router", "warn", "the router's hardware address is different from the last time on this network (%s): it may have been replaced, or someone is imitating it" % me["ssid"])
+        if hotspot(mac):
+            r.add("router", "ok", "the router's hardware address changed to one its device made up (phone hotspots do this when they restart); this trusted network is recognized by its password")
+        else:
+            r.add("router", "warn", "the router's hardware address is different from the last time on this network (%s): it may have been replaced, or someone is imitating it%s"
+                  % (me["ssid"], " (phone hotspots change it when they restart)" if locally_administered(mac) else ""))
     elif not others:
         r.add("router", "ok", "one router, as expected" + (" (same as before)" if seen else ""))
     if mac not in seen:
@@ -186,14 +235,69 @@ def check_gateway(r, me, known):
     return dev, mac
 
 
-def is_trusted(uuid, mac):
-    """Trusted as heimdall-wifi-guard decides it: the profile was trusted, and its router is one remembered with it (a router
-    that did not answer is not trusted). A stranger's network with the name and password of a trusted one is not trusted
-    here either."""
-    t = load_json(TRUSTED, {}).get(uuid) if uuid else None
-    if not t:
-        return False
-    return bool(mac) and mac in t.get("routers", [])
+def lock_holds(recorded, now):
+    """Whether a profile's lock still lets it be trusted (heimdall-wifi-guard's rule): WPA2/WPA3-Personal, no weaker than recorded."""
+    return now in TRUSTABLE and not (recorded == "sae" and now != "sae")
+
+
+def level_of(entry, ssid=None, key_mgmt=None, mac=None):
+    """The network's trust level, "untrusted", "trusted" or "home", as heimdall-wifi-guard decides it (its level_of, the same
+    rules): a trusted network by its saved profile, name and lock (only a device knowing the password can bring the profile up);
+    home also by its router, and a home network whose router is not the remembered one (or did not answer) is only trusted. An
+    entry from before the levels is home exactly as it was."""
+    if not isinstance(entry, dict) or not entry:
+        return "untrusted"
+    level = entry.get("level", "home")
+    if level not in LEVELS:
+        return "untrusted"
+    routers = entry.get("routers")
+    routers = routers if isinstance(routers, list) else []
+    if "level" not in entry:
+        if mac is None or (mac and mac in routers):
+            return "home"
+        return "trusted" if key_mgmt is not None and lock_holds(None, key_mgmt) else "untrusted"
+    if ssid is not None and entry.get("ssid") != ssid:
+        return "untrusted"
+    if key_mgmt is not None and not lock_holds(entry.get("key_mgmt"), key_mgmt):
+        return "untrusted"
+    if level == "home" and mac is not None and not (mac and mac in routers):
+        return "trusted"
+    return level
+
+
+def lock_name(key):
+    return LOCK_NAMES.get(key, "open" if not key else key)
+
+
+def profile(uuid):
+    """The saved profile's network name and key management ("wpa-psk", "sae", "owe", "" for open...); Nones without a profile."""
+    if not uuid:
+        return None, None
+    ssid = run(["nmcli", "-g", "802-11-wireless.ssid", "connection", "show", uuid]).strip()
+    key = run(["nmcli", "-g", "802-11-wireless-security.key-mgmt", "connection", "show", uuid]).strip()
+    return ssid, key
+
+
+def check_trusted_name(r, me, uuid, key, trusted):
+    """A network with the name of one the owner trusts, but not its lock (open, Enhanced Open, WEP, or WPA2 where WPA3 was
+    trusted): the copy a stranger without the password can make (bad), or the trusted profile itself edited to a weaker lock
+    (warn). Never quiet, whatever the level."""
+    if not uuid or not me["ssid"]:
+        return
+    for u, e in trusted.items():
+        if not isinstance(e, dict) or level_of(e) == "untrusted" or e.get("ssid") != me["ssid"]:
+            continue
+        if u == uuid and "level" not in e:
+            continue  # an entry from before the levels recorded no lock to compare with
+        if lock_holds(e.get("key_mgmt"), key):
+            continue
+        if u == uuid:  # the trusted profile itself was changed to a weaker lock: untrusted until trusted again
+            r.add("trusted name", "warn", "the saved profile of this trusted network now has a weaker lock (%s) than when you trusted it: it is treated as untrusted; trust it again if you changed it"
+                  % lock_name(key))
+        else:
+            r.add("trusted name", "bad", "this network has the name of one you trust (%s) but not its lock (%s now): someone may be imitating it; do not use it"
+                  % (me["ssid"], lock_name(key)))
+        return
 
 
 def origins(ips):
@@ -205,6 +309,11 @@ def origins(ips):
         m = re.search(r"\bAS\d+\b", o)
         res[ip] = (m.group(0) if m else "", o.strip())
     return res
+
+
+def this_computer(ip):
+    """0.0.0.0/8 and 127.0.0.0/8: an answer that sends a well-known name to this computer itself, never the real site."""
+    return ip.startswith("0.") or ip.startswith("127.")
 
 
 def check_dns(r):
@@ -227,20 +336,65 @@ def check_dns(r):
     if ips and not any(a for a, _ in org.values()):
         r.add("dns: well-known names", "skip", "no IP database yet to check addresses against (heimdall-intel-update)")
         return
-    wrong = []
-    for name, asn in PINNED:
+    # every distinct answer outside the name's own network is asked for the name's certificate (one secure connection to that
+    # exact address, at most PROBES a name): its genuine certificate means the answer leads to the real site. A local address
+    # (private, link-local) must show it too, and one that sends the name to this computer itself is never the real site.
+    wrong, unsure, confirmed = [], [], []
+    for name, asns in PINNED:
+        asked = 0
         for ip in answers[name]:
             got, desc = org.get(ip, ("", ""))
-            if ipaddress.ip_address(ip).is_private:
-                wrong.append("%s -> %s (a local address)" % (name, ip))
-            elif got and got != asn:
-                wrong.append("%s -> %s (%s)" % (name, ip, desc))
+            local = ipaddress.ip_address(ip).is_private
+            if local:
+                where = "a local address"
+            elif got and got not in asns:
+                where = desc
+            else:
+                continue
+            said = "%s -> %s (%s)" % (name, ip, where)
+            if this_computer(ip):
+                wrong.append(said + ", this computer itself")
+                continue
+            if asked >= PROBES:
+                unsure.append(said + ", not asked (more than %d such answers)" % PROBES)
+                continue
+            if time.time() - START > LIMIT / 2:
+                unsure.append(said + ", not asked (the check is short of time)")
+                continue
+            asked += 1
+            got = tls_probe_at(ip, name)
+            if got == "ok":
+                confirmed.append(said)
+            elif got == "cert":
+                wrong.append(said + ", whose certificate this computer does not trust")
+            elif local:
+                wrong.append(said + ", which does not show the site's certificate")
+            else:
+                unsure.append(said + ", which did not answer a secure connection")
     if wrong:
-        r.add("dns: well-known names", "bad", "well-known sites resolve to addresses outside their own networks: " + "; ".join(wrong[:3]) + ". This is DNS spoofing")
+        r.add("dns: well-known names", "bad", "well-known sites resolve to addresses that are not theirs: " + "; ".join(wrong[:3]) + ". This is DNS spoofing")
+    elif unsure:
+        r.add("dns: well-known names", "warn", "could not confirm where well-known sites resolve, outside their own networks: " + "; ".join(unsure[:3]))
+    elif confirmed:
+        r.add("dns: well-known names", "ok", "well-known sites resolve into their own networks, or to another company's that shows their genuine certificate ("
+              + "; ".join(confirmed[:3]) + ")")
     elif any(answers.values()):
         r.add("dns: well-known names", "ok", "well-known sites resolve into their own networks")
     else:
         r.add("dns: well-known names", "skip", "names did not resolve")
+
+
+def tls_probe_at(ip, host):
+    """One secure connection to this exact address with host's name: "ok" (host's genuine certificate), "cert" (a certificate
+    this computer does not trust), or "none" (no answer, or not TLS)."""
+    ctx = ssl.create_default_context()
+    try:
+        with socket.create_connection((ip, 443), timeout=8) as s, ctx.wrap_socket(s, server_hostname=host):
+            return "ok"
+    except ssl.SSLCertVerificationError:
+        return "cert"
+    except (OSError, ssl.SSLError):
+        return "none"
 
 
 def check_tls(r):
@@ -352,16 +506,64 @@ def listening_services():
     return sorted(set(out))
 
 
-def check_neighbourhood(r, dev, me, untrusted):
+def router_addresses(dev, gw, gmac):
+    """The router's (or the phone hotspot's) own addresses: the gateway, and any address with its hardware address."""
+    out = {gw} if isinstance(gw, str) and gw else set()
+    if gmac and dev:
+        for n in neighbours(dev):
+            if isinstance(n, dict) and isinstance(n.get("lladdr"), str) and isinstance(n.get("dst"), str):
+                if n["lladdr"].upper() == gmac and ":" not in n["dst"]:
+                    out.add(n["dst"])
+    return out
+
+
+def guard_state(uuid):
+    """heimdall-wifi-guard's state.json for this connection ({} for another network's, or none). The guard's up runs beside this
+    check: while its pre-up's mark says this connection is still coming up, wait for it (at most GUARD_WAIT seconds), so the
+    protections read are this connection's and in force."""
+    for _ in range(GUARD_WAIT):
+        g = load_json(GUARD_STATE, {})
+        u, at = g.get("pending"), g.get("pending_at")
+        if not (uuid and u == uuid and isinstance(at, str) and stamp(120) <= at <= stamp(-60)):
+            break
+        time.sleep(1)
+    return g if uuid and g.get("wifi") == uuid else {}
+
+
+def stamp(ago=0):
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() - ago))
+
+
+def check_neighbourhood(r, dev, me, level, g, gw, gmac):
+    """Other devices heard, the router or hotspot itself not counted. At home they are expected. Elsewhere they can see this
+    computer: covered when the guard verified the protections that make that harmless (g: its state for this connection), an
+    exposure (warn) otherwise. Returns how many were heard (only the number goes to results.jsonl: nobody's address is kept)."""
     heard = listen_for_devices()
+    found = []
+    if heard is not None:
+        skip = router_addresses(dev, gw, gmac)
+        found = sorted(ip for ip in heard if ip not in skip)
+    head = "%d other device(s) heard on this network (not counting the router or hotspot)" % len(found)
     if heard is None:
         r.add("isolation", "skip", "could not listen for other devices")
-    elif heard:
-        status = "warn" if untrusted else "ok"
-        r.add("isolation", status, "%d other device(s) heard on this network, so devices are not kept apart and they can see this computer too%s"
-              % (len(heard), " (it does not announce itself here, and the firewall blocks connections in)" if untrusted else ""))
+    elif not found:
+        r.add("isolation", "ok", "no other device heard in 8 seconds (not counting the router or hotspot): the network may keep devices apart (or they are quiet)")
+    elif level == "home":
+        r.add("isolation", "ok", head)
     else:
-        r.add("isolation", "ok", "no other device heard in 8 seconds: the network may keep devices apart (or they are quiet)")
+        p = g.get("protections")
+        p = p if isinstance(p, dict) else {}
+        disc = p.get("discoverable") is True  # the owner let this computer announce itself here
+        missing = [label for k, label in COVERING if p.get(k) is not True and not (disc and k == "not_announcing")]
+        allowed = p.get("allowed_in")
+        if isinstance(allowed, list) and allowed and "the firewall turning connections away" in missing:
+            missing[missing.index("the firewall turning connections away")] += " (a rule lets in " + ", ".join(str(a) for a in allowed[:6]) + ")"
+        if not missing:
+            r.add("isolation", "covered", head + (": they can see this computer is here and what it announces (you made it discoverable here), but"
+                                                  if disc else ": they can see this computer is here, but it does not announce itself,")
+                  + " its firewall turns their connections away (it answers pings, as ufw does by default) and it uses its own hardware address here")
+        else:
+            r.add("isolation", "warn", head + ", so devices are not kept apart and they can see this computer too; not in force here: " + ", ".join(missing))
     fw = run(["systemctl", "is-active", "ufw"]).strip()
     svc = listening_services()
     if fw != "active":
@@ -370,9 +572,55 @@ def check_neighbourhood(r, dev, me, untrusted):
         r.add("ports", "ok", "the firewall is on; services listening beyond this computer, blocked unless a rule allows them: " + ", ".join(svc[:6]))
     else:
         r.add("firewall", "ok", "the firewall is on and nothing on this computer listens for connections from the network")
+    return len(found)
+
+
+def exposure(r, me, g):
+    """What the network can still see of this computer when the verdict is protected, said plainly; "" otherwise."""
+    if r.verdict() != "protected":
+        return ""
+    p = g.get("protections")
+    vpn = isinstance(p, dict) and p.get("vpn") is True
+    disc = isinstance(p, dict) and p.get("discoverable") is True
+    tail = ("Still visible to the network itself: that this computer is there and how much it sends; the VPN hides where it goes."
+            if vpn else
+            "Still visible to the network itself: the names of the sites you visit (DNS is not encrypted) and how much you send. A VPN would hide both.")
+    if disc:
+        return ("Protected on %s: other devices can see this computer is there, what it announces (you made it discoverable here) and that it "
+                "answers pings, but its firewall turns their connections away and it uses its own hardware address here. " % me["ssid"]) + tail
+    return ("Protected on %s: other devices can see this computer is there and that it answers pings, but it does not announce itself, its "
+            "firewall turns their connections away and it uses its own hardware address here. " % me["ssid"]) + tail
+
+
+def write_results(r, res):
+    """The verdict for heimdalld (results.jsonl) and for the desktop notification (last.json)."""
+    # Heimdall's own (heimdalld reads it as heimdall): the networks joined are named in it, from the first byte on
+    with os.fdopen(os.open(os.path.join(STATE, "results.jsonl"), os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o640), "a") as f:
+        f.write(json.dumps(res) + "\n")
+    try:
+        os.makedirs(os.path.dirname(PUBLIC), exist_ok=True)
+        pub = {"time": res["time"], "ssid": res["ssid"], "verdict": res["verdict"],
+               "reasons": [c["detail"] for c in r.checks if c["status"] in ("bad", "warn")][:4], "exposure": res["exposure"]}
+        with open(PUBLIC + ".tmp", "w") as f:
+            json.dump(pub, f)
+        os.chmod(PUBLIC + ".tmp", 0o644)
+        os.replace(PUBLIC + ".tmp", PUBLIC)
+    except OSError:
+        pass
+
+
+def show(r, res):
+    if "--json" in sys.argv:
+        print(json.dumps(res, indent=2))
+    else:
+        print("%s: %s" % (res["ssid"], res["verdict"]))
+        for c in r.checks:
+            print("  %-22s %-5s %s" % (c["check"], c["status"], c["detail"]))
 
 
 def main():
+    global START, LIMIT
+    START, LIMIT = time.time(), limit()
     uuid = ""
     if "--uuid" in sys.argv:
         uuid = re.sub(r"[^a-f0-9-]", "", sys.argv[sys.argv.index("--uuid") + 1] if len(sys.argv) > sys.argv.index("--uuid") + 1 else "")
@@ -385,49 +633,65 @@ def main():
     if not me:
         print("not on Wi-Fi")
         return 0
-    state = connectivity()
+    c = {"state": "unknown", "level": "untrusted"}  # what is known so far, for a check that runs out of time
+    signal.signal(signal.SIGALRM, out_of_time)
+    signal.alarm(LIMIT)
+    try:
+        return checks(r, me, c, uuid, guard, known, known_path)
+    except OutOfTime:
+        signal.alarm(0)
+        r.add("finish", "warn", "the check could not finish within %d seconds (the network answers too slowly, or holds answers back): "
+              "the checks after these were not run" % LIMIT)
+        res = {"time": stamp(), "ssid": me["ssid"], "bssid": me["bssid"], "security": me["security"], "connectivity": c["state"],
+               "trusted": c["level"] == "home", "level": c["level"], "verdict": r.verdict(), "checks": r.checks, "heard": 0, "exposure": ""}
+        write_results(r, res)
+        show(r, res)
+        return 0
+
+
+def checks(r, me, c, uuid, guard, known, known_path):
+    state = c["state"] = connectivity()
     if state == "portal":
         r.add("sign-in", "warn", "the network wants you to sign in first (a captive portal); its sign-in page is not checked")
     elif state in ("none", "limited"):
         r.add("internet", "skip", "no internet yet (%s): online checks skipped" % state)
-    dev, router = check_gateway(r, me, known)
-    trusted = is_trusted(uuid, router)
+    trusted_file = load_json(TRUSTED, {})
+    entry = trusted_file.get(uuid) if uuid else None
+    pssid, key = profile(uuid)
+    g = guard_state(uuid)
+    own = entry.get("level") if isinstance(entry, dict) else None  # the entry's own level: a home network's router stays bound
+    # a trusted hotspot's new router address is expected, unless the guard found its profile changed (its saved password)
+    hotspot = lambda mac: (own == "trusted" and g.get("level") != "untrusted" and level_of(entry, pssid, key, mac) == "trusted"
+                           and locally_administered(mac))
+    dev, router = check_gateway(r, me, known, hotspot)
+    level = c["level"] = level_of(entry, pssid, key, router)
+    check_trusted_name(r, me, uuid, key, trusted_file)
     if guard.get("locked"):
         r.add("online checks", "skip", "untrusted network: all traffic is held for the VPN, so DNS, HTTPS and web pages are checked only through it")
     elif state not in ("none", "limited"):  # "unknown": NetworkManager does not test connectivity here; the checks themselves will tell
         check_dns(r)
         check_tls(r)
         check_http(r, state)
-    check_neighbourhood(r, dev, me, not trusted)
-    res = {"time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "ssid": me["ssid"], "bssid": me["bssid"], "security": me["security"],
-           "connectivity": state, "trusted": trusted, "verdict": r.verdict(), "checks": r.checks}
-    # what Heimdall's router watch follows while on this network (untrusted networks only)
     gw, gdev = gateway()
     gmac = next((n.get("lladdr", "").upper() for n in neighbours(gdev or "") if n.get("dst") == gw), "") if gw else ""
+    g = guard_state(uuid)
+    if g.get("level") == "untrusted":  # the guard knows more (the saved password, which only root can read): untrusted it is
+        level = c["level"] = "untrusted"
+    heard = check_neighbourhood(r, dev, me, level, g, gw, gmac)
+    signal.alarm(0)  # done: the files are written whole
+    res = {"time": stamp(), "ssid": me["ssid"], "bssid": me["bssid"], "security": me["security"],
+           "connectivity": state, "trusted": level == "home", "level": level, "verdict": r.verdict(), "checks": r.checks, "heard": heard,
+           "exposure": exposure(r, me, g)}
+    # what Heimdall's router watch follows while on this network: "trusted" means home (the watch is off only there)
     with open(os.path.join(STATE, "current.json.tmp"), "w") as f:
-        json.dump({"time": res["time"], "ssid": me["ssid"], "uuid": uuid, "iface": gdev, "gateway": gw, "gateway_mac": gmac, "trusted": trusted}, f)
+        json.dump({"time": res["time"], "ssid": me["ssid"], "uuid": uuid, "iface": gdev, "gateway": gw, "gateway_mac": gmac, "trusted": level == "home",
+                   "level": level}, f)
     os.replace(os.path.join(STATE, "current.json.tmp"), os.path.join(STATE, "current.json"))
     with open(known_path + ".tmp", "w") as f:
         json.dump(known, f)
     os.replace(known_path + ".tmp", known_path)
-    with open(os.path.join(STATE, "results.jsonl"), "a") as f:
-        f.write(json.dumps(res) + "\n")
-    try:
-        os.makedirs(os.path.dirname(PUBLIC), exist_ok=True)
-        pub = {"time": res["time"], "ssid": res["ssid"], "verdict": res["verdict"],
-               "reasons": [c["detail"] for c in r.checks if c["status"] in ("bad", "warn")][:4]}
-        with open(PUBLIC + ".tmp", "w") as f:
-            json.dump(pub, f)
-        os.chmod(PUBLIC + ".tmp", 0o644)
-        os.replace(PUBLIC + ".tmp", PUBLIC)
-    except OSError:
-        pass
-    if "--json" in sys.argv:
-        print(json.dumps(res, indent=2))
-    else:
-        print("%s: %s" % (res["ssid"], res["verdict"]))
-        for c in r.checks:
-            print("  %-22s %-5s %s" % (c["check"], c["status"], c["detail"]))
+    write_results(r, res)
+    show(r, res)
     return 0
 
 

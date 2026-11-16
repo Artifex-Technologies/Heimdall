@@ -82,6 +82,11 @@ i 755 $p/net/heimdall-wifi-guard                 usr/bin/heimdall-wifi-guard
 i 755 $p/net/dispatcher.d/50-heimdall-wifi-guard usr/lib/NetworkManager/dispatcher.d/50-heimdall-wifi-guard
 i 755 $p/net/dispatcher.d/pre-up.d/50-heimdall-wifi-guard usr/lib/NetworkManager/dispatcher.d/pre-up.d/50-heimdall-wifi-guard
 i 644 $p/net/heimdall-wifi-privacy.conf          usr/lib/NetworkManager/conf.d/heimdall-wifi-privacy.conf
+# Settings' "Discoverable" switch for a Wi-Fi network (heimdall-wifi-guard discoverable on|off --uuid UUID, as root)
+i 644 $p/net/units/heimdall-wifi-discoverable-on@.service  usr/lib/systemd/system/heimdall-wifi-discoverable-on@.service
+i 644 $p/net/units/heimdall-wifi-discoverable-off@.service usr/lib/systemd/system/heimdall-wifi-discoverable-off@.service
+i 644 $p/net/heimdall-wifi-discoverable.rules    usr/share/polkit-1/rules.d/50-heimdall-wifi-discoverable.rules
+i 644 docs/WIFI_TRUST.md                         usr/share/doc/heimdall/WIFI_TRUST.md
 
 # the DNS block list (NetworkManager's local DNS cache refuses malware, phishing and scam domains)
 i 755 $p/net/heimdall-dns-blocklist              usr/bin/heimdall-dns-blocklist

@@ -173,6 +173,11 @@ fn notify() -> PyResult<()> {
             &format!("Wi-Fi checked: {ssid}"),
             "Heimdall found nothing wrong with this network.",
         ]))
+    } else if is("protected") && !seen.get(&key).is_some_and(Val::truthy) {
+        // other devices can see this computer, and the protections in force cover it: said once, quietly, with what is still visible
+        let body = py::printable_prefix(&py::str_of(r.get("exposure").unwrap_or(&py::s(""))), 400);
+        let body = if body.is_empty() { "Other devices can see this computer here, and Heimdall's protections cover it." } else { &body };
+        Some(py::argv(&["-u", "low", "-i", "network-wireless", "--", &format!("Wi-Fi protected: {ssid}"), body]))
     } else {
         None
     };

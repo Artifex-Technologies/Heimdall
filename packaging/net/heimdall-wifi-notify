@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """heimdall-wifi-notify: show Heimdall's verdict on the Wi-Fi network just joined (from /run/heimdall-wifi/last.json, written by
-heimdall-wifi-check). Unsafe and needs-care networks always get a notification; a safe one only the first time it is checked."""
+heimdall-wifi-check). Unsafe and needs-care networks always get a notification; a safe or protected one only the first time it is
+checked."""
 import hashlib
 import json
 import os
@@ -63,6 +64,10 @@ def main():
         args = ["-u", "normal", "-i", "network-wireless", "Be careful on " + ssid, " ".join(reasons) + "\nA VPN is a good idea here."]
     elif verdict == "safe" and not seen.get(key):
         args = ["-u", "low", "-i", "network-wireless", "Wi-Fi checked: " + ssid, "Heimdall found nothing wrong with this network."]
+    elif verdict == "protected" and not seen.get(key):
+        # other devices can see this computer, and the protections in force cover it: said once, quietly, with what is still visible
+        body = "".join(c for c in str(r.get("exposure", "")) if c.isprintable())[:400]
+        args = ["-u", "low", "-i", "network-wireless", "Wi-Fi protected: " + ssid, body or "Other devices can see this computer here, and Heimdall's protections cover it."]
     if args:
         # "--": the network's name is chosen by whoever runs the access point; it must never be read as an option
         args = args[:-2] + ["--"] + args[-2:]

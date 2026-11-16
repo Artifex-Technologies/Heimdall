@@ -123,7 +123,17 @@ func For(detector, severity string, fields map[string]string) Text {
 	case "wifi-safety":
 		t.What = "A check of the Wi-Fi network " + orUnknown(quoted(fields, "ssid"), "you joined") + " found something that can expose your traffic (an open network, a weak lock, or a network pretending to be another)."
 		t.Do = "Avoid signing in to anything important on this network, or turn on a VPN first."
+		if fields["verdict"] == "protected" {
+			t.What = "A check of the Wi-Fi network " + orUnknown(quoted(fields, "ssid"), "you joined") + " found that other devices there can see this computer, and that the protections in force cover it: it does not announce itself, its firewall turns their connections away (it answers pings, as ufw does by default) and it uses its own hardware address there."
+			t.Do = "Nothing to do. The network itself can still see which sites you visit and how much you send; a VPN (heimdall-wifi-guard vpn-import) hides both."
+		}
 	case "lan-watch":
+		if fields["inbound"] == "wifi" {
+			t.What = "A device on the Wi-Fi network (" + orUnknown(clean(fields["src"], 60), "an unknown address") + ") tried to reach this computer directly: a connection, a ping or a question about it."
+			t.Done = "Heimdall noted it. The firewall drops what it does not allow (it answers pings, as ufw does by default), so nothing got in unless a rule allows that port."
+			t.Do = "Usually nothing. If it keeps happening, find out which device it is (Settings > Wi-Fi & Network); on a network you do not control, a VPN also hides your traffic."
+			break
+		}
 		t.What = "Something on your local network is pretending to be your router or another device (its hardware address changed to " + orUnknown(clean(fields["new_mac"], 40), "a new one") + "). That is how traffic on a shared network gets intercepted."
 		t.Do = "On a network you do not control, disconnect or use a VPN. At home, restart the router and check which devices are connected."
 	case "baseline-drift":
