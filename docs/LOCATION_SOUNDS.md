@@ -119,6 +119,18 @@ Trade-offs I accepted:
 - **Not a guarantee.** Tested against the two scorers (brightness and trace-and-fit) on synthetic flyovers; not against
   learned detectors or several flights with a locked clock offset.
 
+## Planned
+
+- **Vehicle and transit sounds:** a wider band and short tonal events (tram bells, door chimes, horns, rail squeal), tested on
+  synthetic tram, rail and bus sounds.
+- **"Voice only":** keeps any voice and removes everything else, stop announcements included (no profile needed; also on a
+  Raspberry Pi).
+- **"My voice only":** keeps only my voice, steered by the same voiceprint Sarina enrols for its speaker check, so one
+  enrolment serves every program. Off until I turn it on; the voiceprint stays in Sarina's encrypted store. Design: Sarina's
+  docs/VOICE_AND_TRUST_PLAN.md, section 9.
+- **The real microphone out of my account's reach:** a small system service with its own account owns the device, so
+  programs that open the sound card directly, or hostile programs running as me, only ever see the private microphone.
+
 ## Measured (2026-11-15, synthetic audio only)
 
 The tests (`rust/flyover-attack/tests/scrub_defeats_scorer.rs`, run with `--nocapture` for the numbers) build an 80 s scene
