@@ -1,0 +1,55 @@
+[Unit]
+Description=Heimdall: several internet connections at once (docs/MULTILINK.md)
+Documentation=file:///usr/share/doc/heimdall-multilink/MULTILINK.md
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+# Started and stopped by `heimdall-multilink on|off` (Settings > Wi-Fi & Network > Several connections at once).
+Type=notify
+NotifyAccess=main
+ExecStart=/usr/bin/heimdall-multilink run
+# Runs after every stop, also after a crash or a kill: our rules and routes go, the two kernel settings are put back, and
+# NetworkManager's normal routing is all that is left.
+ExecStopPost=/usr/bin/heimdall-multilink restore
+Restart=on-failure
+RestartSec=5
+WatchdogSec=30
+TimeoutStopSec=15
+RuntimeDirectory=heimdall-multilink
+RuntimeDirectoryMode=0755
+StateDirectory=heimdall-multilink
+StateDirectoryMode=0700
+UMask=0022
+# root for netlink and the sysctls, with nothing but CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN
+AmbientCapabilities=
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+ProtectProc=invisible
+# of all the kernel's settings, only the three it changes (and puts back) are writable
+ReadOnlyPaths=/proc/sys
+ReadWritePaths=/proc/sys/net/ipv4/fib_multipath_hash_policy /proc/sys/net/ipv6/fib_multipath_hash_policy /proc/sys/net/ipv4/fib_multipath_use_neigh
+# AF_UNIX: NetworkManager over D-Bus (nmcli: DNS servers, an active VPN) and systemd's notify socket
+RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_INET AF_INET6
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@mount
+MemoryMax=64M
+TasksMax=16
+
+[Install]
+WantedBy=multi-user.target

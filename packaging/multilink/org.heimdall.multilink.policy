@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN" "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!-- Settings > Wi-Fi & Network > Several connections at once: `pkexec /usr/bin/heimdall-multilink on|off|set|new-links`.
+     An administrator's password, remembered for a few minutes, as for Heimdall's other switches. -->
+<policyconfig>
+  <vendor>Heimdall</vendor>
+  <action id="org.heimdall.multilink">
+    <description>Use several internet connections at once, or change which ones</description>
+    <message>Authentication is required to change how this computer uses its internet connections</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/heimdall-multilink</annotate>
+  </action>
+</policyconfig>

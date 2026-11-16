@@ -1,14 +1,17 @@
 #!/bin/sh
-# packaging/install.sh DESTDIR [private-mic]: install into DESTDIR the files of one of Heimdall's two packages.
+# packaging/install.sh DESTDIR [private-mic|multilink]: install into DESTDIR the files of one of Heimdall's three packages.
 #   (no second argument)  heimdall-git: Heimdall (an already built ./heimdalld) and everything that comes with it.
 #   private-mic           heimdall-private-mic-git: the private microphone and heimdall-scrub (docs/LOCATION_SOUNDS.md), and
 #                         the privacy pack (docs/PRIVACY_PACK.md), built in rust/ (cargo build --release --locked
 #                         -p heimdall-scrub -p heimdall-scrub-ladspa -p heimdall-privacy).
-# Every package recipe (Labyrinth's heimdall-git and heimdall-private-mic-git, packaging/arch/ and packaging/arch-private-mic/)
+#   multilink             heimdall-multilink-git: several internet connections at once (docs/MULTILINK.md), built in rust/
+#                         (cargo build --release --locked -p heimdall-multilink).
+# Every package recipe (Labyrinth's heimdall-git, heimdall-private-mic-git and heimdall-multilink-git, packaging/arch/,
+# packaging/arch-private-mic/ and packaging/arch-multilink/)
 # calls this one script, so the list of files lives in one place: change it here and every system gets it. No file is in
-# both lists.
+# two lists.
 set -eu
-d=${1:?usage: packaging/install.sh DESTDIR [private-mic]}
+d=${1:?usage: packaging/install.sh DESTDIR [private-mic|multilink]}
 part=${2:-heimdall}
 p=packaging
 i() { install -D -m "$1" "$2" "$d/$3"; }
@@ -37,6 +40,15 @@ if [ "$part" = private-mic ]; then
   install -d "$d/usr/lib/systemd/user/graphical-session.target.wants"
   ln -sfn ../heimdall-fileguard.service "$d/usr/lib/systemd/user/graphical-session.target.wants/heimdall-fileguard.service"
   i 644 docs/PRIVACY_PACK.md                     usr/share/doc/heimdall-private-mic/PRIVACY_PACK.md
+  exit 0
+fi
+if [ "$part" = multilink ]; then
+  # off until switched on (Settings, or `sudo heimdall-multilink on`): the unit is not enabled by the package
+  i 755 rust/target/release/heimdall-multilink   usr/bin/heimdall-multilink
+  i 644 $p/multilink/heimdall-multilink.service  usr/lib/systemd/system/heimdall-multilink.service
+  i 644 $p/multilink/org.heimdall.multilink.policy usr/share/polkit-1/actions/org.heimdall.multilink.policy
+  i 644 LICENSE                                  usr/share/licenses/heimdall-multilink/LICENSE
+  i 644 docs/MULTILINK.md                        usr/share/doc/heimdall-multilink/MULTILINK.md
   exit 0
 fi
 [ "$part" = heimdall ] || { echo "packaging/install.sh: unknown part $part" >&2; exit 2; }

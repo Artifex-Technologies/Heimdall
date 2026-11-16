@@ -87,6 +87,7 @@ docs/
   REFERENCES.md            Tracked ledger of every external reference project cited anywhere in this repo
   DEVICES.md               The device list of trusted home networks (heimdalld lan, /v1/lan/devices)
   WIFI_HEALTH.md           Wi-Fi checks: why the Wi-Fi is slow (heimdalld wifi-health)
+  MULTILINK.md             Several internet connections at once (heimdall-multilink, kernel multipath routing)
   WIFI_TRUST.md            Wi-Fi trust levels (untrusted, trusted, home), the quiet table, the "protected" verdict
 packaging/arch/            PKGBUILD, systemd unit, sysusers -- mirrors Sarina's own layout
 internal/parity/          The Go table tests as scenarios; writes testdata/parity, the fixtures the Rust port must match
@@ -98,6 +99,8 @@ packaging/privacy/         the private microphone's PipeWire and WirePlumber fil
 packaging/arch-private-mic/ the recipe of heimdall-private-mic-git (its own package; install.sh DESTDIR private-mic)
 rust/privacy/              the privacy pack: heimdall-fileguard (downloads guard), heimdall-strip (Remove hidden info), lookalike.rs: docs/PRIVACY_PACK.md
 packaging/privacy-pack/    the downloads guard's user unit (in heimdall-private-mic-git too)
+rust/multilink/            heimdall-multilink: several internet connections at once (kernel multipath routing): docs/MULTILINK.md
+packaging/multilink/       its unit and polkit action; packaging/arch-multilink/ the recipe of heimdall-multilink-git (its own package)
 testdata/parity/           Fixtures both languages run (go test ./internal/parity -update rewrites them)
 ```
 
@@ -266,6 +269,24 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   Both are in Sarina's `docs/ECOSYSTEM.md` port registry.
 
 ### Coordination Log (newest first)
+
+### 2026-11-15 (5) — Several internet connections at once: heimdall-multilink
+- New crate `rust/multilink` (`heimdall-multilink`, `docs/MULTILINK.md`), a package of its own: **heimdall-multilink-git**
+  (`packaging/arch-multilink/`, `packaging/install.sh DESTDIR multilink`: the binary, `heimdall-multilink.service`, the
+  polkit action `org.heimdall.multilink`, the doc). No file is in two packages. Crates: libc and serde_json at the locked
+  versions.
+- The kernel's own multipath routing, beside NetworkManager's and never changing it: rules 32000-32003 and tables 7700000+
+  of our own, all protocol 199; only unmarked traffic this computer makes is spread (`iif lo fwmark 0`). A stop, a crash
+  (systemd's `ExecStopPost=heimdall-multilink restore`) or `off` removes exactly those and puts the three sysctls back.
+  It pauses while a VPN carries everything. It never touches the firewall, the quiet table or the Wi-Fi guard's settings.
+- **For Yggdrasil:** Settings > Wi-Fi & Network > Several connections at once reads `heimdall-multilink status --json` (the
+  service's `/run/heimdall-multilink/status.json` while it runs: `state` active|paused|waiting|off, `reason`,
+  `combined_rate`, `links[]` with `name role up ipv4 ipv6 healthy4 healthy6 weight4 weight6 rtt_ms rate peak share_now
+  share_limit data_cap_mb period used_bytes over_cap`; rates in bytes/s). It changes things with `pkexec
+  /usr/bin/heimdall-multilink on|off|set LINK use|backup|off [--share N|none] [--cap MB|none] [--per day|month]|new-links
+  ROLE`. A change to that JSON or those words is a contract change in both repos.
+- **For Labyrinth OS and LykanOS:** a new package in their lists; nothing switches it on.
+— Signed: Heimdall / Claude Opus 5.5
 
 ### 2026-11-15 (4) — The privacy pack: the downloads guard, Remove hidden info, look-alike names
 - New crate `rust/privacy` (`heimdall-privacy`, `docs/PRIVACY_PACK.md`): `heimdall-fileguard` (`check [--json] FILE...`,
