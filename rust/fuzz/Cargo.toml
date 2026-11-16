@@ -13,6 +13,7 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "=0.4.10"
 heimdall = { path = "../heimdall" }
+heimdall-privacy = { path = "../privacy" }
 
 [workspace]
 members = ["."]
@@ -223,6 +224,48 @@ bench = false
 [[bin]]
 name = "wifi_tools"
 path = "fuzz_targets/wifi_tools.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "privacy_guard"
+path = "fuzz_targets/privacy_guard.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "privacy_strip"
+path = "fuzz_targets/privacy_strip.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "privacy_zip"
+path = "fuzz_targets/privacy_zip.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "privacy_pdf"
+path = "fuzz_targets/privacy_pdf.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "privacy_markup"
+path = "fuzz_targets/privacy_markup.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "privacy_lookalike"
+path = "fuzz_targets/privacy_lookalike.rs"
 test = false
 doc = false
 bench = false

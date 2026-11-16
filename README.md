@@ -162,6 +162,17 @@ metadata removed). Speech and everything above 2 kHz are kept. Both are the pack
 Labyrinth OS and LykanOS install has, with or without Heimdall. A Rust rewrite of
 [flyover-scrub](https://github.com/lizTheDeveloper/flyover-scrub) (MIT).
 
+### The privacy pack ([docs/PRIVACY_PACK.md](docs/PRIVACY_PACK.md))
+
+Files that give you away, on by default. **The downloads guard** (`heimdall-fileguard`, a user service) watches the download
+folder and the torrent clients' folders (Deluge, qBittorrent, Transmission) and, when a file is finished, says so if it would
+contact a server as soon as it is opened: an Office document's remote template or picture, a PDF that opens a web address by
+itself, an SVG or web page loading from outside, a playlist on a server, a shortcut, such files inside a ZIP. It never
+changes the file (a torrent keeps seeding). **Remove hidden info** (`heimdall-strip IN [OUT]`, Minos' right-click menu) writes
+"name (clean).ext" without the GPS position, camera, author, company, template path and the rest: JPEG, PNG, WebP, HEIC,
+TIFF, PDF, Office, OpenDocument, ZIP, MP3, FLAC and WAV by its own code, videos with ffmpeg (streams copied). A shared
+**look-alike check** flags names that imitate others ("Vivаldi" with a Cyrillic а). Same package as the private microphone.
+
 ## Commands
 
 | Command | What it does |

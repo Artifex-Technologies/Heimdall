@@ -1,0 +1,26 @@
+# The downloads guard (docs/PRIVACY_PACK.md): a notice when a finished download would contact a server as soon as it is opened
+# (Office remote templates, PDF auto-actions, SVG/HTML outside resources, playlists, shortcuts, files in archives). It only
+# reads files. On by default for every account (graphical-session.target.wants); Settings > Security > Privacy > Check
+# downloads switches the checking off (~/.config/heimdall/privacy.json), and the guard then watches nothing.
+[Unit]
+Description=Heimdall downloads guard (files that contact a server when opened)
+Documentation=file:///usr/share/doc/heimdall-private-mic/PRIVACY_PACK.md
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=exec
+ExecStart=/usr/bin/heimdall-fileguard watch
+Restart=on-failure
+RestartSec=30
+Nice=10
+IOSchedulingClass=idle
+MemoryMax=512M
+NoNewPrivileges=yes
+# it opens no network connection of its own: local sockets only (D-Bus for the notice)
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=yes
+RestrictRealtime=yes
+
+[Install]
+WantedBy=graphical-session.target

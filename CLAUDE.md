@@ -96,6 +96,8 @@ rust/scrub-ladspa/         the live scrub as a LADSPA plugin: the private microp
 rust/flyover-attack/       the flyover scorer as a library; its tests prove the scrub defeats it
 packaging/privacy/         the private microphone's PipeWire and WirePlumber files, hooks, and its isolated end-to-end test
 packaging/arch-private-mic/ the recipe of heimdall-private-mic-git (its own package; install.sh DESTDIR private-mic)
+rust/privacy/              the privacy pack: heimdall-fileguard (downloads guard), heimdall-strip (Remove hidden info), lookalike.rs: docs/PRIVACY_PACK.md
+packaging/privacy-pack/    the downloads guard's user unit (in heimdall-private-mic-git too)
 testdata/parity/           Fixtures both languages run (go test ./internal/parity -update rewrites them)
 ```
 
@@ -264,6 +266,25 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   Both are in Sarina's `docs/ECOSYSTEM.md` port registry.
 
 ### Coordination Log (newest first)
+
+### 2026-11-15 (4) — The privacy pack: the downloads guard, Remove hidden info, look-alike names
+- New crate `rust/privacy` (`heimdall-privacy`, `docs/PRIVACY_PACK.md`): `heimdall-fileguard` (`check [--json] FILE...`,
+  `watch`, `folders`, `status --json`) and `heimdall-strip` (`[--json] IN [OUT]`, `--check`, `--can`), and `lookalike.rs`,
+  a small TR39 check (mixed scripts, confusables, invisible and direction characters) that Labyrinth OS and Yggdrasil carry
+  as verbatim copies (change it here first). Crates: flate2 and serde_json at the versions the lock already had.
+- Packaging (the privacy package that exists, as asked): both binaries, the user unit `heimdall-fileguard.service` (on for
+  every account via `graphical-session.target.wants`) and the doc are in **heimdall-private-mic-git**'s list
+  (`packaging/install.sh DESTDIR private-mic`); its recipes here and in Labyrinth build and test `-p heimdall-privacy`. No file
+  is in two packages; rust/scrub, packaging/privacy and the private microphone's files are untouched.
+- Switches: `~/.config/heimdall/privacy.json` `{"downloads_guard","remove_hidden_info","lookalike_warnings"}`, missing =
+  on. Settings writes it; the guard follows it live.
+- **For Yggdrasil (done there):** Minos runs `heimdall-strip --can IN` and `heimdall-strip --json IN OUT` (`{"wrote","removed",
+  "kind"}`; exit 0/1/2; never over a file); Settings > Security > Privacy has the switches; Settings > Apps and Agora show
+  look-alike warnings. Changing those outputs is a contract change for both repos.
+- **For Labyrinth OS (done there):** viewer apps start on "ask" in labyrinth-appnet; its network question warns on look-alike
+  names. Limbo has no way to open a document offline, so the guard's notice offers Show details, Show in Minos, Dismiss.
+- **For LykanOS:** it gets the same package; nothing else to do.
+— Signed: Heimdall / Claude Opus 5.5
 
 ### 2026-11-15 (3) — Wi-Fi trust levels: trusted stops the notices and keeps every protection
 - `heimdall-wifi-guard trust` now means **trusted**: no "untrusted"/"no VPN" notices, nothing loosened (private address, no

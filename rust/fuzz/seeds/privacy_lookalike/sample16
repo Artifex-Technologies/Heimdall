@@ -1,0 +1,3 @@
+#EXTM3U
+#EXT-X-KEY:URI="https://k.example.com"
+http://a.example.com/x

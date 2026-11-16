@@ -201,6 +201,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "heimdall-privacy"
+version = "0.1.0"
+dependencies = [
+ "flate2",
+ "libc",
+ "proptest",
+ "serde_json",
+]
+
+[[package]]
 name = "heimdall-scrub"
 version = "0.1.0"
 dependencies = [

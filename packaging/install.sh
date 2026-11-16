@@ -1,8 +1,9 @@
 #!/bin/sh
 # packaging/install.sh DESTDIR [private-mic]: install into DESTDIR the files of one of Heimdall's two packages.
 #   (no second argument)  heimdall-git: Heimdall (an already built ./heimdalld) and everything that comes with it.
-#   private-mic           heimdall-private-mic-git: the private microphone and heimdall-scrub (docs/LOCATION_SOUNDS.md),
-#                         built in rust/ (cargo build --release --locked -p heimdall-scrub -p heimdall-scrub-ladspa).
+#   private-mic           heimdall-private-mic-git: the private microphone and heimdall-scrub (docs/LOCATION_SOUNDS.md), and
+#                         the privacy pack (docs/PRIVACY_PACK.md), built in rust/ (cargo build --release --locked
+#                         -p heimdall-scrub -p heimdall-scrub-ladspa -p heimdall-privacy).
 # Every package recipe (Labyrinth's heimdall-git and heimdall-private-mic-git, packaging/arch/ and packaging/arch-private-mic/)
 # calls this one script, so the list of files lives in one place: change it here and every system gets it. No file is in
 # both lists.
@@ -28,6 +29,14 @@ if [ "$part" = private-mic ]; then
   i 644 LICENSE                                  usr/share/licenses/heimdall-private-mic/LICENSE
   i 644 rust/scrub/NOTICE                        usr/share/licenses/heimdall-private-mic/NOTICE.flyover-scrub
   i 644 docs/LOCATION_SOUNDS.md                  usr/share/doc/heimdall-private-mic/LOCATION_SOUNDS.md
+  # the privacy pack (docs/PRIVACY_PACK.md): the downloads guard (a user service, on for every account) and Remove hidden
+  # info; built in rust/ (cargo build --release --locked -p heimdall-privacy)
+  i 755 $r/heimdall-fileguard                    usr/bin/heimdall-fileguard
+  i 755 $r/heimdall-strip                        usr/bin/heimdall-strip
+  i 644 $p/privacy-pack/heimdall-fileguard.service usr/lib/systemd/user/heimdall-fileguard.service
+  install -d "$d/usr/lib/systemd/user/graphical-session.target.wants"
+  ln -sfn ../heimdall-fileguard.service "$d/usr/lib/systemd/user/graphical-session.target.wants/heimdall-fileguard.service"
+  i 644 docs/PRIVACY_PACK.md                     usr/share/doc/heimdall-private-mic/PRIVACY_PACK.md
   exit 0
 fi
 [ "$part" = heimdall ] || { echo "packaging/install.sh: unknown part $part" >&2; exit 2; }

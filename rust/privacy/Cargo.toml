@@ -1,0 +1,31 @@
+[package]
+name = "heimdall-privacy"
+version = "0.1.0"
+description = "The privacy pack: the downloads guard (files that contact a server when opened), Remove hidden info, look-alike names"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+name = "heimdall_privacy"
+path = "src/lib.rs"
+
+[[bin]]
+name = "heimdall-fileguard"
+path = "src/bin/heimdall-fileguard.rs"
+
+[[bin]]
+name = "heimdall-strip"
+path = "src/bin/heimdall-strip.rs"
+
+# Exact versions, the ones the workspace already locks: flate2 (pure Rust) reads the deflated parts of ZIP files (Office, ODF,
+# archives) and PDF streams in memory, with a size cap; serde_json reads the torrent clients' settings and our own; libc for
+# inotify, poll and the signal handlers.
+[dependencies]
+libc = { version = "=0.2.186", default-features = false }
+flate2 = { version = "=1.1.9", default-features = false, features = ["rust_backend"] }
+serde_json = { version = "=1.0.149" }
+
+[dev-dependencies]
+proptest = { version = "=1.12.0", default-features = false, features = ["std"] }
