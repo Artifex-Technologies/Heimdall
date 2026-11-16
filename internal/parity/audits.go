@@ -2,6 +2,7 @@ package parity
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"math/rand"
@@ -175,6 +176,37 @@ func pkgdb(pkgs map[string][2]string) map[string]FileSpec {
 		files["db/"+name+"-"+vb[0]+"/desc"] = desc(name, vb[0], vb[1])
 	}
 	return files
+}
+
+// fakeELF builds a small ELF program file asking for interp (none when ""), with text after it; every byte (offsets too:
+// the interpreter starts at 120) is below 0x80, so
+// a fixture can hold it as a JSON string (the same builder as internal/hardening's tests).
+func fakeELF(is64 bool, interp, text string) string {
+	b := make([]byte, 120)
+	copy(b, "\x7fELF")
+	b[5] = 1
+	if is64 {
+		b[4] = 2
+		binary.LittleEndian.PutUint64(b[0x20:], 64)
+		binary.LittleEndian.PutUint16(b[0x36:], 56)
+		binary.LittleEndian.PutUint16(b[0x38:], 1)
+		if interp != "" {
+			binary.LittleEndian.PutUint32(b[64:], 3)
+			binary.LittleEndian.PutUint64(b[64+8:], 120)
+			binary.LittleEndian.PutUint64(b[64+32:], uint64(len(interp)+1))
+		}
+	} else {
+		b[4] = 1
+		binary.LittleEndian.PutUint32(b[0x1c:], 52)
+		binary.LittleEndian.PutUint16(b[0x2a:], 32)
+		binary.LittleEndian.PutUint16(b[0x2c:], 1)
+		if interp != "" {
+			binary.LittleEndian.PutUint32(b[52:], 3)
+			binary.LittleEndian.PutUint32(b[52+4:], 120)
+			binary.LittleEndian.PutUint32(b[52+16:], uint32(len(interp)+1))
+		}
+	}
+	return string(b) + interp + "\x00" + text
 }
 
 func with(files map[string]FileSpec, path, content string) map[string]FileSpec {
@@ -451,6 +483,49 @@ func AllAudits(tmp func() string) (Audits, error) {
 			steps = append(steps, AuditStep{Files: f})
 		}
 		a.Hardening = append(a.Hardening, AuditScenario{Name: fmt.Sprintf("generated hardening %d", n), Steps: steps})
+	}
+	// the SSH server check (internal/hardening/ssh.go): its table test's trees, then every mix of version, C library, PAM,
+	// password setting and running state
+	listen := func(port string) string {
+		return "  sl  local_address rem_address   st\n   0: 00000000:" + port + " 00000000:0000 0A 00000000:00000000\n"
+	}
+	sshd := func(interp, ver string) FileSpec {
+		return FileSpec{Content: fakeELF(true, interp, "OpenSSH_2.*\x00OpenSSH_"+ver), Mode: 0o755}
+	}
+	musl, glibc := "/lib/ld-musl-x86_64.so.1", "/lib64/ld-linux-x86-64.so.2"
+	hole := map[string]FileSpec{"usr/sbin/sshd": sshd(musl, "10.6p1"), "etc/ssh/sshd_config": {Content: "UsePAM no\n"}, "proc/net/tcp": {Content: listen("0016")}}
+	fixed := with(hole, "etc/ssh/sshd_config", "PasswordAuthentication no\nUsePAM no\n")
+	a.Hardening = append(a.Hardening, AuditScenario{Name: "hardening: TestSSHGaps (SSHole found, then closed by the setting)", Steps: []AuditStep{{Files: hole}, {}, {Files: fixed}, {Files: hole}}})
+	for _, sc := range []struct {
+		name  string
+		files map[string]FileSpec
+	}{
+		{"glibc", map[string]FileSpec{"usr/bin/sshd": sshd(glibc, "10.6p1"), "etc/ssh/sshd_config": {Content: "UsePAM yes\nPermitRootLogin yes\nPermitEmptyPasswords yes\n"}, "proc/net/tcp6": {Content: listen("0016")}}},
+		{"32-bit musl, fixed", map[string]FileSpec{"usr/sbin/sshd": {Content: fakeELF(false, "/lib/ld-musl-armhf.so.1", "OpenSSH_10.6p2")}, "etc/ssh/sshd_config": {Content: "UsePAM no\n"},
+			"etc/systemd/system/sockets.target.wants/sshd.socket": {Content: ""}}},
+		{"Include and Match", map[string]FileSpec{"usr/sbin/sshd": sshd(musl, "10.5p1"), "etc/ssh/sshd_config": {Content: "Include sshd_config.d/*.conf\nPasswordAuthentication yes\nUsePAM no\nMatch User git\n  PermitRootLogin yes\n"},
+			"etc/ssh/sshd_config.d/10-a.conf": {Content: "PasswordAuthentication no\n"}, "etc/ssh/sshd_config.d/20-b.conf": {Content: "Match Group admins\nPasswordAuthentication=yes\n"},
+			"etc/ssh/sshd_config.d/.x.conf": {Content: "Port 2222\n"}, "etc/runlevels/default/sshd": {Content: ""}}},
+		{"settings unread", map[string]FileSpec{"usr/sbin/sshd": sshd(musl, "10.6p1"), "etc/ssh/sshd_config": {Content: "UsePAM no\n", Mode: 0o200}, "proc/net/tcp": {Content: listen("0016")}}},
+		{"dropbear", map[string]FileSpec{"usr/sbin/dropbear": {Content: "x"}, "etc/default/dropbear": {Content: "DROPBEAR_EXTRA_ARGS='-w'\n"}, "etc/systemd/system/multi-user.target.wants/dropbear.service": {Content: ""}}},
+		{"dropbear -s", map[string]FileSpec{"usr/sbin/dropbear": {Content: "x"}, "etc/conf.d/dropbear": {Content: "DROPBEAR_OPTS=\"-ws -p 22\"\n"}}},
+	} {
+		a.Hardening = append(a.Hardening, AuditScenario{Name: "hardening ssh: " + sc.name, NonRoot: sc.name == "settings unread", Steps: []AuditStep{{Files: sc.files}}})
+	}
+	n := 0
+	for _, ver := range []string{"10.6p1", "10.6p2", "10.6", "9.9p2", "10.7p1", "10.6p10"} {
+		for _, interp := range []string{musl, glibc, ""} {
+			for _, conf := range []string{"", "UsePAM no\n", "UsePAM yes\nKbdInteractiveAuthentication no\n", "PasswordAuthentication no\nUsePAM no\n",
+				"PasswordAuthentication no\nUsePAM yes\n", "PasswordAuthentication no\nUsePAM no\nMatch all\nPasswordAuthentication yes\n", "Port 2222\nUsePAM no\n"} {
+				run := []string{"", "0016", "08AE"}[n%3]
+				f := map[string]FileSpec{"usr/sbin/sshd": sshd(interp, ver), "etc/ssh/sshd_config": {Content: conf}}
+				if run != "" {
+					f["proc/net/tcp"] = FileSpec{Content: listen(run)}
+				}
+				a.Hardening = append(a.Hardening, AuditScenario{Name: fmt.Sprintf("generated ssh %d", n), Steps: []AuditStep{{Files: f}}})
+				n++
+			}
+		}
 	}
 	for i := range a.Hardening {
 		if a.Hardening[i].NonRoot && os.Geteuid() == 0 {

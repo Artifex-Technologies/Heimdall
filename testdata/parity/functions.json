@@ -1530,6 +1530,35 @@
    }
   },
   {
+   "detector": "hardening",
+   "severity": "critical",
+   "fields": {
+    "cve": "CVE-2026-123158",
+    "fix": "update OpenSSH",
+    "now": "sshd listens on port 22"
+   },
+   "text": {
+    "what": "A security setting of the system is weaker than it should be: “sshd listens on port 22”. It is open to a known hole, CVE-2026-123158.",
+    "serious": "Serious: look at it now.",
+    "done": "Heimdall recorded it; nothing was changed on your computer.",
+    "do": "To fix it: update OpenSSH."
+   }
+  },
+  {
+   "detector": "hardening",
+   "severity": "info",
+   "fields": {
+    "cve": "CVE-1\u0001999999999999999999999999999999999999999999999999999999999999",
+    "now": "x"
+   },
+   "text": {
+    "what": "A security setting of the system is weaker than it should be: “x”. It is open to a known hole, CVE-1 999999999999999999999999999999999….",
+    "serious": "For your information; nothing needs doing.",
+    "done": "Heimdall recorded it; nothing was changed on your computer.",
+    "do": "Settings \u003e Security shows the setting and how to restore it."
+   }
+  },
+  {
    "detector": "remote-access",
    "severity": "warning",
    "fields": {

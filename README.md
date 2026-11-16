@@ -97,7 +97,7 @@ Never moved: anything under `/usr`, `/boot`, `/proc`, `/sys`, `/dev` or `/run`, 
 | --- | --- |
 | `package-vulnerability` | An installed package version with a known vulnerability (Arch's security tracker, daily), with the fixed version and the update command |
 | `kernel-vulnerability` | An installed kernel with known holes that a newer kernel fixes (the kernel CVE team's records from osv.dev, and CISA's list of vulnerabilities exploited in the wild, weekly). Critical only for an exploited hole in the running kernel |
-| `hardening` | A setting that leaves a known kind of hole open where closing it costs nothing noticeable (a world-writable `/dev/kvm`, nested KVM, a few kernel settings), with the exact fix. Nothing is changed by itself |
+| `hardening` | A setting that leaves a known kind of hole open where closing it costs nothing noticeable (a world-writable `/dev/kvm`, nested KVM, a few kernel settings, an SSH server that takes passwords), with the exact fix; critical only for the SSHole build of sshd (CVE-2026-123158). Nothing is changed by itself |
 
 `GET /v1/audit` answers what is open right now. Sarina's security advisor reads it and proposes the fixes to the owner in
 order. `sudo heimdalld kernel-check` lists the holes per kernel.

@@ -1,6 +1,7 @@
 // Package hardening looks for settings that leave a known kind of hole open when closing it costs the user nothing they would
 // notice: no game, app, VM or developer tool stops working. Each gap is reported with why it matters and the exact fix; nothing
-// is changed here (the owner decides, and Sarina can explain it first). Read-only: /dev, /sys and /proc only.
+// is changed here (the owner decides, and Sarina can explain it first). Read-only: /dev, /sys and /proc, and for the SSH server
+// check (ssh.go) /etc/ssh, the start links and the sshd program file.
 package hardening
 
 import (
@@ -23,7 +24,8 @@ type Gap struct {
 	Now   string `json:"now"`   // what it is
 	Why   string `json:"why"`   // what the hole is
 	Fix   string `json:"fix"`   // the commands that close it
-	Level string `json:"level"` // "warning" or "info"
+	Level string `json:"level"` // "warning" or "info"; "critical" only for SSHole (ssh.go)
+	CVE   string `json:"cve,omitempty"`
 }
 
 // System is where the checks read (a temporary tree in the tests).
@@ -98,7 +100,7 @@ func (s System) Check() []Gap {
 		}
 		gaps = append(gaps, Gap{ID: "sysctl-" + c.name, Now: c.name + " = " + now, Why: c.why, Fix: sysctlFix(c.name, c.want), Level: "info"})
 	}
-	return gaps
+	return append(gaps, s.sshGaps()...)
 }
 
 // Watcher reports each gap once (again when it comes back after being closed).
@@ -123,9 +125,12 @@ func (w *Watcher) Poll() []detect.Event {
 		if seen[key] {
 			continue
 		}
+		fields := map[string]string{"check": g.ID, "now": g.Now, "why": g.Why, "fix": g.Fix, "level": g.Level}
+		if g.CVE != "" {
+			fields["cve"] = g.CVE
+		}
 		events = append(events, detect.Event{Source: "host-hardening", Time: time.Now(), Kind: "hardening_gap",
-			Text:   g.Now + ": " + g.Why,
-			Fields: map[string]string{"check": g.ID, "now": g.Now, "why": g.Why, "fix": g.Fix, "level": g.Level}})
+			Text: g.Now + ": " + g.Why, Fields: fields})
 	}
 	b, _ := json.Marshal(current)
 	tmp := w.StatePath + ".tmp"

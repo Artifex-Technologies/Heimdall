@@ -270,6 +270,17 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-11-16 — The hardening check looks at the SSH server (SSHole, CVE-2026-123158)
+- The 6-hourly hardening check (`internal/hardening/ssh.go`, Rust `rust/heimdall/src/audit/hardening_ssh.rs`; game time as
+  before) now reports an SSH server (sshd or dropbear) that takes passwords: checks `ssh-sshole` (critical: OpenSSH below
+  10.6p2, musl, `UsePAM no`, password logins on, listening or started at boot), `ssh-password-login`, `ssh-root-password`,
+  `ssh-empty-passwords` (warning when running, info when only installed), `ssh-settings-unread` (info),
+  `ssh-dropbear-password`. Read-only, offline, never blocks; `sshd -T` only as root. Table: `docs/AUDITS.md`.
+- **For readers (Yggdrasil Settings, Sarina):** `hardening` alerts can now be critical (only `ssh-sshole`), and carry a new
+  optional field `cve`; `GET /v1/audit` `hardening` entries gain `cve` (omitted when empty). Field names are stable.
+- **For Labyrinth OS and LykanOS:** nothing to change; glibc + PAM builds get at most the password-login warning when sshd runs.
+- **For a musl system (a Pi on Alpine):** the critical alert names the CVE and the fix (OpenSSH 10.6p2, or
+  `PasswordAuthentication no`).
 ### 2026-11-15 (5) — Several internet connections at once: heimdall-multilink
 - New crate `rust/multilink` (`heimdall-multilink`, `docs/MULTILINK.md`), a package of its own: **heimdall-multilink-git**
   (`packaging/arch-multilink/`, `packaging/install.sh DESTDIR multilink`: the binary, `heimdall-multilink.service`, the

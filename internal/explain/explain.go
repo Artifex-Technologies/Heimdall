@@ -115,6 +115,9 @@ func For(detector, severity string, fields map[string]string) Text {
 		t.Do = "Update (Agora > Updates) and restart into the new kernel. A hole in a kernel you are not running matters only when you start it."
 	case "hardening":
 		t.What = "A security setting of the system is weaker than it should be" + orEmpty(quoted(fields, "now"), ": ") + "."
+		if cve := clean(fields["cve"], 40); cve != "" {
+			t.What += " It is open to a known hole, " + cve + "."
+		}
 		if f := clean(fields["fix"], 160); f != "" {
 			t.Do = "To fix it: " + f + "."
 		} else {

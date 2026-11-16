@@ -153,6 +153,9 @@ pub fn build(c: &Computer) -> String {
             go.str("why", &g.why);
             go.str("fix", &g.fix);
             go.str("level", &g.level);
+            if !g.cve.is_empty() {
+                go.str("cve", &g.cve);
+            }
             go.end();
         }
         hs.push(']');

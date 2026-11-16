@@ -214,6 +214,10 @@ pub fn for_alert(detector: &str, severity: &str, fields: &Fields) -> Text {
         }
         "hardening" => {
             t.what = format!("A security setting of the system is weaker than it should be{}.", or_empty(q("now"), ": "));
+            let cve = c("cve", 40);
+            if !cve.is_empty() {
+                t.what += &format!(" It is open to a known hole, {cve}.");
+            }
             let f = c("fix", 160);
             t.r#do = if f.is_empty() {
                 "Settings > Security shows the setting and how to restore it.".into()

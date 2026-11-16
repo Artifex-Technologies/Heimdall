@@ -299,7 +299,7 @@ impl Detector for KernelVulnerabilityDetector {
     }
 }
 
-/// A setting that leaves a known hole open, with the fix.
+/// A setting that leaves a known hole open, with the fix; critical only for a hole known to be open (SSHole).
 #[derive(Default)]
 pub struct HardeningDetector;
 
@@ -311,7 +311,11 @@ impl Detector for HardeningDetector {
         if e.kind != "hardening_gap" {
             return Vec::new();
         }
-        let sev = if e.f("level") == "warning" { Severity::Warning } else { Severity::Info };
+        let sev = match e.f("level") {
+            "warning" => Severity::Warning,
+            "critical" => Severity::Critical,
+            _ => Severity::Info,
+        };
         one(self.id(), sev, format!("{}: {}. Fix: {}", e.f("now"), e.f("why"), e.f("fix")), e)
     }
 }

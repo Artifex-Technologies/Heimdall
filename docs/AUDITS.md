@@ -40,3 +40,30 @@ still listed until its version passes the fixed one.
 Example: Januscape (CVE-2026-53359, a KVM guest-to-host escape, also a local root exploit where `/dev/kvm` is writable by everyone)
 is reported by `kernel-vulnerability` on a kernel before 6.1.177 / 6.6.144 / 6.12.95 / 6.18.38 / 7.1.3 / 7.2, and the two KVM
 hardening checks close the paths it needs even before the update.
+
+### The SSH server check
+
+Added 2026-11-16 after SSHole (CVE-2026-123158, disclosed 2026-11-05): OpenSSH before 10.6p2, built against musl, without PAM
+and with password logins on, accepts an over-long password for an account whose stored hash is `*` (locked). glibc builds and
+PAM logins were never open to it, but an SSH server that takes passwords is worth knowing about on every computer Heimdall
+watches (Labyrinth OS, LykanOS, a Raspberry Pi). Read-only and offline; nothing is changed and nothing is blocked, I decide.
+
+What it reads: whether something listens on sshd's ports (`/proc/net/tcp{,6}`; `Port` lines, default 22), the start links
+(`/etc/systemd/system/*.wants/{sshd,ssh}.{service,socket}`, OpenRC's `/etc/runlevels/*/sshd`), the settings (`sshd -T` when
+Heimdall runs as root on the real system; otherwise `/etc/ssh/sshd_config` with `Include` followed, the first value of a
+keyword winning as in sshd, and a `yes` inside any `Match` block counted as on), and the sshd program file itself: its version
+string (the newest `OpenSSH_x.ypN` in it) and its ELF interpreter (`ld-musl` = musl, `ld-linux` = glibc). Dropbear: its start
+links and whether `-s` (no passwords) is in `/etc/conf.d/dropbear` or `/etc/default/dropbear`.
+
+| check (`check` field) | level | fix |
+| --- | --- | --- |
+| `ssh-sshole`: OpenSSH below 10.6p2 + musl + `UsePAM no` + `PasswordAuthentication yes` | critical when listening or started at boot, info when only installed; field `cve` | update OpenSSH; until then `PasswordAuthentication no` |
+| `ssh-password-login`: `PasswordAuthentication yes`, or `KbdInteractiveAuthentication yes` with `UsePAM yes` | warning when listening or started at boot, info when only installed | `PasswordAuthentication no`, `KbdInteractiveAuthentication no`; use keys |
+| `ssh-root-password`: the above and `PermitRootLogin yes` | as above | `PermitRootLogin prohibit-password` |
+| `ssh-empty-passwords`: the above and `PermitEmptyPasswords yes` | as above | `PermitEmptyPasswords no` |
+| `ssh-settings-unread`: a running sshd whose config Heimdall may not read | info | check with `sudo sshd -T` |
+| `ssh-dropbear-password`: dropbear without `-s` | warning when started at boot, info when only installed | `-s` in its options |
+
+The alert fields (`check`, `now`, `why`, `fix`, `level`, and `cve` on `ssh-sshole` only) are stable names for readers;
+`GET /v1/audit`'s `hardening` entries gain `cve` the same way (left out when empty). The `hardening` detector makes a `critical`
+level a critical alert; every other gap stays a warning or info as before.

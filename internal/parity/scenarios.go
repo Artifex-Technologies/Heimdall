@@ -398,6 +398,7 @@ func translatorScenarios() []Scenario {
 		step(ev("", "vulnerable_kernel", "", map[string]string{"kernel": "6.0", "running": "true", "count": "2", "same_line": "0"}), want("kernel-vulnerability", W)),
 		step(ev("", "hardening_gap", "", map[string]string{"level": "warning", "now": "kptr_restrict=0", "why": "kernel addresses visible", "fix": "sysctl -w kernel.kptr_restrict=2"}), want("hardening", W)),
 		step(ev("", "hardening_gap", "", map[string]string{"now": "x"}), want("hardening", I)),
+		step(ev("", "hardening_gap", "", map[string]string{"level": "critical", "now": "sshd listens on port 22: OpenSSH 10.6p1 built on musl", "why": "SSHole", "fix": "update OpenSSH", "cve": "CVE-2026-123158"}), want("hardening", C)),
 		step(ev("", "wifi_check", "", map[string]string{"ssid": "Cafe \"Free\"", "verdict": "unsafe", "reasons": "open network"}), want("wifi-safety", C)),
 		step(ev("", "wifi_check", "", map[string]string{"ssid": "Home", "verdict": "caution", "reasons": "WPA2 only"}), want("wifi-safety", W)),
 		step(ev("", "wifi_check", "", map[string]string{"ssid": "Home", "verdict": "safe"}), want("wifi-safety", I)),

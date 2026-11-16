@@ -1,5 +1,10 @@
 //! Settings that leave a known kind of hole open when closing it costs nothing a user would notice (Go: internal/hardening).
-//! Each gap with why it matters and the exact fix; nothing is changed. Reads /dev, /sys and /proc only.
+//! Each gap with why it matters and the exact fix; nothing is changed. Reads /dev, /sys and /proc, and for the SSH server
+//! check (hardening_ssh.rs) /etc/ssh, the start links and the sshd program file.
+
+#[path = "hardening_ssh.rs"]
+mod ssh;
+pub use ssh::SSHOLE_CVE;
 
 use super::{read_seen, write_seen};
 use crate::event::{Event, Fields};
@@ -15,8 +20,10 @@ pub struct Gap {
     pub now: String,
     pub why: String,
     pub fix: String,
-    /// "warning" or "info".
+    /// "warning" or "info"; "critical" only for SSHole (hardening_ssh.rs).
     pub level: String,
+    /// The hole's CVE name, when the gap is a known hole (Go: omitted when empty).
+    pub cve: String,
 }
 
 /// Where the checks read (a temporary tree in the tests; "" is the real system).
@@ -63,6 +70,7 @@ impl System {
                     now: format!("/dev/kvm is {perm:04o} (every account)"),
                     level: "warning".into(),
                     why: "any program can use the kernel's virtual machine code; bugs there (Januscape, CVE-2026-53359) turn that into root. Only the kvm group needs it".into(),
+                    cve: String::new(),
                     fix: "printf 'KERNEL==\"kvm\", GROUP=\"kvm\", MODE=\"0660\"\\n' | sudo tee /etc/udev/rules.d/65-kvm.rules && sudo usermod -aG kvm $USER && sudo udevadm control --reload && sudo udevadm trigger -s misc (sign out and in again so the new group applies; virtual machines keep working)".into(),
                 });
             }
@@ -75,6 +83,7 @@ impl System {
                         now: format!("{module} nested={v}"),
                         level: "info".into(),
                         why: "a guest can run its own hypervisor on this one, the path most KVM escapes (Januscape among them) need; only VMs inside VMs use it".into(),
+                        cve: String::new(),
                         fix: format!("echo 'options {module} nested=0' | sudo tee /etc/modprobe.d/60-heimdall-nested.conf (applies at the next restart; undo by deleting the file)"),
                     });
                 }
@@ -99,6 +108,7 @@ impl System {
                     why: format!("could not be checked: {why}"),
                     fix: format!("sudo sysctl {name}   (if it is not {want}: {})", sysctl_fix(name, want)),
                     level: "info".into(),
+                    cve: String::new(),
                 });
                 continue;
             }
@@ -113,8 +123,10 @@ impl System {
                 why: why.to_string(),
                 fix: sysctl_fix(name, want),
                 level: "info".into(),
+                cve: String::new(),
             });
         }
+        gaps.extend(self.ssh_gaps());
         gaps
     }
 }
@@ -137,18 +149,23 @@ impl Watcher {
             if !new {
                 continue;
             }
+            let text = format!("{}: {}", g.now, g.why);
+            let mut fields = Fields::from([
+                ("check".to_string(), g.id),
+                ("now".to_string(), g.now),
+                ("why".to_string(), g.why),
+                ("fix".to_string(), g.fix),
+                ("level".to_string(), g.level),
+            ]);
+            if !g.cve.is_empty() {
+                fields.insert("cve".to_string(), g.cve);
+            }
             events.push(Event {
                 source: "host-hardening".into(),
                 time: Time::now(),
                 kind: "hardening_gap".into(),
-                text: format!("{}: {}", g.now, g.why),
-                fields: Fields::from([
-                    ("check".to_string(), g.id),
-                    ("now".to_string(), g.now),
-                    ("why".to_string(), g.why),
-                    ("fix".to_string(), g.fix),
-                    ("level".to_string(), g.level),
-                ]),
+                text,
+                fields,
                 ..Default::default()
             });
         }

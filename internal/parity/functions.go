@@ -158,6 +158,8 @@ func AllFunctions() Functions {
 		{"kernel-vulnerability", "warning", map[string]string{"running": "yes"}},
 		{"kernel-vulnerability", "info", map[string]string{"running": "0"}},
 		{"hardening", "warning", map[string]string{"now": "x", "fix": "sysctl -w a=b"}},
+		{"hardening", "critical", map[string]string{"now": "sshd listens on port 22", "fix": "update OpenSSH", "cve": "CVE-2026-123158"}},
+		{"hardening", "info", map[string]string{"now": "x", "cve": "CVE-1\x01" + strings.Repeat("9", 60)}},
 		{"remote-access", "warning", map[string]string{"signal": "tunnel", "iface": "wg0"}},
 		{"remote-access", "critical", map[string]string{"ra_kind": "c2", "provider_name": "Sliver"}},
 		{"remote-access", "info", map[string]string{"provider_name": "Tailscale"}},
