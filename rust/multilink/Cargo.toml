@@ -1,0 +1,22 @@
+[package]
+name = "heimdall-multilink"
+version = "0.1.0"
+description = "Several internet connections at once: the kernel's own multipath routing over the links I pick, with health checks, weights and caps"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+[lib]
+name = "heimdall_multilink"
+path = "src/lib.rs"
+
+[[bin]]
+name = "heimdall-multilink"
+path = "src/main.rs"
+
+# Exact versions, the ones the workspace already locks: serde_json for the config, the status file and `ip -j`'s answers;
+# libc for the netlink wake-up socket, signalfd, poll and the probes' sockets.
+[dependencies]
+libc = { version = "=0.2.186", default-features = false }
+serde_json = { version = "=1.0.149" }

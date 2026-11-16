@@ -201,6 +201,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "heimdall-multilink"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "serde_json",
+]
+
+[[package]]
 name = "heimdall-privacy"
 version = "0.1.0"
 dependencies = [
