@@ -432,6 +432,14 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
         srcs.push(Box::new(offsets(sources::files::LinesSource::wifi(&cfg.wifi_results))));
         let dir = std::path::Path::new(&cfg.wifi_results).parent().map(|p| p.to_string_lossy().into_owned()).unwrap_or_default();
         srcs.push(Box::new(sources::files::RouterSource::new(&format!("{dir}/current.json"), "/proc")));
+        // on every network: a second DHCP server or IPv6 router (the dispatcher's lines and the kernel's IPv6 table; sends nothing)
+        srcs.push(Box::new(sources::rogue::RogueSource::new(
+            "/run/heimdall-net/netid.jsonl",
+            &format!("{dir}/current.json"),
+            // a shadow daemon keeps its own memory beside its alert log, never in the Go daemon's folder
+            &format!("{}/routers.json", if own_dir.is_empty() { &dir } else { &own_dir }),
+            "/proc",
+        )));
     }
     if !cfg.lan_dir.is_empty() {
         srcs.push(Box::new(offsets(sources::files::LinesSource::lan(&cfg.lan_dir))));

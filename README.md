@@ -124,6 +124,11 @@ order. `sudo heimdalld kernel-check` lists the holes per kernel.
   VPN); `discoverable on` lets the computer announce itself on one network whatever its level, every other protection kept. A
   device on the network itself starting a connection to this computer, sending it a packet or pinging it over Wi-Fi is a
   `lan-watch` warning on every network but home (with heimdalld's firewall watch on).
+- **A second router ([docs/WIFI_TRUST.md](docs/WIFI_TRUST.md), "A second router").** On every network, wired too: a DHCP
+  server other than the one that answered first (or than the one a trusted network remembers), another device announcing
+  itself as the IPv6 router, a new IPv6 prefix in the middle of a connection, or IPv6 appearing on a network that never had
+  it. A `lan-watch` warning (critical where it contradicts what a trusted network remembers), with a confidence; nothing is
+  blocked and nothing is sent.
 - **DNS block list.** NetworkManager's local DNS cache refuses malware, phishing and scam domains, updated daily.
 - **Limbo.** Heimdall reads Limbo's audit log. With `limbo_auto_quarantine`, it restricts a guest that misbehaves and attaches
   Sarina's advisory. It can tighten a guest but never loosen one. Detectors: `limbo-guest` (a guest started without its

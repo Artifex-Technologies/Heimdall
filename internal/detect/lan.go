@@ -39,6 +39,20 @@ func (d *LANDetector) Inspect(e Event) []Finding {
 		return []Finding{{DetectorID: d.ID(), Severity: SeverityCritical, Event: e, Summary: fmt.Sprintf(
 			"on %q, %s answers with the router's hardware address %s: a sign of ARP spoofing. Disconnect, or make sure the VPN is on",
 			f["ssid"], f["other_ip"], f["expected_mac"])}}
+	case "rogue_router":
+		// a second DHCP server or IPv6 router (netsource.RogueRouterWatcher): critical where it contradicts what a trusted
+		// network remembers, a warning anywhere else. Nothing is blocked (the owner's rule: warn and explain).
+		where := "the network on " + f["iface"]
+		if f["ssid"] != "" {
+			where = fmt.Sprintf("%q", f["ssid"])
+		}
+		sev, advice := SeverityWarning, "If you do not control this network, disconnect or make sure the VPN is on"
+		if f["learned"] == "true" {
+			sev, advice = SeverityCritical, "This contradicts the router remembered for this network: if you did not replace the router, disconnect or make sure the VPN is on (a new router is taken as this network's own after 3 connections)"
+		}
+		return []Finding{{DetectorID: d.ID(), Severity: sev, Event: e, Summary: fmt.Sprintf(
+			"on %s, %s (confidence %s): another device may be posing as the router to see or change your traffic (man in the middle). Nothing was blocked. %s",
+			where, f["what"], f["confidence"], advice)}}
 	case "new_lan_device":
 		what := f["name"]
 		if what == "" {

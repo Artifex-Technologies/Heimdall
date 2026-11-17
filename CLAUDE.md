@@ -270,6 +270,21 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-11-16 (2) — A second router: rogue DHCP and IPv6 router advertisements
+- `netsource.RogueRouterWatcher` (Rust `sources/rogue.rs`), on every network, wired too: new `lan-watch` event kind
+  `rogue_router` (warning; critical where it contradicts what a trusted or home network remembers). Fields: `via` (dhcp|ra),
+  `signals` (comma list of `dhcp_server dhcp_router dns4 dns6 ra_router ra_prefix ipv6_new ipv6_late`), `before`, `after`
+  (`signal=value;...`), `learned` (true|false), `confidence` (high|medium|low), `level`, `ssid`, `iface`, `what`. Nothing is
+  blocked; nothing is sent. `docs/WIFI_TRUST.md`, "A second router", and "Protective mode (planned, after training)".
+- New root dispatcher `91-heimdall-netid` (in heimdall-git's list) writes `/run/heimdall-net/netid.jsonl` (root's folder,
+  group heimdall, 0640: interface, profile UUID, DHCP server identifier, router, DNS servers); heimdalld keeps hashes only, for
+  trusted and home networks only, in `/var/lib/heimdall/wifi/routers.json` (0600). Tests: shared scenario fixture
+  `testdata/netsource/rogue-router.json` (Go writes, Rust replays field for field), `packaging/tests/netns-rogue.sh` (two
+  routers on a veth pair in a throwaway `unshare -rn` namespace, the kernel's real table; also in CI).
+- **For Yggdrasil Settings:** nothing needed; the alert's summary and explain text stand alone. Later, the `confidence` and
+  `signals` fields may be shown. **For Labyrinth OS and LykanOS:** nothing to change; the dispatcher comes with heimdall-git.
+— Signed: Heimdall / Claude Opus 5.5
+
 ### 2026-11-16 — The hardening check looks at the SSH server (SSHole, CVE-2026-123158)
 - The 6-hourly hardening check (`internal/hardening/ssh.go`, Rust `rust/heimdall/src/audit/hardening_ssh.rs`; game time as
   before) now reports an SSH server (sshd or dropbear) that takes passwords: checks `ssh-sshole` (critical: OpenSSH below

@@ -241,6 +241,14 @@ pub fn for_alert(detector: &str, severity: &str, fields: &Fields) -> Text {
             t.done = "Heimdall noted it. The firewall drops what it does not allow (it answers pings, as ufw does by default), so nothing got in unless a rule allows that port.".into();
             t.r#do = "Usually nothing. If it keeps happening, find out which device it is (Settings > Wi-Fi & Network); on a network you do not control, a VPN also hides your traffic.".into();
         }
+        "lan-watch" if !get(fields, "via").is_empty() => {
+            t.what = format!(
+                "A second router showed up on the network: {}. A device that hands out addresses or announces itself as the router can put itself between this computer and the internet.",
+                or_unknown(c("what", 300), "a DHCP server or IPv6 router other than the known one")
+            );
+            t.done = "Heimdall noted it; nothing was blocked, so everyone on the network can still use it.".into();
+            t.r#do = "On a network you do not control, disconnect or use a VPN. At home, if you did not add or replace a router, look for a device you do not know (Settings > Wi-Fi & Network > Devices).".into();
+        }
         "lan-watch" => {
             t.what = format!("Something on your local network is pretending to be your router or another device (its hardware address changed to {}). That is how traffic on a shared network gets intercepted.", or_unknown(c("new_mac", 40), "a new one"));
             t.r#do = "On a network you do not control, disconnect or use a VPN. At home, restart the router and check which devices are connected.".into();

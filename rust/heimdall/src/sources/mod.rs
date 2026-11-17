@@ -10,6 +10,7 @@ pub mod journal;
 pub mod limbo;
 pub mod maintenance;
 pub mod net;
+pub mod rogue;
 pub mod telemetry;
 pub mod vault;
 

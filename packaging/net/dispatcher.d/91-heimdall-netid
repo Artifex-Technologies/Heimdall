@@ -1,0 +1,22 @@
+#!/bin/sh
+# NetworkManager dispatcher: records which DHCP server answered this computer and what it handed out (router, DNS), and the
+# IPv6 DNS servers, each time a connection comes up or its lease changes. heimdalld's rogue-router watch reads the file
+# (docs/WIFI_TRUST.md, "A second router"). Nothing is sent on the network: these are the values NetworkManager already accepted.
+# The folder is root's (heimdall may read), so heimdalld cannot point root's write somewhere else.
+case "$2" in up|down|dhcp4-change|dhcp6-change) ;; *) exit 0 ;; esac
+[ -e "${HEIMDALL_NETID_SYS:-/sys/class/net}/$1/device" ] || exit 0 # a real network card (Wi-Fi, cable, USB tethering), not a VPN or a bridge
+dir=${HEIMDALL_NETID_DIR:-/run/heimdall-net}
+mkdir -p -m 0750 "$dir" && chgrp heimdall "$dir" 2>/dev/null
+f="$dir/netid.jsonl"
+ips() { printf '%s' "$1" | tr -cd '0-9A-Fa-f.: ' | tr -s ' ' | cut -c1-200; }
+iface=$(printf '%s' "$1" | tr -cd 'A-Za-z0-9_.-' | cut -c1-15)
+uuid=$(printf '%s' "${CONNECTION_UUID:-}" | tr -cd 'a-f0-9-' | cut -c1-36)
+if [ -f "$f" ] && [ "$(wc -c <"$f")" -gt 65536 ]; then
+	tail -n 200 "$f" >"$f.tmp" && mv -f "$f.tmp" "$f"
+fi
+umask 027
+printf '{"t":%s,"action":"%s","iface":"%s","uuid":"%s","dhcp4_server":"%s","dhcp4_routers":"%s","dns4":"%s","dns6":"%s"}\n' \
+	"$(date +%s)" "$2" "$iface" "$uuid" "$(ips "${DHCP4_DHCP_SERVER_IDENTIFIER:-}")" "$(ips "${DHCP4_ROUTERS:-}")" \
+	"$(ips "${DHCP4_DOMAIN_NAME_SERVERS:-}")" "$(ips "${IP6_NAMESERVERS:-}")" >>"$f"
+chgrp heimdall "$f" 2>/dev/null
+exit 0

@@ -406,6 +406,8 @@ func translatorScenarios() []Scenario {
 		step(ev("", "wifi_check", "", map[string]string{"ssid": "Example-Phone", "verdict": "protected"}), want("wifi-safety", I).has("protected")),
 		step(ev("", "router_changed", "", map[string]string{"ssid": "Hotel", "expected_mac": "aa", "new_mac": "bb"}), want("lan-watch", C)),
 		step(ev("", "router_impersonated", "", map[string]string{"ssid": "Hotel", "other_ip": "192.0.2.5", "expected_mac": "aa"}), want("lan-watch", C)),
+		step(ev("", "rogue_router", "", map[string]string{"ssid": "Home", "iface": "wlan0", "learned": "true", "confidence": "high", "what": "a DHCP server 192.0.2.66 answered (not the one remembered for this network)"}), want("lan-watch", C).has("man in the middle")),
+		step(ev("", "rogue_router", "", map[string]string{"iface": "eth0", "learned": "false", "confidence": "low", "what": "a device fe80::2 announced itself as the IPv6 router (it was fe80::1)"}), want("lan-watch", W).has("the network on eth0")),
 		step(ev("", "new_lan_device", "", map[string]string{"ssid": "Home", "name": "TV", "vendor": "Samsung", "ip": "192.168.1.30"}), want("lan-watch", W).has("made by Samsung")),
 		step(ev("", "new_lan_device", "", map[string]string{"ssid": "Home", "private_mac": "true", "ip": "192.168.1.31"}), want("lan-watch", W).has("a device, using a private address")),
 		step(ev("", "new_listener", "", map[string]string{"proto": "tcp", "port": "9091"}), want("lan-watch", W)),

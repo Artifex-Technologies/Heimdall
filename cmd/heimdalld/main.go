@@ -398,6 +398,10 @@ func cmdRun(args []string) int {
 		// while on an untrusted Wi-Fi network, its router is watched for impersonation (reads the kernel's tables only)
 		rw := netsource.NewRouterWatcher(filepath.Join(filepath.Dir(cfg.WifiResults), "current.json"))
 		go rw.Run(ctx, 10*time.Second, eng.Handle)
+		// on every network: a second DHCP server or IPv6 router (the dispatcher's lines and the kernel's IPv6 table; sends nothing)
+		rr := netsource.NewRogueRouterWatcher("/run/heimdall-net/netid.jsonl", filepath.Join(filepath.Dir(cfg.WifiResults), "current.json"),
+			filepath.Join(filepath.Dir(cfg.WifiResults), "routers.json"))
+		go rr.Run(ctx, 10*time.Second, eng.Handle)
 	}
 	if cfg.LANDir != "" {
 		lw := &lansource.Watcher{Path: filepath.Join(cfg.LANDir, "events.jsonl"), OffsetPath: filepath.Join(cfg.LANDir, "events.offset")}

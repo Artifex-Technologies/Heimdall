@@ -94,6 +94,62 @@ check count it.
 - The alert names the device's address and hardware address. Both go into the kernel journal and `alerts.jsonl`, and to your
   other computers if the mesh is on.
 
+## A second router (rogue DHCP and IPv6 router advertisements)
+
+A device on the network can put itself between this computer and the internet without touching the router: by answering
+the request for an address before the router does (a second DHCP server handing out itself as the router or DNS server), or
+by announcing itself as the IPv6 router. heimdalld watches for both on every network, wired ones too, at every level:
+
+| What | Alert |
+|---|---|
+| A DHCP server, router or DNS servers different from those of the first lease of this connection | warning |
+| A device other than the first IPv6 router of this connection announcing itself as a router | warning |
+| A new IPv6 prefix announced more than a minute after the router's first announcement | warning |
+| An IPv6 router appearing more than 2 minutes after joining a network that had none | warning |
+| On a trusted or home network: a DHCP server, router, DNS servers or IPv6 router other than the ones it remembers | critical |
+| On a trusted or home network that never had IPv6 on 3 connections: an IPv6 router appearing | critical |
+
+Each alert (`lan-watch`, event kind `rogue_router`) is one per connection for the same values and carries what was seen
+before and after, so how often the checks fire can be measured later (see "Protective mode" below): `via` (`dhcp` or `ra`),
+`signals` (which changed together, comma-separated: `dhcp_server`, `dhcp_router`, `dns4`, `dns6`, `ra_router`, `ra_prefix`,
+`ipv6_new`, `ipv6_late`), `before` and `after` (`signal=value;...`; `remembered` where a trusted network keeps only a hash),
+`learned` (whether it contradicts what a trusted network remembers), `confidence` (`high`: a trusted network's memory and two
+or more signals agree; `medium`: one of the two; `low`: neither), `level`, `ssid`, `iface`. Nothing is blocked: everyone else
+on the network can still use it. The alert says what was seen and what to do.
+
+How it looks, without sending anything:
+- **DHCP** from what NetworkManager accepted. The dispatcher `91-heimdall-netid` (root) writes one line per connection coming
+  up or going and per lease change: the server's identifier, the router and DNS servers handed out, the IPv6 DNS servers, the
+  interface and the profile's UUID (no network name), to `/run/heimdall-net/netid.jsonl` (root's folder, mode 0750, group
+  heimdall; the file 0640, cut to its last 200 lines past 64 KiB; gone at reboot). A rogue server that answers this computer
+  first, or later at a renewal, is seen; one whose offer NetworkManager never takes is not (that would need a listener on the
+  network, which heimdalld does not have: it runs as its own user without the capability to open one).
+- **IPv6** from the kernel's routing table (`/proc/net/ipv6_route`, every 10 seconds): the link-local next hops of the default
+  routes are the routers that announced themselves, the on-link prefixes are what they announced. A router announcing a
+  lifetime of 0 (withdrawing itself) is not reported, and changes to the IPv6 DNS servers between leases are not seen.
+
+**What a trusted or home network remembers** is kept in `/var/lib/heimdall/wifi/routers.json` (heimdalld's own, mode 0600): per
+network a hash of its UUID, and per signal hashes of the values seen (sha256 of the UUID, the signal and the value), the number
+of connections and whether it has had IPv6. No address, name or hardware address is kept, and nothing at all for a network that
+is not trusted (that would be a list of the places this computer has been). A new router is taken as the network's own once it
+has been seen on 3 connections, so replacing the router gives a critical alert on each of the next 3 connections and then
+stops. Only Wi-Fi networks have a level (from `heimdall-wifi-check`'s `current.json`); a wired connection is judged within the
+connection only.
+
+## Protective mode (planned, after training)
+
+Not built. When Heimdall is confident that someone is in the middle, it should protect the connection rather than only warn,
+while everyone, this computer included, stays on the network. Planned actions, each automatic only on a learned (trusted or
+home) network at `high` confidence, each reversible, each with a notice and an "Undo":
+- pin the known router's hardware address as a permanent neighbour entry (ARP spoofing then changes nothing for this computer);
+- drop DHCP offers and IPv6 router advertisements that do not come from the known router (nftables, the Wi-Fi interface only);
+- keep DNS on the resolvers the network is known to hand out;
+- send everything through the VPN, if one is set up.
+
+Never a full disconnect. The training gate comes first: per network an observe-only period that counts how often each check
+fires on a network known to be clean (the `signals`, `confidence` and `before`/`after` fields above are recorded for this), and
+no action is switched on until I approve a threshold from those numbers.
+
 ## Discoverable: announcing on a network, whatever its level
 
 Not announcing (no Avahi, discovery traffic held back) is the default on every network but home. A network can be made

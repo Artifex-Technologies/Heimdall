@@ -137,6 +137,12 @@ func For(detector, severity string, fields map[string]string) Text {
 			t.Do = "Usually nothing. If it keeps happening, find out which device it is (Settings > Wi-Fi & Network); on a network you do not control, a VPN also hides your traffic."
 			break
 		}
+		if fields["via"] != "" {
+			t.What = "A second router showed up on the network: " + orUnknown(clean(fields["what"], 300), "a DHCP server or IPv6 router other than the known one") + ". A device that hands out addresses or announces itself as the router can put itself between this computer and the internet."
+			t.Done = "Heimdall noted it; nothing was blocked, so everyone on the network can still use it."
+			t.Do = "On a network you do not control, disconnect or use a VPN. At home, if you did not add or replace a router, look for a device you do not know (Settings > Wi-Fi & Network > Devices)."
+			break
+		}
 		t.What = "Something on your local network is pretending to be your router or another device (its hardware address changed to " + orUnknown(clean(fields["new_mac"], 40), "a new one") + "). That is how traffic on a shared network gets intercepted."
 		t.Do = "On a network you do not control, disconnect or use a VPN. At home, restart the router and check which devices are connected."
 	case "baseline-drift":

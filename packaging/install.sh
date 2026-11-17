@@ -90,6 +90,7 @@ i 644 $p/arch/heimdall-intel-update.timer        usr/lib/systemd/system/heimdall
 i 755 $p/arch/heimdall-wifi-check                usr/bin/heimdall-wifi-check
 i 644 $p/arch/heimdall-wifi-check@.service       usr/lib/systemd/system/heimdall-wifi-check@.service
 i 755 $p/net/dispatcher.d/90-heimdall-wifi       usr/lib/NetworkManager/dispatcher.d/90-heimdall-wifi
+i 755 $p/net/dispatcher.d/91-heimdall-netid      usr/lib/NetworkManager/dispatcher.d/91-heimdall-netid
 
 # the device list of trusted home networks (every 5 minutes; Settings > Wi-Fi & Network > Devices; docs/DEVICES.md)
 i 644 $p/arch/heimdall-lan-scan.service          usr/lib/systemd/system/heimdall-lan-scan.service
