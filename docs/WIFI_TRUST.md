@@ -278,6 +278,18 @@ answer that points at this computer itself (127.0.0.0/8, 0.0.0.0/8) is "bad" wit
 - Loading the quiet table at boot, then no longer stopping Avahi at all.
 - Devices that look up this computer, and new devices on trusted networks, without sending anything.
 - IPv6 in the listener.
+- A stronger router fingerprint per trusted network (the DHCP server and its options, router announcements, DNS servers, the
+  router's hardware address, its admin certificate or SSH key if it already answers), judged by how many changed at once: one
+  is "changed, maybe a firmware update", several "a different device may be posing as your router".
+- What kind of network a trusted one is, set by me: a new optional `kind` in its wifi-trusted.json entry (`home-router`,
+  `mesh`, `phone-hotspot`, `travel`, `other`; absent means home router, as today), set with
+  `sudo heimdall-wifi-guard kind KIND --uuid UUID` and later a list next to the trust level in Settings. Heimdall may suggest
+  one (a made-up router address that changes between sessions suggests a phone hotspot) but never sets it. A phone hotspot's
+  new router address after it restarts is expected; a mesh may have several router addresses (the set learned is the anchor);
+  a home router's address stays the anchor. On every kind, the router's address changing during a connection, or two
+  addresses answering as the router at once, stays a sign of someone in the middle.
+- A known device on a home network answering with another hardware address, name or maker (the device list's devices
+  changing identity).
 - Enterprise networks with a pinned certificate authority.
 - Encrypted DNS.
 - The status `not_home` in Settings' device list.
