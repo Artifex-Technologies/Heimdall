@@ -445,13 +445,19 @@ impl Detector for LanDetector {
                 "on {}, {} answers with the router's hardware address {}: a sign of ARP spoofing. Disconnect, or make sure the VPN is on",
                 quote(f("ssid")), f("other_ip"), f("expected_mac")), e),
             "rogue_router" => {
-                // a second DHCP server or IPv6 router (sources::rogue): critical where it contradicts what a trusted network
-                // remembers, a warning anywhere else; nothing is blocked
+                // a second DHCP server or IPv6 router, or a trusted network's router fingerprint changing (sources::rogue):
+                // "judged" by the source from how many signals changed at once; nothing is blocked
                 let place = if f("ssid").is_empty() { format!("the network on {}", f("iface")) } else { quote(f("ssid")) };
-                let (sev, advice) = if f("learned") == "true" {
-                    (Severity::Critical, "This contradicts the router remembered for this network: if you did not replace the router, disconnect or make sure the VPN is on (a new router is taken as this network's own after 3 connections)")
+                if f("judged") == "info" {
+                    return one(id, Severity::Info, format!(
+                        "on {place}, one thing about the router changed since last time: {}. Maybe a firmware update or a new setting; Heimdall warns if more changes at once",
+                        f("what")), e);
+                }
+                let sev = if f("judged") == "critical" { Severity::Critical } else { Severity::Warning };
+                let advice = if f("learned") == "true" {
+                    "This contradicts the router remembered for this network: if you did not replace the router, disconnect or make sure the VPN is on (a new router is taken as this network's own after 3 connections)"
                 } else {
-                    (Severity::Warning, "If you do not control this network, disconnect or make sure the VPN is on")
+                    "If you do not control this network, disconnect or make sure the VPN is on"
                 };
                 one(id, sev, format!(
                     "on {place}, {} (confidence {}): another device may be posing as the router to see or change your traffic (man in the middle). Nothing was blocked. {advice}",

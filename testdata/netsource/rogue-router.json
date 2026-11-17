@@ -1,5 +1,264 @@
 [
  {
+  "name": "one thing about a trusted network's router changed: info",
+  "steps": [
+   {
+    "now": 10000,
+    "netid": [
+     "{\"t\":10000,\"action\":\"up\",\"iface\":\"wlan0\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"dhcp4_server\":\"192.0.2.1\",\"dhcp4_routers\":\"192.0.2.1\",\"dns4\":\"192.0.2.1\",\"dns6\":\"\"}"
+    ],
+    "current": "{\"ssid\":\"Example-Home\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"trusted\":false,\"level\":\"trusted\"}",
+    "ipv6_route": "",
+    "want": []
+   },
+   {
+    "now": 11000,
+    "netid": [
+     "{\"t\":10999,\"action\":\"down\",\"iface\":\"wlan0\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"dhcp4_server\":\"\",\"dhcp4_routers\":\"\",\"dns4\":\"\",\"dns6\":\"\"}",
+     "{\"t\":11000,\"action\":\"up\",\"iface\":\"wlan0\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"dhcp4_server\":\"192.0.2.2\",\"dhcp4_routers\":\"192.0.2.1\",\"dns4\":\"192.0.2.1\",\"dns6\":\"\"}"
+    ],
+    "current": "{\"ssid\":\"Example-Home\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"trusted\":false,\"level\":\"trusted\"}",
+    "ipv6_route": "",
+    "want": [
+     {
+      "after": "dhcp_server=192.0.2.2",
+      "before": "dhcp_server=remembered",
+      "confidence": "medium",
+      "iface": "wlan0",
+      "judged": "info",
+      "kind": "rogue_router",
+      "learned": "true",
+      "level": "trusted",
+      "network_kind": "home-router",
+      "signals": "dhcp_server",
+      "ssid": "Example-Home",
+      "text": "a DHCP server 192.0.2.2 answered (not the one remembered for this network)",
+      "via": "dhcp",
+      "what": "a DHCP server 192.0.2.2 answered (not the one remembered for this network)"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "a phone hotspot restarts with a new hardware address and router address: expected",
+  "steps": [
+   {
+    "now": 30000,
+    "netid": [
+     "{\"t\":30000,\"action\":\"up\",\"iface\":\"wlan0\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"dhcp4_server\":\"192.0.2.1\",\"dhcp4_routers\":\"192.0.2.1\",\"dns4\":\"192.0.2.1\",\"dns6\":\"\"}"
+    ],
+    "current": "{\"ssid\":\"Example-Home\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"trusted\":false,\"level\":\"trusted\"}",
+    "ipv6_route": "",
+    "trusted": "{\"00000000-0000-4000-8000-000000000001\":{\"ssid\":\"Example-Phone\",\"level\":\"trusted\",\"kind\":\"phone-hotspot\"}}",
+    "want": []
+   },
+   {
+    "now": 30005,
+    "current": "{\"ssid\":\"Example-Home\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"trusted\":false,\"level\":\"trusted\"}",
+    "ipv6_route": "00000000000000000000000000000000 00 00000000000000000000000000000000 00 fe800000000000000000000000000001 00000100 00000001 00000000 00000003 wlan0",
+    "arp": "192.0.2.1        0x1         0x2         02:00:00:00:00:01     *        wlan0\n",
+    "trusted": "{\"00000000-0000-4000-8000-000000000001\":{\"ssid\":\"Example-Phone\",\"level\":\"trusted\",\"kind\":\"phone-hotspot\"}}",
+    "want": []
+   },
+   {
+    "now": 30100,
+    "netid": [
+     "{\"t\":30100,\"action\":\"down\",\"iface\":\"wlan0\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"dhcp4_server\":\"\",\"dhcp4_routers\":\"\",\"dns4\":\"\",\"dns6\":\"\"}"
+    ],
+    "current": "{\"ssid\":\"Example-Home\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"trusted\":false,\"level\":\"trusted\"}",
+    "ipv6_route": "",
+    "trusted": "{\"00000000-0000-4000-8000-000000000001\":{\"ssid\":\"Example-Phone\",\"level\":\"trusted\",\"kind\":\"phone-hotspot\"}}",
+    "want": []
+   },
+   {
+    "now": 31000,
+    "netid": [
+     "{\"t\":31000,\"action\":\"up\",\"iface\":\"wlan0\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"dhcp4_server\":\"192.0.2.1\",\"dhcp4_routers\":\"192.0.2.1\",\"dns4\":\"192.0.2.1\",\"dns6\":\"\"}"
+    ],
+    "current": "{\"ssid\":\"Example-Home\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"trusted\":false,\"level\":\"trusted\"}",
+    "ipv6_route": "",
+    "trusted": "{\"00000000-0000-4000-8000-000000000001\":{\"ssid\":\"Example-Phone\",\"level\":\"trusted\",\"kind\":\"phone-hotspot\"}}",
+    "want": []
+   },
+   {
+    "now": 31005,
+    "current": "{\"ssid\":\"Example-Home\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"trusted\":false,\"level\":\"trusted\"}",
+    "ipv6_route": "00000000000000000000000000000000 00 00000000000000000000000000000000 00 fe800000000000000000000000000066 00000100 00000001 00000000 00000003 wlan0",
+    "arp": "192.0.2.1        0x1         0x2         02:00:00:00:00:02     *        wlan0\n",
+    "trusted": "{\"00000000-0000-4000-8000-000000000001\":{\"ssid\":\"Example-Phone\",\"level\":\"trusted\",\"kind\":\"phone-hotspot\"}}",
+    "want": []
+   },
+   {
+    "now": 31100,
+    "netid": [
+     "{\"t\":31100,\"action\":\"down\",\"iface\":\"wlan0\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"dhcp4_server\":\"\",\"dhcp4_routers\":\"\",\"dns4\":\"\",\"dns6\":\"\"}"
+    ],
+    "current": "{\"ssid\":\"Example-Home\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"trusted\":false,\"level\":\"trusted\"}",
+    "ipv6_route": "",
+    "trusted": "{\"00000000-0000-4000-8000-000000000001\":{\"ssid\":\"Example-Phone\",\"level\":\"trusted\",\"kind\":\"phone-hotspot\"}}",
+    "want": []
+   }
+  ]
+ },
+ {
+  "name": "a home router's hardware address and IPv6 router both differ on the next connection: critical",
+  "steps": [
+   {
+    "now": 30000,
+    "netid": [
+     "{\"t\":30000,\"action\":\"up\",\"iface\":\"wlan0\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"dhcp4_server\":\"192.0.2.1\",\"dhcp4_routers\":\"192.0.2.1\",\"dns4\":\"192.0.2.1\",\"dns6\":\"\"}"
+    ],
+    "current": "{\"ssid\":\"Example-Home\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"trusted\":false,\"level\":\"trusted\"}",
+    "ipv6_route": "",
+    "trusted": "{\"00000000-0000-4000-8000-000000000001\":{\"ssid\":\"Example-Home\",\"level\":\"trusted\"}}",
+    "want": []
+   },
+   {
+    "now": 30005,
+    "current": "{\"ssid\":\"Example-Home\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"trusted\":false,\"level\":\"trusted\"}",
+    "ipv6_route": "00000000000000000000000000000000 00 00000000000000000000000000000000 00 fe800000000000000000000000000001 00000100 00000001 00000000 00000003 wlan0",
+    "arp": "192.0.2.1        0x1         0x2         02:00:00:00:00:01     *        wlan0\n",
+    "trusted": "{\"00000000-0000-4000-8000-000000000001\":{\"ssid\":\"Example-Home\",\"level\":\"trusted\"}}",
+    "want": []
+   },
+   {
+    "now": 30100,
+    "netid": [
+     "{\"t\":30100,\"action\":\"down\",\"iface\":\"wlan0\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"dhcp4_server\":\"\",\"dhcp4_routers\":\"\",\"dns4\":\"\",\"dns6\":\"\"}"
+    ],
+    "current": "{\"ssid\":\"Example-Home\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"trusted\":false,\"level\":\"trusted\"}",
+    "ipv6_route": "",
+    "trusted": "{\"00000000-0000-4000-8000-000000000001\":{\"ssid\":\"Example-Home\",\"level\":\"trusted\"}}",
+    "want": []
+   },
+   {
+    "now": 31000,
+    "netid": [
+     "{\"t\":31000,\"action\":\"up\",\"iface\":\"wlan0\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"dhcp4_server\":\"192.0.2.1\",\"dhcp4_routers\":\"192.0.2.1\",\"dns4\":\"192.0.2.1\",\"dns6\":\"\"}"
+    ],
+    "current": "{\"ssid\":\"Example-Home\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"trusted\":false,\"level\":\"trusted\"}",
+    "ipv6_route": "",
+    "trusted": "{\"00000000-0000-4000-8000-000000000001\":{\"ssid\":\"Example-Home\",\"level\":\"trusted\"}}",
+    "want": []
+   },
+   {
+    "now": 31005,
+    "current": "{\"ssid\":\"Example-Home\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"trusted\":false,\"level\":\"trusted\"}",
+    "ipv6_route": "00000000000000000000000000000000 00 00000000000000000000000000000000 00 fe800000000000000000000000000066 00000100 00000001 00000000 00000003 wlan0",
+    "arp": "192.0.2.1        0x1         0x2         02:00:00:00:00:02     *        wlan0\n",
+    "trusted": "{\"00000000-0000-4000-8000-000000000001\":{\"ssid\":\"Example-Home\",\"level\":\"trusted\"}}",
+    "want": [
+     {
+      "after": "gateway_mac=02:00:00:00:00:02;ra_router=fe80::66",
+      "before": "gateway_mac=remembered;ra_router=remembered",
+      "confidence": "high",
+      "iface": "wlan0",
+      "judged": "critical",
+      "kind": "rogue_router",
+      "learned": "true",
+      "level": "trusted",
+      "network_kind": "home-router",
+      "signals": "gateway_mac,ra_router",
+      "ssid": "Example-Home",
+      "text": "the router's hardware address is 02:00:00:00:00:02 (not the one remembered for this network); a device fe80::66 announced itself as the IPv6 router (not the one remembered for this network)",
+      "via": "ra",
+      "what": "the router's hardware address is 02:00:00:00:00:02 (not the one remembered for this network); a device fe80::66 announced itself as the IPv6 router (not the one remembered for this network)"
+     }
+    ]
+   },
+   {
+    "now": 31100,
+    "netid": [
+     "{\"t\":31100,\"action\":\"down\",\"iface\":\"wlan0\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"dhcp4_server\":\"\",\"dhcp4_routers\":\"\",\"dns4\":\"\",\"dns6\":\"\"}"
+    ],
+    "current": "{\"ssid\":\"Example-Home\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"trusted\":false,\"level\":\"trusted\"}",
+    "ipv6_route": "",
+    "trusted": "{\"00000000-0000-4000-8000-000000000001\":{\"ssid\":\"Example-Home\",\"level\":\"trusted\"}}",
+    "want": []
+   }
+  ]
+ },
+ {
+  "name": "a home network's router changes its hardware address during a connection: critical",
+  "steps": [
+   {
+    "now": 40000,
+    "netid": [
+     "{\"t\":40000,\"action\":\"up\",\"iface\":\"wlan0\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"dhcp4_server\":\"192.0.2.1\",\"dhcp4_routers\":\"192.0.2.1\",\"dns4\":\"192.0.2.1\",\"dns6\":\"\"}"
+    ],
+    "current": "{\"ssid\":\"Example-Home\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"trusted\":true,\"level\":\"home\"}",
+    "ipv6_route": "",
+    "arp": "192.0.2.1        0x1         0x2         02:00:00:00:00:01     *        wlan0\n",
+    "want": []
+   },
+   {
+    "now": 40010,
+    "current": "{\"ssid\":\"Example-Home\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"trusted\":true,\"level\":\"home\"}",
+    "ipv6_route": "",
+    "arp": "192.0.2.1        0x1         0x2         02:00:00:00:00:66     *        wlan0\n",
+    "want": [
+     {
+      "after": "gateway_mac=02:00:00:00:00:66",
+      "before": "gateway_mac=02:00:00:00:00:01",
+      "confidence": "low",
+      "iface": "wlan0",
+      "judged": "critical",
+      "kind": "rogue_router",
+      "learned": "false",
+      "level": "home",
+      "network_kind": "home-router",
+      "signals": "gateway_mac",
+      "ssid": "Example-Home",
+      "text": "the router's hardware address is 02:00:00:00:00:66 (it was 02:00:00:00:00:01)",
+      "via": "ra",
+      "what": "the router's hardware address is 02:00:00:00:00:66 (it was 02:00:00:00:00:01)"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "name": "a trusted network: a DHCP server it does not know in the middle of a connection: critical",
+  "steps": [
+   {
+    "now": 50000,
+    "netid": [
+     "{\"t\":50000,\"action\":\"up\",\"iface\":\"wlan0\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"dhcp4_server\":\"192.0.2.1\",\"dhcp4_routers\":\"192.0.2.1\",\"dns4\":\"192.0.2.1\",\"dns6\":\"\"}"
+    ],
+    "current": "{\"ssid\":\"Example-Home\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"trusted\":false,\"level\":\"trusted\"}",
+    "ipv6_route": "",
+    "want": []
+   },
+   {
+    "now": 50010,
+    "netid": [
+     "{\"t\":50010,\"action\":\"dhcp4-change\",\"iface\":\"wlan0\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"dhcp4_server\":\"192.0.2.66\",\"dhcp4_routers\":\"192.0.2.1\",\"dns4\":\"192.0.2.1\",\"dns6\":\"\"}"
+    ],
+    "current": "{\"ssid\":\"Example-Home\",\"uuid\":\"00000000-0000-4000-8000-000000000001\",\"trusted\":false,\"level\":\"trusted\"}",
+    "ipv6_route": "",
+    "want": [
+     {
+      "after": "dhcp_server=192.0.2.66",
+      "before": "dhcp_server=192.0.2.1",
+      "confidence": "medium",
+      "iface": "wlan0",
+      "judged": "critical",
+      "kind": "rogue_router",
+      "learned": "true",
+      "level": "trusted",
+      "network_kind": "home-router",
+      "signals": "dhcp_server",
+      "ssid": "Example-Home",
+      "text": "a DHCP server 192.0.2.66 answered (it was 192.0.2.1)",
+      "via": "dhcp",
+      "what": "a DHCP server 192.0.2.66 answered (it was 192.0.2.1)"
+     }
+    ]
+   }
+  ]
+ },
+ {
   "name": "a second DHCP server during a connection (untrusted)",
   "steps": [
    {
@@ -22,9 +281,11 @@
       "before": "dhcp_server=192.0.2.1;dns4=192.0.2.1",
       "confidence": "medium",
       "iface": "wlan0",
+      "judged": "warning",
       "kind": "rogue_router",
       "learned": "false",
       "level": "",
+      "network_kind": "",
       "signals": "dhcp_server,dns4",
       "ssid": "",
       "text": "a DHCP server 192.0.2.66 answered (it was 192.0.2.1); the DNS servers handed out are 192.0.2.66 (they were 192.0.2.1)",
@@ -69,9 +330,11 @@
       "before": "dhcp_server=remembered;dhcp_router=remembered;dns4=remembered",
       "confidence": "high",
       "iface": "wlan0",
+      "judged": "critical",
       "kind": "rogue_router",
       "learned": "true",
       "level": "trusted",
+      "network_kind": "home-router",
       "signals": "dhcp_server,dhcp_router,dns4",
       "ssid": "Example-Home",
       "text": "a DHCP server 192.0.2.66 answered (not the one remembered for this network); the router handed out is 192.0.2.66 (not the one remembered for this network); the DNS servers handed out are 192.0.2.66 (not the one remembered for this network)",
@@ -94,9 +357,11 @@
       "before": "dhcp_server=remembered;dhcp_router=remembered;dns4=remembered",
       "confidence": "high",
       "iface": "wlan0",
+      "judged": "critical",
       "kind": "rogue_router",
       "learned": "true",
       "level": "trusted",
+      "network_kind": "home-router",
       "signals": "dhcp_server,dhcp_router,dns4",
       "ssid": "Example-Home",
       "text": "a DHCP server 192.0.2.66 answered (not the one remembered for this network); the router handed out is 192.0.2.66 (not the one remembered for this network); the DNS servers handed out are 192.0.2.66 (not the one remembered for this network)",
@@ -119,9 +384,11 @@
       "before": "dhcp_server=remembered;dhcp_router=remembered;dns4=remembered",
       "confidence": "high",
       "iface": "wlan0",
+      "judged": "critical",
       "kind": "rogue_router",
       "learned": "true",
       "level": "trusted",
+      "network_kind": "home-router",
       "signals": "dhcp_server,dhcp_router,dns4",
       "ssid": "Example-Home",
       "text": "a DHCP server 192.0.2.66 answered (not the one remembered for this network); the router handed out is 192.0.2.66 (not the one remembered for this network); the DNS servers handed out are 192.0.2.66 (not the one remembered for this network)",
@@ -167,9 +434,11 @@
       "before": "ra_router=fe80::1",
       "confidence": "low",
       "iface": "wlan0",
+      "judged": "warning",
       "kind": "rogue_router",
       "learned": "false",
       "level": "",
+      "network_kind": "",
       "signals": "ra_router",
       "ssid": "",
       "text": "a device fe80::66 announced itself as the IPv6 router (it was fe80::1)",
@@ -187,9 +456,11 @@
       "before": "ra_prefix=",
       "confidence": "low",
       "iface": "wlan0",
+      "judged": "warning",
       "kind": "rogue_router",
       "learned": "false",
       "level": "",
+      "network_kind": "",
       "signals": "ra_prefix",
       "ssid": "",
       "text": "a new IPv6 network 2001:db8:66::/64 was announced in the middle of the connection",
@@ -228,9 +499,11 @@
       "before": "ipv6_late=",
       "confidence": "low",
       "iface": "wlan0",
+      "judged": "warning",
       "kind": "rogue_router",
       "learned": "false",
       "level": "",
+      "network_kind": "",
       "signals": "ipv6_late",
       "ssid": "",
       "text": "an IPv6 router fe80::1 appeared 5 minutes after joining, on a network that had none",
@@ -311,9 +584,11 @@
       "before": "ipv6_new=remembered",
       "confidence": "medium",
       "iface": "wlan0",
+      "judged": "warning",
       "kind": "rogue_router",
       "learned": "true",
       "level": "trusted",
+      "network_kind": "home-router",
       "signals": "ipv6_new",
       "ssid": "Example-Home",
       "text": "an IPv6 router fe80::1 appeared on a network that never had IPv6",
@@ -348,9 +623,11 @@
       "before": "dhcp_server=192.0.2.1",
       "confidence": "low",
       "iface": "wlan0",
+      "judged": "warning",
       "kind": "rogue_router",
       "learned": "false",
       "level": "",
+      "network_kind": "",
       "signals": "dhcp_server",
       "ssid": "",
       "text": "a DHCP server 192.0.2.77 answered (it was 192.0.2.1)",

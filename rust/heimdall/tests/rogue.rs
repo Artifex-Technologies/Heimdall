@@ -16,6 +16,7 @@ fn rogue_router_scenarios_match_go() {
         std::fs::create_dir_all(dir.join("proc/net")).unwrap();
         let p = |s: &str| dir.join(s).to_string_lossy().into_owned();
         let mut w = RogueSource::new(&p("netid.jsonl"), &p("current.json"), &p("routers.json"), &p("proc"));
+        w.trusted = p("wifi-trusted.json");
         for (i, st) in sc["steps"].as_array().unwrap().iter().enumerate() {
             if let Some(lines) = st["netid"].as_array() {
                 let mut f = std::fs::OpenOptions::new().append(true).create(true).open(p("netid.jsonl")).unwrap();
@@ -28,6 +29,18 @@ fn rogue_router_scenarios_match_go() {
                 std::fs::write(p("current.json"), c).unwrap();
             }
             std::fs::write(p("proc/net/ipv6_route"), st["ipv6_route"].as_str().unwrap_or("")).unwrap();
+            std::fs::write(
+                p("proc/net/arp"),
+                format!(
+                    "IP address       HW type     Flags       HW address            Mask     Device\n{}",
+                    st["arp"].as_str().unwrap_or("")
+                ),
+            )
+            .unwrap();
+            let _ = std::fs::remove_file(p("wifi-trusted.json"));
+            if let Some(t) = st["trusted"].as_str() {
+                std::fs::write(p("wifi-trusted.json"), t).unwrap();
+            }
             let got: Vec<BTreeMap<String, String>> = w
                 .poll_at(st["now"].as_i64().unwrap())
                 .into_iter()

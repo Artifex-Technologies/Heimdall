@@ -28,6 +28,7 @@ import (
 type RogueRouterWatcher struct {
 	NetIDPath   string
 	CurrentPath string // heimdall-wifi-check's current.json: the Wi-Fi network's name and level
+	TrustedPath string // /etc/heimdall/wifi-trusted.json: the kind of network the owner set (heimdall-wifi-guard kind)
 	StatePath   string
 	procRoot    string
 	now         func() time.Time
@@ -49,7 +50,8 @@ const rogueLateIPv6 = 2 * time.Minute
 // NewRogueRouterWatcher reads netID (the dispatcher's lines), current (heimdall-wifi-check's current.json) and keeps what it
 // learns of trusted networks in state.
 func NewRogueRouterWatcher(netID, current, state string) *RogueRouterWatcher {
-	return &RogueRouterWatcher{NetIDPath: netID, CurrentPath: current, StatePath: state, procRoot: "/proc", now: time.Now}
+	return &RogueRouterWatcher{NetIDPath: netID, CurrentPath: current, StatePath: state, TrustedPath: "/etc/heimdall/wifi-trusted.json",
+		procRoot: "/proc", now: time.Now}
 }
 
 type rogueState struct {
@@ -71,6 +73,7 @@ type rogueConn struct {
 	first    map[string]string // per signal: the first value of this connection
 	ra       []string          // IPv6 routers seen, in order
 	raFirst  time.Time
+	gwMAC    string // the router's hardware address, first seen in this connection
 	prefixes map[string]bool
 	counted  map[string]bool
 	reported map[string]bool
@@ -95,8 +98,12 @@ type rogueCurrent struct {
 }
 
 // rogueSignal is one thing that changed: which, the value before (empty when it contradicts what a trusted network
-// remembers, which is kept only as a hash) and after.
-type rogueSignal struct{ kind, before, after string }
+// remembers, which is kept only as a hash) and after; learned: it contradicts that memory; during: it changed in the middle
+// of a connection (a second router at the same time), not between connections.
+type rogueSignal struct {
+	kind, before, after string
+	learned, during     bool
+}
 
 func rogueHash(parts ...string) string {
 	s := sha256.Sum256([]byte(strings.Join(parts, "|")))
@@ -132,8 +139,9 @@ func (w *RogueRouterWatcher) Poll() []detect.Event {
 		changed = changed || ch
 	}
 	routes, _ := os.ReadFile(filepath.Join(w.procRoot, "net/ipv6_route"))
+	arp := readARP(filepath.Join(w.procRoot, "net/arp"))
 	for _, iface := range sortedKeys(w.conns) {
-		ev, ch := w.routes(iface, w.conns[iface], routes, cur, now)
+		ev, ch := w.routes(iface, w.conns[iface], routes, arp, cur, now)
 		if ev != nil {
 			out = append(out, *ev)
 		}
@@ -262,7 +270,6 @@ func (w *RogueRouterWatcher) line(l netIDLine, cur rogueCurrent, quiet bool) (*d
 		}
 	}
 	k, _ := w.known(c, cur)
-	learned := false
 	var sigs []rogueSignal
 	for _, kv := range [][2]string{{"dhcp_server", l.DHCP4Server}, {"dhcp_router", l.DHCP4Router}, {"dns4", l.DNS4}, {"dns6", l.DNS6}} {
 		kind, v := kv[0], kv[1]
@@ -276,19 +283,18 @@ func (w *RogueRouterWatcher) line(l netIDLine, cur rogueCurrent, quiet bool) (*d
 		if k != nil {
 			changed = true
 			if w.learn(k, c, kind, v) {
-				learned = true
-				sigs = append(sigs, rogueSignal{kind, first, v})
+				sigs = append(sigs, rogueSignal{kind, first, v, true, had})
 				continue
 			}
 		}
 		if had && v != first {
-			sigs = append(sigs, rogueSignal{kind, first, v})
+			sigs = append(sigs, rogueSignal{kind, first, v, false, true})
 		}
 	}
 	if quiet || len(sigs) == 0 {
 		return nil, changed
 	}
-	return w.event(l.Iface, c, cur, "dhcp", sigs, learned), changed
+	return w.event(l.Iface, c, cur, "dhcp", sigs), changed
 }
 
 // ipv6Routes reads the kernel's IPv6 table for iface: the routers of its default routes (link-local next hops, which only
@@ -353,11 +359,35 @@ func hexIPv6(h string) string {
 }
 
 // routes compares the IPv6 routers and prefixes of iface with what this connection (and a trusted network) had.
-func (w *RogueRouterWatcher) routes(iface string, c *rogueConn, table []byte, cur rogueCurrent, now time.Time) (*detect.Event, bool) {
+func (w *RogueRouterWatcher) routes(iface string, c *rogueConn, table []byte, arp []arpEntry, cur rogueCurrent, now time.Time) (*detect.Event, bool) {
 	routers, prefixes := ipv6Routes(table, iface)
 	k, _ := w.known(c, cur)
-	changed, learned := false, false
+	hotspot := k != nil && w.kind(c.uuid) == "phone-hotspot"
+	changed := false
 	var sigs []rogueSignal
+	// the router's hardware address (the kernel's neighbour table, for the router the DHCP server handed out)
+	if gw := strings.Fields(c.first["dhcp_router"]); len(gw) > 0 {
+		for _, e := range arp {
+			if e.dev != iface || e.ip != gw[0] {
+				continue
+			}
+			switch {
+			case c.gwMAC == "":
+				c.gwMAC = e.mac
+				// a phone hotspot makes up a new address when it restarts: expected, not remembered
+				if k != nil && !hotspot {
+					changed = true
+					if w.learn(k, c, "gateway_mac", e.mac) {
+						sigs = append(sigs, rogueSignal{"gateway_mac", "", e.mac, true, false})
+					}
+				}
+			case e.mac != c.gwMAC && cur.UUID == c.uuid && (cur.Level == "home" || (cur.Level == "" && cur.Trusted)):
+				// in the middle of a connection, on every kind (the router watch covers every network but home)
+				sigs = append(sigs, rogueSignal{"gateway_mac", c.gwMAC, e.mac, false, true})
+				c.gwMAC = e.mac
+			}
+		}
+	}
 	for _, r := range routers {
 		seen := false
 		for _, x := range c.ra {
@@ -377,8 +407,8 @@ func (w *RogueRouterWatcher) routes(iface string, c *rogueConn, table []byte, cu
 		switch {
 		case k != nil && firstRouter && !k.IPv6 && k.Conns >= rogueLearnAfter:
 			// a trusted network that never had IPv6 on several connections now has a router announcing it
-			changed, learned = true, true
-			sigs = append(sigs, rogueSignal{"ipv6_new", "", r})
+			changed = true
+			sigs = append(sigs, rogueSignal{"ipv6_new", "", r, true, false})
 			w.learn(k, c, "ra_router", r)
 			k.Pending[rogueHash(c.uuid, "ipv6")]++
 			if k.Pending[rogueHash(c.uuid, "ipv6")] >= rogueLearnAfter {
@@ -390,16 +420,18 @@ func (w *RogueRouterWatcher) routes(iface string, c *rogueConn, table []byte, cu
 			if !k.IPv6 {
 				k.IPv6 = true
 			}
+			if hotspot && firstRouter {
+				break // a restarted hotspot's router address is new too
+			}
 			if w.learn(k, c, "ra_router", r) {
-				learned = true
-				sigs = append(sigs, rogueSignal{"ra_router", "", r})
+				sigs = append(sigs, rogueSignal{"ra_router", "", r, true, !firstRouter})
 			} else if !firstRouter {
-				sigs = append(sigs, rogueSignal{"ra_router", c.ra[0], r})
+				sigs = append(sigs, rogueSignal{"ra_router", c.ra[0], r, false, true})
 			}
 		case firstRouter && now.Sub(c.up) > rogueLateIPv6:
-			sigs = append(sigs, rogueSignal{"ipv6_late", "", r})
+			sigs = append(sigs, rogueSignal{"ipv6_late", "", r, false, true})
 		case !firstRouter:
-			sigs = append(sigs, rogueSignal{"ra_router", c.ra[0], r})
+			sigs = append(sigs, rogueSignal{"ra_router", c.ra[0], r, false, true})
 		}
 	}
 	if len(c.ra) > 0 {
@@ -410,29 +442,32 @@ func (w *RogueRouterWatcher) routes(iface string, c *rogueConn, table []byte, cu
 			c.prefixes[p] = true
 			// prefixes announced in the first minute belong to the router's first announcements
 			if now.Sub(c.raFirst) > time.Minute {
-				sigs = append(sigs, rogueSignal{"ra_prefix", "", p})
+				sigs = append(sigs, rogueSignal{"ra_prefix", "", p, false, true})
 			}
 		}
 	}
 	if len(sigs) == 0 {
 		return nil, changed
 	}
-	return w.event(iface, c, cur, "ra", sigs, learned), changed
+	return w.event(iface, c, cur, "ra", sigs), changed
 }
 
 // event makes one alert of the signals that changed together, once per connection for the same values; its confidence is
-// how many independent signals agree and whether they contradict what a trusted network remembers.
-func (w *RogueRouterWatcher) event(iface string, c *rogueConn, cur rogueCurrent, via string, sigs []rogueSignal, learned bool) *detect.Event {
+// how many independent signals agree and whether they contradict what a trusted network remembers, and judged is how serious
+// it is (rogueJudge).
+func (w *RogueRouterWatcher) event(iface string, c *rogueConn, cur rogueCurrent, via string, sigs []rogueSignal) *detect.Event {
 	var kinds, before, after, what []string
+	learned := false
 	for _, s := range sigs {
+		learned = learned || s.learned
 		kinds = append(kinds, s.kind)
 		b := s.before
-		if b == "" && learned {
+		if b == "" && s.learned {
 			b = "remembered"
 		}
 		before = append(before, s.kind+"="+b)
 		after = append(after, s.kind+"="+s.after)
-		what = append(what, rogueWhat(s, learned, c, w.now()))
+		what = append(what, rogueWhat(s, c, w.now()))
 	}
 	key := via + "|" + strings.Join(after, ";")
 	if c.reported[key] {
@@ -456,16 +491,16 @@ func (w *RogueRouterWatcher) event(iface string, c *rogueConn, cur rogueCurrent,
 	return &detect.Event{Source: "host-lan", Time: w.now(), Kind: "rogue_router", Text: text, Fields: map[string]string{
 		"ssid": ssid, "iface": iface, "level": level, "via": via, "signals": strings.Join(kinds, ","),
 		"before": strings.Join(before, ";"), "after": strings.Join(after, ";"), "learned": fmt.Sprint(learned),
-		"confidence": conf, "what": text,
+		"confidence": conf, "what": text, "judged": rogueJudge(sigs), "network_kind": w.kindIfKnown(c, cur),
 	}}
 }
 
 // rogueWhat says what one signal means, in a few words.
-func rogueWhat(s rogueSignal, learned bool, c *rogueConn, now time.Time) string {
+func rogueWhat(s rogueSignal, c *rogueConn, now time.Time) string {
 	was := " (it was " + s.before + ")"
 	if s.before == "" {
 		was = ""
-		if learned {
+		if s.learned {
 			was = " (not the one remembered for this network)"
 		}
 	}
@@ -476,6 +511,8 @@ func rogueWhat(s rogueSignal, learned bool, c *rogueConn, now time.Time) string 
 		return "the router handed out is " + s.after + was
 	case "dns4", "dns6":
 		return "the DNS servers handed out are " + s.after + strings.Replace(was, "it was", "they were", 1)
+	case "gateway_mac":
+		return "the router's hardware address is " + s.after + was
 	case "ra_router":
 		return "a device " + s.after + " announced itself as the IPv6 router" + was
 	case "ra_prefix":
@@ -502,6 +539,55 @@ func (w *RogueRouterWatcher) Run(ctx context.Context, interval time.Duration, em
 		case <-t.C:
 		}
 	}
+}
+
+// rogueJudge says how serious the signals are together, by how many changed at once: one thing about a trusted network's router
+// differing from last time is "info" (a firmware update or a new setting looks the same); two or more at once, a router that
+// a trusted network does not know appearing in the middle of a connection, or the router's hardware address changing during a
+// connection, is "critical" (a different device may be posing as the router); anything else is a "warning". IPv6 appearing
+// on a network that never had it is never less than a warning: that is how a device takes over a network's IPv6.
+func rogueJudge(sigs []rogueSignal) string {
+	start := 0
+	for _, s := range sigs {
+		if (s.learned && s.during) || (s.kind == "gateway_mac" && s.during) {
+			return "critical"
+		}
+		if s.learned {
+			start++
+		}
+	}
+	switch {
+	case start >= 2:
+		return "critical"
+	case start == 1 && len(sigs) == 1 && sigs[0].kind != "ipv6_new":
+		return "info"
+	}
+	return "warning"
+}
+
+// kind reads the kind of network the owner set for uuid (heimdall-wifi-guard kind); none set is a home router.
+func (w *RogueRouterWatcher) kind(uuid string) string {
+	var t map[string]json.RawMessage
+	if b, err := os.ReadFile(w.TrustedPath); err == nil && json.Unmarshal(b, &t) == nil {
+		var e struct {
+			Kind string `json:"kind"`
+		}
+		if json.Unmarshal(t[uuid], &e) == nil {
+			switch e.Kind {
+			case "mesh", "phone-hotspot", "travel", "other":
+				return e.Kind
+			}
+		}
+	}
+	return "home-router"
+}
+
+// kindIfKnown is the kind of a trusted or home network ("" for any other network).
+func (w *RogueRouterWatcher) kindIfKnown(c *rogueConn, cur rogueCurrent) string {
+	if k, _ := w.known(c, cur); k == nil {
+		return ""
+	}
+	return w.kind(c.uuid)
 }
 
 // save writes what trusted networks remember (hashes and counts only), mode 0600, by a rename.

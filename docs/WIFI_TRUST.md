@@ -106,13 +106,17 @@ by announcing itself as the IPv6 router. heimdalld watches for both on every net
 | A device other than the first IPv6 router of this connection announcing itself as a router | warning |
 | A new IPv6 prefix announced more than a minute after the router's first announcement | warning |
 | An IPv6 router appearing more than 2 minutes after joining a network that had none | warning |
-| On a trusted or home network: a DHCP server, router, DNS servers or IPv6 router other than the ones it remembers | critical |
-| On a trusted or home network that never had IPv6 on 3 connections: an IPv6 router appearing | critical |
+| On a trusted or home network, at the start of a connection: **one** of its DHCP server, router, DNS servers, the router's hardware address or IPv6 router differs from what it remembers | info ("changed, maybe a firmware update") |
+| ... **two or more** of them at once | critical ("a different device may be posing as your router") |
+| On a trusted or home network: a DHCP server or IPv6 router it does not know appearing in the middle of a connection | critical |
+| On a home network: the router's hardware address changing in the middle of a connection, whatever its kind (on every other network the router watch reports it) | critical |
+| On a trusted or home network that never had IPv6 on 3 connections: an IPv6 router appearing | warning |
 
 Each alert (`lan-watch`, event kind `rogue_router`) is one per connection for the same values and carries what was seen
 before and after, so how often the checks fire can be measured later (see "Protective mode" below): `via` (`dhcp` or `ra`),
-`signals` (which changed together, comma-separated: `dhcp_server`, `dhcp_router`, `dns4`, `dns6`, `ra_router`, `ra_prefix`,
-`ipv6_new`, `ipv6_late`), `before` and `after` (`signal=value;...`; `remembered` where a trusted network keeps only a hash),
+`signals` (which changed together, comma-separated: `dhcp_server`, `dhcp_router`, `dns4`, `dns6`, `gateway_mac`, `ra_router`,
+`ra_prefix`, `ipv6_new`, `ipv6_late`), `judged` (`info`, `warning` or `critical`, by the table above), `network_kind` (the
+network's kind, below; empty on a network that is not trusted), `before` and `after` (`signal=value;...`; `remembered` where a trusted network keeps only a hash),
 `learned` (whether it contradicts what a trusted network remembers), `confidence` (`high`: a trusted network's memory and two
 or more signals agree; `medium`: one of the two; `low`: neither), `level`, `ssid`, `iface`. Nothing is blocked: everyone else
 on the network can still use it. The alert says what was seen and what to do.
@@ -130,7 +134,8 @@ How it looks, without sending anything:
 
 **What a trusted or home network remembers** is kept in `/var/lib/heimdall/wifi/routers.json` (heimdalld's own, mode 0600): per
 network a hash of its UUID, and per signal hashes of the values seen (sha256 of the UUID, the signal and the value), the number
-of connections and whether it has had IPv6. No address, name or hardware address is kept, and nothing at all for a network that
+of connections and whether it has had IPv6. These hashes are the router's fingerprint: the DHCP server, the router and DNS servers it hands out, the router's hardware
+address (from the kernel's neighbour table) and the IPv6 routers. No address, name or hardware address is kept, and nothing at all for a network that
 is not trusted (that would be a list of the places this computer has been). A new router is taken as the network's own once it
 has been seen on 3 connections, so replacing the router gives a critical alert on each of the next 3 connections and then
 stops. Only Wi-Fi networks have a level (from `heimdall-wifi-check`'s `current.json`); a wired connection is judged within the
@@ -167,6 +172,10 @@ network that is not trusted has no kind (`kind` refuses it). heimdalld judges a 
   WPA2/WPA3-Personal handshake (a copy without the password cannot complete it), and the addresses and DNS servers it hands out;
 - **mesh:** several router addresses of the same mesh are normal; the set learned is the anchor;
 - **travel, other:** judged like a home router.
+
+In heimdalld today: on a phone hotspot the router's hardware address and its IPv6 router address at the start of a connection
+are neither compared nor remembered; on a mesh, each address is learned like a new router (after 3 connections), so the set
+of the mesh's addresses is the anchor; the other kinds remember every signal.
 
 On every kind, the router's address changing during a connection, or two addresses answering as the router at once, stays a sign
 of someone in the middle. Heimdall may suggest a kind but never sets it. **For Settings:** a list next to the trust level and the
@@ -301,9 +310,9 @@ answer that points at this computer itself (127.0.0.0/8, 0.0.0.0/8) is "bad" wit
 - Loading the quiet table at boot, then no longer stopping Avahi at all.
 - Devices that look up this computer, and new devices on trusted networks, without sending anything.
 - IPv6 in the listener.
-- A stronger router fingerprint per trusted network (the DHCP server and its options, router announcements, DNS servers, the
-  router's hardware address, its admin certificate or SSH key if it already answers), judged by how many changed at once: one
-  is "changed, maybe a firmware update", several "a different device may be posing as your router".
+- More signals in the router's fingerprint: the DHCP option set (NetworkManager's dispatcher does not pass it), the router's
+  admin certificate or SSH key if it already answers on the network (one connection, no login), the RA lifetimes.
+- Heimdall suggesting a kind (a made-up router address that changes between sessions suggests a phone hotspot).
 - A known device on a home network answering with another hardware address, name or maker (the device list's devices
   changing identity).
 - Enterprise networks with a pinned certificate authority.

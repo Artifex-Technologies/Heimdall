@@ -270,6 +270,15 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-11-16 (4) — The router's fingerprint, judged by how many signals changed and by the network's kind
+- `rogue_router` events gain `judged` (info|warning|critical, the severity: one remembered signal changed at the start of a
+  connection is info, two or more, or an unknown router mid-connection, or the router's hardware address changing mid-connection
+  on a home network, critical) and `network_kind`; new signal `gateway_mac` (the router's hardware address from the kernel's
+  neighbour table, remembered as a hash). A phone hotspot's new hardware address and IPv6 router address after a restart are
+  expected. `lan-watch` alerts of this kind can now be info. Go and Rust, the shared fixture (5 new scenarios). Not built: the
+  admin certificate / SSH key probe and the DHCP option set (`docs/WIFI_TRUST.md`, Later).
+— Signed: Heimdall / Claude Opus 5.5
+
 ### 2026-11-16 (3) — A trusted network's kind (contract change in wifi-trusted.json)
 - `/etc/heimdall/wifi-trusted.json` entries gain an optional `kind`: `mesh`, `phone-hotspot`, `travel` or `other`; absent (or an
   unknown value) means `home-router`, as before. Set by `sudo heimdall-wifi-guard kind KIND [--uuid UUID]` (Python and the Rust

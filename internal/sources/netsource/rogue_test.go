@@ -21,6 +21,8 @@ type rogueStep struct {
 	NetID   []string            `json:"netid,omitempty"`
 	Current string              `json:"current,omitempty"`
 	Routes  string              `json:"ipv6_route"`
+	ARP     string              `json:"arp,omitempty"`
+	Trusted string              `json:"trusted,omitempty"`
 	Want    []map[string]string `json:"want"`
 }
 
@@ -67,7 +69,37 @@ func rogueScenarios() []rogueScenario {
 		t += 1000
 	}
 	v6Steps = append(v6Steps, rogueStep{Now: t, NetID: []string{nl(t, "up", uHome, "192.0.2.1", "192.0.2.1", "192.0.2.1", "")}, Current: curHome, Routes: ra1})
+	arp := func(mac string) string {
+		return "192.0.2.1        0x1         0x2         " + mac + "     *        wlan0\n"
+	}
+	curHomeLvl := `{"ssid":"Example-Home","uuid":"` + uHome + `","trusted":true,"level":"home"}`
+	hotspot := `{"` + uHome + `":{"ssid":"Example-Phone","level":"trusted","kind":"phone-hotspot"}}`
+	homeKind := `{"` + uHome + `":{"ssid":"Example-Home","level":"trusted"}}`
+	restart := func(trusted string) []rogueStep {
+		up := func(t int64, mac, ll string) []rogueStep {
+			return []rogueStep{
+				{Now: t, NetID: []string{nl(t, "up", uHome, "192.0.2.1", "192.0.2.1", "192.0.2.1", "")}, Current: curHome, Trusted: trusted},
+				{Now: t + 5, Current: curHome, Trusted: trusted, ARP: arp(mac), Routes: r6(zero32, 0, ll)},
+				{Now: t + 100, NetID: []string{nl(t+100, "down", uHome, "", "", "", "")}, Current: curHome, Trusted: trusted},
+			}
+		}
+		return append(up(30000, "02:00:00:00:00:01", ll1), up(31000, "02:00:00:00:00:02", ll66)...)
+	}
 	return []rogueScenario{
+		{"one thing about a trusted network's router changed: info", []rogueStep{
+			{Now: 10000, NetID: []string{nl(10000, "up", uHome, "192.0.2.1", "192.0.2.1", "192.0.2.1", "")}, Current: curHome},
+			{Now: 11000, NetID: []string{nl(10999, "down", uHome, "", "", "", ""), nl(11000, "up", uHome, "192.0.2.2", "192.0.2.1", "192.0.2.1", "")}, Current: curHome},
+		}},
+		{"a phone hotspot restarts with a new hardware address and router address: expected", restart(hotspot)},
+		{"a home router's hardware address and IPv6 router both differ on the next connection: critical", restart(homeKind)},
+		{"a home network's router changes its hardware address during a connection: critical", []rogueStep{
+			{Now: 40000, NetID: []string{nl(40000, "up", uHome, "192.0.2.1", "192.0.2.1", "192.0.2.1", "")}, Current: curHomeLvl, ARP: arp("02:00:00:00:00:01")},
+			{Now: 40010, Current: curHomeLvl, ARP: arp("02:00:00:00:00:66")},
+		}},
+		{"a trusted network: a DHCP server it does not know in the middle of a connection: critical", []rogueStep{
+			{Now: 50000, NetID: []string{nl(50000, "up", uHome, "192.0.2.1", "192.0.2.1", "192.0.2.1", "")}, Current: curHome},
+			{Now: 50010, NetID: []string{nl(50010, "dhcp4-change", uHome, "192.0.2.66", "192.0.2.1", "192.0.2.1", "")}, Current: curHome},
+		}},
 		{"a second DHCP server during a connection (untrusted)", []rogueStep{
 			{Now: 1000, NetID: []string{nl(1000, "up", uCafe, "192.0.2.1", "192.0.2.1", "192.0.2.1", "")}},
 			{Now: 1010, NetID: []string{nl(1010, "dhcp4-change", uCafe, "192.0.2.66", "192.0.2.1", "192.0.2.66", "")}},
@@ -99,6 +131,7 @@ func runRogue(t *testing.T, sc rogueScenario) [][]map[string]string {
 	os.MkdirAll(filepath.Join(dir, "proc/net"), 0o755)
 	w := NewRogueRouterWatcher(filepath.Join(dir, "netid.jsonl"), filepath.Join(dir, "current.json"), filepath.Join(dir, "routers.json"))
 	w.procRoot = filepath.Join(dir, "proc")
+	w.TrustedPath = filepath.Join(dir, "wifi-trusted.json")
 	var out [][]map[string]string
 	for _, st := range sc.Steps {
 		if len(st.NetID) > 0 {
@@ -111,6 +144,11 @@ func runRogue(t *testing.T, sc rogueScenario) [][]map[string]string {
 			os.WriteFile(w.CurrentPath, []byte(st.Current), 0o644)
 		}
 		os.WriteFile(filepath.Join(dir, "proc/net/ipv6_route"), []byte(st.Routes), 0o644)
+		os.WriteFile(filepath.Join(dir, "proc/net/arp"), []byte("IP address       HW type     Flags       HW address            Mask     Device\n"+st.ARP), 0o644)
+		os.Remove(w.TrustedPath)
+		if st.Trusted != "" {
+			os.WriteFile(w.TrustedPath, []byte(st.Trusted), 0o644)
+		}
 		now := time.Unix(st.Now, 0)
 		w.now = func() time.Time { return now }
 		got := []map[string]string{}
