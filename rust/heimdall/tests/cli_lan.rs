@@ -122,6 +122,11 @@ fn the_list_and_its_files_as_go_keeps_them() {
         let mut n = store::Network::from_json(c["network"].to_string().as_bytes());
         let seen = store::devices_from_json(c["seen"].to_string().as_bytes());
         let now = heimdall::gotime::Time::parse_rfc3339(st(&c["now"])).unwrap();
+        let tk: Vec<String> = store::takeovers(&n, &seen)
+            .iter()
+            .map(|x| [x.device.ip.as_str(), &x.device.mac, &x.was_mac, &x.was_name, &x.other_ip].join(" "))
+            .collect();
+        assert_eq!(tk.join("|"), st(&c["takeovers"]), "{c}");
         let fresh = n.merge(seen, now);
         assert_eq!(n.marshal_indent(), st(&c["after"]), "{c}");
         assert_eq!(store::devices_to_json(&fresh), st(&c["fresh"]), "{c}");

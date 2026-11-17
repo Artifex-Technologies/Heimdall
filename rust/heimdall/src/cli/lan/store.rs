@@ -80,8 +80,18 @@ pub static STORE: Ty = Ty::Struct(
     ],
 );
 /// A line of events.jsonl (Go: lan.NewDevice).
-pub static NEW_DEVICE: Ty =
-    Ty::Struct("lan.NewDevice", &[Field("time", &Ty::Time, false), Field("ssid", &Ty::Str, false), Field("device", &DEVICE, false)]);
+pub static NEW_DEVICE: Ty = Ty::Struct(
+    "lan.NewDevice",
+    &[
+        Field("time", &Ty::Time, false),
+        Field("ssid", &Ty::Str, false),
+        Field("device", &DEVICE, false),
+        Field("change", &Ty::Str, true),
+        Field("was_mac", &Ty::Str, true),
+        Field("was_name", &Ty::Str, true),
+        Field("other_ip", &Ty::Str, true),
+    ],
+);
 
 fn s(v: &Val) -> String {
     match v {
@@ -328,6 +338,71 @@ fn go_char_names(msg: &str) -> String {
     format!("{}{LEAD}{named}{tail}", &msg[..i])
 }
 
+/// A known device's address taken over (Go: a NewDevice with Change "address_taken").
+#[derive(Clone, Debug, PartialEq)]
+pub struct Takeover {
+    pub device: Device,
+    pub was_mac: String,
+    pub was_name: String,
+    pub other_ip: String,
+}
+
+/// Go: Takeovers. A known device's address (seen in the last scan) answered by a hardware address that answers for another
+/// address in the same scan, while the device that had it is not seen anywhere: what ARP spoofing a device looks like. Call
+/// before merge.
+pub fn takeovers(n: &Network, seen: &[Device]) -> Vec<Takeover> {
+    if n.first_scan.is_zero() {
+        return Vec::new();
+    }
+    let mut ips_of: std::collections::HashMap<&str, Vec<&str>> = std::collections::HashMap::new();
+    for d in seen {
+        ips_of.entry(&d.mac).or_default().push(&d.ip);
+    }
+    let mut prev: std::collections::HashMap<&str, &Device> = std::collections::HashMap::new();
+    for d in n.devices.iter().flatten() {
+        if d.last_seen == n.last_scan {
+            prev.insert(&d.ip, d); // Go's map: the last one wins
+        }
+    }
+    let mut out = Vec::new();
+    for d in seen {
+        let Some(old) = prev.get(d.ip.as_str()) else { continue };
+        let mine = ips_of.get(d.mac.as_str()).map_or(0, Vec::len);
+        if old.mac == d.mac || mine < 2 || ips_of.contains_key(old.mac.as_str()) {
+            continue;
+        }
+        let other = ips_of[d.mac.as_str()].iter().find(|ip| **ip != d.ip).map(|s| s.to_string()).unwrap_or_default();
+        out.push(Takeover { device: d.clone(), was_mac: old.mac.clone(), was_name: old.name.clone(), other_ip: other });
+    }
+    out
+}
+
+/// Go: appendChanges. One line per known device's address taken over.
+pub fn append_changes(path: &str, ssid: &str, changes: &[Takeover], now: Time) -> Result<(), String> {
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+    if changes.is_empty() {
+        return Ok(());
+    }
+    let mut f =
+        std::fs::OpenOptions::new().create(true).append(true).mode(0o640).open(path).map_err(|e| crate::goerr::path("open", path, &e))?;
+    for c in changes {
+        let v = Val::Struct(vec![
+            Val::Time(now),
+            Val::Str(ssid.to_string()),
+            c.device.to_val(),
+            Val::Str("address_taken".into()),
+            Val::Str(c.was_mac.clone()),
+            Val::Str(c.was_name.clone()),
+            Val::Str(c.other_ip.clone()),
+        ]);
+        let mut line = gostruct::to_json(&NEW_DEVICE, &v).unwrap_or_default();
+        line.push('\n');
+        f.write_all(line.as_bytes()).map_err(|e| crate::goerr::path("write", path, &e))?;
+    }
+    Ok(())
+}
+
 /// Adds one line per new device to events.jsonl (which heimdalld follows).
 pub fn append_events(path: &str, ssid: &str, devs: &[Device], now: Time) -> Result<(), String> {
     use std::io::Write;
@@ -338,7 +413,8 @@ pub fn append_events(path: &str, ssid: &str, devs: &[Device], now: Time) -> Resu
     let mut f =
         std::fs::OpenOptions::new().create(true).append(true).mode(0o640).open(path).map_err(|e| crate::goerr::path("open", path, &e))?;
     for d in devs {
-        let v = Val::Struct(vec![Val::Time(now), Val::Str(ssid.to_string()), d.to_val()]);
+        let e = || Val::Str(String::new());
+        let v = Val::Struct(vec![Val::Time(now), Val::Str(ssid.to_string()), d.to_val(), e(), e(), e(), e()]);
         let mut line = gostruct::to_json(&NEW_DEVICE, &v).unwrap_or_default();
         line.push('\n');
         f.write_all(line.as_bytes()).map_err(|e| crate::goerr::path("write", path, &e))?;

@@ -54,6 +54,14 @@ func (w *Watcher) Poll() ([]detect.Event, error) {
 			continue
 		}
 		d := nd.Device
+		if nd.Change == "address_taken" {
+			events = append(events, detect.Event{Source: "host-lan", Time: nd.Time, Kind: "lan_device_changed",
+				Text: "a known device's address on " + nd.SSID + " is answered by another device: " + d.IP,
+				Fields: map[string]string{"ssid": nd.SSID, "ip": d.IP, "mac": d.MAC, "vendor": d.Vendor, "name": d.Name,
+					"private_mac": strconv.FormatBool(d.PrivateMAC), "change": nd.Change, "was_mac": nd.WasMAC, "was_name": nd.WasName,
+					"other_ip": nd.OtherIP}})
+			continue
+		}
 		events = append(events, detect.Event{Source: "host-lan", Time: nd.Time, Kind: "new_lan_device",
 			Text: "a new device on " + nd.SSID + ": " + d.IP,
 			Fields: map[string]string{"ssid": nd.SSID, "ip": d.IP, "mac": d.MAC, "vendor": d.Vendor, "name": d.Name,

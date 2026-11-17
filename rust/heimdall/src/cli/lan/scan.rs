@@ -278,6 +278,9 @@ pub fn scan(dir: &str, wait: Duration, log: &dyn Fn(&str)) -> Result<Outcome, St
     }
     let count = seen.len();
     let n = st.network(&uuid, &ssid);
+    if let Err(e) = store::append_changes(&events_path, &ssid, &store::takeovers(n, &seen), now) {
+        log(&format!("changed devices could not be recorded: {e}"));
+    }
     let fresh = n.merge(seen, now);
     if let Err(e) = store::append_events(&events_path, &ssid, &fresh, now) {
         log(&format!("new devices could not be recorded: {e}"));

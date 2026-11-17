@@ -151,6 +151,68 @@ type NewDevice struct {
 	Time   time.Time `json:"time"`
 	SSID   string    `json:"ssid"`
 	Device Device    `json:"device"`
+	// Change is set on a known device's address taken over (Takeovers): "address_taken", with the hardware address and name
+	// that had the address in the last scan, and the other address the new hardware address answers for at the same time.
+	Change  string `json:"change,omitempty"`
+	WasMAC  string `json:"was_mac,omitempty"`
+	WasName string `json:"was_name,omitempty"`
+	OtherIP string `json:"other_ip,omitempty"`
+}
+
+// Takeovers finds known devices whose address another device now answers for: an address that a known device had in the
+// last scan answers with another hardware address, that hardware address answers for another address in the same scan, and
+// the device that had it is not seen anywhere. One device answering for two addresses at once while the owner of one is gone
+// is what ARP spoofing a device looks like (someone placing themselves between it and the rest of the network). A device that
+// simply got a new address, or a new device given a freed address, answers for one address only. Call before Merge.
+func Takeovers(n *Network, ssid string, seen []Device, now time.Time) []NewDevice {
+	if n.FirstScan.IsZero() {
+		return nil
+	}
+	ipsOf := map[string][]string{}
+	for _, d := range seen {
+		ipsOf[d.MAC] = append(ipsOf[d.MAC], d.IP)
+	}
+	prev := map[string]Device{}
+	for _, d := range n.Devices {
+		if d.LastSeen.Equal(n.LastScan) {
+			prev[d.IP] = d
+		}
+	}
+	var out []NewDevice
+	for _, d := range seen {
+		old, ok := prev[d.IP]
+		if !ok || old.MAC == d.MAC || len(ipsOf[d.MAC]) < 2 || len(ipsOf[old.MAC]) > 0 {
+			continue
+		}
+		other := ""
+		for _, ip := range ipsOf[d.MAC] {
+			if ip != d.IP {
+				other = ip
+				break
+			}
+		}
+		out = append(out, NewDevice{Time: now, SSID: ssid, Device: d, Change: "address_taken", WasMAC: old.MAC, WasName: old.Name, OtherIP: other})
+	}
+	return out
+}
+
+// appendChanges adds one line per known device's address taken over.
+func appendChanges(path string, changes []NewDevice) error {
+	if len(changes) == 0 {
+		return nil
+	}
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o640)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	for _, c := range changes {
+		b, _ := json.Marshal(c)
+		if _, err := f.Write(append(b, '\n')); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // appendEvents adds one line per new device.

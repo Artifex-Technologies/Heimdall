@@ -16,6 +16,14 @@ Otherwise it records only why it did not look (`status` in the file: `not_truste
 
 The first scan of a network learns what is already there without alerting. After that, every new hardware address is recorded in `events.jsonl` and becomes a `lan-watch` warning (event kind `new_lan_device`).
 
+**A device taking another's address.** When an address that a known device had in the last scan now answers with another
+hardware address, that hardware address answers for a second address in the same scan, and the device that had it is not seen
+anywhere, the scan records it (`change: "address_taken"` with `was_mac`, `was_name`, `other_ip` in the `events.jsonl` line)
+and heimdalld raises a critical `lan-watch` alert (event kind `lan_device_changed`). One device answering for two addresses
+while the owner of one is gone is what ARP spoofing a device looks like. A device that only moved to a new address, a new device
+given a freed address, and private (randomised) addresses that change are not reported this way (a new hardware address is the
+"new device" warning). Nothing is blocked. Names that two devices both claim are not compared (phones often share names).
+
 ## How it finds devices
 
 The scan only does what every phone and TV on a home network already does to find printers and speakers:

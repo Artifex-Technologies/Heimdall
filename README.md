@@ -138,7 +138,8 @@ order. `sudo heimdalld kernel-check` lists the holes per kernel.
   itself, or by hand with `sudo heimdalld immunity take-limbo SHA256`). Normal guest traffic (`net.flow`) is never an alert.
 - **Device list ([docs/DEVICES.md](docs/DEVICES.md)).** On a network you trust, `heimdalld lan scan` (every 5 minutes, its own
   sandboxed unit) lists the devices on it: what each one is, who made it, its name, first and last seen. A device new to the
-  network is a `lan-watch` warning. Settings shows the list under Wi-Fi & Network > Devices.
+  network is a `lan-watch` warning; a known device's address answered by another device (ARP spoofing a device) is critical.
+  Settings shows the list under Wi-Fi & Network > Devices.
 - **Wi-Fi checks ([docs/WIFI_HEALTH.md](docs/WIFI_HEALTH.md)).** `heimdalld wifi-health` measures the connection for about ten
   seconds and names the likely cause of slow Wi-Fi: weak signal, crowded channel, other devices, the router, or the internet
   provider. `--speed` adds a download test. It changes nothing, and any user may run it.

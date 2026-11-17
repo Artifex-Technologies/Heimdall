@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -273,6 +274,40 @@ func TestATrustedNetworkThatIsNotHomeIsNotScanned(t *testing.T) {
 		st, _ := Load(filepath.Join(dir, "devices.json"))
 		if st.Status != c.want || len(st.Networks) != 0 {
 			t.Errorf("%s: stored %+v", c.file, st)
+		}
+	}
+}
+
+// TestTakeovers: a known device's address answered by a hardware address that answers for another address at the same time,
+// while the device that had it is gone, is reported; a device that only moved, a new device on a freed address, and the first
+// scan are not. The Rust port runs the same table (rust/heimdall/src/cli/lan/store.rs, takeovers).
+func TestTakeovers(t *testing.T) {
+	t0 := time.Date(2026, 11, 16, 10, 0, 0, 0, time.UTC)
+	t1 := t0.Add(5 * time.Minute)
+	tv := Device{MAC: "02:00:00:00:00:30", IP: "192.0.2.30", Name: "TV"}
+	pc := Device{MAC: "02:00:00:00:00:66", IP: "192.0.2.66"}
+	known := func() *Network {
+		n := &Network{UUID: "u"}
+		n.Merge([]Device{tv, pc}, t0)
+		return n
+	}
+	for _, c := range []struct {
+		name string
+		n    *Network
+		seen []Device
+		want string
+	}{
+		{"the PC answers for the TV's address too", known(), []Device{{MAC: pc.MAC, IP: tv.IP}, pc}, "192.0.2.30 02:00:00:00:00:66 02:00:00:00:00:30 TV 192.0.2.66"},
+		{"the TV still answers elsewhere: it moved", known(), []Device{{MAC: pc.MAC, IP: tv.IP}, pc, {MAC: tv.MAC, IP: "192.0.2.31"}}, ""},
+		{"a new device on the TV's address", known(), []Device{{MAC: "02:00:00:00:00:77", IP: tv.IP}, pc}, ""},
+		{"the first scan", &Network{UUID: "u"}, []Device{{MAC: pc.MAC, IP: tv.IP}, pc}, ""},
+	} {
+		var got []string
+		for _, x := range Takeovers(c.n, "Home", c.seen, t1) {
+			got = append(got, strings.Join([]string{x.Device.IP, x.Device.MAC, x.WasMAC, x.WasName, x.OtherIP}, " "))
+		}
+		if strings.Join(got, "|") != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
 		}
 	}
 }

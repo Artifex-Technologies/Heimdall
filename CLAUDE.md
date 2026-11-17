@@ -270,6 +270,14 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-11-16 (5) — The device list: a device taking another's address
+- `heimdalld lan scan` (Go `lan.Takeovers`, Rust `store::takeovers`) records a known device's address answered by a hardware
+  address that also answers for another address while the old one is gone: an `events.jsonl` line with the new optional fields
+  `change` ("address_taken"), `was_mac`, `was_name`, `other_ip`; heimdalld makes it `lan-watch` critical, event kind
+  `lan_device_changed` (fields `ssid ip mac vendor name private_mac change was_mac was_name other_ip`). `docs/DEVICES.md`.
+- **For Yggdrasil Settings:** nothing needed (the summary stands alone); `/v1/lan/devices` is unchanged.
+— Signed: Heimdall / Claude Opus 5.5
+
 ### 2026-11-16 (4) — The router's fingerprint, judged by how many signals changed and by the network's kind
 - `rogue_router` events gain `judged` (info|warning|critical, the severity: one remembered signal changed at the start of a
   connection is info, two or more, or an unknown router mid-connection, or the router's hardware address changing mid-connection

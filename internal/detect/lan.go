@@ -61,6 +61,15 @@ func (d *LANDetector) Inspect(e Event) []Finding {
 		return []Finding{{DetectorID: d.ID(), Severity: sev, Event: e, Summary: fmt.Sprintf(
 			"on %s, %s (confidence %s): another device may be posing as the router to see or change your traffic (man in the middle). Nothing was blocked. %s",
 			where, f["what"], f["confidence"], advice)}}
+	case "lan_device_changed":
+		// a known device's address answered by another device that also answers for its own (internal/lan.Takeovers)
+		was := f["was_mac"]
+		if f["was_name"] != "" {
+			was = f["was_name"] + " (" + f["was_mac"] + ")"
+		}
+		return []Finding{{DetectorID: d.ID(), Severity: SeverityCritical, Event: e, Summary: fmt.Sprintf(
+			"on %q, the address %s of %s is now answered by hardware address %s, which also answers for %s: one device answering for another is how someone gets between the devices of a network (ARP spoofing). Nothing was blocked. Look at the devices in Settings > Wi-Fi & Network > Devices; if you do not know %s, restart the router and change the Wi-Fi password",
+			f["ssid"], f["ip"], was, f["mac"], f["other_ip"], f["mac"])}}
 	case "new_lan_device":
 		what := f["name"]
 		if what == "" {

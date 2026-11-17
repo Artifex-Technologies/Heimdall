@@ -463,6 +463,14 @@ impl Detector for LanDetector {
                     "on {place}, {} (confidence {}): another device may be posing as the router to see or change your traffic (man in the middle). Nothing was blocked. {advice}",
                     f("what"), f("confidence")), e)
             }
+            "lan_device_changed" => {
+                // a known device's address answered by another device that also answers for its own (lan::store::takeovers)
+                let was =
+                    if f("was_name").is_empty() { f("was_mac").to_string() } else { format!("{} ({})", f("was_name"), f("was_mac")) };
+                one(id, Severity::Critical, format!(
+                    "on {}, the address {} of {was} is now answered by hardware address {}, which also answers for {}: one device answering for another is how someone gets between the devices of a network (ARP spoofing). Nothing was blocked. Look at the devices in Settings > Wi-Fi & Network > Devices; if you do not know {}, restart the router and change the Wi-Fi password",
+                    quote(f("ssid")), f("ip"), f("mac"), f("other_ip"), f("mac")), e)
+            }
             "new_lan_device" => {
                 let what = if f("name").is_empty() { "a device" } else { f("name") };
                 let mut about = Vec::new();

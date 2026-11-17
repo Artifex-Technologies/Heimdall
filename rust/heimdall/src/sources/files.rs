@@ -136,13 +136,46 @@ struct NewDevice {
     time: Time,
     ssid: String,
     device: Device,
+    change: String,
+    was_mac: String,
+    was_name: String,
+    other_ip: String,
 }
-crate::go_struct!(NewDevice { time: "time", ssid: "ssid", device: "device" });
+crate::go_struct!(NewDevice {
+    time: "time",
+    ssid: "ssid",
+    device: "device",
+    change: "change",
+    was_mac: "was_mac",
+    was_name: "was_name",
+    other_ip: "other_ip"
+});
 
 /// One line of the trusted network's events.jsonl (heimdalld lan scan) as an event.
 pub fn lan_line(line: &[u8]) -> Option<Event> {
     let nd = gojson::unmarshal(line, NewDevice::default()).ok().filter(|n| !n.device.mac.is_empty())?;
     let d = nd.device;
+    if nd.change == "address_taken" {
+        return Some(Event {
+            source: "host-lan".into(),
+            session_id: String::new(),
+            time: nd.time,
+            kind: "lan_device_changed".into(),
+            text: format!("a known device's address on {} is answered by another device: {}", nd.ssid, d.ip),
+            fields: Fields::from([
+                ("ssid".to_string(), nd.ssid),
+                ("ip".to_string(), d.ip),
+                ("mac".to_string(), d.mac),
+                ("vendor".to_string(), d.vendor),
+                ("name".to_string(), d.name),
+                ("private_mac".to_string(), d.private_mac.to_string()),
+                ("change".to_string(), nd.change),
+                ("was_mac".to_string(), nd.was_mac),
+                ("was_name".to_string(), nd.was_name),
+                ("other_ip".to_string(), nd.other_ip),
+            ]),
+        });
+    }
     Some(Event {
         source: "host-lan".into(),
         session_id: String::new(),
@@ -608,6 +641,28 @@ impl Source for RaSource {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The line Go's lan.Takeovers writes (internal/sources/lansource, TestATakenAddressIsCritical) is the same event here.
+    #[test]
+    fn a_taken_address_line() {
+        let line = br#"{"time":"2026-11-16T10:00:00Z","ssid":"Home","device":{"mac":"02:00:00:00:00:66","ip":"192.0.2.30","kind":"","first_seen":"0001-01-01T00:00:00Z","last_seen":"0001-01-01T00:00:00Z"},"change":"address_taken","was_mac":"02:00:00:00:00:30","was_name":"TV","other_ip":"192.0.2.66"}"#;
+        let e = lan_line(line).unwrap();
+        assert_eq!(e.kind, "lan_device_changed");
+        assert_eq!((e.f("was_name"), e.f("was_mac"), e.f("other_ip"), e.f("ip")), ("TV", "02:00:00:00:00:30", "192.0.2.66", "192.0.2.30"));
+        let store = crate::cli::lan::store::Takeover {
+            device: crate::cli::lan::store::devices_from_json(br#"[{"mac":"02:00:00:00:00:66","ip":"192.0.2.30"}]"#)[0].clone(),
+            was_mac: "02:00:00:00:00:30".into(),
+            was_name: "TV".into(),
+            other_ip: "192.0.2.66".into(),
+        };
+        let dir = std::env::temp_dir().join(format!("heimdall-takeover-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let p = dir.join("events.jsonl").to_string_lossy().into_owned();
+        crate::cli::lan::store::append_changes(&p, "Home", &[store], crate::gotime::Time::parse_rfc3339("2026-11-16T10:00:00Z").unwrap())
+            .unwrap();
+        assert_eq!(std::fs::read(&p).unwrap(), [&line[..], b"\n"].concat());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn lines_read_like_go() {

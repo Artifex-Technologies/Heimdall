@@ -361,6 +361,8 @@ func TestRustFixture(t *testing.T) {
 		Now     time.Time       `json:"now"`
 		After   string          `json:"after"`
 		Fresh   string          `json:"fresh"`
+		// Takeovers before the merge, one "ip mac was_mac was_name other_ip" per change, joined by "|"
+		Takeovers string `json:"takeovers"`
 	}
 	var merges []pMerge
 	t0 := time.Date(2026, 11, 7, 10, 0, 0, 0, time.UTC)
@@ -384,10 +386,14 @@ func TestRustFixture(t *testing.T) {
 				seen = append(seen, d)
 			}
 			now := t0.Add(time.Duration(i*10+step) * time.Minute)
+			var tk []string
+			for _, x := range Takeovers(&n, "Home", seen, now) {
+				tk = append(tk, strings.Join([]string{x.Device.IP, x.Device.MAC, x.WasMAC, x.WasName, x.OtherIP}, " "))
+			}
 			fresh := n.Merge(seen, now)
 			after, _ := json.MarshalIndent(n, "", " ")
 			fr, _ := json.Marshal(fresh)
-			merges = append(merges, pMerge{before, seen, now, string(after), string(fr)})
+			merges = append(merges, pMerge{before, seen, now, string(after), string(fr), strings.Join(tk, "|")})
 		}
 	}
 	out["merge"] = merges

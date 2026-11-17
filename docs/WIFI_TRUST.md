@@ -313,8 +313,8 @@ answer that points at this computer itself (127.0.0.0/8, 0.0.0.0/8) is "bad" wit
 - More signals in the router's fingerprint: the DHCP option set (NetworkManager's dispatcher does not pass it), the router's
   admin certificate or SSH key if it already answers on the network (one connection, no login), the RA lifetimes.
 - Heimdall suggesting a kind (a made-up router address that changes between sessions suggests a phone hotspot).
-- A known device on a home network answering with another hardware address, name or maker (the device list's devices
-  changing identity).
+- A known device on a home network announcing another device's name (the device list now reports a device taking another's
+  address: `docs/DEVICES.md`).
 - Enterprise networks with a pinned certificate authority.
 - Encrypted DNS.
 - The status `not_home` in Settings' device list.
