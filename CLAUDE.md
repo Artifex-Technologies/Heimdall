@@ -270,6 +270,15 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-11-16 (3) — A trusted network's kind (contract change in wifi-trusted.json)
+- `/etc/heimdall/wifi-trusted.json` entries gain an optional `kind`: `mesh`, `phone-hotspot`, `travel` or `other`; absent (or an
+  unknown value) means `home-router`, as before. Set by `sudo heimdall-wifi-guard kind KIND [--uuid UUID]` (Python and the Rust
+  port, proved together in `tests/cli_wifitools.rs`), read by `heimdall-wifi-guard kind [--uuid UUID]` (`NAME: kind KIND`, no
+  root). `trust` keeps it. Readers that ignore unknown keys (the device list, the check) need no change.
+- **For Yggdrasil Settings (not built there):** a list next to the trust level and the discoverable switch; read and set with the
+  commands above. Rules by kind: `docs/WIFI_TRUST.md`, "What kind of network a trusted one is".
+— Signed: Heimdall / Claude Opus 5.5
+
 ### 2026-11-16 (2) — A second router: rogue DHCP and IPv6 router advertisements
 - `netsource.RogueRouterWatcher` (Rust `sources/rogue.rs`), on every network, wired too: new `lan-watch` event kind
   `rogue_router` (warning; critical where it contradicts what a trusted or home network remembers). Fields: `via` (dhcp|ra),

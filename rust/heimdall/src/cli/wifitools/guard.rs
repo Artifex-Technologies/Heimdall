@@ -73,6 +73,8 @@ per device an hour: heimdalld reports it. The firewall (ufw) itself is never cha
   heimdall-wifi-guard trust --uuid UUID [--home]    the same, only if UUID is the connection that is up now (root)
   heimdall-wifi-guard untrust NAME|UUID         back to untrusted; the profile goes back to a private address and no name (root)
   heimdall-wifi-guard discoverable [on|off] [--uuid UUID]   may this computer announce itself there? (on/off: root)
+  heimdall-wifi-guard kind [KIND] [--uuid UUID]  what kind of trusted network it is: home-router, mesh, phone-hotspot,
+                                                travel, other (setting it: root)
   heimdall-wifi-guard vpn-import FILE.conf      set up the VPN from a WireGuard file (from your Proton VPN account) (root)
   heimdall-wifi-guard vpn-remove                remove it (root)
   heimdall-wifi-guard sign-in                   on a network with a sign-in page: open it for 5 minutes, then the VPN (root)
@@ -431,6 +433,20 @@ fn exposure(p: &Dict) -> String {
         format!("{seen} and how much it sends; the VPN hides where it goes")
     } else {
         format!("{seen}, the names of the sites it visits (DNS is not encrypted) and how much it sends; a VPN would hide the last two")
+    }
+}
+
+/// The kinds of trusted network the owner may set (`kind`); none set is a home router.
+pub const KINDS: [&str; 5] = ["home-router", "mesh", "phone-hotspot", "travel", "other"];
+
+/// What kind of network a trusted one is, as the owner set it ("kind" in its entry); none set is a home router.
+pub fn kind_of(entry: Option<&Val>) -> &'static str {
+    match entry {
+        Some(Val::Dict(e)) => match e.get("kind") {
+            Some(Val::Str(k)) => KINDS.iter().find(|x| **x == k.as_str()).copied().unwrap_or("home-router"),
+            _ => "home-router",
+        },
+        _ => "home-router",
     }
 }
 
@@ -1070,6 +1086,14 @@ impl Guard {
         if disc {
             e.set("discoverable", Val::Bool(true));
         }
+        // the owner's choice of kind, kept
+        if let Some(Val::Dict(old)) = t.get(&uuid) {
+            if let Some(Val::Str(k)) = old.get("kind") {
+                if KINDS[1..].contains(&k.as_str()) {
+                    e.set("kind", py::s(k));
+                }
+            }
+        }
         t.set(&uuid, Val::Dict(e));
         self.save(&self.trusted, &t, 0o644)?;
         let mut pins = self.load(&self.keys)?;
@@ -1192,6 +1216,67 @@ impl Guard {
             let vpn = if self.vpn()?.truthy() { " and the VPN" } else { "" };
             println!("{ssid} is untrusted now: the device list and discovery are off here{stays}. Reconnect (nmcli connection up {now}) for the rest: its own hardware address, no computer name sent{vpn}.");
         }
+        Ok(())
+    }
+
+    /// `kind [KIND] [--uuid UUID]`: what kind of network a trusted one is, the owner's choice (heimdalld judges a different router
+    /// by it). Stored as "kind" in the network's entry; home-router (the default) removes it. Without KIND it only says it.
+    fn kind(&self, args: &[String]) -> PyResult<()> {
+        let (mut want, mut uuid): (Option<&str>, Option<String>) = (None, None);
+        let mut i = 0;
+        while i < args.len() {
+            if args[i] == "--uuid" {
+                uuid = Some(args.get(i + 1).cloned().unwrap_or_default());
+                i += 2;
+                continue;
+            }
+            let Some(k) = KINDS.iter().find(|k| **k == args[i]).filter(|_| want.is_none()) else {
+                return Err(exit(format!(
+                    "kind: unknown word {} (kind [{}] [--uuid UUID]): nothing changed",
+                    py::repr_str(&args[i]),
+                    KINDS.join("|")
+                )));
+            };
+            want = Some(k);
+            i += 1;
+        }
+        if let Some(u) = &uuid {
+            if !is_uuid(u) {
+                return Err(exit(format!("kind: {} is not a connection UUID: nothing changed", py::repr_str(u))));
+            }
+        }
+        if want.is_some() {
+            self.root()?;
+        }
+        let uuid = match uuid {
+            Some(u) => u,
+            None => self.active_wifi()?.unwrap_or_default().1,
+        };
+        if uuid.is_empty() {
+            return Err(exit("not connected to Wi-Fi: name the network with --uuid UUID"));
+        }
+        let mut t = self.load(&self.trusted)?;
+        let e = t.get(&uuid).cloned();
+        if level_of(e.as_ref(), None, None, None) == "untrusted" {
+            return Err(exit(format!("kind: {uuid} is not a trusted network (heimdall-wifi-guard trust first): nothing changed")));
+        }
+        let Some(Val::Dict(mut d)) = e else { return Ok(()) };
+        let ssid = match d.get("ssid") {
+            Some(Val::Str(s)) => s.clone(),
+            _ => uuid.clone(),
+        };
+        let Some(want) = want else {
+            println!("{ssid}: kind {}", kind_of(Some(&Val::Dict(d))));
+            return Ok(());
+        };
+        if want == "home-router" {
+            d.pop("kind");
+        } else {
+            d.set("kind", py::s(want));
+        }
+        t.set(&uuid, Val::Dict(d));
+        self.save(&self.trusted, &t, 0o644)?;
+        println!("{ssid}: kind {want}. Heimdall judges a different router on it by this.");
         Ok(())
     }
 
@@ -1579,6 +1664,7 @@ fn dispatch(g: &Guard, a: &[String]) -> PyResult<i32> {
         "trust" => g.trust(&a[1..])?,
         "untrust" if a.len() > 1 => g.untrust(&a[1])?,
         "discoverable" => g.discoverable(&a[1..])?,
+        "kind" => g.kind(&a[1..])?,
         "vpn-import" if a.len() > 1 => g.vpn_import(&a[1])?,
         "vpn-remove" => g.vpn_remove()?,
         "sign-in" => g.sign_in()?,

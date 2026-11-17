@@ -150,6 +150,29 @@ Never a full disconnect. The training gate comes first: per network an observe-o
 fires on a network known to be clean (the `signals`, `confidence` and `before`/`after` fields above are recorded for this), and
 no action is switched on until I approve a threshold from those numbers.
 
+## What kind of network a trusted one is
+
+A trusted or home network can be given a kind, my choice for it:
+
+```
+heimdall-wifi-guard kind [--uuid UUID]                 says it (no root needed)
+sudo heimdall-wifi-guard kind KIND [--uuid UUID]       sets it: home-router, mesh, phone-hotspot, travel, other
+```
+
+It is stored as `"kind"` in the network's entry in `/etc/heimdall/wifi-trusted.json`; no `kind` (or `home-router`, which removes
+it) means a home router, as before. `trust` and `trust --home` keep it; `untrust` removes the entry and the kind with it. A
+network that is not trusted has no kind (`kind` refuses it). heimdalld judges a different router on the network by it:
+- **home router:** its hardware address is the anchor;
+- **phone hotspot:** a different router address after the hotspot restarts (a new connection) is expected. The anchors are the
+  WPA2/WPA3-Personal handshake (a copy without the password cannot complete it), and the addresses and DNS servers it hands out;
+- **mesh:** several router addresses of the same mesh are normal; the set learned is the anchor;
+- **travel, other:** judged like a home router.
+
+On every kind, the router's address changing during a connection, or two addresses answering as the router at once, stays a sign
+of someone in the middle. Heimdall may suggest a kind but never sets it. **For Settings:** a list next to the trust level and the
+discoverable switch on a Wi-Fi network's page, read with `heimdall-wifi-guard kind --uuid UUID` (`NAME: kind KIND`) and set with
+`pkexec heimdall-wifi-guard kind KIND --uuid UUID` or a unit like the discoverable ones (not shipped yet).
+
 ## Discoverable: announcing on a network, whatever its level
 
 Not announcing (no Avahi, discovery traffic held back) is the default on every network but home. A network can be made
@@ -281,13 +304,6 @@ answer that points at this computer itself (127.0.0.0/8, 0.0.0.0/8) is "bad" wit
 - A stronger router fingerprint per trusted network (the DHCP server and its options, router announcements, DNS servers, the
   router's hardware address, its admin certificate or SSH key if it already answers), judged by how many changed at once: one
   is "changed, maybe a firmware update", several "a different device may be posing as your router".
-- What kind of network a trusted one is, set by me: a new optional `kind` in its wifi-trusted.json entry (`home-router`,
-  `mesh`, `phone-hotspot`, `travel`, `other`; absent means home router, as today), set with
-  `sudo heimdall-wifi-guard kind KIND --uuid UUID` and later a list next to the trust level in Settings. Heimdall may suggest
-  one (a made-up router address that changes between sessions suggests a phone hotspot) but never sets it. A phone hotspot's
-  new router address after it restarts is expected; a mesh may have several router addresses (the set learned is the anchor);
-  a home router's address stays the anchor. On every kind, the router's address changing during a connection, or two
-  addresses answering as the router at once, stays a sign of someone in the middle.
 - A known device on a home network answering with another hardware address, name or maker (the device list's devices
   changing identity).
 - Enterprise networks with a pinned certificate authority.

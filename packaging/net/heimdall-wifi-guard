@@ -28,6 +28,8 @@ per device an hour: heimdalld reports it. The firewall (ufw) itself is never cha
   heimdall-wifi-guard trust --uuid UUID [--home]    the same, only if UUID is the connection that is up now (root)
   heimdall-wifi-guard untrust NAME|UUID         back to untrusted; the profile goes back to a private address and no name (root)
   heimdall-wifi-guard discoverable [on|off] [--uuid UUID]   may this computer announce itself there? (on/off: root)
+  heimdall-wifi-guard kind [KIND] [--uuid UUID]  what kind of trusted network it is: home-router, mesh, phone-hotspot,
+                                                travel, other (setting it: root)
   heimdall-wifi-guard vpn-import FILE.conf      set up the VPN from a WireGuard file (from your Proton VPN account) (root)
   heimdall-wifi-guard vpn-remove                remove it (root)
   heimdall-wifi-guard sign-in                   on a network with a sign-in page: open it for 5 minutes, then the VPN (root)
@@ -716,6 +718,8 @@ def cmd_trust(args):
     disc = isinstance(old, dict) and old.get("discoverable") is True  # the owner's choice, whatever the level
     if disc:
         t[uuid]["discoverable"] = True
+    if isinstance(old, dict) and old.get("kind") in KINDS[1:]:  # the owner's choice, kept
+        t[uuid]["kind"] = old["kind"]
     save(TRUSTED, t)
     pins = load(KEYS, {})
     pin = psk_pin(uuid)
@@ -861,6 +865,55 @@ def cmd_discoverable(args):
               "stays." % ssid)
     else:
         print("%s: not discoverable. This computer does not announce itself there." % ssid)
+
+
+KINDS = ("home-router", "mesh", "phone-hotspot", "travel", "other")
+
+
+def kind_of(entry):
+    """What kind of network a trusted one is, as the owner set it ("kind" in its entry); none set is a home router."""
+    k = entry.get("kind") if isinstance(entry, dict) else None
+    return k if k in KINDS else "home-router"
+
+
+def cmd_kind(args):
+    """kind [KIND] [--uuid UUID]: what kind of network a trusted one is, the owner's choice (heimdalld judges a different router
+    by it: a phone hotspot's new hardware address after it restarts is expected, a mesh has several, a home router one). Stored
+    as "kind" in the network's entry; home-router (the default) removes it. Without KIND it only says it (no root needed)."""
+    want, uuid, i = None, None, 0
+    while i < len(args):
+        if args[i] == "--uuid":
+            uuid = args[i + 1] if i + 1 < len(args) else ""
+            i += 2
+            continue
+        if args[i] not in KINDS or want is not None:
+            sys.exit("kind: unknown word %r (kind [%s] [--uuid UUID]): nothing changed" % (args[i], "|".join(KINDS)))
+        want = args[i]
+        i += 1
+    if uuid is not None and not re.fullmatch(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", uuid):
+        sys.exit("kind: %r is not a connection UUID: nothing changed" % uuid)
+    if want is not None:
+        root()
+    if uuid is None:
+        uuid = active_wifi()[1]
+    if not uuid:
+        sys.exit("not connected to Wi-Fi: name the network with --uuid UUID")
+    t = load(TRUSTED, {})
+    e = t.get(uuid)
+    if level_of(e) == "untrusted":
+        sys.exit("kind: %s is not a trusted network (heimdall-wifi-guard trust first): nothing changed" % uuid)
+    ssid = e.get("ssid") if isinstance(e.get("ssid"), str) else uuid
+    if want is None:
+        print("%s: kind %s" % (ssid, kind_of(e)))
+        return
+    e = dict(e)
+    if want == "home-router":
+        e.pop("kind", None)
+    else:
+        e["kind"] = want
+    t[uuid] = e
+    save(TRUSTED, t)
+    print("%s: kind %s. Heimdall judges a different router on it by this." % (ssid, want))
 
 
 def parse_wg(text):
@@ -1028,6 +1081,8 @@ def main(a):
         cmd_untrust(a[2])
     elif c == "discoverable":
         cmd_discoverable(a[2:])
+    elif c == "kind":
+        cmd_kind(a[2:])
     elif c == "vpn-import" and len(a) > 2:
         cmd_vpn_import(a[2])
     elif c == "vpn-remove":

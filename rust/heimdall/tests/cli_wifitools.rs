@@ -1055,6 +1055,26 @@ fn guard_trust_level_fixes_as_python() {
         let (py, _) = t.step(&["discoverable", "--uuid", odd], &o);
         assert_eq!(py.code, 1, "{odd:?}");
     }
+    // kind: the owner's choice per trusted network, kept by trust, removed by home-router
+    let mut t = guard_twin("kind", &|r| on_wifi(r, "cafe-uuid", ROUTER));
+    t.step(&["pre-up", "wlan0", "cafe-uuid"], &o);
+    t.step(&["up", "wlan0", "cafe-uuid"], &o);
+    let (py, _) = t.step(&["kind"], &o);
+    assert!(py.code == 1 && py.stderr.contains("is not a trusted network"), "{}", py.stderr);
+    t.step(&["trust"], &o);
+    t.step(&["kind"], &Opts::user());
+    t.step(&["kind", "phone-hotspot"], &Opts::user()); // root only
+    let (py, _) = t.step(&["kind", "phone-hotspot"], &o);
+    assert!(py.stdout.contains("Cafe: kind phone-hotspot"), "{}", py.stdout);
+    t.step(&["trust"], &o);
+    assert!(t.rs.read_str("/etc/heimdall/wifi-trusted.json").contains("\"kind\": \"phone-hotspot\""));
+    t.step(&["kind"], &Opts::user());
+    t.step(&["kind", "home-router"], &o);
+    assert!(!t.rs.read_str("/etc/heimdall/wifi-trusted.json").contains("\"kind\""));
+    for args in [&["kind", "boat"][..], &["kind", "mesh", "other"], &["kind", "--uuid"], &["kind", "--uuid", "x"]] {
+        let (py, _) = t.step(args, &o);
+        assert_eq!(py.code, 1, "{args:?}");
+    }
     // untrust on the network connected now: closed up at once
     let mut t = guard_twin("untrust-now", &|r| {
         on_wifi(r, "0e3f5a1c-2222-4333-8444-955566667777", ROUTER);
