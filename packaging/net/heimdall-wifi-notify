@@ -24,7 +24,8 @@ def load(path):
 
 
 def guard(seen):
-    """The Wi-Fi guard's events: the VPN came on, or the Wi-Fi was dropped because the VPN could not protect it."""
+    """The Wi-Fi guard's events: the VPN came on, or the Wi-Fi was dropped because the VPN could not protect it; on a wired
+    network, that it uses a hardware address of its own from the next connection on."""
     g = load(GUARD)
     if g is None:
         return
@@ -38,6 +39,8 @@ def guard(seen):
         subprocess.run(["notify-send", "-a", "Heimdall", "-u", "critical", "-i", "network-wireless-disconnected", "--", "Disconnected from " + ssid, msg], timeout=10)
     elif ev in ("vpn-up", "no-vpn", "router-changed"):
         subprocess.run(["notify-send", "-a", "Heimdall", "-u", "normal", "-i", "network-vpn", "--", "Wi-Fi: " + ssid, msg], timeout=10)
+    elif ev == "wired":
+        subprocess.run(["notify-send", "-a", "Heimdall", "-u", "normal", "-i", "network-wired", "--", "Wired: " + ssid, msg], timeout=10)
 
 
 def main():

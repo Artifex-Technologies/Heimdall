@@ -34,6 +34,12 @@ pub const LOCAL6: &str = "fc00::/7, fe80::/10";
 pub const PENDING_FOR: i64 = 120;
 /// The locks a trusted network may have: a password every device must prove it knows (WPA2-Personal, WPA3-Personal).
 const TRUSTABLE: [&str; 2] = ["wpa-psk", "sae"];
+/// NetworkManager's names for a profile's hardware: Wi-Fi and wired (Ethernet).
+const WIFI: &str = "802-11-wireless";
+const WIRED: &str = "802-3-ethernet";
+/// IPv6 privacy on every network but home: temporary addresses for the connections this computer makes (RFC 8981), and an
+/// interface ID that is not made from the hardware address (stable-privacy, RFC 7217: one of its own on each network).
+const PRIVATE_IPV6: [&str; 4] = ["ipv6.ip6-privacy", "2", "ipv6.addr-gen-mode", "stable-privacy"];
 /// What the guard checks is in force on a network, and how status names it.
 const PROTECTIONS: [(&str, &str); 5] = [
     ("firewall", "the firewall drops connections in"),
@@ -65,10 +71,15 @@ its discovery traffic on Wi-Fi (mDNS, LLMNR, SSDP, NetBIOS, WS-Discovery, KDE Co
 the profile stops sending the computer's name and uses a hardware address of its own for the network. The same table logs (does
 not allow) each device on the network itself that starts a connection, sends a packet or pings this computer over Wi-Fi, once
 per device an hour: heimdalld reports it. The firewall (ufw) itself is never changed.
+Wired (Ethernet) networks are untrusted too, unless made home: their profile gets the same private settings (a made-up hardware
+address, no computer name, DHCP identifiers from that address, IPv6 privacy addresses). Nothing else changes on them (no
+lockdown, quiet table or VPN). A home wired network is bound to its router's hardware address, since a wired profile joins
+whatever network its cable is plugged into; one whose router keeps an address for this computer needs --real-address.
 
   heimdall-wifi-guard status                    each network's level, the VPN, what is in force now
   heimdall-wifi-guard trust                     trust the Wi-Fi network you are on now: quiet, every protection stays (root)
-  heimdall-wifi-guard trust --home              make it your home network: the device list, discovery, no VPN (root)
+  heimdall-wifi-guard trust --home              make it your home network: the device list, discovery, no VPN (root);
+                                                with no Wi-Fi connected (or --uuid naming it), the wired network you are on
   heimdall-wifi-guard trust --home --real-address   ... and send the real hardware address and computer name there (root)
   heimdall-wifi-guard trust --uuid UUID [--home]    the same, only if UUID is the connection that is up now (root)
   heimdall-wifi-guard untrust NAME|UUID         back to untrusted; the profile goes back to a private address and no name (root)
@@ -543,6 +554,31 @@ impl Guard {
         Ok(None)
     }
 
+    /// (iface, uuid, name) of the first connected wired (Ethernet) connection.
+    fn active_wired(&self) -> PyResult<Option<(String, String, String)>> {
+        let out = self.out(&["nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device"])?;
+        for line in py::splitlines(&out) {
+            let f = split_unescaped_colons(line);
+            if f.len() >= 4 && f[1] == "ethernet" && f[2] == "connected" {
+                let iface = f[0].clone();
+                let uuid = py::strip(&self.out(&["nmcli", "-g", "GENERAL.CON-UUID", "device", "show", &iface])?).to_string();
+                let name = self.profile_name(&uuid)?;
+                return Ok(Some((iface, uuid, name)));
+            }
+        }
+        Ok(None)
+    }
+
+    /// A profile's name as NetworkManager shows it ("Wired connection 1"): what a wired network is called here.
+    fn profile_name(&self, uuid: &str) -> PyResult<String> {
+        Ok(py::strip(&self.out(&["nmcli", "-g", "connection.id", "connection", "show", uuid])?).to_string())
+    }
+
+    /// A profile's kind: "802-3-ethernet" (wired), "802-11-wireless", "wireguard", "vpn", "bridge"...
+    fn connection_type(&self, uuid: &str) -> PyResult<String> {
+        Ok(py::strip(&self.out(&["nmcli", "-g", "connection.type", "connection", "show", uuid])?).to_string())
+    }
+
     fn json(&self, text: &str) -> PyResult<Val> {
         let t = if text.is_empty() { "[]" } else { text };
         match py::loads(t) {
@@ -661,9 +697,14 @@ impl Guard {
 
     // ---- quiet on every network but home
 
-    /// From the next connection on: no computer name in address requests, no LLMNR or mDNS answers by the resolver, and not the
-    /// real hardware address (one of its own for this network); an address chosen in Settings is kept.
-    fn private_profile(&self, uuid: &str) -> PyResult<()> {
+    /// From the next connection on: no computer name in address requests, DHCP identifiers made from the hardware address in
+    /// use (the client ID and DHCPv6's DUID, not the machine-wide ones), no LLMNR or mDNS answers by the resolver, and not the
+    /// real hardware address (one of its own for this network: locally administered, the mask that could keep a maker's prefix
+    /// cleared); an address chosen in Settings is kept. Then IPv6 privacy addresses in a call of their own (a profile
+    /// NetworkManager refuses them for keeps the rest). `wired`: an Ethernet profile.
+    fn private_profile(&self, uuid: &str, wired: bool) -> PyResult<()> {
+        let dev = if wired { WIRED } else { WIFI };
+        let (cloned, mask) = (format!("{dev}.cloned-mac-address"), format!("{dev}.generate-mac-address-mask"));
         let mut args = vec![
             "nmcli",
             "connection",
@@ -673,15 +714,22 @@ impl Guard {
             "no",
             "ipv6.dhcp-send-hostname",
             "no",
+            "ipv4.dhcp-client-id",
+            "mac",
+            "ipv6.dhcp-duid",
+            "ll",
             "connection.llmnr",
             "no",
             "connection.mdns",
             "no",
         ];
-        if mac_is_real(&self.out(&["nmcli", "-g", "802-11-wireless.cloned-mac-address", "connection", "show", uuid])?) {
-            args.extend(["802-11-wireless.cloned-mac-address", "stable"]);
+        if mac_is_real(&self.out(&["nmcli", "-g", &cloned, "connection", "show", uuid])?) {
+            args.extend([cloned.as_str(), "stable", mask.as_str(), ""]);
         }
-        self.sh(&args).map(|_| ())
+        self.sh(&args)?;
+        let mut v6 = vec!["nmcli", "connection", "modify", uuid];
+        v6.extend(PRIVATE_IPV6);
+        self.sh(&v6).map(|_| ())
     }
 
     /// Whether this version of the quiet table is in place, as asked: muting discovery, or letting it out (discoverable).
@@ -813,7 +861,7 @@ impl Guard {
             self.sh(&["systemctl", "start", "avahi-daemon.socket", "avahi-daemon.service"])?;
         }
         if on {
-            self.private_profile(uuid)?;
+            self.private_profile(uuid, false)?;
         }
         let kw: Vec<(&str, Val)> = state.0.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
         self.set_state(&kw)?;
@@ -865,8 +913,49 @@ impl Guard {
         Ok(())
     }
 
+    /// A wired connection came up: every wired network but home gets the private profile from the next connection on (nothing
+    /// else: the lockdown, the VPN, the quiet table and the state are Wi-Fi's). Home is bound to its router: on another router
+    /// the profile goes back to private, and if it used the real address there it says so. Told once a day, only while the real
+    /// address is in use.
+    fn wired_up(&self, iface: &str, uuid: &str) -> PyResult<()> {
+        let entry = self.entry(uuid)?;
+        let name = self.profile_name(uuid)?;
+        let home = matches!(&entry, Some(Val::Dict(d)) if matches!(d.get("wired"), Some(Val::Bool(true)))
+            && py::eq(d.get("level").unwrap_or(&Val::None), &py::s("home")));
+        if home {
+            let mac = self.router_mac(iface)?;
+            if mac.is_empty() || level_of(entry.as_ref(), None, None, Some(&mac)) == "home" {
+                return Ok(()); // home, or its router did not answer: left as it is
+            }
+            let real = !self.own_address(iface)?;
+            self.private_profile(uuid, true)?;
+            if real {
+                self.note(
+                    "wired",
+                    &name,
+                    "This is your home network's wired profile, but the router is a different one: this computer used its real hardware address and name here. From the next connection on it uses one of its own; back home: sudo heimdall-wifi-guard trust --home --real-address",
+                )?;
+            }
+            return Ok(());
+        }
+        let real = !self.own_address(iface)?;
+        self.private_profile(uuid, true)?;
+        if real {
+            self.note_daily(
+                "wired",
+                uuid,
+                &name,
+                "Untrusted wired network: from the next connection on, this computer uses a hardware address of its own here and sends no name. Your home network, where the router keeps an address for this computer? sudo heimdall-wifi-guard trust --home --real-address",
+            )?;
+        }
+        Ok(())
+    }
+
     fn up(&self, iface: &str, uuid: &str) -> PyResult<()> {
         if !self.is_wifi(iface) {
+            if self.connection_type(uuid)? == WIRED {
+                self.wired_up(iface, uuid)?;
+            }
             return Ok(());
         }
         let ssid = self.ssid_of(uuid)?;
@@ -1044,11 +1133,23 @@ impl Guard {
         if real && !home {
             return Err(exit("--real-address is for a home network: heimdall-wifi-guard trust --home --real-address"));
         }
-        let Some((iface, uuid, ssid)) = self.active_wifi()?.filter(|w| !w.1.is_empty()) else {
-            return Err(exit("not connected to Wi-Fi"));
-        };
+        let (mut iface, mut uuid, mut ssid) = self.active_wifi()?.unwrap_or_default();
+        let mut wired = false;
+        if uuid.is_empty() || want.as_ref().is_some_and(|w| *w != uuid) {
+            if let Some((wi, wu, wn)) = self.active_wired()? {
+                if !wu.is_empty() && (uuid.is_empty() || want.as_ref() == Some(&wu)) {
+                    (iface, uuid, ssid, wired) = (wi, wu, wn, true);
+                }
+            }
+        }
+        if uuid.is_empty() {
+            return Err(exit("not connected to Wi-Fi or a wired network"));
+        }
         if want.is_some_and(|w| w != uuid) {
-            return Err(exit("the Wi-Fi network connected now is not the one asked for: nothing changed"));
+            return Err(exit("the network connected now is not the one asked for: nothing changed"));
+        }
+        if wired {
+            return self.trust_wired(&iface, &uuid, &ssid, home, real);
         }
         let key = self.profile_key(&uuid)?;
         if !TRUSTABLE.contains(&key.as_str()) {
@@ -1158,18 +1259,89 @@ impl Guard {
         Ok(())
     }
 
+    /// trust on a wired network: only home means anything there (no notices to stop). Home is bound to the router's hardware
+    /// address (a wired profile joins whatever network its cable is plugged into); --real-address gives the profile the real
+    /// hardware address and name, for a router that keeps an address for this computer.
+    fn trust_wired(&self, iface: &str, uuid: &str, name: &str, home: bool, real: bool) -> PyResult<()> {
+        if !home {
+            return Err(exit(format!("{name} is a wired network: trust alone changes nothing there (there are no notices to stop). Your home network: sudo heimdall-wifi-guard trust --home, with --real-address if its router keeps an address for this computer")));
+        }
+        let mac = self.router_mac(iface)?;
+        if mac.is_empty() {
+            return Err(exit("the router's hardware address could not be read; try again in a moment"));
+        }
+        let mut t = self.load(&self.trusted)?;
+        let mut routers = match t.get(uuid) {
+            Some(Val::Dict(old)) => match old.get("routers") {
+                Some(Val::List(l)) => l.clone(),
+                _ => Vec::new(),
+            },
+            _ => Vec::new(),
+        };
+        if !Val::List(routers.clone()).contains(&py::s(&mac))? {
+            routers.push(py::s(&mac));
+        }
+        let mut e = Dict::new();
+        e.set("name", py::s(name));
+        e.set("wired", Val::Bool(true));
+        e.set("level", py::s("home"));
+        e.set("trusted_at", py::s(&py::utc_stamp()));
+        e.set("routers", Val::List(routers));
+        // the owner's choice of kind, kept
+        if let Some(Val::Dict(old)) = t.get(uuid) {
+            if let Some(Val::Str(k)) = old.get("kind") {
+                if KINDS[1..].contains(&k.as_str()) {
+                    e.set("kind", py::s(k));
+                }
+            }
+        }
+        t.set(uuid, Val::Dict(e));
+        self.save(&self.trusted, &t, 0o644)?;
+        if real {
+            let cloned = format!("{WIRED}.cloned-mac-address");
+            self.sh(&[
+                "nmcli",
+                "connection",
+                "modify",
+                uuid,
+                &cloned,
+                "permanent",
+                "ipv4.dhcp-send-hostname",
+                "yes",
+                "ipv6.dhcp-send-hostname",
+                "yes",
+            ])?;
+        }
+        println!("Home network (wired): {name} (router {mac}). The device list may look around here.");
+        if real {
+            println!("From the next connection on (nmcli connection up {uuid}), this computer uses its real hardware address and sends its name here. On another router (the same profile plugged in elsewhere) it goes back to one of its own.");
+        } else {
+            println!("This computer still uses a hardware address of its own here and sends no name. If the router keeps an address for this computer: sudo heimdall-wifi-guard trust --home --real-address");
+        }
+        Ok(())
+    }
+
     /// Back to untrusted, at once on the network connected now; whether a network is discoverable stays.
     fn untrust(&self, name: &str) -> PyResult<()> {
         self.root()?;
         let mut t = self.load(&self.trusted)?;
         let mut gone = Vec::new();
+        let is_wired = |e: &Val| matches!(e, Val::Dict(d) if matches!(d.get("wired"), Some(Val::Bool(true))));
         for (u, e) in &t.0 {
-            let by_name = matches!(e, Val::Dict(d) if py::eq(d.get("ssid").unwrap_or(&Val::None), &py::s(name)))
-                && level_of(Some(e), None, None, None) != "untrusted";
+            let named = |k: &str| matches!(e, Val::Dict(d) if py::eq(d.get(k).unwrap_or(&Val::None), &py::s(name)));
+            let by_name = level_of(Some(e), None, None, None) != "untrusted" && (named("ssid") || (is_wired(e) && named("name")));
             if u == name || by_name {
                 gone.push(u.clone());
             }
         }
+        let wired: Vec<String> = gone.iter().filter(|u| t.get(u).is_some_and(is_wired)).cloned().collect();
+        let names: Vec<String> = wired
+            .iter()
+            .map(|u| match t.get(u) {
+                Some(Val::Dict(d)) => py::str_of(d.get("name").unwrap_or(&Val::None)),
+                _ => String::new(),
+            })
+            .collect();
         let mut kept = Dict::new();
         for u in &gone {
             let e = t.pop(u);
@@ -1193,7 +1365,8 @@ impl Guard {
             self.save(&self.keys, &pins, 0o600)?;
         }
         for u in &gone {
-            self.private_profile(u)?; // undoes --real-address (and trust before the levels): a private address, no name
+            // undoes --real-address (and trust before the levels): a private address, no name
+            self.private_profile(u, wired.contains(u))?;
         }
         let (iface, now, ssid) = self.active_wifi()?.unwrap_or_default();
         let st = self.load(&self.state_path())?;
@@ -1211,6 +1384,9 @@ impl Guard {
             return Ok(());
         }
         println!("no longer trusted: {} network(s); from the next connection on they are untrusted", gone.len());
+        for (u, n) in wired.iter().zip(&names) {
+            println!("{n} (wired): from the next connection on (nmcli connection up {u}) it uses a hardware address of its own and sends no name.");
+        }
         if !now.is_empty() && gone.contains(&now) {
             let stays = if kept.contains_key(&now) { " (it stays discoverable, as you chose)" } else { "" };
             let vpn = if self.vpn()?.truthy() { " and the VPN" } else { "" };
@@ -1494,7 +1670,9 @@ impl Guard {
         for (_, e) in &t.0 {
             let Val::Dict(d) = e else { continue };
             let level = level_of(Some(e), None, None, None);
-            let mut line = format!("  {}: {level}", py::str_of(d.get("ssid").unwrap_or(&Val::None)));
+            let wired = matches!(d.get("wired"), Some(Val::Bool(true)));
+            let label = py::str_of(d.get(if wired { "name" } else { "ssid" }).unwrap_or(&Val::None));
+            let mut line = format!("  {label}: {level}{}", if wired { " (wired)" } else { "" });
             if matches!(d.get("discoverable"), Some(Val::Bool(true))) && level != "home" {
                 line += ", discoverable";
             }
@@ -1540,6 +1718,15 @@ impl Guard {
                 }
                 println!("still visible to the network: {}", exposure(p));
             }
+        }
+        if let Some((wi, wu, wn)) = self.active_wired()?.filter(|w| !w.1.is_empty()) {
+            let e = t.get(&wu);
+            let level = match e {
+                Some(Val::Dict(d)) if matches!(d.get("wired"), Some(Val::Bool(true))) => level_of(e, None, None, None),
+                _ => "untrusted",
+            };
+            let own = if self.own_address(&wi)? { "yes" } else { "no" };
+            println!("wired now: {wn}, {level}; a hardware address of its own here: {own}");
         }
         println!("devices reaching this computer: {}", self.inbound_watch()?);
         if unsafe { libc::geteuid() } == 0 {

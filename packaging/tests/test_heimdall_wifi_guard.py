@@ -39,6 +39,7 @@ class Guard(unittest.TestCase):
         self.ssid, self.key = "Cafe", "wpa-psk"
         self.wifi = ""  # nmcli device's answer: the connected Wi-Fi, if any
         self.avahi = "active"
+        self.ctype, self.name, self.link = "", "Wired connection 1", ""  # a profile's type and name; ip -j link show dev
         m = self
 
         def sh(argv, timeout=30, check=False, input=None):
@@ -62,8 +63,14 @@ class Guard(unittest.TestCase):
                 out = m.ssid
             elif argv[:3] == ["nmcli", "-g", "802-11-wireless-security.key-mgmt"]:
                 out = m.key + "\n"
-            elif argv[:3] == ["nmcli", "-g", "802-11-wireless.cloned-mac-address"]:
+            elif argv[:3] in (["nmcli", "-g", "802-11-wireless.cloned-mac-address"], ["nmcli", "-g", "802-3-ethernet.cloned-mac-address"]):
                 out = m.cloned + "\n"
+            elif argv[:3] == ["nmcli", "-g", "connection.type"]:
+                out = m.ctype + "\n"
+            elif argv[:3] == ["nmcli", "-g", "connection.id"]:
+                out = m.name + "\n"
+            elif argv[:4] == ["ip", "-j", "link", "show"]:
+                out = m.link
             elif argv[:4] == ["nmcli", "-s", "-g", "802-11-wireless-security.psk"]:
                 out = m.psk + "\n"
             elif argv[:2] == ["ss", "-tulnH"]:
@@ -627,6 +634,131 @@ class Guard(unittest.TestCase):
             self.m.quiet("cafe-uuid", True)
             self.assertNotIn("cloned-mac-address", modify()[0], f"a chosen address ({chosen}) is kept")
             self.assertIn("ipv4.dhcp-send-hostname no", modify()[0])
+
+    def test_the_private_profile_has_dhcp_identifiers_and_ipv6_privacy(self):
+        self.m.private_profile("cafe-uuid")
+        modify = [c for c in self.calls if c.startswith("nmcli connection modify cafe-uuid")]
+        self.assertEqual(len(modify), 2, self.calls)
+        self.assertIn("ipv4.dhcp-client-id mac ipv6.dhcp-duid ll", modify[0])
+        # the address NetworkManager makes up is locally administered; no mask may keep (or borrow) a maker's prefix
+        self.assertTrue(modify[0].endswith("802-11-wireless.cloned-mac-address stable 802-11-wireless.generate-mac-address-mask "), modify[0])
+        # IPv6 privacy in a call of its own: a profile NetworkManager refuses it for keeps the rest
+        self.assertEqual(modify[1], "nmcli connection modify cafe-uuid ipv6.ip6-privacy 2 ipv6.addr-gen-mode stable-privacy")
+
+    def wired(self):
+        """On a wired network: eth0 up with the profile wired-uuid ("Wired connection 1"), no Wi-Fi."""
+        self.ctype = "802-3-ethernet"
+        self.wifi = "eth0:ethernet:connected:Wired connection 1\nwlan0:wifi:disconnected:--\n"
+        os.remove(self.m.CONF)
+
+    def test_an_untrusted_wired_network_gets_the_private_profile_and_nothing_else(self):
+        self.wired()
+        self.m.pre_up("eth0", "wired-uuid")
+        self.m.up("eth0", "wired-uuid")
+        modify = [c for c in self.calls if c.startswith("nmcli connection modify wired-uuid")]
+        self.assertEqual(len(modify), 2, self.calls)
+        self.assertIn("ipv4.dhcp-send-hostname no ipv6.dhcp-send-hostname no ipv4.dhcp-client-id mac ipv6.dhcp-duid ll", modify[0])
+        self.assertIn("802-3-ethernet.cloned-mac-address stable 802-3-ethernet.generate-mac-address-mask ", modify[0])
+        self.assertNotIn("802-11-wireless", "\n".join(self.calls))
+        self.assertIn("ipv6.ip6-privacy 2", modify[1])
+        # Wi-Fi's own measures are not wired's: no lockdown, no quiet table, no Avahi, no state, no VPN
+        for absent in ("LOCK", "QUIET", "systemctl stop avahi-daemon.socket avahi-daemon.service", "nmcli connection up vpn-uuid"):
+            self.assertNotIn(absent, self.calls)
+        self.assertFalse(os.path.exists(os.path.join(self.m.RUN, "state.json")))
+        n = self.last_note()
+        self.assertEqual((n["event"], n["ssid"]), ("wired", "Wired connection 1"))
+        self.assertIn("trust --home --real-address", n["message"])
+        self.assertLessEqual(len(n["message"]), 300)  # what the notification shows
+        # once a day, and not at all once the address is its own
+        os.remove(os.path.join(self.m.RUN, "last.json"))
+        self.m.up("eth0", "wired-uuid")
+        self.assertFalse(os.path.exists(os.path.join(self.m.RUN, "last.json")))
+        os.remove(os.path.join(self.m.RUN, "notes.json"))
+        self.link = '[{"ifname": "eth0", "address": "02:00:00:00:00:07", "permaddr": "00:00:5e:00:53:07"}]'
+        self.m.up("eth0", "wired-uuid")
+        self.assertFalse(os.path.exists(os.path.join(self.m.RUN, "last.json")))
+        # a chosen address is kept, and other kinds of connection (a VPN, a bridge) are not touched
+        self.calls, self.cloned = [], "random"
+        self.m.up("eth0", "wired-uuid")
+        self.assertNotIn("cloned-mac-address", "\n".join(c for c in self.calls if "modify" in c))
+        for kind in ("wireguard", "bridge", ""):
+            self.calls, self.ctype = [], kind
+            self.m.up("wg-heimdall", "vpn-uuid")
+            self.assertFalse([c for c in self.calls if "modify" in c], kind)
+
+    def test_a_home_wired_network_is_bound_to_its_router(self):
+        self.wired()
+        self.trusted({"wired-uuid": {"name": "Wired connection 1", "wired": True, "level": "home", "routers": [self.mac]}})
+        self.m.up("eth0", "wired-uuid")
+        self.assertFalse([c for c in self.calls if "modify" in c], "home is left as it is")
+        self.mac = ""  # the router did not answer: left as it is
+        self.m.up("eth0", "wired-uuid")
+        self.assertFalse([c for c in self.calls if "modify" in c])
+        # the same profile plugged in elsewhere: private again, and told it used the real address there
+        self.mac = "00:00:5E:00:53:09"
+        self.m.up("eth0", "wired-uuid")
+        self.assertTrue(any("802-3-ethernet.cloned-mac-address stable" in c for c in self.calls), self.calls)
+        self.assertIn("router is a different one", self.last_note()["message"])
+        with open(self.m.TRUSTED) as f:
+            self.assertEqual(json.load(f)["wired-uuid"]["level"], "home", "the entry stays: back home it is home again")
+        # an entry that is not a wired one (a Wi-Fi entry, a hand-edited one) does not make a wired profile home
+        for e in ({"ssid": "Home", "routers": [self.mac]}, {"name": "x", "wired": 1, "level": "home", "routers": [self.mac]}):
+            self.trusted({"wired-uuid": e})
+            self.calls = []
+            self.m.up("eth0", "wired-uuid")
+            self.assertTrue(any("802-3-ethernet.cloned-mac-address stable" in c for c in self.calls), e)
+
+    def test_trust_on_a_wired_network(self):
+        self.wired()
+        with self.assertRaises(SystemExit) as e:
+            self.m.cmd_trust([])  # nothing to stop the notices of
+        self.assertIn("trust --home", str(e.exception))
+        self.assertFalse(os.path.exists(self.m.TRUSTED))
+        with self.assertRaises(SystemExit):
+            self.m.cmd_trust(["--home", "--uuid", "other-uuid"])
+        self.assertFalse(os.path.exists(self.m.TRUSTED))
+        self.m.cmd_trust(["--home", "--uuid", "phone-uuid"])  # the fake's connected device answers phone-uuid
+        with open(self.m.TRUSTED) as f:
+            e = json.load(f)["phone-uuid"]
+        self.assertEqual((e["name"], e["wired"], e["level"], e["routers"]), ("Wired connection 1", True, "home", [self.mac]))
+        self.assertNotIn("ssid", e)
+        self.assertNotIn("permanent", "\n".join(self.calls))
+        self.m.cmd_trust(["--home", "--real-address"])
+        self.assertIn("nmcli connection modify phone-uuid 802-3-ethernet.cloned-mac-address permanent ipv4.dhcp-send-hostname yes "
+                      "ipv6.dhcp-send-hostname yes", self.calls)
+        for absent in ("LOCK", "QUIET", "nft delete table"):  # Wi-Fi's measures are not touched
+            self.assertFalse([c for c in self.calls if c.startswith(absent)], absent)
+        self.m.mac, self.mac = None, ""
+        self.m.router_mac = lambda iface: ""
+        with self.assertRaises(SystemExit):
+            self.m.cmd_trust(["--home"])
+        # with Wi-Fi connected too, Wi-Fi comes first, as before; the wired one by its UUID
+        self.wifi = "wlan0:wifi:connected:Cafe\neth0:ethernet:connected:Wired connection 1\n"
+        with self.assertRaises(SystemExit):
+            self.m.cmd_trust(["--home"])  # Wi-Fi's router did not answer either
+        self.m.cmd_trust([])  # Cafe (wpa-psk): the Wi-Fi one is trusted
+        with open(self.m.TRUSTED) as f:
+            e = json.load(f)["phone-uuid"]
+        self.assertEqual((e["ssid"], e["level"]), ("Cafe", "trusted"))
+
+    def test_untrust_and_status_on_a_wired_network(self):
+        self.wired()
+        self.trusted({"wired-uuid": {"name": "Wired connection 1", "wired": True, "level": "home", "routers": [self.mac]},
+                      "home-uuid": {"ssid": "Example-Home", "level": "home", "routers": [self.mac]}})
+        said = []
+        self.m.print = lambda *a, **k: said.append(" ".join(str(x) for x in a))
+        self.m.cmd_status()
+        text = "\n".join(said)
+        self.assertIn("  Wired connection 1: home (wired), router " + self.mac, text)
+        self.assertIn("wired now: Wired connection 1, untrusted; a hardware address of its own here: no", text)  # phone-uuid
+        said.clear()
+        self.cloned = "permanent"
+        self.m.cmd_untrust("Wired connection 1")
+        with open(self.m.TRUSTED) as f:
+            self.assertEqual(list(json.load(f)), ["home-uuid"])
+        modify = [c for c in self.calls if c.startswith("nmcli connection modify wired-uuid")]
+        self.assertTrue(modify and "802-3-ethernet.cloned-mac-address stable" in modify[0], self.calls)
+        self.assertIn("Wired connection 1 (wired): from the next connection on", "\n".join(said))
 
     def test_no_vpn_means_quiet_but_not_locked(self):
         os.remove(self.m.CONF)

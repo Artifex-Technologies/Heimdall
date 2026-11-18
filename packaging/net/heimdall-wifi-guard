@@ -20,10 +20,15 @@ its discovery traffic on Wi-Fi (mDNS, LLMNR, SSDP, NetBIOS, WS-Discovery, KDE Co
 the profile stops sending the computer's name and uses a hardware address of its own for the network. The same table logs (does
 not allow) each device on the network itself that starts a connection, sends a packet or pings this computer over Wi-Fi, once
 per device an hour: heimdalld reports it. The firewall (ufw) itself is never changed.
+Wired (Ethernet) networks are untrusted too, unless made home: their profile gets the same private settings (a made-up hardware
+address, no computer name, DHCP identifiers from that address, IPv6 privacy addresses). Nothing else changes on them (no
+lockdown, quiet table or VPN). A home wired network is bound to its router's hardware address, since a wired profile joins
+whatever network its cable is plugged into; one whose router keeps an address for this computer needs --real-address.
 
   heimdall-wifi-guard status                    each network's level, the VPN, what is in force now
   heimdall-wifi-guard trust                     trust the Wi-Fi network you are on now: quiet, every protection stays (root)
-  heimdall-wifi-guard trust --home              make it your home network: the device list, discovery, no VPN (root)
+  heimdall-wifi-guard trust --home              make it your home network: the device list, discovery, no VPN (root);
+                                                with no Wi-Fi connected (or --uuid naming it), the wired network you are on
   heimdall-wifi-guard trust --home --real-address   ... and send the real hardware address and computer name there (root)
   heimdall-wifi-guard trust --uuid UUID [--home]    the same, only if UUID is the connection that is up now (root)
   heimdall-wifi-guard untrust NAME|UUID         back to untrusted; the profile goes back to a private address and no name (root)
@@ -82,6 +87,11 @@ UNTRUSTABLE = {
     "wpa-eap-suite-b-192": "it is an enterprise network (a sign-in per person), which cannot be trusted yet",
 }
 # what the guard checks is in force on a network, and how status names it
+# NetworkManager's names for a profile's hardware: Wi-Fi and wired (Ethernet)
+WIFI, WIRED = "802-11-wireless", "802-3-ethernet"
+# IPv6 privacy on every network but home: temporary addresses for the connections this computer makes (RFC 8981), and an interface
+# ID that is not made from the hardware address (stable-privacy, RFC 7217: one of its own on each network)
+PRIVATE_IPV6 = ["ipv6.ip6-privacy", "2", "ipv6.addr-gen-mode", "stable-privacy"]
 PROTECTIONS = [("firewall", "the firewall drops connections in"), ("not_announcing", "not announcing this computer"),
                ("own_address", "its own hardware address here"), ("no_name", "no computer name sent"), ("vpn", "the VPN")]
 
@@ -152,6 +162,28 @@ def active_wifi():
             ssid = sh(["nmcli", "-g", "802-11-wireless.ssid", "connection", "show", uuid]).stdout.strip()
             return iface, uuid, ssid
     return None, None, None
+
+
+def active_wired():
+    """(iface, uuid, name) of the first connected wired (Ethernet) connection, or Nones."""
+    out = sh(["nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device"]).stdout
+    for line in out.splitlines():
+        f = re.split(r"(?<!\\):", line)
+        if len(f) >= 4 and f[1] == "ethernet" and f[2] == "connected":
+            iface = f[0]
+            uuid = sh(["nmcli", "-g", "GENERAL.CON-UUID", "device", "show", iface]).stdout.strip()
+            return iface, uuid, profile_name(uuid)
+    return None, None, None
+
+
+def profile_name(uuid):
+    """A profile's name as NetworkManager shows it ("Wired connection 1"): what a wired network is called here."""
+    return sh(["nmcli", "-g", "connection.id", "connection", "show", uuid]).stdout.strip()
+
+
+def connection_type(uuid):
+    """A profile's kind: "802-3-ethernet" (wired), "802-11-wireless", "wireguard", "vpn", "bridge"..."""
+    return sh(["nmcli", "-g", "connection.type", "connection", "show", uuid]).stdout.strip()
 
 
 def router_mac(iface):
@@ -287,14 +319,21 @@ def mac_is_real(value):
     return value.strip() in ("", "permanent", "preserve", "--")
 
 
-def private_profile(uuid):
-    """From the next connection on: no computer name in address requests, no name questions answered by the resolver (LLMNR,
-    mDNS; they matter only if systemd-resolved is ever turned on), and not the real hardware address: one of its own for this
-    network ("stable"). An address chosen in Settings (a new random one each time, or one typed in) is kept as it is."""
-    args = ["ipv4.dhcp-send-hostname", "no", "ipv6.dhcp-send-hostname", "no", "connection.llmnr", "no", "connection.mdns", "no"]
-    if mac_is_real(sh(["nmcli", "-g", "802-11-wireless.cloned-mac-address", "connection", "show", uuid]).stdout):
-        args += ["802-11-wireless.cloned-mac-address", "stable"]
+def private_profile(uuid, wired=False):
+    """From the next connection on: no computer name in address requests, DHCP identifiers made from the hardware address in use
+    (the client ID, and DHCPv6's DUID, which NetworkManager otherwise derives from this computer's machine-id: the same on every
+    network), no name questions answered by the resolver (LLMNR, mDNS; they matter only if systemd-resolved is ever turned on),
+    and not the real hardware address: one of its own for this network ("stable": NetworkManager makes it a locally administered
+    address, the bit phones set, and the cleared mask means no maker's prefix is kept or borrowed). An address chosen in Settings
+    (a new random one each time, or one typed in) is kept as it is. Then IPv6 privacy addresses (PRIVATE_IPV6), in a call of its
+    own: a profile NetworkManager refuses them for (an IPv6 token needs eui64) keeps the rest. wired: an Ethernet profile."""
+    dev = WIRED if wired else WIFI
+    args = ["ipv4.dhcp-send-hostname", "no", "ipv6.dhcp-send-hostname", "no", "ipv4.dhcp-client-id", "mac", "ipv6.dhcp-duid", "ll",
+            "connection.llmnr", "no", "connection.mdns", "no"]
+    if mac_is_real(sh(["nmcli", "-g", dev + ".cloned-mac-address", "connection", "show", uuid]).stdout):
+        args += [dev + ".cloned-mac-address", "stable", dev + ".generate-mac-address-mask", ""]
     sh(["nmcli", "connection", "modify", uuid] + args)
+    sh(["nmcli", "connection", "modify", uuid] + PRIVATE_IPV6)
 
 
 def quiet_ruleset(discoverable=False):
@@ -584,8 +623,37 @@ def pre_up(iface, uuid):
         lock(vpn)  # before any traffic: only DHCP and the VPN may leave
 
 
+def wired_up(iface, uuid):
+    """A wired connection came up. Every wired network but home is untrusted: its profile gets the private settings from the next
+    connection on (NetworkManager's defaults in heimdall-wifi-privacy.conf already give a profile that sets none a hardware
+    address of its own from the first). Nothing else: the lockdown, the VPN, the quiet table and the state are Wi-Fi's. A wired
+    profile joins whatever network its cable is plugged into, so home is bound to its router: on another router it goes back to
+    private, and if it used the real address there it says so. Told once a day, only while the real address is in use."""
+    entry = load(TRUSTED, {}).get(uuid)
+    name = profile_name(uuid)
+    if isinstance(entry, dict) and entry.get("wired") is True and entry.get("level") == "home":
+        mac = router_mac(iface)
+        if not mac or level_of(entry, None, None, mac) == "home":
+            return  # home, or its router did not answer: left as it is
+        real = not own_address(iface)
+        private_profile(uuid, True)
+        if real:
+            note("wired", name, "This is your home network's wired profile, but the router is a different one: this computer used its "
+                 "real hardware address and name here. From the next connection on it uses one of its own; back home: "
+                 "sudo heimdall-wifi-guard trust --home --real-address")
+        return
+    real = not own_address(iface)
+    private_profile(uuid, True)
+    if real:
+        note_daily("wired", uuid, name, "Untrusted wired network: from the next connection on, this computer uses a hardware address of "
+                   "its own here and sends no name. Your home network, where the router keeps an address for this computer? "
+                   "sudo heimdall-wifi-guard trust --home --real-address")
+
+
 def up(iface, uuid):
     if not is_wifi(iface):
+        if connection_type(uuid) == WIRED:
+            wired_up(iface, uuid)
         return
     ssid = sh(["nmcli", "-g", "802-11-wireless.ssid", "connection", "show", uuid]).stdout.strip()
     key = profile_key(uuid)
@@ -694,10 +762,18 @@ def cmd_trust(args):
     if real and not home:
         sys.exit("--real-address is for a home network: heimdall-wifi-guard trust --home --real-address")
     iface, uuid, ssid = active_wifi()
+    wired = False
+    if not uuid or (want is not None and want != uuid):
+        w_iface, w_uuid, w_name = active_wired()
+        if w_uuid and (not uuid or want == w_uuid):
+            iface, uuid, ssid, wired = w_iface, w_uuid, w_name, True
     if not uuid:
-        sys.exit("not connected to Wi-Fi")
+        sys.exit("not connected to Wi-Fi or a wired network")
     if want is not None and want != uuid:
-        sys.exit("the Wi-Fi network connected now is not the one asked for: nothing changed")
+        sys.exit("the network connected now is not the one asked for: nothing changed")
+    if wired:
+        trust_wired(iface, uuid, ssid, home, real)
+        return
     key = profile_key(uuid)
     if key not in TRUSTABLE:
         sys.exit("%s cannot be trusted: %s" % (ssid, UNTRUSTABLE.get(key, "only networks with a password (WPA2/WPA3-Personal) can be")))
@@ -763,12 +839,48 @@ def cmd_trust(args):
         print("This computer still uses its own hardware address here and sends no name (--real-address changes that).")
 
 
+def trust_wired(iface, uuid, name, home, real):
+    """trust on a wired network: only home means anything there (a wired network has no notices to stop). Home is bound to the
+    router's hardware address (the device list must not sweep a stranger's network, and a wired profile joins whatever network
+    its cable is plugged into); --real-address gives the profile the real hardware address and name, for a router that keeps an
+    address for this computer."""
+    if not home:
+        sys.exit("%s is a wired network: trust alone changes nothing there (there are no notices to stop). Your home network: "
+                 "sudo heimdall-wifi-guard trust --home, with --real-address if its router keeps an address for this computer" % name)
+    mac = router_mac(iface)
+    if not mac:
+        sys.exit("the router's hardware address could not be read; try again in a moment")
+    t = load(TRUSTED, {})
+    old = t.get(uuid)
+    routers = old.get("routers") if isinstance(old, dict) else None
+    routers = list(routers) if isinstance(routers, list) else []
+    if mac not in routers:
+        routers.append(mac)
+    t[uuid] = {"name": name, "wired": True, "level": "home", "trusted_at": stamp(), "routers": routers}
+    if isinstance(old, dict) and old.get("kind") in KINDS[1:]:  # the owner's choice, kept
+        t[uuid]["kind"] = old["kind"]
+    save(TRUSTED, t)
+    if real:
+        sh(["nmcli", "connection", "modify", uuid, WIRED + ".cloned-mac-address", "permanent", "ipv4.dhcp-send-hostname", "yes",
+            "ipv6.dhcp-send-hostname", "yes"])
+    print("Home network (wired): %s (router %s). The device list may look around here." % (name, mac))
+    if real:
+        print("From the next connection on (nmcli connection up %s), this computer uses its real hardware address and sends its name "
+              "here. On another router (the same profile plugged in elsewhere) it goes back to one of its own." % uuid)
+    else:
+        print("This computer still uses a hardware address of its own here and sends no name. If the router keeps an address for "
+              "this computer: sudo heimdall-wifi-guard trust --home --real-address")
+
+
 def cmd_untrust(name):
     """Back to untrusted, at once on the network connected now (the quiet table, Avahi off; the VPN from the next connection).
     Whether a network is discoverable is the owner's separate choice and stays."""
     root()
     t = load(TRUSTED, {})
-    gone = [u for u, e in t.items() if name == u or (isinstance(e, dict) and e.get("ssid") == name and level_of(e) != "untrusted")]
+    gone = [u for u, e in t.items() if name == u or (isinstance(e, dict) and level_of(e) != "untrusted" and
+                                                     (e.get("ssid") == name or (e.get("wired") is True and e.get("name") == name)))]
+    wired = [u for u in gone if isinstance(t[u], dict) and t[u].get("wired") is True]
+    names = {u: t[u].get("name") for u in wired}
     kept = {}
     for u in gone:
         e = t.pop(u)
@@ -781,7 +893,7 @@ def cmd_untrust(name):
             pins.pop(u, None)
         save(KEYS, pins, 0o600)
     for u in gone:
-        private_profile(u)  # undoes --real-address (and trust before the levels): a private address, no name
+        private_profile(u, u in wired)  # undoes --real-address (and trust before the levels): a private address, no name
     iface, now, ssid = active_wifi()
     st = load(os.path.join(RUN, "state.json"), {})
     if now and now in gone and st.get("wifi") == now and iface:
@@ -795,6 +907,9 @@ def cmd_untrust(name):
         print("no trusted network by that name")
         return
     print("no longer trusted: %d network(s); from the next connection on they are untrusted" % len(gone))
+    for u in wired:
+        print("%s (wired): from the next connection on (nmcli connection up %s) it uses a hardware address of its own and sends no "
+              "name." % (names[u], u))
     if now and now in gone:
         print("%s is untrusted now: the device list and discovery are off here%s. Reconnect (nmcli connection up %s) for the rest: its "
               "own hardware address, no computer name sent%s." % (ssid, " (it stays discoverable, as you chose)" if now in kept else "",
@@ -1034,7 +1149,8 @@ def cmd_status():
         if not isinstance(e, dict):
             continue
         level = level_of(e)
-        line = "  %s: %s" % (e.get("ssid"), level)
+        wired = e.get("wired") is True
+        line = "  %s: %s" % (e.get("name") if wired else e.get("ssid"), level) + (" (wired)" if wired else "")
         if e.get("discoverable") is True and level != "home":
             line += ", discoverable"
         if isinstance(e.get("key_mgmt"), str) and e["key_mgmt"] in LOCK_NAMES:
@@ -1059,6 +1175,11 @@ def cmd_status():
             if isinstance(allowed, list) and allowed:
                 print("the firewall lets in (a ufw rule allows them, and they listen here): " + ", ".join(str(a) for a in allowed))
             print("still visible to the network: " + exposure(p))
+    w_iface, w_uuid, w_name = active_wired()
+    if w_uuid:
+        e = t.get(w_uuid)
+        level = level_of(e) if isinstance(e, dict) and e.get("wired") is True else "untrusted"
+        print("wired now: %s, %s; a hardware address of its own here: %s" % (w_name, level, "yes" if own_address(w_iface) else "no"))
     print("devices reaching this computer: " + inbound_watch())
     if os.geteuid() == 0:
         print("lockdown: " + ("on" if locked() else "off"))

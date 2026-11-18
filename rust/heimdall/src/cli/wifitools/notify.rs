@@ -93,7 +93,8 @@ fn name(v: &Val, n: usize, fallback: &str) -> String {
     }
 }
 
-/// The Wi-Fi guard's events: the VPN came on, or the Wi-Fi was dropped because the VPN could not protect it.
+/// The Wi-Fi guard's events: the VPN came on, or the Wi-Fi was dropped because the VPN could not protect it; on a wired network,
+/// that it uses a hardware address of its own from the next connection on.
 fn guard(seen: &mut Dict) -> PyResult<()> {
     let Some(g) = read_dict(Path::new(GUARD))? else { return Ok(()) };
     let time = g.get("time").cloned().unwrap_or(Val::None);
@@ -117,6 +118,8 @@ fn guard(seen: &mut Dict) -> PyResult<()> {
         ]))?;
     } else if is("vpn-up") || is("no-vpn") || is("router-changed") {
         notify_send(&py::argv(&["-u", "normal", "-i", "network-vpn", "--", &format!("Wi-Fi: {ssid}"), &msg]))?;
+    } else if is("wired") {
+        notify_send(&py::argv(&["-u", "normal", "-i", "network-wired", "--", &format!("Wired: {ssid}"), &msg]))?;
     }
     Ok(())
 }

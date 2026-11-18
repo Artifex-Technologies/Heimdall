@@ -8,7 +8,7 @@ Heimdall keeps a list of the devices on each network you trust: what each one is
 
 It only looks when all three of these hold:
 
-- the connection carrying the default route is your home network (`heimdall-wifi-guard trust --home`, kept in `/etc/heimdall/wifi-trusted.json`; an entry from before the trust levels, with no `level`, is home too). A network that is only trusted (`trust`, quiet but private: [WIFI_TRUST.md](WIFI_TRUST.md)) is never looked around (`not_home`), and an entry with any other `level` (empty, null, a number) counts as not trusted, as the guard counts it;
+- the connection carrying the default route is your home network (`heimdall-wifi-guard trust --home`, kept in `/etc/heimdall/wifi-trusted.json`; an entry from before the trust levels, with no `level`, is home too; a wired network made home the same way counts, since 2026-11-18, its entry named by `name` instead of `ssid`). A network that is only trusted (`trust`, quiet but private: [WIFI_TRUST.md](WIFI_TRUST.md)) is never looked around (`not_home`), and an entry with any other `level` (empty, null, a number) counts as not trusted, as the guard counts it;
 - the router answers with the hardware address that was recorded when you trusted it (the same network name with another router is not your network);
 - the subnet is no larger than /22 (1022 addresses).
 

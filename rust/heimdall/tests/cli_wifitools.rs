@@ -224,7 +224,7 @@ fn notify_as_python() {
     notify_case("safe-known", Some(safe), None, Some(&format!(r#"{{"{key}": "safe", "last": "t0", "guard": null}}"#)), &o);
     notify_case("safe-known-falsy", Some(safe), None, Some(&format!(r#"{{"{key}": 0, "last": "t0"}}"#)), &o);
     // the guard's events
-    for ev in ["dropped", "vpn-up", "no-vpn", "router-changed", "other"] {
+    for ev in ["dropped", "vpn-up", "no-vpn", "router-changed", "wired", "other"] {
         let g = format!(
             r#"{{"time": "2026-11-11T10:05:00Z", "event": "{ev}", "ssid": "Cafe", "message": "The VPN dropped, so the Wi-Fi was disconnected."}}"#
         );
@@ -378,9 +378,12 @@ fn guard_root(r: &Root) {
         "nmcli",
         r#"case "$*" in
   "-t -f DEVICE,TYPE,STATE,CONNECTION device") cat /srv/devices 2>/dev/null ;;
-  "-g GENERAL.CON-UUID device show "*) cat /srv/con-uuid 2>/dev/null ;;
+  "-g GENERAL.CON-UUID device show "*) if [ -e "/srv/con-uuid-$5" ]; then cat "/srv/con-uuid-$5"; else cat /srv/con-uuid 2>/dev/null; fi ;;
   "-g 802-11-wireless.ssid connection show "*) if [ -e /srv/ssid ]; then cat /srv/ssid; else echo Cafe; fi ;;
   "-g 802-11-wireless.cloned-mac-address connection show "*) cat /srv/cloned 2>/dev/null ;;
+  "-g 802-3-ethernet.cloned-mac-address connection show "*) cat /srv/cloned 2>/dev/null ;;
+  "-g connection.type connection show "*) cat /srv/ctype 2>/dev/null ;;
+  "-g connection.id connection show "*) if [ -e /srv/name ]; then cat /srv/name; else echo 'Wired connection 1'; fi ;;
   "-g 802-11-wireless-security.key-mgmt connection show "*) if [ -e /srv/key ]; then cat /srv/key; else echo wpa-psk; fi ;;
   "-s -g 802-11-wireless-security.psk connection show "*) cat /srv/psk 2>/dev/null ;;
   "connection up "*) [ -e /srv/vpn-fails ] && exit 4; exit 0 ;;
@@ -416,6 +419,7 @@ esac
         r#"case "$*" in
   "-j route show default dev "*) cat /srv/routes 2>/dev/null ;;
   "-j neigh show "*) cat /srv/neigh 2>/dev/null ;;
+  "-j link show dev "*) cat /srv/link 2>/dev/null || exit 1 ;;
   *) exit 1 ;;
 esac
 "#,
@@ -450,6 +454,24 @@ fn on_wifi(r: &Root, uuid: &str, mac: &str) {
         r#"[{"dst":"default","gateway":"192.0.2.1","dev":"wlan0","protocol":"dhcp","prefsrc":"192.0.2.10","metric":600,"flags":[]}]"#,
     );
     r.write("/srv/neigh", format!(r#"[{{"dst":"192.0.2.1","dev":"wlan0","lladdr":"{mac}","state":["REACHABLE"]}}]"#));
+}
+
+const WIRED: &str = "5f0c1e2d-3333-4444-8555-666677778888";
+
+/// On a wired network: eth0 connected to the profile WIRED ("Wired connection 1"), its router at 192.0.2.1 with hardware
+/// address `mac`, no Wi-Fi.
+fn on_wired(r: &Root, mac: &str) {
+    r.write(
+        "/srv/devices",
+        "wlan0:wifi:disconnected:--\neth0:ethernet:connected:Wired connection 1\nlo:loopback:connected (externally):lo\n",
+    );
+    r.write("/srv/con-uuid", format!("{WIRED}\n"));
+    r.write("/srv/ctype", "802-3-ethernet\n");
+    r.write(
+        "/srv/routes",
+        r#"[{"dst":"default","gateway":"192.0.2.1","dev":"eth0","protocol":"dhcp","prefsrc":"192.0.2.10","metric":100,"flags":[]}]"#,
+    );
+    r.write("/srv/neigh", format!(r#"[{{"dst":"192.0.2.1","dev":"eth0","lladdr":"{mac}","state":["REACHABLE"]}}]"#));
 }
 
 fn vpn_conf(r: &Root) {
@@ -618,6 +640,114 @@ fn guard_cases_of_the_python_tests() {
     assert!(rs.stdout.contains("ip6 daddr 2001:db8::5 udp dport 51820 accept") && rs.stdout.contains("oifname \"wg-heimdall\" accept"));
     assert!(!rs.stdout.contains("tcp"));
     report("guard_cases_of_the_python_tests", before);
+}
+
+/// Untrusted wired networks get the private profile (R19): what up, trust, untrust and status do on one, as whole runs of both.
+#[test]
+fn guard_wired_as_python() {
+    let before = RUNS.with(Cell::get);
+    let o = root_opts();
+    let last = "/run/heimdall-wifi-guard/last.json";
+    // untrusted: the private profile and IPv6 privacy, a note once a day while the real address is in use; nothing of Wi-Fi's
+    let mut t = guard_twin("wired-untrusted", &|r| {
+        vpn_conf(r);
+        on_wired(r, ROUTER);
+        r.write("/srv/avahi-on", "");
+    });
+    t.step(&["pre-up", "eth0", WIRED], &o);
+    t.step(&["up", "eth0", WIRED], &o);
+    let log = argv_log(&t);
+    assert!(log.contains("[ipv4.dhcp-client-id] [mac] [ipv6.dhcp-duid] [ll]"), "{log}");
+    assert!(log.contains("[802-3-ethernet.cloned-mac-address] [stable] [802-3-ethernet.generate-mac-address-mask] []"), "{log}");
+    assert!(log.contains("[ipv6.ip6-privacy] [2] [ipv6.addr-gen-mode] [stable-privacy]"), "{log}");
+    assert!(!log.contains("nft") && !log.contains("[connection] [up]") && !log.contains("avahi") && !log.contains("802-11"), "{log}");
+    assert!(t.rs.read("/run/heimdall-wifi-guard/state.json").is_none(), "Wi-Fi's state is not touched");
+    assert!(t.rs.read_str(last).contains("\"event\": \"wired\""), "{}", t.rs.read_str(last));
+    t.both(|r| {
+        r.write(last, "{}");
+    });
+    t.step(&["up", "eth0", WIRED], &o);
+    assert_eq!(t.rs.read_str(last), "{}", "once a day");
+    // its own address in use already: nothing to tell; a chosen address is kept
+    t.both(|r| {
+        let _ = std::fs::remove_file(r.host("/run/heimdall-wifi-guard/notes.json"));
+        r.write("/srv/link", r#"[{"ifname":"eth0","address":"02:00:00:00:00:07","permaddr":"00:00:5e:00:53:07"}]"#);
+        r.write("/srv/cloned", "random\n");
+    });
+    t.step(&["up", "eth0", WIRED], &o);
+    assert_eq!(t.rs.read_str(last), "{}");
+    // other kinds of connection are not touched
+    for kind in ["wireguard\n", "bridge\n", ""] {
+        let mut t = guard_twin(&format!("wired-kind-{}", kind.trim()), &|r| {
+            on_wired(r, ROUTER);
+            r.write("/srv/ctype", kind);
+        });
+        t.step(&["up", "wg-heimdall", "vpn-uuid"], &o);
+        assert!(!argv_log(&t).contains("[modify]"), "{kind:?}");
+    }
+    // trust: alone it is refused (nothing to stop); --home binds it to the router; --real-address gives the real address
+    let mut t = guard_twin("wired-trust", &|r| on_wired(r, ROUTER));
+    let (_, rs) = t.step(&["trust"], &o);
+    assert!(rs.stderr.contains("trust --home") && t.rs.read("/etc/heimdall/wifi-trusted.json").is_none(), "{}", rs.stderr);
+    t.step(&["trust", "--home", "--uuid", "0e3f5a1c-2222-4333-8444-955566667777"], &o);
+    assert!(t.rs.read("/etc/heimdall/wifi-trusted.json").is_none());
+    t.step(&["trust", "--home", "--uuid", WIRED], &o);
+    let file = t.rs.read_str("/etc/heimdall/wifi-trusted.json");
+    assert!(file.contains("\"wired\": true") && file.contains("\"name\": \"Wired connection 1\"") && !file.contains("ssid"), "{file}");
+    assert!(!argv_log(&t).contains("permanent"));
+    t.step(&["trust", "--home", "--real-address"], &o);
+    assert!(argv_log(&t).contains("[802-3-ethernet.cloned-mac-address] [permanent] [ipv4.dhcp-send-hostname] [yes]"));
+    // at home: left alone; elsewhere (another router): private again, and told the real address was used there
+    t.both(|r| {
+        let _ = std::fs::remove_file(r.host("/.fake-argv"));
+    });
+    t.step(&["up", "eth0", WIRED], &o);
+    assert!(!t.rs.read_str("/.fake-argv").contains("[modify]"), "{}", t.rs.read_str("/.fake-argv"));
+    t.both(|r| on_wired(r, STRANGER));
+    t.step(&["up", "eth0", WIRED], &o);
+    assert!(t.rs.read_str("/.fake-argv").contains("[802-3-ethernet.cloned-mac-address] [stable]"));
+    assert!(t.rs.read_str(last).contains("router is a different one"));
+    // the router not answering: left as it is
+    t.both(|r| {
+        let _ = std::fs::remove_file(r.host("/.fake-argv"));
+        r.write("/srv/neigh", "[]");
+    });
+    t.step(&["up", "eth0", WIRED], &o);
+    assert!(!t.rs.read_str("/.fake-argv").contains("[modify]"));
+    // status names it; untrust by its name puts the profile back to private
+    let (_, rs) = t.step(&["status"], &o);
+    assert!(rs.stdout.contains("  Wired connection 1: home (wired), router 00:00:5E:00:53:01"), "{}", rs.stdout);
+    assert!(rs.stdout.contains("wired now: Wired connection 1, home; a hardware address of its own here: no"), "{}", rs.stdout);
+    let (_, rs) = t.step(&["untrust", "Wired connection 1"], &o);
+    assert!(rs.stdout.contains("Wired connection 1 (wired): from the next connection on"), "{}", rs.stdout);
+    assert!(t.rs.read_str("/.fake-argv").contains(&format!("nmcli [connection] [modify] [{WIRED}] [ipv4.dhcp-send-hostname] [no]")));
+    // with Wi-Fi up too, Wi-Fi comes first; the wired one by its UUID
+    let mut t = guard_twin("wired-and-wifi", &|r| {
+        on_wired(r, ROUTER);
+        r.write("/srv/devices", "wlan0:wifi:connected:Cafe\neth0:ethernet:connected:Wired connection 1\n");
+        r.write("/srv/con-uuid-wlan0", "cafe-uuid\n");
+    });
+    let (_, rs) = t.step(&["trust", "--home", "--uuid", WIRED], &o);
+    assert!(rs.stdout.contains("Home network (wired)"), "{} {}", rs.stdout, rs.stderr);
+    t.step(&["trust"], &o);
+    let file = t.rs.read_str("/etc/heimdall/wifi-trusted.json");
+    assert!(file.contains("\"cafe-uuid\": {\n  \"ssid\": \"Cafe\""), "{file}");
+    t.step(&["status"], &o);
+    // odd entries: not wired ones, so not home
+    for (n, e) in [r#"{"name": "x", "wired": 1, "level": "home", "routers": ["00:00:5E:00:53:01"]}"#, r#"{"ssid": "Home"}"#, "[1]", "null"]
+        .iter()
+        .enumerate()
+    {
+        let mut t = guard_twin(&format!("wired-odd-{n}"), &|r| {
+            on_wired(r, ROUTER);
+            r.write("/etc/heimdall/wifi-trusted.json", format!(r#"{{"{WIRED}": {e}, "x": 5}}"#));
+        });
+        t.step(&["up", "eth0", WIRED], &o);
+        assert!(argv_log(&t).contains("[802-3-ethernet.cloned-mac-address] [stable]"), "{e}");
+        t.step(&["status"], &o);
+        t.step(&["untrust", WIRED], &o);
+    }
+    report("guard_wired_as_python", before);
 }
 
 #[test]

@@ -27,8 +27,11 @@ which ports its own rules let in.
 
 ### What changes on a computer that does not use the new commands
 
-On the **desktop** (wired), nothing: the guard and the check act on Wi-Fi only, and the quiet table matches Wi-Fi interfaces
-only. An entry in `/etc/heimdall/wifi-trusted.json` from before the levels (no `level` key) is **home**, exactly as before.
+On the **desktop** (wired): since 2026-11-18 its wired network is untrusted until I make it home, so it gets a hardware address
+of its own, sends no computer name and uses IPv6 privacy addresses (below, "Wired networks"). If the router keeps an address
+for it (a reservation, a port forward), run `sudo heimdall-wifi-guard trust --home --real-address` on it once. Nothing else
+changes there: the lockdown, the VPN, the quiet table and the check act on Wi-Fi only. An entry in
+`/etc/heimdall/wifi-trusted.json` from before the levels (no `level` key) is **home**, exactly as before.
 
 On a **laptop**, even without a new command:
 - the quiet table is loaded on every Wi-Fi network but home, and its profile gets `connection.llmnr no` and `connection.mdns no`;
@@ -39,6 +42,62 @@ On a **laptop**, even without a new command:
   was;
 - DNS answers outside a site's own network are decided by the site's certificate (below);
 - `results.jsonl` is made mode 0640 and records how many other devices were heard, not who.
+
+## Wired networks
+
+I decided on 2026-11-18 that untrusted wired networks get a random address by default, like Wi-Fi. A wired (Ethernet) network
+is untrusted unless I make it home; there is no "trusted" level for it, because a wired network has no notices to stop
+(`trust` alone on one stops with nothing changed and says so).
+
+On an untrusted wired network the profile gets the same private settings as an untrusted Wi-Fi profile:
+`ethernet.cloned-mac-address stable` (unless I chose an address in Settings), no computer name in DHCP, the DHCP client ID and
+DHCPv6 DUID made from that address, and IPv6 privacy addresses (below). The guard writes them into the profile when the
+connection comes up (they apply from the next connection), and `heimdall-wifi-privacy.conf` gives every wired profile that sets
+none of its own the same from its first connection. Nothing else: no lockdown, no VPN, no quiet table, no Avahi change, and
+`state.json` stays Wi-Fi's. While the real address is still in use (the profile said `permanent`, or NetworkManager had not
+read the new defaults yet), the guard tells me once a day (event `wired`, "Wired: NAME"): from the next connection on, the
+address is one of its own, and what to run at home.
+
+```
+sudo heimdall-wifi-guard trust --home                  make the wired network I am on home (the device list may look around)
+sudo heimdall-wifi-guard trust --home --real-address   ... and use the real hardware address and computer name there
+sudo heimdall-wifi-guard trust --home --uuid UUID      the wired one by its profile, when Wi-Fi is connected too
+sudo heimdall-wifi-guard untrust NAME|UUID             back to untrusted: a private address and no name from the next connection
+```
+
+**A home wired network whose router keeps an address for this computer** (a DHCP reservation, a port forward, a device list
+in the router's page) needs `trust --home --real-address`, exactly as a Wi-Fi home network does; without it the router sees
+a new device. Reconnect afterwards (`nmcli connection up UUID`, or unplug and plug in).
+
+Trust is by the profile's UUID, in the same file as Wi-Fi: `{"name": "Wired connection 1", "wired": true, "level": "home",
+"trusted_at": ..., "routers": [...]}` (no `ssid`; `kind` is kept if set). A wired profile is not tied to one network:
+NetworkManager uses "Wired connection 1" for whatever the cable is plugged into. So home is bound to the router's hardware
+address (as a Wi-Fi home network is). On another router the guard puts the profile back to private (from the next
+connection), and if it used the real address there it says so; back home, `trust --home --real-address` again. A router
+that does not answer leaves the profile as it is.
+
+What this does not cover:
+- `stable` is per profile: the address is made from the profile's stable ID (its UUID unless set), so one wired profile shows
+  the same made-up address on every network it joins. It hides the real address and its maker, but two networks can tell
+  it is the same computer. A profile per place (or `random` in Settings, a new address each connection) avoids that.
+- The first connection of a profile made before NetworkManager read the new defaults uses the real address (the notice says so).
+- The device list (`heimdalld lan scan`) looks around a home wired network as on Wi-Fi; the router watch, the check and the
+  inbound alerts stay Wi-Fi only (a wired connection is judged within the connection, "A second router" below).
+
+## IPv6 privacy and DHCP identifiers
+
+On every untrusted network, Wi-Fi and wired, the guard also sets `ipv6.ip6-privacy 2` (temporary addresses, RFC 8981, for
+the connections this computer makes) and `ipv6.addr-gen-mode stable-privacy` (an interface ID that is not made from the
+hardware address, RFC 7217, different on each network). They go in a `nmcli connection modify` of their own, so a profile
+NetworkManager refuses them for (an IPv6 `token` needs `eui64`) keeps the other private settings. It also sets
+`ipv4.dhcp-client-id mac` and `ipv6.dhcp-duid ll`: both made from the hardware address in use, the made-up one. Left alone,
+NetworkManager's DHCPv6 DUID comes from the machine-id, the same on every network.
+
+I chose both places, as for the hardware address: `heimdall-wifi-privacy.conf` sets them as NetworkManager's defaults (for
+Wi-Fi and wired devices only, not bridges or VPNs) so a new profile has them from its first connection, and the guard writes
+them into each untrusted profile so a profile that set weaker values of its own gets them too. Home keeps them; they cost
+nothing there. Every made-up address is locally administered (the bit phones set); when the guard sets `stable` it also
+clears `generate-mac-address-mask`, so no maker's prefix is kept or borrowed.
 
 ## How a trusted network is recognized
 
