@@ -44,23 +44,37 @@ happened.
 
 | Repo | Category | Status | Where | Checked |
 | --- | --- | --- | --- | --- |
-| [crowdsecurity/crowdsec](https://github.com/crowdsecurity/crowdsec) | Detection engine | Adapted | `internal/detect` (Source→Detector→Sink shape), `internal/detect/burst.go` (leaky bucket) | 2026-09-25 |
-| [zeek/zeek](https://github.com/zeek/zeek) | Network monitoring | Adapted (framing) | `internal/sources/netsource` (connection state, not packet capture) | 2026-09-26 |
-| [wazuh/wazuh](https://github.com/wazuh/wazuh) | Host FIM/XDR | Adapted | `internal/sources/hostsource/fim.go` (mtime+size precheck before hashing) | 2026-09-26 |
-| [netdata/netdata](https://github.com/netdata/netdata) | Host telemetry | Adapted (design) | `internal/sources/hostsource/telemetry.go` (`/proc`-only, no fork/exec) | 2026-09-26 |
+| [crowdsecurity/crowdsec](https://github.com/crowdsecurity/crowdsec) | Detection engine | Adapted | `internal/detect` (Source→Detector→Sink shape), `internal/detect/burst.go` (leaky bucket). Unused, planned: scenarios as data, expiring decisions, own-mesh signal sharing (R10, R7, R12 in Labyrinth_OS docs/REFERENCE_PLAN_2026-11.md) | 2026-11-17 |
+| [zeek/zeek](https://github.com/zeek/zeek) | Network monitoring | Adapted (framing) | `internal/sources/netsource` (connection state, not packet capture). Unused, planned: names beside addresses, intel match at sight (R11) | 2026-11-17 |
+| [wazuh/wazuh](https://github.com/wazuh/wazuh) | Host FIM/XDR | Adapted | `internal/sources/hostsource/fim.go` (mtime+size precheck before hashing). Unused, planned: checks as data (SCA), cross-view check (R13) | 2026-11-17 |
+| [netdata/netdata](https://github.com/netdata/netdata) | Host telemetry | Adapted (design) | `internal/sources/hostsource/telemetry.go` (`/proc`-only, no fork/exec). Unused, planned: alarm hysteresis (R14) | 2026-11-17 |
 | [tailscale/tailscale](https://github.com/tailscale/tailscale) | Secure mesh / Go precedent | Adapted (language choice) + Design reference (mesh) | `README.md` (why Go); `docs/MESH.md` (identity pinning, and the parts deliberately left out after the 2026-10 "Tailworm" flaws) | 2026-11-05 |
 | [juanfont/headscale](https://github.com/juanfont/headscale) | Self-hosted mesh control plane | Design reference | Phase 3 mesh (`internal/mesh`): the "your own control" idea, taken further: no control server at all, peers enrolled by the owner | 2026-11-05 |
-| [CrowdStrike/codestrike](https://github.com/CrowdStrike/codestrike) | LLM review bot (not the CrowdStrike EDR product) | Design reference | Phase 4 approval-gate framing | 2026-09-25 |
-| [paperclipai/paperclip](https://github.com/paperclipai/paperclip) | AI-agent fleet governance | Design reference | Phase 4 approval-gate framing | 2026-09-25 |
+| [CrowdStrike/codestrike](https://github.com/CrowdStrike/codestrike) | LLM review bot (not the CrowdStrike EDR product) | Design reference | Phase 4 approval-gate framing. Unused, planned: a local second look at update build scripts (R17) | 2026-11-17 |
+| [paperclipai/paperclip](https://github.com/paperclipai/paperclip) | AI-agent fleet governance | Design reference | Phase 4 approval-gate framing. Unused, planned: per-agent budgets (R16) | 2026-11-17 |
 | [SenteLabsAI/OpenExecutive](https://github.com/SenteLabsAI/OpenExecutive) | Multi-agent-behind-one-voice | Design reference | Phase 4 approval-gate framing | 2026-09-25 |
-| [n8n-io/n8n](https://github.com/n8n-io/n8n) | Workflow automation | Candidate | Not built — see note below (response-playbook idea) | 2026-09-26 |
+| [n8n-io/n8n](https://github.com/n8n-io/n8n) | Workflow automation | Candidate | Not built — response playbooks, merged with the Fusion/Foundry rows below (R7) | 2026-11-17 |
 | [letta-ai/letta](https://github.com/letta-ai/letta) | Stateful agent memory | Candidate | Not built — see note below (Phase 5 baseline memory) | 2026-09-26 |
 | [microsoft/graphrag](https://github.com/microsoft/graphrag) | Graph-based correlation | Adapted (idea, no code) | `internal/correlate`: alerts linked by the entities they share into incidents | 2026-11-05 |
 | [onnx/onnx](https://github.com/onnx/onnx) | ML model format | Design reference | Formalizes the format Sarina's own `sarina/ml/` already runs on | 2026-09-26 |
 | [tensorflow/tensorflow](https://github.com/tensorflow/tensorflow) | ML framework | Design reference (explicitly not to vendor) | Phase 5 — see Sarina's own onnxruntime-not-TensorFlow precedent | 2026-09-25 |
 | [google/deepvariant](https://github.com/google/deepvariant) | Genomic variant calling | Methodology-only | Phase 5 — "sequence → fixed-shape representation → small model scores it" | 2026-09-25 |
-| [mortazavilab/TALON](https://github.com/mortazavilab/TALON) | Long-read transcript classification | Methodology-only | Phase 5 — see note below (known/novel-variant/novel classification); also the agent baseline's never-used-before tool | 2026-11-05 |
+| [mortazavilab/TALON](https://github.com/mortazavilab/TALON) | Long-read transcript classification | Methodology-only | Phase 5 — see note below (known/novel-variant/novel classification); also the agent baseline's never-used-before tool. Unused, planned: the "close variant" class, tool-call sequences (R15) | 2026-11-17 |
 | [lizTheDeveloper/flyover-scrub](https://github.com/lizTheDeveloper/flyover-scrub) (MIT) | Audio location privacy | Adapted (rewritten in Rust; read, not run) | `rust/scrub` (scrub.py, enf.py), `rust/flyover-attack` (attack.py, trace.py, physics.py); notice `rust/scrub/NOTICE`; `docs/LOCATION_SOUNDS.md` | 2026-11-15 |
+| [CrowdStrike/fusion-skills](https://github.com/CrowdStrike/fusion-skills) (MIT) | Workflow authoring (Falcon Fusion) | Design reference | Response playbooks: trigger / condition / action from a fixed verb list, replay test, owner approval (R7). Falcon itself is not used | 2026-11-17 |
+| [CrowdStrike/foundry-skills](https://github.com/CrowdStrike/foundry-skills) (MIT) | App packaging (Falcon Foundry) | Design reference | A playbook ships with its own permissions; Sarina may draft, root tests, the owner approves (R7) | 2026-11-17 |
+| [VirusTotal/yara](https://github.com/VirusTotal/yara) (BSD-3) | Pattern rules | Adapted (format, through ClamAV) | `immunity` rule drafts loaded by ClamAV (`IMMUNITY.md`); YARA in Limbo's analysis image. **Maintenance mode upstream**: fixes only, new work in YARA-X | 2026-11-17 |
+| [VirusTotal/yara-x](https://github.com/VirusTotal/yara-x) (BSD-3, Rust) | Pattern rules (successor) | Candidate | Rule-draft lint with slow-pattern warnings (R4); whether to depend on the crate is the owner's decision | 2026-11-17 |
+| [abusech/URLhaus](https://github.com/abusech/URLhaus) (data CC0) | Malware URL feed | Adapted (data, via malware-filter) + Candidate | `packaging/net/heimdall-dns-blocklist` (URLhaus hosts filter). Candidate: ClamAV URL signatures, downloaded hash lists; per-hash API questions never by default (R5) | 2026-11-17 |
+| [Suryesh/OTX_AlienVault_URL](https://github.com/Suryesh/OTX_AlienVault_URL) (MIT) | AlienVault OTX client | Candidate | Optional OTX feed, pull-only: subscribed indicator lists into `intel`, never a question about what this computer saw (R6) | 2026-11-17 |
+| [mitre-attack/attack-stix-data](https://github.com/mitre-attack/attack-stix-data) (MITRE ATT&CK terms) | Technique catalogue | Candidate | Trimmed ID/name/tactic table, MITRE's notice kept verbatim; detector → technique tags on alerts (R1) | 2026-11-17 |
+| [mitre-attack/mitreattack-python](https://github.com/mitre-attack/mitreattack-python) (Apache-2.0) | ATT&CK tooling | Candidate (idea only) | `heimdalld attack-layer`: a Navigator layer and a gap list of what the detectors watch (R2) | 2026-11-17 |
+| [bauerj/mac_vendor_lookup](https://github.com/bauerj/mac_vendor_lookup) (Apache-2.0) | MAC vendor lookup | Design reference | `rust/heimdall/src/cli/lan/oui.rs` already does the offline half; refresh with a kept last-good copy (R3) | 2026-11-17 |
+| [Ringmast4r/OUI-Master-Database](https://github.com/Ringmast4r/OUI-Master-Database) (no licence) | MAC vendor data | Candidate (ideas only) | All IEEE registries (MA-L, MA-M, MA-S, IAB), longest-prefix match, monthly refresh, in a shared crate (R3). Its merged data is **not** used (mixed licences) | 2026-11-17 |
+| [feross/SpoofMAC](https://github.com/feross/SpoofMAC) | MAC address change | Design reference | `packaging/net/heimdall-wifi-privacy.conf`, `heimdall-wifi-guard` (stable random address per untrusted network). Planned: wired networks, IPv6 privacy, Bluetooth check (R19) | 2026-11-17 |
+| [claffin/cloudproxy](https://github.com/claffin/cloudproxy) (MIT) | Throwaway egress | Candidate (Limbo) | Limbo analysis network: sinkhole first, then a per-run tunnel so the home address is never seen (R8); `limbo-network` alerts keep covering it | 2026-11-17 |
+| [NationalSecurityAgency/datawave](https://github.com/NationalSecurityAgency/datawave) (Apache-2.0) | Labelled data access | Candidate (idea only) | Per-record visibility labels on alerts and evidence, checked at read time in `api.rs` (R9) | 2026-11-17 |
+| [storytold/realtime-voice-conversion](https://github.com/storytold/realtime-voice-conversion) (no licence) | Real-time voice conversion | Candidate (idea only) | Private mic: "disguise my voice", DSP first, synthetic voices only, never a real person's (R18) | 2026-11-17 |
 
 ## Notes on the newer or less obvious entries
 
@@ -81,8 +95,8 @@ Heimdall watching workflows — the transferable shape is "when X is detected,
 run this sequence of steps," which is a plausible future extension of
 Phase 4's governance layer: today `/v1/review` only answers yes/no; a
 playbook layer could take an action (notify, quarantine a file, restart a
-watcher) in response to a specific finding. No design has been written for
-this yet — it's a candidate, not a plan.
+watcher) in response to a specific finding. A design was written on
+2026-11-17 (R7 in Labyrinth_OS's `docs/REFERENCE_PLAN_2026-11.md`); still a candidate until built.
 
 **letta-ai/letta's persistent, self-editing agent memory, for Phase 5.**
 The transferable idea is tiered memory (a small, always-in-context working
@@ -126,3 +140,17 @@ source of an attack so an address can be blocked. Taken as an idea only: the CLI
 IPinfo's servers, which would send every address Heimdall sees off the machine. What is kept is
 the offline half: IPinfo (and DB-IP) publish free databases in the MaxMind DB format, which
 `internal/ipintel` reads directly. `grepip`-style extraction became `fwsource`'s journal parsing.
+
+**The 2026-11-17 review.** I went through 26 starred projects; the R numbers in the rows above are the work items in
+Labyrinth_OS's `docs/REFERENCE_PLAN_2026-11.md`, which says per item what exists, the phases and the open decisions. All are
+references: nothing is installed or copied, each idea is rewritten in Rust. Rows for projects that only concern Sarina or
+the desktop are kept in those repositories, not here.
+
+**YARA is in maintenance mode; YARA-X is its successor.** VirusTotal's C YARA now gets bug fixes only, and new syntax and
+modules land in YARA-X (Rust, same BSD-3 licence, declared stable). Heimdall's rules are installed for ClamAV, which loads a
+YARA subset of its own, so nothing breaks today. What changes: draft checks should warn about what YARA-X warns about
+(short or common strings make slow rules), and Limbo's analysis image should move to YARA-X's `yr` when its package is
+ready. Using the `yara-x` crate inside Heimdall would be a dependency, not copied code; that is an owner decision.
+
+**ATT&CK data carries MITRE's notice.** If the trimmed table lands, it is committed with MITRE's copyright line and licence
+text verbatim, and its disclaimer holds here too: a tag says what a detector looks for, never that a technique is covered.
