@@ -689,7 +689,7 @@ func (r *Responder) advise(id string, a alert.Alert) {
 // explain attaches Heimdall's own explanation of the alert to a new quarantine, as the advisory from "heimdall".
 func (r *Responder) explain(id string, a alert.Alert) {
 	defer r.wg.Done()
-	t := explain.For(a.DetectorID, string(a.Severity), a.Fields)
+	t := explain.For(a.DetectorID, a.EventKind, string(a.Severity), a.Fields)
 	text := t.What + "\n" + t.Serious + "\n" + t.Done + "\n" + t.Do
 	ctx, cancel := context.WithTimeout(r.ctx, 30*time.Second)
 	defer cancel()

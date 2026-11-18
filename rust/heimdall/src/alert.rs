@@ -29,7 +29,7 @@ pub struct Alert {
 
 /// The fixed explanation and the ATT&CK tags (with their names in the explanation).
 fn explained(mut a: Alert) -> Alert {
-    let mut t = explain::for_alert(&a.detector_id, a.severity.as_str(), &a.fields);
+    let mut t = explain::for_alert(&a.detector_id, &a.event_kind, a.severity.as_str(), &a.fields);
     a.attack = attack::tags_for(&a.detector_id, &a.event_kind, &a.fields);
     t.attack = attack::names(&a.attack);
     a.explain = Some(t);

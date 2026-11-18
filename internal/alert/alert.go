@@ -41,7 +41,7 @@ type Alert struct {
 
 // explained adds the fixed explanation and the ATT&CK tags (with their names in the explanation).
 func explained(a Alert) Alert {
-	t := explain.For(a.DetectorID, string(a.Severity), a.Fields)
+	t := explain.For(a.DetectorID, a.EventKind, string(a.Severity), a.Fields)
 	a.Attack = attack.For(a.DetectorID, a.EventKind, a.Fields)
 	t.Attack = attack.Names(a.Attack)
 	a.Explain = &t

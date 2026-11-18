@@ -113,6 +113,91 @@ fn running_text(f: &Fields) -> &'static str {
     }
 }
 
+/// A lan-watch alert explained by its event kind (Go: lanWatch): each thing the local-network watch reports gets its own words.
+/// An unknown kind, from a newer source, gets general words, never a wrong story.
+fn lan_watch(t: &mut Text, kind: &str, fields: &Fields) {
+    let c = |k: &str, n: usize| clean(get(fields, k), n);
+    let q = |k: &str| quoted(fields, k);
+    let network = or_unknown(q("ssid"), "this network");
+    match kind {
+        "router_changed" => {
+            t.what = format!("While you were connected to {network}, the router's hardware address changed (to {}). A router keeps its hardware address; when another device starts answering in its place, everything you send goes through that device, which can read or change it (ARP spoofing).", or_unknown(c("new_mac", 40), "a new one"));
+            t.r#do = "Disconnect, or turn on a VPN before doing anything private. On a network of your own, a router you just replaced does this too.".into();
+        }
+        "router_impersonated" => {
+            t.what = format!("On {network}, another device ({}) answers with the router's hardware address. A device claiming to be the router gets the traffic meant for it, and can read or change it (ARP spoofing).", or_unknown(c("other_ip", 60), "an unknown address"));
+            t.r#do = "Disconnect, or turn on a VPN before doing anything private. At home, restart the router and look for that address in Settings > Wi-Fi & Network > Devices.".into();
+        }
+        "rogue_router" => {
+            let what = or_unknown(c("what", 300), "a DHCP server or IPv6 router other than the known one");
+            if get(fields, "judged") == "info" {
+                t.what = format!("One thing about the router of {network} changed since last time: {what}. A firmware update or a new setting on the router does this.");
+                t.r#do = "Nothing to do. Heimdall warns if more about the router changes at once.".into();
+                return;
+            }
+            t.what = format!("A second router may be on {network}: {what}. A device that hands out addresses or announces itself as the router can put itself between this computer and the internet (man in the middle).");
+            if get(fields, "learned") == "true" {
+                t.what.push_str(" It does not match the router remembered for this network.");
+            }
+            t.done = "Heimdall noted it; nothing was blocked, so everyone on the network can still use it.".into();
+            t.r#do = "On a network you do not control, disconnect or use a VPN. At home, if you did not add or replace a router, look for a device you do not know (Settings > Wi-Fi & Network > Devices).".into();
+        }
+        "lan_device_changed" => {
+            let was = or_unknown(q("was_name"), &or_unknown(c("was_mac", 40), "a device you know"));
+            let other = or_unknown(c("other_ip", 60), "its own address");
+            t.what = format!("On {network}, the address {} belonged to {was}; now another device ({}) answers for it, and also for {other}. One device answering for another is how someone puts itself between the devices of a network and reads what they send (ARP spoofing).", or_unknown(c("ip", 60), "of a known device"), or_unknown(c("mac", 40), "a different hardware address"));
+            t.done = "Heimdall noted it; nothing was blocked.".into();
+            t.r#do = format!("Look at both devices in Settings > Wi-Fi & Network > Devices. If you do not know the one at {other}, restart the router and change the Wi-Fi password.");
+        }
+        "new_lan_device" => {
+            let who = or_unknown(q("name"), "A device");
+            let vendor = q("vendor");
+            let about = if !vendor.is_empty() {
+                format!(", made by {vendor}")
+            } else if get(fields, "private_mac") == "true" {
+                ", using a private hardware address (phones, tablets and laptops usually do, so its maker is not known)".to_owned()
+            } else {
+                String::new()
+            };
+            t.what = format!("{who}{about} joined {network} for the first time, at {}. Heimdall tells you about every new device on your home network, so nobody joins it unnoticed.", or_unknown(c("ip", 60), "an unknown address"));
+            t.r#do = "If it is yours or a guest's (a new phone, a TV, a visitor), nothing to do. If you do not know it, look at it in Settings > Wi-Fi & Network > Devices; a device you cannot place is a reason to change the Wi-Fi password.".into();
+        }
+        "new_listener" => {
+            let port = digits_or(get(fields, "port"), "PORT");
+            let shown = if port == "PORT" { "port unknown".to_owned() } else { format!("port {port}") };
+            t.what = format!("A program on this computer started listening for connections from the network ({}, {shown}). Programs that share something (a game server, file sharing, a remote desktop) do this; so does malware waiting for orders.", or_unknown(c("proto", 10), "a protocol"));
+            t.done = "Heimdall noted it. The firewall still turns connections to it away unless a rule allows that port.".into();
+            t.r#do = format!("If you just started something that shares over the network, nothing to do. Otherwise find the program (sudo ss -tulpn | grep ':{port} ') and stop it.");
+        }
+        "wifi_inbound" => {
+            let src = or_unknown(c("src", 60), "an unknown address");
+            if get(fields, "router") == "true" {
+                t.what = format!("The router of this Wi-Fi network ({src}) reached for this computer. Routers that keep a list of their devices look at each one now and then.");
+                t.done = "Heimdall noted it, once per connection.".into();
+                t.r#do = "Nothing to do.".into();
+                return;
+            }
+            t.what = format!(
+                "A device on the Wi-Fi network ({src}) tried to reach this computer directly: a connection, a ping or a question about it."
+            );
+            t.done = "Heimdall noted it. The firewall drops what it does not allow (it answers pings, as ufw does by default), so nothing got in unless a rule allows that port.".into();
+            t.r#do = "Usually nothing. If it keeps happening, find out which device it is (Settings > Wi-Fi & Network); on a network you do not control, a VPN also hides your traffic.".into();
+        }
+        _ => {
+            t.what = "Heimdall's watch of the local network noticed a change in the devices on it or in its router.".into();
+            t.r#do = "Settings > Wi-Fi & Network > Devices shows who is on the network. On a network you do not control, a VPN keeps your traffic private.".into();
+        }
+    }
+}
+
+/// A port in a suggested command only when it is one (1 to 5 digits); anything else becomes the placeholder.
+fn digits_or(s: &str, placeholder: &str) -> String {
+    if s.is_empty() || s.len() > 5 || !s.bytes().all(|b| b.is_ascii_digit()) {
+        return placeholder.into();
+    }
+    s.to_owned()
+}
+
 /// A SHA-256 only when it is one (64 hex characters); anything else becomes the word SHA256, so no observed text lands in a
 /// command line.
 fn sha256_or_placeholder(s: &str) -> String {
@@ -122,8 +207,9 @@ fn sha256_or_placeholder(s: &str) -> String {
     s.to_owned()
 }
 
-/// The explanation of an alert from its detector, severity and fields.
-pub fn for_alert(detector: &str, severity: &str, fields: &Fields) -> Text {
+/// The explanation of an alert from its detector, event kind, severity and fields. The kind matters where one detector reports
+/// different things (lan-watch); elsewhere the detector and fields decide.
+pub fn for_alert(detector: &str, kind: &str, severity: &str, fields: &Fields) -> Text {
     let mut t = Text { serious: serious(severity).into(), done: LOGGED.into(), ..Default::default() };
     let path = quoted(fields, "path");
     let c = |k: &str, n: usize| clean(get(fields, k), n);
@@ -236,26 +322,7 @@ pub fn for_alert(detector: &str, severity: &str, fields: &Fields) -> Text {
                 t.r#do = "Nothing to do. The network itself can still see which sites you visit and how much you send; a VPN (heimdall-wifi-guard vpn-import) hides both.".into();
             }
         }
-        "lan-watch" if get(fields, "inbound") == "wifi" => {
-            t.what = format!(
-                "A device on the Wi-Fi network ({}) tried to reach this computer directly: a connection, a ping or a question about it.",
-                or_unknown(c("src", 60), "an unknown address")
-            );
-            t.done = "Heimdall noted it. The firewall drops what it does not allow (it answers pings, as ufw does by default), so nothing got in unless a rule allows that port.".into();
-            t.r#do = "Usually nothing. If it keeps happening, find out which device it is (Settings > Wi-Fi & Network); on a network you do not control, a VPN also hides your traffic.".into();
-        }
-        "lan-watch" if !get(fields, "via").is_empty() => {
-            t.what = format!(
-                "A second router showed up on the network: {}. A device that hands out addresses or announces itself as the router can put itself between this computer and the internet.",
-                or_unknown(c("what", 300), "a DHCP server or IPv6 router other than the known one")
-            );
-            t.done = "Heimdall noted it; nothing was blocked, so everyone on the network can still use it.".into();
-            t.r#do = "On a network you do not control, disconnect or use a VPN. At home, if you did not add or replace a router, look for a device you do not know (Settings > Wi-Fi & Network > Devices).".into();
-        }
-        "lan-watch" => {
-            t.what = format!("Something on your local network is pretending to be your router or another device (its hardware address changed to {}). That is how traffic on a shared network gets intercepted.", or_unknown(c("new_mac", 40), "a new one"));
-            t.r#do = "On a network you do not control, disconnect or use a VPN. At home, restart the router and check which devices are connected.".into();
-        }
+        "lan-watch" => lan_watch(&mut t, kind, fields),
         "baseline-drift" => {
             t.what = "The computer behaved unlike its usual self (far more activity of some kind than normal for this time).".into();
             t.r#do =

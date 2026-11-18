@@ -65,9 +65,10 @@ const (
 	aiAgentNote = "This concerns an AI agent on this computer (Sarina or another local agent Heimdall watches)."
 )
 
-// For returns the explanation of an alert from its detector, severity and fields. Every detector has one; an unknown detector gets a
-// general one, so a newer Heimdall never shows an alert with no words at all.
-func For(detector, severity string, fields map[string]string) Text {
+// For returns the explanation of an alert from its detector, event kind, severity and fields. Every detector has one; an unknown
+// detector gets a general one, so a newer Heimdall never shows an alert with no words at all. The kind matters where one detector
+// reports different things (lan-watch); elsewhere the detector and fields decide.
+func For(detector, kind, severity string, fields map[string]string) Text {
 	t := Text{Serious: serious(severity), Done: logged}
 	path := quoted(fields, "path")
 	switch detector {
@@ -136,20 +137,7 @@ func For(detector, severity string, fields map[string]string) Text {
 			t.Do = "Nothing to do. The network itself can still see which sites you visit and how much you send; a VPN (heimdall-wifi-guard vpn-import) hides both."
 		}
 	case "lan-watch":
-		if fields["inbound"] == "wifi" {
-			t.What = "A device on the Wi-Fi network (" + orUnknown(clean(fields["src"], 60), "an unknown address") + ") tried to reach this computer directly: a connection, a ping or a question about it."
-			t.Done = "Heimdall noted it. The firewall drops what it does not allow (it answers pings, as ufw does by default), so nothing got in unless a rule allows that port."
-			t.Do = "Usually nothing. If it keeps happening, find out which device it is (Settings > Wi-Fi & Network); on a network you do not control, a VPN also hides your traffic."
-			break
-		}
-		if fields["via"] != "" {
-			t.What = "A second router showed up on the network: " + orUnknown(clean(fields["what"], 300), "a DHCP server or IPv6 router other than the known one") + ". A device that hands out addresses or announces itself as the router can put itself between this computer and the internet."
-			t.Done = "Heimdall noted it; nothing was blocked, so everyone on the network can still use it."
-			t.Do = "On a network you do not control, disconnect or use a VPN. At home, if you did not add or replace a router, look for a device you do not know (Settings > Wi-Fi & Network > Devices)."
-			break
-		}
-		t.What = "Something on your local network is pretending to be your router or another device (its hardware address changed to " + orUnknown(clean(fields["new_mac"], 40), "a new one") + "). That is how traffic on a shared network gets intercepted."
-		t.Do = "On a network you do not control, disconnect or use a VPN. At home, restart the router and check which devices are connected."
+		lanWatch(&t, kind, fields)
 	case "baseline-drift":
 		t.What = "The computer behaved unlike its usual self (far more activity of some kind than normal for this time)."
 		t.Do = "If you are doing something unusual (a big download, a build), nothing to do. Otherwise look at what is running."
@@ -236,6 +224,80 @@ func For(detector, severity string, fields map[string]string) Text {
 		t.Do = settings
 	}
 	return t
+}
+
+// lanWatch explains a lan-watch alert by its event kind: each thing the local-network watch reports gets its own words (what
+// happened, why it matters, what to do). An unknown kind, from a newer source, gets general words, never a wrong story.
+func lanWatch(t *Text, kind string, fields map[string]string) {
+	network := orUnknown(quoted(fields, "ssid"), "this network")
+	switch kind {
+	case "router_changed":
+		t.What = "While you were connected to " + network + ", the router's hardware address changed (to " + orUnknown(clean(fields["new_mac"], 40), "a new one") + "). A router keeps its hardware address; when another device starts answering in its place, everything you send goes through that device, which can read or change it (ARP spoofing)."
+		t.Do = "Disconnect, or turn on a VPN before doing anything private. On a network of your own, a router you just replaced does this too."
+	case "router_impersonated":
+		t.What = "On " + network + ", another device (" + orUnknown(clean(fields["other_ip"], 60), "an unknown address") + ") answers with the router's hardware address. A device claiming to be the router gets the traffic meant for it, and can read or change it (ARP spoofing)."
+		t.Do = "Disconnect, or turn on a VPN before doing anything private. At home, restart the router and look for that address in Settings > Wi-Fi & Network > Devices."
+	case "rogue_router":
+		what := orUnknown(clean(fields["what"], 300), "a DHCP server or IPv6 router other than the known one")
+		if fields["judged"] == "info" {
+			t.What = "One thing about the router of " + network + " changed since last time: " + what + ". A firmware update or a new setting on the router does this."
+			t.Do = "Nothing to do. Heimdall warns if more about the router changes at once."
+			break
+		}
+		t.What = "A second router may be on " + network + ": " + what + ". A device that hands out addresses or announces itself as the router can put itself between this computer and the internet (man in the middle)."
+		if fields["learned"] == "true" {
+			t.What += " It does not match the router remembered for this network."
+		}
+		t.Done = "Heimdall noted it; nothing was blocked, so everyone on the network can still use it."
+		t.Do = "On a network you do not control, disconnect or use a VPN. At home, if you did not add or replace a router, look for a device you do not know (Settings > Wi-Fi & Network > Devices)."
+	case "lan_device_changed":
+		was := orUnknown(quoted(fields, "was_name"), orUnknown(clean(fields["was_mac"], 40), "a device you know"))
+		other := orUnknown(clean(fields["other_ip"], 60), "its own address")
+		t.What = "On " + network + ", the address " + orUnknown(clean(fields["ip"], 60), "of a known device") + " belonged to " + was + "; now another device (" + orUnknown(clean(fields["mac"], 40), "a different hardware address") + ") answers for it, and also for " + other + ". One device answering for another is how someone puts itself between the devices of a network and reads what they send (ARP spoofing)."
+		t.Done = "Heimdall noted it; nothing was blocked."
+		t.Do = "Look at both devices in Settings > Wi-Fi & Network > Devices. If you do not know the one at " + other + ", restart the router and change the Wi-Fi password."
+	case "new_lan_device":
+		who := orUnknown(quoted(fields, "name"), "A device")
+		about := ""
+		if v := quoted(fields, "vendor"); v != "" {
+			about = ", made by " + v
+		} else if fields["private_mac"] == "true" {
+			about = ", using a private hardware address (phones, tablets and laptops usually do, so its maker is not known)"
+		}
+		t.What = who + about + " joined " + network + " for the first time, at " + orUnknown(clean(fields["ip"], 60), "an unknown address") + ". Heimdall tells you about every new device on your home network, so nobody joins it unnoticed."
+		t.Do = "If it is yours or a guest's (a new phone, a TV, a visitor), nothing to do. If you do not know it, look at it in Settings > Wi-Fi & Network > Devices; a device you cannot place is a reason to change the Wi-Fi password."
+	case "new_listener":
+		port := digitsOr(fields["port"], "PORT")
+		shown := "port " + port
+		if port == "PORT" {
+			shown = "port unknown"
+		}
+		t.What = "A program on this computer started listening for connections from the network (" + orUnknown(clean(fields["proto"], 10), "a protocol") + ", " + shown + "). Programs that share something (a game server, file sharing, a remote desktop) do this; so does malware waiting for orders."
+		t.Done = "Heimdall noted it. The firewall still turns connections to it away unless a rule allows that port."
+		t.Do = "If you just started something that shares over the network, nothing to do. Otherwise find the program (sudo ss -tulpn | grep ':" + port + " ') and stop it."
+	case "wifi_inbound":
+		src := orUnknown(clean(fields["src"], 60), "an unknown address")
+		if fields["router"] == "true" {
+			t.What = "The router of this Wi-Fi network (" + src + ") reached for this computer. Routers that keep a list of their devices look at each one now and then."
+			t.Done = "Heimdall noted it, once per connection."
+			t.Do = "Nothing to do."
+			break
+		}
+		t.What = "A device on the Wi-Fi network (" + src + ") tried to reach this computer directly: a connection, a ping or a question about it."
+		t.Done = "Heimdall noted it. The firewall drops what it does not allow (it answers pings, as ufw does by default), so nothing got in unless a rule allows that port."
+		t.Do = "Usually nothing. If it keeps happening, find out which device it is (Settings > Wi-Fi & Network); on a network you do not control, a VPN also hides your traffic."
+	default:
+		t.What = "Heimdall's watch of the local network noticed a change in the devices on it or in its router."
+		t.Do = "Settings > Wi-Fi & Network > Devices shows who is on the network. On a network you do not control, a VPN keeps your traffic private."
+	}
+}
+
+// digitsOr puts a port into a suggested command only when it is one (1 to 5 digits); anything else becomes the placeholder.
+func digitsOr(s, placeholder string) string {
+	if len(s) == 0 || len(s) > 5 || strings.Trim(s, "0123456789") != "" {
+		return placeholder
+	}
+	return s
 }
 
 // sha256OrPlaceholder puts a SHA-256 into a suggested command only when it is one (64 hex characters); anything else

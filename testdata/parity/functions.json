@@ -868,10 +868,10 @@
    "severity": "info",
    "fields": null,
    "text": {
-    "what": "Something on your local network is pretending to be your router or another device (its hardware address changed to a new one). That is how traffic on a shared network gets intercepted.",
+    "what": "Heimdall's watch of the local network noticed a change in the devices on it or in its router.",
     "serious": "For your information; nothing needs doing.",
     "done": "Heimdall recorded it; nothing was changed on your computer.",
-    "do": "On a network you do not control, disconnect or use a VPN. At home, restart the router and check which devices are connected."
+    "do": "Settings \u003e Wi-Fi \u0026 Network \u003e Devices shows who is on the network. On a network you do not control, a VPN keeps your traffic private."
    }
   },
   {
@@ -879,10 +879,10 @@
    "severity": "warning",
    "fields": null,
    "text": {
-    "what": "Something on your local network is pretending to be your router or another device (its hardware address changed to a new one). That is how traffic on a shared network gets intercepted.",
+    "what": "Heimdall's watch of the local network noticed a change in the devices on it or in its router.",
     "serious": "Worth a look soon; nothing is broken yet.",
     "done": "Heimdall recorded it; nothing was changed on your computer.",
-    "do": "On a network you do not control, disconnect or use a VPN. At home, restart the router and check which devices are connected."
+    "do": "Settings \u003e Wi-Fi \u0026 Network \u003e Devices shows who is on the network. On a network you do not control, a VPN keeps your traffic private."
    }
   },
   {
@@ -890,10 +890,10 @@
    "severity": "critical",
    "fields": null,
    "text": {
-    "what": "Something on your local network is pretending to be your router or another device (its hardware address changed to a new one). That is how traffic on a shared network gets intercepted.",
+    "what": "Heimdall's watch of the local network noticed a change in the devices on it or in its router.",
     "serious": "Serious: look at it now.",
     "done": "Heimdall recorded it; nothing was changed on your computer.",
-    "do": "On a network you do not control, disconnect or use a VPN. At home, restart the router and check which devices are connected."
+    "do": "Settings \u003e Wi-Fi \u0026 Network \u003e Devices shows who is on the network. On a network you do not control, a VPN keeps your traffic private."
    }
   },
   {
@@ -1698,19 +1698,6 @@
    }
   },
   {
-   "detector": "lan-watch",
-   "severity": "critical",
-   "fields": {
-    "new_mac": "aa:bb"
-   },
-   "text": {
-    "what": "Something on your local network is pretending to be your router or another device (its hardware address changed to aa:bb). That is how traffic on a shared network gets intercepted.",
-    "serious": "Serious: look at it now.",
-    "done": "Heimdall recorded it; nothing was changed on your computer.",
-    "do": "On a network you do not control, disconnect or use a VPN. At home, restart the router and check which devices are connected."
-   }
-  },
-  {
    "detector": "incident",
    "severity": "warning",
    "fields": {
@@ -1749,6 +1736,255 @@
     "serious": "Serious: look at it now.",
     "done": "Heimdall asked Limbo to cut the sandbox off (quarantine). Limbo never lets Heimdall release it; only you can.",
     "do": "Look at the quarantine in Settings \u003e Security before releasing anything; if unsure, delete the sandbox."
+   }
+  },
+  {
+   "detector": "lan-watch",
+   "kind": "router_changed",
+   "severity": "critical",
+   "fields": {
+    "new_mac": "aa:bb",
+    "ssid": "Cafe"
+   },
+   "text": {
+    "what": "While you were connected to “Cafe”, the router's hardware address changed (to aa:bb). A router keeps its hardware address; when another device starts answering in its place, everything you send goes through that device, which can read or change it (ARP spoofing).",
+    "serious": "Serious: look at it now.",
+    "done": "Heimdall recorded it; nothing was changed on your computer.",
+    "do": "Disconnect, or turn on a VPN before doing anything private. On a network of your own, a router you just replaced does this too."
+   }
+  },
+  {
+   "detector": "lan-watch",
+   "kind": "router_changed",
+   "severity": "critical",
+   "fields": null,
+   "text": {
+    "what": "While you were connected to this network, the router's hardware address changed (to a new one). A router keeps its hardware address; when another device starts answering in its place, everything you send goes through that device, which can read or change it (ARP spoofing).",
+    "serious": "Serious: look at it now.",
+    "done": "Heimdall recorded it; nothing was changed on your computer.",
+    "do": "Disconnect, or turn on a VPN before doing anything private. On a network of your own, a router you just replaced does this too."
+   }
+  },
+  {
+   "detector": "lan-watch",
+   "kind": "router_impersonated",
+   "severity": "critical",
+   "fields": {
+    "new_mac": "aa:bb",
+    "other_ip": "192.0.2.7",
+    "ssid": "Cafe"
+   },
+   "text": {
+    "what": "On “Cafe”, another device (192.0.2.7) answers with the router's hardware address. A device claiming to be the router gets the traffic meant for it, and can read or change it (ARP spoofing).",
+    "serious": "Serious: look at it now.",
+    "done": "Heimdall recorded it; nothing was changed on your computer.",
+    "do": "Disconnect, or turn on a VPN before doing anything private. At home, restart the router and look for that address in Settings \u003e Wi-Fi \u0026 Network \u003e Devices."
+   }
+  },
+  {
+   "detector": "lan-watch",
+   "kind": "rogue_router",
+   "severity": "warning",
+   "fields": {
+    "iface": "wlan0",
+    "judged": "warning",
+    "via": "dhcp",
+    "what": "a second DHCP server 192.0.2.9"
+   },
+   "text": {
+    "what": "A second router may be on this network: a second DHCP server 192.0.2.9. A device that hands out addresses or announces itself as the router can put itself between this computer and the internet (man in the middle).",
+    "serious": "Worth a look soon; nothing is broken yet.",
+    "done": "Heimdall noted it; nothing was blocked, so everyone on the network can still use it.",
+    "do": "On a network you do not control, disconnect or use a VPN. At home, if you did not add or replace a router, look for a device you do not know (Settings \u003e Wi-Fi \u0026 Network \u003e Devices)."
+   }
+  },
+  {
+   "detector": "lan-watch",
+   "kind": "rogue_router",
+   "severity": "critical",
+   "fields": {
+    "judged": "critical",
+    "learned": "true",
+    "ssid": "Home",
+    "via": "ra",
+    "what": "x"
+   },
+   "text": {
+    "what": "A second router may be on “Home”: x. A device that hands out addresses or announces itself as the router can put itself between this computer and the internet (man in the middle). It does not match the router remembered for this network.",
+    "serious": "Serious: look at it now.",
+    "done": "Heimdall noted it; nothing was blocked, so everyone on the network can still use it.",
+    "do": "On a network you do not control, disconnect or use a VPN. At home, if you did not add or replace a router, look for a device you do not know (Settings \u003e Wi-Fi \u0026 Network \u003e Devices)."
+   }
+  },
+  {
+   "detector": "lan-watch",
+   "kind": "rogue_router",
+   "severity": "info",
+   "fields": {
+    "judged": "info",
+    "ssid": "Home",
+    "what": "the DHCP server's name changed"
+   },
+   "text": {
+    "what": "One thing about the router of “Home” changed since last time: the DHCP server's name changed. A firmware update or a new setting on the router does this.",
+    "serious": "For your information; nothing needs doing.",
+    "done": "Heimdall recorded it; nothing was changed on your computer.",
+    "do": "Nothing to do. Heimdall warns if more about the router changes at once."
+   }
+  },
+  {
+   "detector": "lan-watch",
+   "kind": "lan_device_changed",
+   "severity": "critical",
+   "fields": {
+    "ip": "192.0.2.4",
+    "mac": "aa:bb",
+    "other_ip": "192.0.2.5",
+    "ssid": "Home",
+    "was_mac": "cc:dd",
+    "was_name": "Printer\n\u001b[31m"
+   },
+   "text": {
+    "what": "On “Home”, the address 192.0.2.4 belonged to “Printer [31m”; now another device (aa:bb) answers for it, and also for 192.0.2.5. One device answering for another is how someone puts itself between the devices of a network and reads what they send (ARP spoofing).",
+    "serious": "Serious: look at it now.",
+    "done": "Heimdall noted it; nothing was blocked.",
+    "do": "Look at both devices in Settings \u003e Wi-Fi \u0026 Network \u003e Devices. If you do not know the one at 192.0.2.5, restart the router and change the Wi-Fi password."
+   }
+  },
+  {
+   "detector": "lan-watch",
+   "kind": "lan_device_changed",
+   "severity": "critical",
+   "fields": {
+    "ip": "192.0.2.4",
+    "ssid": "Home",
+    "was_mac": "cc:dd"
+   },
+   "text": {
+    "what": "On “Home”, the address 192.0.2.4 belonged to cc:dd; now another device (a different hardware address) answers for it, and also for its own address. One device answering for another is how someone puts itself between the devices of a network and reads what they send (ARP spoofing).",
+    "serious": "Serious: look at it now.",
+    "done": "Heimdall noted it; nothing was blocked.",
+    "do": "Look at both devices in Settings \u003e Wi-Fi \u0026 Network \u003e Devices. If you do not know the one at its own address, restart the router and change the Wi-Fi password."
+   }
+  },
+  {
+   "detector": "lan-watch",
+   "kind": "new_lan_device",
+   "severity": "warning",
+   "fields": {
+    "ip": "192.0.2.6",
+    "name": "tv",
+    "ssid": "Home",
+    "vendor": "Example Corp"
+   },
+   "text": {
+    "what": "“tv”, made by “Example Corp” joined “Home” for the first time, at 192.0.2.6. Heimdall tells you about every new device on your home network, so nobody joins it unnoticed.",
+    "serious": "Worth a look soon; nothing is broken yet.",
+    "done": "Heimdall recorded it; nothing was changed on your computer.",
+    "do": "If it is yours or a guest's (a new phone, a TV, a visitor), nothing to do. If you do not know it, look at it in Settings \u003e Wi-Fi \u0026 Network \u003e Devices; a device you cannot place is a reason to change the Wi-Fi password."
+   }
+  },
+  {
+   "detector": "lan-watch",
+   "kind": "new_lan_device",
+   "severity": "warning",
+   "fields": {
+    "ip": "192.0.2.8",
+    "private_mac": "true",
+    "ssid": "Home"
+   },
+   "text": {
+    "what": "A device, using a private hardware address (phones, tablets and laptops usually do, so its maker is not known) joined “Home” for the first time, at 192.0.2.8. Heimdall tells you about every new device on your home network, so nobody joins it unnoticed.",
+    "serious": "Worth a look soon; nothing is broken yet.",
+    "done": "Heimdall recorded it; nothing was changed on your computer.",
+    "do": "If it is yours or a guest's (a new phone, a TV, a visitor), nothing to do. If you do not know it, look at it in Settings \u003e Wi-Fi \u0026 Network \u003e Devices; a device you cannot place is a reason to change the Wi-Fi password."
+   }
+  },
+  {
+   "detector": "lan-watch",
+   "kind": "new_lan_device",
+   "severity": "warning",
+   "fields": null,
+   "text": {
+    "what": "A device joined this network for the first time, at an unknown address. Heimdall tells you about every new device on your home network, so nobody joins it unnoticed.",
+    "serious": "Worth a look soon; nothing is broken yet.",
+    "done": "Heimdall recorded it; nothing was changed on your computer.",
+    "do": "If it is yours or a guest's (a new phone, a TV, a visitor), nothing to do. If you do not know it, look at it in Settings \u003e Wi-Fi \u0026 Network \u003e Devices; a device you cannot place is a reason to change the Wi-Fi password."
+   }
+  },
+  {
+   "detector": "lan-watch",
+   "kind": "new_listener",
+   "severity": "warning",
+   "fields": {
+    "port": "8080",
+    "proto": "tcp"
+   },
+   "text": {
+    "what": "A program on this computer started listening for connections from the network (tcp, port 8080). Programs that share something (a game server, file sharing, a remote desktop) do this; so does malware waiting for orders.",
+    "serious": "Worth a look soon; nothing is broken yet.",
+    "done": "Heimdall noted it. The firewall still turns connections to it away unless a rule allows that port.",
+    "do": "If you just started something that shares over the network, nothing to do. Otherwise find the program (sudo ss -tulpn | grep ':8080 ') and stop it."
+   }
+  },
+  {
+   "detector": "lan-watch",
+   "kind": "new_listener",
+   "severity": "warning",
+   "fields": {
+    "port": "80; rm -rf ~",
+    "proto": "tcp"
+   },
+   "text": {
+    "what": "A program on this computer started listening for connections from the network (tcp, port unknown). Programs that share something (a game server, file sharing, a remote desktop) do this; so does malware waiting for orders.",
+    "serious": "Worth a look soon; nothing is broken yet.",
+    "done": "Heimdall noted it. The firewall still turns connections to it away unless a rule allows that port.",
+    "do": "If you just started something that shares over the network, nothing to do. Otherwise find the program (sudo ss -tulpn | grep ':PORT ') and stop it."
+   }
+  },
+  {
+   "detector": "lan-watch",
+   "kind": "wifi_inbound",
+   "severity": "warning",
+   "fields": {
+    "inbound": "wifi",
+    "src": "192.0.2.23"
+   },
+   "text": {
+    "what": "A device on the Wi-Fi network (192.0.2.23) tried to reach this computer directly: a connection, a ping or a question about it.",
+    "serious": "Worth a look soon; nothing is broken yet.",
+    "done": "Heimdall noted it. The firewall drops what it does not allow (it answers pings, as ufw does by default), so nothing got in unless a rule allows that port.",
+    "do": "Usually nothing. If it keeps happening, find out which device it is (Settings \u003e Wi-Fi \u0026 Network); on a network you do not control, a VPN also hides your traffic."
+   }
+  },
+  {
+   "detector": "lan-watch",
+   "kind": "wifi_inbound",
+   "severity": "info",
+   "fields": {
+    "inbound": "wifi",
+    "router": "true",
+    "src": "192.0.2.1"
+   },
+   "text": {
+    "what": "The router of this Wi-Fi network (192.0.2.1) reached for this computer. Routers that keep a list of their devices look at each one now and then.",
+    "serious": "For your information; nothing needs doing.",
+    "done": "Heimdall noted it, once per connection.",
+    "do": "Nothing to do."
+   }
+  },
+  {
+   "detector": "lan-watch",
+   "kind": "something_new",
+   "severity": "warning",
+   "fields": {
+    "new_mac": "aa:bb"
+   },
+   "text": {
+    "what": "Heimdall's watch of the local network noticed a change in the devices on it or in its router.",
+    "serious": "Worth a look soon; nothing is broken yet.",
+    "done": "Heimdall recorded it; nothing was changed on your computer.",
+    "do": "Settings \u003e Wi-Fi \u0026 Network \u003e Devices shows who is on the network. On a network you do not control, a VPN keeps your traffic private."
    }
   }
  ],

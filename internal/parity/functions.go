@@ -88,6 +88,7 @@ type StatsCase struct {
 
 type ExplainCase struct {
 	Detector string            `json:"detector"`
+	Kind     string            `json:"kind,omitempty"` // the alert's event kind, where the detector has several (lan-watch)
 	Severity string            `json:"severity"`
 	Fields   map[string]string `json:"fields"`
 	Text     explain.Text      `json:"text"`
@@ -156,7 +157,7 @@ func AllFunctions() Functions {
 		"remote-access", "tool-rules", "agent-baseline", "rule-draft", "incident", "grant-request", "something-new"}
 	for _, id := range ids {
 		for _, sev := range []string{"info", "warning", "critical"} {
-			f.Explain = append(f.Explain, ExplainCase{Detector: id, Severity: sev, Text: explain.For(id, sev, nil)})
+			f.Explain = append(f.Explain, ExplainCase{Detector: id, Severity: sev, Text: explain.For(id, "", sev, nil)})
 		}
 	}
 	for _, c := range []struct {
@@ -192,12 +193,35 @@ func AllFunctions() Functions {
 		{"resource-pressure", "warning", map[string]string{"mem_percent": "95.5", "load_per_cpu": "\u0085"}},
 		{"network-exposure", "critical", map[string]string{"port": "8765", "address": "0.0.0.0"}},
 		{"wifi-safety", "critical", map[string]string{"ssid": "  “”  "}},
-		{"lan-watch", "critical", map[string]string{"new_mac": "aa:bb"}},
 		{"incident", "warning", map[string]string{"keys": "session s1", "detectors": "injection-phrase, credential-shape"}},
 		{"rule-draft", "info", map[string]string{"rule": "heimdall_x", "rule_id": "7"}},
 		{"limbo-guest", "critical", map[string]string{"guest": "lab"}},
 	} {
-		f.Explain = append(f.Explain, ExplainCase{Detector: c.id, Severity: c.sev, Fields: c.fields, Text: explain.For(c.id, c.sev, c.fields)})
+		f.Explain = append(f.Explain, ExplainCase{Detector: c.id, Severity: c.sev, Fields: c.fields, Text: explain.For(c.id, "", c.sev, c.fields)})
+	}
+	// lan-watch: every event kind its own words, and an unknown one general words
+	for _, c := range []struct {
+		kind, sev string
+		fields    map[string]string
+	}{
+		{"router_changed", "critical", map[string]string{"ssid": "Cafe", "new_mac": "aa:bb"}},
+		{"router_changed", "critical", nil},
+		{"router_impersonated", "critical", map[string]string{"ssid": "Cafe", "other_ip": "192.0.2.7", "new_mac": "aa:bb"}},
+		{"rogue_router", "warning", map[string]string{"iface": "wlan0", "via": "dhcp", "what": "a second DHCP server 192.0.2.9", "judged": "warning"}},
+		{"rogue_router", "critical", map[string]string{"ssid": "Home", "via": "ra", "what": "x", "judged": "critical", "learned": "true"}},
+		{"rogue_router", "info", map[string]string{"ssid": "Home", "what": "the DHCP server's name changed", "judged": "info"}},
+		{"lan_device_changed", "critical", map[string]string{"ssid": "Home", "ip": "192.0.2.4", "mac": "aa:bb", "was_mac": "cc:dd", "was_name": "Printer\n\x1b[31m", "other_ip": "192.0.2.5"}},
+		{"lan_device_changed", "critical", map[string]string{"ssid": "Home", "ip": "192.0.2.4", "was_mac": "cc:dd"}},
+		{"new_lan_device", "warning", map[string]string{"ssid": "Home", "name": "tv", "vendor": "Example Corp", "ip": "192.0.2.6"}},
+		{"new_lan_device", "warning", map[string]string{"ssid": "Home", "private_mac": "true", "ip": "192.0.2.8"}},
+		{"new_lan_device", "warning", nil},
+		{"new_listener", "warning", map[string]string{"proto": "tcp", "port": "8080"}},
+		{"new_listener", "warning", map[string]string{"proto": "tcp", "port": "80; rm -rf ~"}},
+		{"wifi_inbound", "warning", map[string]string{"src": "192.0.2.23", "inbound": "wifi"}},
+		{"wifi_inbound", "info", map[string]string{"src": "192.0.2.1", "inbound": "wifi", "router": "true"}},
+		{"something_new", "warning", map[string]string{"new_mac": "aa:bb"}},
+	} {
+		f.Explain = append(f.Explain, ExplainCase{Detector: "lan-watch", Kind: c.kind, Severity: c.sev, Fields: c.fields, Text: explain.For("lan-watch", c.kind, c.sev, c.fields)})
 	}
 	f.Attack = attackCases(ids)
 	return f

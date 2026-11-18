@@ -809,7 +809,7 @@ fn call(sh: &Arc<Shared>, q: Req) {
     }
     // Heimdall's own explanation on every new hold (fixed text, never derived from the guest's output)
     if res.created {
-        let t = crate::explain::for_alert(&a.detector_id, a.severity.as_str(), &a.fields);
+        let t = crate::explain::for_alert(&a.detector_id, &a.event_kind, a.severity.as_str(), &a.fields);
         let text = format!("{}\n{}\n{}\n{}", t.what, t.serious, t.done, t.r#do);
         let id = res.id.clone();
         lock(sh).busy += 1;

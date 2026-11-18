@@ -321,7 +321,7 @@ fn the_go_functions_give_the_same_answers() {
                 fields.insert(k.clone(), s(Some(v)));
             }
         }
-        let t = heimdall::explain::for_alert(&s(obj(c, "detector")), &s(obj(c, "severity")), &fields);
+        let t = heimdall::explain::for_alert(&s(obj(c, "detector")), &s(obj(c, "kind")), &s(obj(c, "severity")), &fields);
         let want = obj(c, "text").unwrap();
         assert_eq!(
             (t.what.as_str(), t.serious.as_str(), t.done.as_str(), t.r#do.as_str()),
