@@ -14,6 +14,7 @@ cargo-fuzz = true
 libfuzzer-sys = "=0.4.10"
 heimdall = { path = "../heimdall" }
 heimdall-privacy = { path = "../privacy" }
+heimdall-macvendor = { path = "../macvendor" }
 
 [workspace]
 members = ["."]
@@ -266,6 +267,13 @@ bench = false
 [[bin]]
 name = "privacy_lookalike"
 path = "fuzz_targets/privacy_lookalike.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "macvendor"
+path = "fuzz_targets/macvendor.rs"
 test = false
 doc = false
 bench = false

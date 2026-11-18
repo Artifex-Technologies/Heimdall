@@ -74,6 +74,7 @@ internal/
   sources/vaultsource/     The agent's vault notes at rest (inotify, no polling)
   sources/lansource/       New devices on a trusted home network (events.jsonl written by `heimdalld lan scan`)
   lan/                     The device list: neighbour sweep, mDNS, router names, NetBIOS; own unit, trusted networks only
+  macvendor/               Who made a hardware address: the IEEE registries (MA-L/M/S, IAB), longest prefix; twin of rust/macvendor
   governance/              Phase 4: reviews text via the existing detectors, out-of-process
   grants/                  Phase 4: the one gate for hand-offs and access tiers (owner decides, as root)
   correlate/               Phase 5: related alerts become incidents (a sink wrapper)
@@ -99,6 +100,7 @@ packaging/privacy/         the private microphone's PipeWire and WirePlumber fil
 packaging/arch-private-mic/ the recipe of heimdall-private-mic-git (its own package; install.sh DESTDIR private-mic)
 rust/privacy/              the privacy pack: heimdall-fileguard (downloads guard), heimdall-strip (Remove hidden info), lookalike.rs: docs/PRIVACY_PACK.md
 packaging/privacy-pack/    the downloads guard's user unit (in heimdall-private-mic-git too)
+rust/macvendor/            heimdall-macvendor: the maker lookup (no dependencies; Yggdrasil's Settings uses it as a git dependency): docs/DEVICES.md
 rust/multilink/            heimdall-multilink: several internet connections at once (kernel multipath routing): docs/MULTILINK.md
 packaging/multilink/       its unit and polkit action; packaging/arch-multilink/ the recipe of heimdall-multilink-git (its own package)
 testdata/parity/           Fixtures both languages run (go test ./internal/parity -update rewrites them)
@@ -264,11 +266,32 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   asks again every 5 minutes, and logs one line with the reason from the first stdout line, `A game is running: REASON.`);
   exit 1 means none. A missing tool, any other exit, or no answer within 10 s means run as before. Changing the exit codes
   or that first line is a contract change for both repos. Watching (alerts, detectors, the responder) never asks.
+- **Heimdall → Yggdrasil (the maker lookup crate): live (2026-11-17).** Yggdrasil's Settings depends on
+  `rust/macvendor` (crate `heimdall-macvendor`) as a git dependency pinned to a commit (`rev`), for the makers of Wi-Fi access
+  points and of the vendor extras they announce. Its public API (`global`, `lookup`, `lookup_str`, `Table::lookup_oui`,
+  `Answer`, `Vendor`, `is_local`, `parse_mac`) changes only with a log entry here and a matching change in Yggdrasil when it
+  moves its `rev`. The crate stays free of dependencies, so it builds anywhere Settings does (a Raspberry Pi too).
 - **Ports owned by this repo:** `8930` (Heimdall's API, loopback-only) and
   `8931` (mesh, off by default; one non-loopback address chosen by the owner).
   Both are in Sarina's `docs/ECOSYSTEM.md` port registry.
 
 ### Coordination Log (newest first)
+
+### 2026-11-17 (2) — One maker lookup for every IEEE registry: heimdall-macvendor (R3)
+- New crate `rust/macvendor` (`heimdall-macvendor`, no dependencies) and its Go twin `internal/macvendor`: who made a hardware
+  address from the IEEE's MA-L, MA-M, MA-S and IAB blocks, longest prefix first (36, 28, 24 bits); special addresses
+  (broadcast, IPv4/IPv6 multicast, 802.1 groups, VRRP/HSRP, RFC 7042 documentation), other multicast, and locally administered
+  addresses ("private", never a maker) come first. Lists: the IEEE's CSV files in `/var/lib/heimdall-ieee` when there, else
+  hwdata's `oui.txt` and `iab.txt` (as before). Same answers in both languages: `testdata/parity/macvendor.json` (`go test
+  ./internal/macvendor -update`), checked in CI. Fuzz target `macvendor`; `--example bench`. `docs/DEVICES.md`, "Vendor data".
+- The device list uses it in Go and Rust; `internal/lan/oui.go` and `rust/heimdall/src/cli/lan/oui.rs` are gone (their
+  fixtures left `cli-lan.json`). Changes a user can see: short names follow the crate's rules (accented capitals no longer
+  garbled, "LG"/"ZTE" kept, endings like ", Inc." cut as whole words), a special address shows its name ("VRRP router"), and a
+  multicast address is no longer counted as private.
+- The monthly download of the IEEE files is designed, not built (`docs/DEVICES.md`): my decision #3 in Labyrinth_OS
+  `docs/REFERENCE_PLAN_2026-11.md`.
+- **For Yggdrasil:** Settings uses the crate as a git dependency (contract above); no API change for anyone else.
+— Signed: Heimdall / Claude Opus 5.5
 
 ### 2026-11-17 — The device list: what I say a device is (owner_kind)
 - New `heimdalld lan kind [--dir DIR] MAC KIND|guess` (as root; Go and Rust, compared in `tests/cli_lan.rs`; fixtures `kinds`,

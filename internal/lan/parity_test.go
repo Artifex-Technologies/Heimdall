@@ -436,30 +436,6 @@ func TestRustFixture(t *testing.T) {
 	}
 	out["arp"] = arps
 
-	// the makers
-	oui := "OUI/MA-L\n\n00-11-22   (hex)\t\tSamsung Electronics Co.,Ltd\n001122     (base 16)\t\tSamsung Electronics Co.,Ltd\n" +
-		"AA-BB-CC   (hex)\t\tAmazon Technologies Inc.\n00-00-5E   (hex)\t\tEXAMPLE DEVICES CORP\r\n00-11-23   (hex)\t\tÉcole ÉLECTRONIQUE\n" +
-		"00-11-24   (hex)\t\t  Intel Corporate  \n"
-	os.WriteFile(filepath.Join(dir, "oui.txt"), []byte(oui), 0o644)
-	type pOUI struct {
-		Text string            `json:"text"`
-		Macs []string          `json:"macs"`
-		Out  map[string]string `json:"out"`
-	}
-	ouiMacs := []string{"00:11:22:33:44:55", "DA:BB:CC:00:00:01", "AA:BB:CC:00:00:01", "00:00:5e:00:53:01", "00:11:23:00:00:01", "00:11:24:00:00:01", "0", "zz:zz:zz:00"}
-	out["oui"] = []pOUI{{oui, ouiMacs, vendors(filepath.Join(dir, "oui.txt"), ouiMacs)}}
-	var privs []pBool
-	for _, m := range append(ouiMacs, "", "0", "2", "Ⱥ:00", "1E:00", "0e:00", "f2") {
-		privs = append(privs, pBool{N: m, Out: PrivateMAC(m)})
-	}
-	out["private"] = privs
-	var shorts []pStr
-	for _, s := range []string{"ASKEY COMPUTER CORP", "Intel Corporate", "Amazon Technologies Inc.", "Apple, Inc.", "ÉCOLE ÉLECTRONIQUE", "Co.,Ltd X",
-		"A.", "ABCD", "ABCDE", "SAMSUNG ELECTRO-MECHANICS(THAILAND)", "  Cisco Systems, Inc  ", "Foo GmbH Bar Ltd", "ǅ ǈ", "ﬃ ABC"} {
-		shorts = append(shorts, pStr{s, ShortVendor(s)})
-	}
-	out["short"] = shorts
-
 	// the store as Load reads it and Save writes it back
 	type pStore struct{ In, Out, Err string }
 	var stores []pStore

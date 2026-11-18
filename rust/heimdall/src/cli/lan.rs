@@ -7,7 +7,6 @@ pub mod discover;
 pub mod dns;
 pub mod fuzz;
 pub mod net;
-pub mod oui;
 pub mod resolver;
 pub mod scan;
 pub mod store;

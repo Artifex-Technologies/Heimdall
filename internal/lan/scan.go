@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Artifex-Technologies/Heimdall/internal/macvendor"
 )
 
 // Paths the scan reads; variables so tests can point them elsewhere.
@@ -210,16 +212,14 @@ func Scan(o Options) (Result, error) {
 	if len(unnamed) > 0 {
 		nb = netbios(unnamed)
 	}
-	var macs []string
-	for _, ip := range ips {
-		macs = append(macs, arp[ip])
-	}
-	vend := vendors(OUIPath, macs)
+	// the makers, from the IEEE's registries (all four when downloaded, else hwdata's lists; internal/macvendor)
+	makers := macvendor.Default()
 
 	var seen []Device
 	for _, ip := range ips {
 		mac := arp[ip]
-		d := Device{MAC: mac, IP: ip, Vendor: vend[mac], PrivateMAC: PrivateMAC(mac)}
+		maker := makers.LookupString(mac)
+		d := Device{MAC: mac, IP: ip, Vendor: maker.Label(), PrivateMAC: maker.Kind == macvendor.KindPrivate}
 		if f := md[ip]; f != nil {
 			d.Names = append(d.Names, f.names...)
 			d.Model = f.model

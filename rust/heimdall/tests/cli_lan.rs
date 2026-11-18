@@ -6,7 +6,7 @@
 mod common;
 #[allow(unused_imports)]
 use common::*;
-use heimdall::cli::lan::{discover, dns, oui, resolver, scan, store, text};
+use heimdall::cli::lan::{discover, dns, resolver, scan, store, text};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -185,19 +185,6 @@ fn the_list_and_its_files_as_go_keeps_them() {
         let got = scan::arp_table(&proc, st(&c["Iface"]));
         let want: BTreeMap<String, String> = serde_json::from_value(c["Out"].clone()).unwrap();
         assert_eq!(got, want, "{c}");
-    }
-    for c in arr(&f, "oui") {
-        std::fs::write(dir.join("oui.txt"), st(&c["text"])).unwrap();
-        let macs: Vec<String> = c["macs"].as_array().unwrap().iter().map(|m| st(m).to_string()).collect();
-        let got = oui::vendors(&dir.join("oui.txt").to_string_lossy(), &macs);
-        let want: BTreeMap<String, String> = serde_json::from_value(c["out"].clone()).unwrap();
-        assert_eq!(got, want);
-    }
-    for c in arr(&f, "private") {
-        assert_eq!(oui::private_mac(st(&c["N"])), c["Out"].as_bool().unwrap(), "{c}");
-    }
-    for c in arr(&f, "short") {
-        assert_eq!(oui::short_vendor(st(&c["In"])), st(&c["Out"]), "{c}");
     }
     // events.jsonl
     let ev = dir.join("events.jsonl").to_string_lossy().into_owned();

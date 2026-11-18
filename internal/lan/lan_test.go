@@ -125,26 +125,6 @@ func TestNamesThatAreNotNames(t *testing.T) {
 	}
 }
 
-func TestVendorsAndPrivateAddresses(t *testing.T) {
-	dir := t.TempDir()
-	p := filepath.Join(dir, "oui.txt")
-	os.WriteFile(p, []byte("OUI/MA-L\n\n00-11-22   (hex)\t\tSamsung Electronics Co.,Ltd\n001122     (base 16)\t\tSamsung Electronics Co.,Ltd\n"+
-		"AA-BB-CC   (hex)\t\tAmazon Technologies Inc.\n"), 0o644)
-	v := vendors(p, []string{"00:11:22:33:44:55", "DA:BB:CC:00:00:01", "A8:BB:CC:00:00:01"})
-	if v["00:11:22:33:44:55"] != "Samsung Electronics" || len(v) != 1 {
-		t.Fatalf("%v", v)
-	}
-	if !PrivateMAC("DA:BB:CC:00:00:01") || PrivateMAC("A8:BB:CC:00:00:01") || !PrivateMAC("02:00:00:00:00:00") {
-		t.Fatal("the locally administered bit is the second-lowest bit of the first byte")
-	}
-	if ShortVendor("ASKEY COMPUTER CORP") != "Askey Computer" || ShortVendor("Intel Corporate") != "Intel" {
-		t.Fatal(ShortVendor("ASKEY COMPUTER CORP"), ShortVendor("Intel Corporate"))
-	}
-	if ShortVendor("Amazon Technologies Inc.") != "Amazon" || ShortVendor("Apple, Inc.") != "Apple" {
-		t.Fatal(ShortVendor("Amazon Technologies Inc."), ShortVendor("Apple, Inc."))
-	}
-}
-
 func TestTheFirstScanLearnsLaterOnesReportNewDevices(t *testing.T) {
 	n := &Network{UUID: "u"}
 	t0 := time.Date(2026, 11, 7, 10, 0, 0, 0, time.UTC)

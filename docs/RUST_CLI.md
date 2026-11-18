@@ -70,14 +70,14 @@ list (`/etc/heimdall/wifi-trusted.json`), which keeps its form.
 
 `rust/heimdall/src/cli/lan.rs` and `src/cli/lan/` (Go: cmd/heimdalld/lan.go, internal/lan): the DNS codec (`dns.rs`), discovery
 (`discover.rs`: the sweep, multicast DNS, NetBIOS), Go's resolver as the reverse names use it (`resolver.rs`), the makers
-(`oui.rs`), the files (`store.rs`), the scan (`scan.rs`), the sockets made as Go's `net` makes them (`net.rs`), and Go's
+(the shared crate `rust/macvendor`, Go `internal/macvendor`, compared on `testdata/parity/macvendor.json`), the files (`store.rs`), the scan (`scan.rs`), the sockets made as Go's `net` makes them (`net.rs`), and Go's
 `strings.EqualFold`, `ToLower` and `ToUpper` on any bytes (`text.rs`; the case-folding orbits generated from Go by
 `rust/gotools/foldtable`).
 
 - **Fixture** (`testdata/parity/cli-lan.json`, written by `go test ./internal/lan -update`, `internal/lan/parity_test.go`, a
   fixed seed): 703 DNS messages and 200 names read (records and errors), the queries, 300 runs of answers absorbed, 300
   instance names, 400 names cleaned and judged (made up from the address, machine ids), 200 NetBIOS answers, 600 kinds, 120
-  merges, 120 route tables, 60 neighbour tables, the makers list, 16 stores read and written back, wifi-trusted.json, nmcli's
+  merges, 120 route tables, 60 neighbour tables, 16 stores read and written back, wifi-trusted.json, nmcli's
   answers, EqualFold and the events lines. All equal in Rust.
 - **`lan list`**: 19 runs in fake roots against the Go binary (stores full, missing, empty, broken, of the wrong type, a
   folder, unreadable; `--dir` spellings; usage errors; four time zones): standard output, standard error and exit codes equal.

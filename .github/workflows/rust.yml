@@ -28,7 +28,7 @@ jobs:
           [ -z "$unformatted" ] || { echo "run gofmt -w on:"; echo "$unformatted"; exit 1; }
       - name: the Go fixtures are current
         working-directory: .
-        run: go test ./internal/parity ./cmd/heimdalld ./internal/detect -run 'Fixtures|ParityDetectors|RustRuleFile'
+        run: go test ./internal/parity ./cmd/heimdalld ./internal/detect ./internal/macvendor -run 'Fixtures|ParityDetectors|RustRuleFile'
       - run: rustup toolchain install stable --profile minimal --component clippy,rustfmt
       - run: cargo fmt --all --check
       - run: cargo clippy --locked --all-targets -- -D warnings

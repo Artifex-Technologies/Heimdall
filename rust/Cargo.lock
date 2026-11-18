@@ -189,6 +189,7 @@ name = "heimdall"
 version = "0.1.0"
 dependencies = [
  "flate2",
+ "heimdall-macvendor",
  "libc",
  "memmap2",
  "proptest",
@@ -198,6 +199,14 @@ dependencies = [
  "rustls",
  "serde_json",
  "sha2",
+]
+
+[[package]]
+name = "heimdall-macvendor"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "serde_json",
 ]
 
 [[package]]

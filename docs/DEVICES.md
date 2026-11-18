@@ -30,12 +30,12 @@ The scan only does what every phone and TV on a home network already does to fin
 
 | Step | What it sends | What it learns |
 | --- | --- | --- |
-| Neighbour sweep | one 1-byte UDP datagram to port 9 ("discard") at each address, about 2000 a second at most | The kernel asks each address for its hardware address (ARP); every device that is on answers. The maker comes from the address's first half (IEEE list, `/usr/share/hwdata/oui.txt`). |
+| Neighbour sweep | one 1-byte UDP datagram to port 9 ("discard") at each address, about 2000 a second at most | The kernel asks each address for its hardware address (ARP); every device that is on answers. The maker comes from the address's first bits (the IEEE's registries, offline: [Vendor data](#vendor-data-who-made-a-device)). |
 | Multicast DNS | the standard "which services are here?" question, then one question per service type | Names people gave their devices (Chromecast `fn`, Fire TV `n`, Matter `DN`, AirPlay, printers), models, services. |
 | The router's names | a reverse DNS lookup of each address, asked of the router | The names devices gave the router when they joined ("iPhone-3"). |
 | Windows names | a NetBIOS name query (UDP 137) to devices still unnamed | Windows and Samba computers' names. |
 
-Addresses whose first byte has the "locally administered" bit set are private addresses (Wi-Fi privacy on phones, tablets and laptops): they name no maker, and the list says so.
+Addresses whose first byte has the "locally administered" bit set are private addresses (Wi-Fi privacy on phones, tablets and laptops): they name no maker, and the list says so (`private_mac`).
 
 What a device *is* (TV, speaker, printer, phone, computer, console, smart-home gadget) is a guess from its services, name and maker, shown as an icon.
 
@@ -60,6 +60,86 @@ SSDP's answers come back unicast to a multicast question. The firewall cannot ma
 
 This also explains a pattern in the inbound alerts: when a program on this computer (a browser looking for screens to cast to, a music app looking for speakers) asks the network who is there, the TVs that answer show up as "tried N different ports". Their answers are blocked; nothing connected.
 
+## Vendor data (who made a device)
+
+The maker of a device comes from its hardware address, looked up on this computer in the IEEE's registries. Nothing is
+asked of anyone on the network or the internet.
+
+The IEEE hands out address blocks of three sizes: **MA-L** (the first 24 bits, the classic "OUI"), **MA-M** (28 bits) and
+**MA-S** (36 bits); the older **IAB** blocks are 36 bits too. Small makers get MA-M and MA-S blocks, which sit inside 24-bit
+blocks registered to "IEEE Registration Authority", so the longest block wins: 36 bits, then 28, then 24. Without the MA-M and
+MA-S lists, a device from such a maker shows as "IEEE Registration Authority".
+
+Before any registry is asked, the address is checked for what it says about itself:
+
+| The address | Shown as |
+| --- | --- |
+| a well-known special one: broadcast, all zeros, IPv4 multicast (`01:00:5e`, 25 bits), IPv6 multicast (`33:33`), the IEEE 802.1 groups (Spanning Tree, pause frames, LACP, 802.1X, LLDP, MRP), PTP, Cisco's CDP and PVST+, VRRP and HSRP virtual routers, the documentation ranges of RFC 7042 | its short name ("VRRP router", "IPv4 multicast") |
+| any other group address (the first byte's lowest bit) | multicast, no maker |
+| a locally administered address (the first byte's second bit) | a private address, **never a maker**, even when the same prefix with that bit cleared is registered |
+| in a registry | the maker's short name ("Samsung Electronics Co.,Ltd" -> "Samsung Electronics") |
+| none of these | no maker |
+
+### Where the lists come from
+
+| Registry | Read from, the first that gives at least one block |
+| --- | --- |
+| MA-S | `/var/lib/heimdall-ieee/oui36.csv`, `oui36.txt` |
+| IAB | `/var/lib/heimdall-ieee/iab.csv`, `iab.txt`, then `/usr/share/hwdata/iab.txt` |
+| MA-M | `/var/lib/heimdall-ieee/mam.csv`, `mam.txt` |
+| MA-L | `/var/lib/heimdall-ieee/oui.csv`, `oui.txt`, then `/usr/share/hwdata/oui.txt` |
+
+Today the folder `/var/lib/heimdall-ieee` does not exist, so the lists are Arch's hwdata package (MA-L and IAB, updated with
+the package). A file put there by hand (`sudo install -d -m755 /var/lib/heimdall-ieee`, then the IEEE's CSV files, mode 0644)
+is read from the next scan on. It is a folder of its own, readable by every account, because `/var/lib/heimdall` is closed to
+other accounts and Settings reads the same files as the person signed in.
+
+Only the IEEE's own data is read. Nmap's and Wireshark's maker lists and merged lists such as OUI-Master-Database are not used:
+their licences differ from ours (docs/REFERENCES.md).
+
+A damaged or planted file can only make names wrong, not do harm: only regular files are opened (a FIFO is skipped without
+waiting), a file over 64 MiB is not read, lines are capped at 4 KiB and a CSV record at 16 KiB, the table at a million blocks;
+broken lines are skipped; names lose control, invisible and direction-changing characters and are cut at 128 bytes; of two
+blocks with the same prefix the first one read stays. A file that gives no block at all (an error page saved as `oui.csv`)
+counts as missing, so hwdata's list is used.
+
+### The code
+
+- `rust/macvendor`, crate `heimdall-macvendor`: no dependencies; the table is loaded on the first lookup and kept, as one sorted
+  array per block size with every name stored once (hwdata's 44,634 blocks: 57 ms to load; all four IEEE files, 59,062 blocks:
+  92 ms; the whole benchmark program stays under 8 MB). A lookup is a few binary searches, about 100 to 150 ns, and allocates
+  nothing. `cargo run --release -p heimdall-macvendor --example bench [IEEE_DIR [HWDATA_DIR]]` measures it.
+- `internal/macvendor`: the Go twin. Both read the same files to the same table and answer every address alike:
+  `go test ./internal/macvendor -update` writes `testdata/parity/macvendor.json` (hand-made and generated files, text and CSV,
+  damaged ones too) and `rust/macvendor/tests/parity.rs` checks the Rust crate against it. The fuzz target is `macvendor` in
+  `rust/fuzz` (`go test -fuzz FuzzRead ./internal/macvendor` for Go).
+- Other projects use the crate as a git dependency pinned to a commit:
+  `heimdall-macvendor = { git = "https://github.com/Artifex-Technologies/Heimdall", rev = "..." }`. Yggdrasil's Settings does,
+  for the makers of Wi-Fi access points and of the vendor extras they announce.
+
+In the device list, `vendor` is the short name (of the maker or of a special address) and `private_mac` is true for a locally
+administered address.
+
+### Downloading the IEEE's files (designed, not built)
+
+Whether to download the four IEEE files each month or stay with hwdata's two is my decision (#3 in Labyrinth_OS
+`docs/REFERENCE_PLAN_2026-11.md`). If I say yes, this is the plan:
+
+- `heimdall-intel-update` (daily timer, as the `heimdall` user) gets one more step that runs when the newest file in
+  `/var/lib/heimdall-ieee` is older than 30 days: it fetches `https://standards-oui.ieee.org/oui/oui.csv`, `oui28/mam.csv`,
+  `oui36/oui36.csv` and `iab/iab.csv` with the same rules as its other downloads (HTTPS only, TLS 1.2 or newer, a time limit, a
+  size limit of 64 MB). Nothing is sent but the four requests; no address seen on any network.
+- Each file goes to a temporary file in the folder and is checked before it replaces the one in use, by a new
+  `heimdalld macvendor-check FILE REGISTRY [LAST_GOOD]` (Go and Rust, through this crate's reader): it must be the IEEE's CSV
+  layout, hold at least a floor of blocks (MA-L 30,000, MA-M 3,000, MA-S 3,000, IAB 4,000) and not fewer than 90 % of the last
+  good copy's. Then a rename puts it in place; otherwise the last good copy stays (and with none, hwdata's list).
+- The folder comes from a tmpfiles.d line (`d /var/lib/heimdall-ieee 0755 heimdall heimdall`); the files are written 0644; the
+  update unit's `ReadWritePaths` gains the folder.
+- The readers need no change: `heimdalld lan scan` is a new process every 5 minutes and Settings reads the files when it
+  starts.
+- If the IEEE's server refuses the download or changes its layout, the check fails and nothing changes.
+- "hwdata only" needs nothing: the code above is what runs today.
+
 ## Files
 
 | Path | What |
@@ -67,6 +147,8 @@ This also explains a pattern in the inbound alerts: when a program on this compu
 | `/var/lib/heimdall/lan/devices.json` | the list, per network (connection UUID and name), plus the last scan's status |
 | `/var/lib/heimdall/lan/events.jsonl` | one line per new device; heimdalld follows it (`events.offset`) |
 | `/var/lib/heimdall/lan/kinds.json` | what I said devices are, by hardware address (`heimdalld lan kind`, as root) |
+| `/usr/share/hwdata/oui.txt`, `iab.txt` | the IEEE's MA-L and IAB lists (Arch's hwdata package): the makers |
+| `/var/lib/heimdall-ieee/` | the IEEE's own four files, when there (not downloaded yet: [Vendor data](#vendor-data-who-made-a-device)) |
 
 The list and the events are readable only by the `heimdall` account. Settings reads the list through the local API (`GET /v1/lan/devices`, the same callers as every other endpoint). `heimdalld lan list` prints it on a terminal (as root or heimdall).
 

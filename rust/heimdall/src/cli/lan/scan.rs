@@ -241,15 +241,16 @@ pub fn scan(dir: &str, wait: Duration, log: &dyn Fn(&str)) -> Result<Outcome, St
     let unnamed: Vec<String> = ips.iter().filter(|ip| md.get(*ip).is_none_or(|f| f.names.is_empty())).cloned().collect();
     let rdns = reverse_names(gateway, &ips);
     let nb = if unnamed.is_empty() { BTreeMap::new() } else { discover::netbios(&unnamed) };
-    let macs: Vec<String> = ips.iter().map(|ip| arp[ip].clone()).collect();
-    let vend = super::oui::vendors(super::oui::OUI_PATH, &macs);
+    // the makers, from the IEEE's registries (all four when downloaded, else hwdata's lists; Go: internal/macvendor)
+    let makers = heimdall_macvendor::global();
 
     let mut seen = Vec::new();
     for ip in &ips {
         let mac = arp[ip].clone();
+        let maker = makers.lookup_str(&mac);
         let mut d = Device {
-            vendor: vend.get(&mac).cloned().unwrap_or_default(),
-            private_mac: super::oui::private_mac(&mac),
+            vendor: maker.label().to_string(),
+            private_mac: maker == heimdall_macvendor::Answer::Private,
             mac,
             ip: ip.clone(),
             ..Device::default()

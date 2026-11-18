@@ -3949,26 +3949,6 @@
   {"Out":"u1:lan0\n","Iface":"lan0","UUID":"","Name":""},
   {"Out":"u1:lan0:a:b\n","Iface":"lan0","UUID":"u1","Name":"a:b"}
  ],
- "oui": [
-  {"text":"OUI/MA-L\n\n00-11-22   (hex)\t\tSamsung Electronics Co.,Ltd\n001122     (base 16)\t\tSamsung Electronics Co.,Ltd\nAA-BB-CC   (hex)\t\tAmazon Technologies Inc.\n00-00-5E   (hex)\t\tEXAMPLE DEVICES CORP\r\n00-11-23   (hex)\t\tÉcole ÉLECTRONIQUE\n00-11-24   (hex)\t\t  Intel Corporate  \n","macs":["00:11:22:33:44:55","DA:BB:CC:00:00:01","AA:BB:CC:00:00:01","00:00:5e:00:53:01","00:11:23:00:00:01","00:11:24:00:00:01","0","zz:zz:zz:00"],"out":{"00:00:5e:00:53:01":"Example Devices","00:11:22:33:44:55":"Samsung Electronics","00:11:23:00:00:01":"École ÉLECTRONIQUE","00:11:24:00:00:01":"Intel"}}
- ],
- "private": [
-  {"N":"00:11:22:33:44:55","IP":"","Out":false},
-  {"N":"DA:BB:CC:00:00:01","IP":"","Out":true},
-  {"N":"AA:BB:CC:00:00:01","IP":"","Out":true},
-  {"N":"00:00:5e:00:53:01","IP":"","Out":false},
-  {"N":"00:11:23:00:00:01","IP":"","Out":false},
-  {"N":"00:11:24:00:00:01","IP":"","Out":false},
-  {"N":"0","IP":"","Out":false},
-  {"N":"zz:zz:zz:00","IP":"","Out":false},
-  {"N":"","IP":"","Out":false},
-  {"N":"0","IP":"","Out":false},
-  {"N":"2","IP":"","Out":false},
-  {"N":"Ⱥ:00","IP":"","Out":false},
-  {"N":"1E:00","IP":"","Out":true},
-  {"N":"0e:00","IP":"","Out":true},
-  {"N":"f2","IP":"","Out":true}
- ],
  "queries": [
   {"names":["_services._dns-sd._udp.local","_googlecast._tcp.local","_airplay._tcp.local","_raop._tcp.local","_amzn-wplay._tcp.local","_spotify-connect._tcp.local","_ipp._tcp.local","_printer._tcp.local","_hap._tcp.local","_smb._tcp.local","_device-info._tcp.local","_companion-link._tcp.local"],"q":"00000000000c000000000000095f7365727669636573075f646e732d7364045f756470056c6f63616c00000c00010b5f676f6f676c6563617374045f746370056c6f63616c00000c0001085f616972706c6179045f746370056c6f63616c00000c0001055f72616f70045f746370056c6f63616c00000c00010b5f616d7a6e2d77706c6179045f746370056c6f63616c00000c0001105f73706f746966792d636f6e6e656374045f746370056c6f63616c00000c0001045f697070045f746370056c6f63616c00000c0001085f7072696e746572045f746370056c6f63616c00000c0001045f686170045f746370056c6f63616c00000c0001045f736d62045f746370056c6f63616c00000c00010c5f6465766963652d696e666f045f746370056c6f63616c00000c00010f5f636f6d70616e696f6e2d6c696e6b045f746370056c6f63616c00000c0001"},
   {"names":["_workstation._tcp.local","_ssh._tcp.local","_sonos._tcp.local","_androidtvremote2._tcp.local"],"q":"0000000000040000000000000c5f776f726b73746174696f6e045f746370056c6f63616c00000c0001045f737368045f746370056c6f63616c00000c0001065f736f6e6f73045f746370056c6f63616c00000c0001115f616e64726f6964747672656d6f746532045f746370056c6f63616c00000c0001"},
@@ -4121,22 +4101,6 @@
   {"Mac":"0A:00:00:00:00:0B\n","Kind":"tv","Ret":"","Err":"\"0A:00:00:00:00:0B\\n\" is not a hardware address (six pairs of hex digits with colons): nothing changed","After":"{\"00:00:5E:00:53:01\":\"router\",\"0A:00:00:00:00:0B\":\"phone\"}\n"},
   {"Mac":"0a:00:00:00:00:0b","Kind":"guess","Ret":"0A:00:00:00:00:0B","Err":"","After":"{\"00:00:5E:00:53:01\":\"router\"}\n"},
   {"Mac":"00:00:5E:00:53:01","Kind":"guess","Ret":"00:00:5E:00:53:01","Err":"","After":"{}\n"}
- ],
- "short": [
-  {"In":"ASKEY COMPUTER CORP","Out":"Askey Computer"},
-  {"In":"Intel Corporate","Out":"Intel"},
-  {"In":"Amazon Technologies Inc.","Out":"Amazon"},
-  {"In":"Apple, Inc.","Out":"Apple"},
-  {"In":"ÉCOLE ÉLECTRONIQUE","Out":"��cole ��lectronique"},
-  {"In":"Co.,Ltd X","Out":"Co"},
-  {"In":"A.","Out":"A"},
-  {"In":"ABCD","Out":"ABCD"},
-  {"In":"ABCDE","Out":"Abcde"},
-  {"In":"SAMSUNG ELECTRO-MECHANICS(THAILAND)","Out":"Samsung Electro-mechanics(thailand)"},
-  {"In":"  Cisco Systems, Inc  ","Out":"Cisco Systems"},
-  {"In":"Foo GmbH Bar Ltd","Out":"Foo"},
-  {"In":"ǅ ǈ","Out":"ǅ ǈ"},
-  {"In":"ﬃ ABC","Out":"��� Abc"}
  ],
  "store": [
   {"In":"","Out":"{\n \"networks\": null,\n \"status\": \"\",\n \"status_time\": \"0001-01-01T00:00:00Z\"\n}","Err":"unexpected end of JSON input"},
