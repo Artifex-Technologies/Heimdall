@@ -87,6 +87,9 @@ ClamAV is the reference: the signatures the world shares. Immunity is what Heimd
   program that was there before breaks, or from anyone) only names the file; root checks the proof.
 - **Learned.** Malware ClamAV does not know gets a fingerprint in `/var/lib/clamav/heimdall-immunity.hsb`, which ClamAV loads
   with its own database. Every scan from then on catches any copy of it.
+- **Known malware addresses.** With an abuse.ch Auth-Key (free, not-for-profit), `heimdall-intel-update` also downloads
+  URLhaus's ClamAV signatures daily into `/var/lib/clamav/heimdall-urlhaus.ndb`, so a file carrying a known malware address is
+  flagged by every scan. Download only; `"urlhaus_clamav": false` turns it off (`docs/IMMUNITY.md`, "URLhaus").
 
 Never moved: anything under `/usr`, `/boot`, `/proc`, `/sys`, `/dev` or `/run`, and any file an installed package owns.
 `heimdalld scan-files` scans folders with ClamAV for the desktop (the downloads watch, Settings' scan).

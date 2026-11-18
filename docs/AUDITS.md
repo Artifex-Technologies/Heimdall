@@ -9,8 +9,8 @@ itself: each finding says how to fix it, and Sarina (when installed) explains th
 | `kernel-vulnerability` | an installed kernel with known holes that a newer kernel fixes | the kernel CVE team's records (osv.dev), with CISA's list of vulnerabilities exploited in the wild, weekly |
 | `hardening` | a setting that leaves a known kind of hole open where closing it costs nothing noticeable | this computer (/dev, /sys, /proc) |
 
-`heimdall-intel-update` does every download (heimdalld never connects off the machine): only public lists are fetched, nothing
-about this computer is sent.
+`heimdall-intel-update` does every download (heimdalld never connects off the machine): only whole lists are fetched (public ones,
+and URLhaus's ClamAV signatures with my own abuse.ch key, `IMMUNITY.md`), nothing about this computer is sent.
 
 ## Kernel holes
 

@@ -65,7 +65,7 @@ happened.
 | [CrowdStrike/foundry-skills](https://github.com/CrowdStrike/foundry-skills) (MIT) | App packaging (Falcon Foundry) | Design reference | A playbook ships with its own permissions; Sarina may draft, root tests, the owner approves (R7) | 2026-11-17 |
 | [VirusTotal/yara](https://github.com/VirusTotal/yara) (BSD-3) | Pattern rules | Adapted (format, through ClamAV) | `immunity` rule drafts loaded by ClamAV (`IMMUNITY.md`); YARA in Limbo's analysis image. **Maintenance mode upstream**: fixes only, new work in YARA-X | 2026-11-17 |
 | [VirusTotal/yara-x](https://github.com/VirusTotal/yara-x) (BSD-3, Rust) | Pattern rules (successor) | Candidate | Rule-draft lint with slow-pattern warnings (R4); whether to depend on the crate is the owner's decision | 2026-11-17 |
-| [abusech/URLhaus](https://github.com/abusech/URLhaus) (data CC0) | Malware URL feed | Adapted (data, via malware-filter) + Candidate | `packaging/net/heimdall-dns-blocklist` (URLhaus hosts filter). Candidate: ClamAV URL signatures, downloaded hash lists; per-hash API questions never by default (R5) | 2026-11-17 |
+| [abusech/URLhaus](https://github.com/abusech/URLhaus) (data: [abuse.ch terms of use](https://abuse.ch/terms-of-use/), see note below) | Malware URL feed | Adapted (data, via malware-filter) + Adapted (data, own key) + Candidate | `packaging/net/heimdall-dns-blocklist` (URLhaus hosts filter, via malware-filter). ClamAV URL signatures (`urlhaus_clamav.ndb`, `https://urlhaus-api.abuse.ch/v2/files/exports/<key>/urlhaus_clamav.ndb`) through `heimdall-intel-update` into `/var/lib/clamav/heimdall-urlhaus.ndb` (`IMMUNITY.md`, "URLhaus"). Candidate: downloaded hash lists; per-hash API questions never by default (R5) | 2026-11-18 |
 | [Suryesh/OTX_AlienVault_URL](https://github.com/Suryesh/OTX_AlienVault_URL) (MIT) | AlienVault OTX client | Candidate | Optional OTX feed, pull-only: subscribed indicator lists into `intel`, never a question about what this computer saw (R6) | 2026-11-17 |
 | [mitre-attack/attack-stix-data](https://github.com/mitre-attack/attack-stix-data) (MITRE ATT&CK terms) | Technique catalogue | Candidate | Trimmed ID/name/tactic table, MITRE's notice kept verbatim; detector → technique tags on alerts (R1) | 2026-11-17 |
 | [mitre-attack/mitreattack-python](https://github.com/mitre-attack/mitreattack-python) (Apache-2.0) | ATT&CK tooling | Candidate (idea only) | `heimdalld attack-layer`: a Navigator layer and a gap list of what the detectors watch (R2) | 2026-11-17 |
@@ -155,3 +155,14 @@ ready. Using the `yara-x` crate inside Heimdall would be a dependency, not copie
 
 **ATT&CK data carries MITRE's notice.** If the trimmed table lands, it is committed with MITRE's copyright line and licence
 text verbatim, and its disclaimer holds here too: a tag says what a detector looks for, never that a technique is covered.
+
+**URLhaus's licence, checked 2026-11-18.** It is no longer plain CC0 from abuse.ch itself. Its
+[terms of use](https://abuse.ch/terms-of-use/) say "Access to the abuse.ch Platforms is provided only to: Users who have
+completed the authentication process" and that "Authenticated Users may access the Platforms for not-for-profit purposes";
+for MalwareBazaar, URLhaus and ThreatFox, commercial use "may require a paid subscription, which will be managed by Spamhaus".
+The sentence "free to use without limitations according to Creative Commons principles (CC0)" now covers only Feodo Tracker,
+SSL Blacklist and YARAify. The keyless downloads (`urlhaus.abuse.ch/downloads/urlhaus.ndb` and the other `/downloads/` files)
+answer 410 Gone; the exports need an Auth-Key in the address's path. So the ClamAV signatures run on my own free key, for
+not-for-profit use, and each computer that wants them needs its owner's key; nothing of them is shipped in the package.
+[malware-filter's urlhaus-filter](https://gitlab.com/malware-filter/urlhaus-filter) (the DNS list's source) still states
+"URLhaus: CC0" and "This repository is not endorsed by Abuse.ch"; it publishes no ClamAV file.

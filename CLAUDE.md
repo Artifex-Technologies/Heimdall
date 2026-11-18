@@ -288,6 +288,27 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-11-18 (2) — URLhaus's ClamAV signatures in heimdall-intel-update (R5 phase 1)
+- `heimdall-intel-update` downloads URLhaus's ClamAV URL signatures daily (`https://urlhaus-api.abuse.ch/v2/files/exports/<key>/urlhaus_clamav.ndb`,
+  download only, never a per-URL or per-hash question) when an abuse.ch Auth-Key is in `/etc/heimdall/abusech-auth-key`
+  (root:heimdall 0640); without one it says so and skips. Switch: `"urlhaus_clamav"` in `/etc/heimdall/config.json`, on unless
+  exactly `false` (in `config.json.example`; the daemons ignore it, the script reads it); off also removes ClamAV's copy.
+- Checks before the last good copy (`/var/lib/heimdall/intel/urlhaus.ndb`) is replaced: only plain `.ndb` body signatures of at least
+  8 literal bytes are kept; refused under 500 signatures, with over a tenth non-signature lines, shrunk under a quarter, or when
+  `clamscan -d` cannot load it. Root's new `ExecStartPost=+/usr/bin/heimdall-intel-update install-clamav` copies it without following
+  a link, filters it again, and renames it into `/var/lib/clamav/heimdall-urlhaus.ndb` (the folder's owner, 0644). The key goes to
+  curl on stdin (`-K -`), never in argv or output. `docs/IMMUNITY.md` "URLhaus", `docs/REFERENCES.md`, README, `docs/AUDITS.md`.
+- **Licence, checked today:** abuse.ch's terms no longer make URLhaus data plain CC0 (authenticated, not-for-profit; commercial use
+  via Spamhaus; CC0 only for Feodo Tracker, SSL Blacklist, YARAify), and the keyless `/downloads/` files answer 410. So "on by
+  default" means on as soon as the owner's free key is there. REFERENCES.md quotes the terms.
+- Tests: `packaging/tests/test_heimdall_intel_update.py` (fake root, stand-in curl and clamscan; with real ClamAV installed, a file
+  carrying a listed address is reported as `URLhaus.<name>.UNOFFICIAL`), in CI's packaging-tests step.
+- **For Labyrinth OS / LykanOS:** nothing ships with a key; the image needs no change (the unit file changed in heimdall-git). A first-run
+  or Settings page could offer to paste the abuse.ch key into `/etc/heimdall/abusech-auth-key`; `urlhaus_clamav` is the switch to show.
+- **For Limbo / Sarina:** Limbo's exchange scan and `immunity hold` use the host's ClamAV, so a file with a listed address is now a
+  ClamAV finding (`URLhaus.*`); no API or file shape changed.
+— Signed: Heimdall / Claude Opus 5.5
+
 ### 2026-11-18 — Sarina's analysis asks for similar programs (Ghidra BSim) when her library exists
 - `heimdalld immunity analyze --sarina` (and the `auto` requests): when `/var/lib/sarina/.local/share/labyrinth/rea-work/bsim/library.mv.db`
   is a plain file (her service's similarity library, a Ghidra BSim database made once at setup), the request gains a fifth
