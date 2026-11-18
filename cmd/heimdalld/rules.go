@@ -77,6 +77,7 @@ func cmdRule(args []string, st immunity.Store) int {
 			fmt.Printf("note (the drafter's words, untrusted): %q\n", x.Note)
 		}
 		fmt.Println("---\n" + strings.TrimRight(x.Text, "\n") + "\n---")
+		printRuleWarnings(x.Warnings)
 		if t := x.Test; t != nil {
 			fmt.Printf("test %s: matched the sample: %v; matched %d of this computer's files in %s", t.Time.Local().Format("2006-01-02 15:04"), t.MatchedSample, t.FPCount, strings.Join(t.Scanned, ", "))
 			if t.Error != "" {
@@ -119,6 +120,7 @@ func cmdRule(args []string, st immunity.Store) int {
 			return fail(err)
 		}
 		fmt.Printf("draft %s kept; next: sudo heimdalld immunity rule test %s\n", d.ID, d.ID)
+		printRuleWarnings(d.Warnings)
 		return 0
 	case args[0] == "test" && fs.NArg() == 1:
 		roots := []string(fp)
@@ -139,6 +141,7 @@ func cmdRule(args []string, st immunity.Store) int {
 		for _, p := range t.FalsePositives {
 			fmt.Println("  matched:", p)
 		}
+		printRuleWarnings(x.Warnings)
 		if x.Status == immunity.RuleTested {
 			fmt.Println("next: sudo heimdalld immunity rule approve", x.ID)
 			return 0
@@ -173,4 +176,16 @@ func cmdRule(args []string, st immunity.Store) int {
 	}
 	fmt.Fprintln(os.Stderr, ruleUsage)
 	return 2
+}
+
+// printRuleWarnings shows the lint's and YARA-X's warnings kept with a draft: they never refuse it, but a slow or common
+// string is worth fixing before it is approved.
+func printRuleWarnings(w []string) {
+	if len(w) == 0 {
+		return
+	}
+	fmt.Printf("warnings (%d; they do not stop the draft):\n", len(w))
+	for _, x := range w {
+		fmt.Println("  -", x)
+	}
 }

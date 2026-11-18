@@ -168,6 +168,8 @@ fn the_api_answers_as_go() {
             let p = format!("{cd}/{f}");
             std::fs::create_dir_all(std::path::Path::new(&p).parent().unwrap()).unwrap();
             std::fs::write(&p, spec.get("content").and_then(Value::as_str).unwrap_or("")).unwrap();
+            let mode = spec.get("mode").and_then(Value::as_u64).unwrap_or(0o644) as u32;
+            std::fs::set_permissions(&p, std::os::unix::fs::PermissionsExt::from_mode(mode)).unwrap();
         }
         for (l, target) in c.get("links").and_then(Value::as_object).cloned().unwrap_or_default() {
             std::os::unix::fs::symlink(target.as_str().unwrap(), format!("{cd}/{l}")).unwrap();
@@ -184,6 +186,8 @@ fn the_api_answers_as_go() {
             lan_dir: c.get("lan").and_then(Value::as_bool).unwrap_or(false).then(|| format!("{cd}/lan")),
             immunity_dir: Some(format!("{cd}/immunity")),
             rule_drafts: Some(format!("{cd}/rule-drafts.json")),
+            // YARA-X's checker: the case's stand-in (a file yara-check) or none, never the one installed on this computer
+            yara_check: format!("{cd}/yara-check"),
         };
         let mut access = Access::new(vec!["sarina".into()], vec!["wheel".into()]);
         access.passwd = format!("{d}/passwd");

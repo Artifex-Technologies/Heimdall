@@ -154,6 +154,7 @@ fn serve_api(
             lan_dir: (!cfg.lan_dir.is_empty()).then(|| cfg.lan_dir.clone()),
             immunity_dir: Some(std::env::var("HEIMDALL_IMMUNITY_DIR").unwrap_or_else(|_| crate::immunity::DEFAULT_DIR.into())),
             rule_drafts: Some(cfg.rule_drafts_path.clone()),
+            yara_check: String::new(),
         },
     };
     let addr = crate::api::serve(&cfg.api_addr, api)?;

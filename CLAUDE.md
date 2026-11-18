@@ -106,6 +106,8 @@ rust/tools/attack-table/   writes internal/attack/enterprise.tsv from one pinned
 rust/macvendor/            heimdall-macvendor: the maker lookup (no dependencies; Yggdrasil's Settings uses it as a git dependency): docs/DEVICES.md
 rust/multilink/            heimdall-multilink: several internet connections at once (kernel multipath routing): docs/MULTILINK.md
 packaging/multilink/       its unit and polkit action; packaging/arch-multilink/ the recipe of heimdall-multilink-git (its own package)
+rust/yara-check/           heimdall-yara-check: YARA-X's compile check of rule drafts (yara-x crate; a workspace of its own): docs/IMMUNITY.md
+packaging/arch-yara-check/ the recipe of heimdall-yara-check-git (its own package; install.sh DESTDIR yara-check)
 testdata/parity/           Fixtures both languages run (go test ./internal/parity -update rewrites them)
 ```
 
@@ -130,6 +132,8 @@ Adding a source means a new package under `internal/sources/` producing
   exception, decided by me on 2026-11-10: the crates I approved (regex, serde,
   serde_json, memmap2, rustix, sha2 or ring, ed25519-dalek, rustls, others where
   needed), pinned to exact versions, `cargo audit` in CI, threads and no async.
+  `yara-x` (decided 2026-11-18) is a dependency of `rust/yara-check` only, never of
+  the daemon: the daemons run that program when it is installed.
 - **Go and Rust raise the same alerts.** Until the switch, a change to a detector,
   the verifier, the explanations or the engine is made in both, and
   `go test ./internal/parity -update` rewrites the fixtures (review the diff);
@@ -298,6 +302,36 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   Both are in Sarina's `docs/ECOSYSTEM.md` port registry.
 
 ### Coordination Log (newest first)
+
+### 2026-11-18 (5) — Rule drafts: the lint, and YARA-X's compile check (R4; my decision 1 of 2026-11-18)
+- **Lint** (Go `internal/immunity/rulelint.go`, Rust `rust/heimdall/src/rulelint.rs`; same answers: `testdata/parity/rulelint.json`,
+  `go test ./internal/immunity -run TestRuleLintFixtures -update`, checked in CI, read by `tests/rulelint.rs`). `CheckRule` /
+  `check_rule` now also refuse what ClamAV does not load (tried on ClamAV 1.5 with `clamscan -d`): global/private rules, no
+  strings or more than 64, strings under 2 bytes / hex without 2 fixed bytes in a row, `xor`/`base64`/`base64wide`/`private`
+  modifiers, `~` or comments in hex, regex flags, unused strings, string operators and `!a` in conditions. Warnings (never
+  refuse): short (under 4 fixed bytes), one-byte-repeated and very common strings, many wildcards without `filesize`, missing
+  `meta` `sample_sha256`/`author`/`date`, a malformed `attack`. `IMMUNITY.md`, "Checking a draft".
+- **YARA-X**: new crate `rust/yara-check` (`heimdall-yara-check`, `yara-x =1.23.0`, its own workspace and lock file, excluded
+  from `rust/`), its own package `heimdall-yara-check-git` (`packaging/arch-yara-check/PKGBUILD`, `install.sh DESTDIR
+  yara-check`; heimdall-git lists it in `optdepends`). One rule on stdin, one JSON line out
+  (`{"errors":[...],"ok":bool,"warnings":[...],"yara_x":"1.23.0"}`). Both daemons run `/usr/bin/heimdall-yara-check` when it
+  is installed (`HEIMDALL_YARA_CHECK` in tests; `Rules.Check` / `Rules.check`) as a draft is kept and as it is tested: errors
+  refuse, warnings are kept with a `YARA-X:` mark; absent = as before; no verdict = a warning, never a refusal. Clean release
+  build here: about 2 min 10 s (4 jobs, nice 19), 154 crates, 900 MB of build files; binary 3.8 MB; a check takes ~2 ms.
+- **Additive fields**: a draft's `warnings` (`rule-drafts.json`, `GET /v1/rules/drafts`), and `"warnings"` in the answer to
+  `POST /v1/rules/drafts` (omitted when empty). `rule draft`, `rule show` and `rule test` print them; `rule test` refreshes
+  them. Every earlier draft text in the API fixtures gained a string (they were string-less, which the lint now refuses).
+- Tests: Go `TestRuleLint`, `TestRuleLintNeverPanicsOnACutDraft`, `TestRealYARAXCheck` (CI builds the checker and runs it);
+  Rust `tests/rulelint.rs`; side by side: `tests/cli_immunity.rs` `immunity_rule_lint_and_yara_check_as_go` (a stand-in
+  checker in both fake roots) and nine new `POST /v1/rules/drafts` cases in `api.json`. CI: job `yara-check`; the audit job
+  audits `rust/yara-check/Cargo.lock` too (RUSTSEC-2025-0141, bincode unmaintained, ignored with the reason in the workflow).
+- **For Labyrinth OS / LykanOS:** `heimdall-yara-check-git` is a new optional package (the package repo's build list needs it;
+  owner step). Heimdall works without it.
+- **For Limbo / Sarina:** `yr` (YARA-X's CLI) is only in the AUR (`yara-x`, `yara-x-bin`), not in Arch's official repos, so
+  the analysis image's recipe (Sarina `packaging/limbo/decompile`) keeps C `yara`; nothing changed there. Sarina's
+  `draft_yara_rule` already shows a refusal's reason (Heimdall's 400 text); it ignores the new `"warnings"` (additive) — showing
+  them needs her `go/heimdall/rules.go` `DraftRule` and its Rust twin to return them.
+— Signed: Heimdall / Claude Opus 5.5
 
 ### 2026-11-18 (4) — Identifier privacy extras: wired networks, IPv6 privacy, Bluetooth address privacy (R19)
 - **Wired networks** (my decision 9, Labyrinth_OS `docs/REFERENCE_PLAN_2026-11.md`): `heimdall-wifi-guard up` (Python and its Rust

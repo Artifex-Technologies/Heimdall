@@ -93,7 +93,7 @@ fn clam_rule_scan(rule: &str, paths: &[String]) -> Result<Vec<String>, String> {
 /// Go's `ruleDrafts`: the drafts file root works on (HEIMDALL_RULE_DRAFTS in tests).
 pub fn drafts_file() -> crate::immunity::Rules {
     let p = std::env::var("HEIMDALL_RULE_DRAFTS").ok().filter(|v| !v.is_empty());
-    crate::immunity::Rules { path: p.unwrap_or_else(|| crate::immunity::DEFAULT_RULE_DRAFTS.to_string()) }
+    crate::immunity::Rules { path: p.unwrap_or_else(|| crate::immunity::DEFAULT_RULE_DRAFTS.to_string()), check: String::new() }
 }
 
 pub fn main(args: &[String], st: &Store) -> Option<i32> {
@@ -165,6 +165,7 @@ pub fn main(args: &[String], st: &Store) -> Option<i32> {
                 println!("note (the drafter's words, untrusted): {}", crate::gotext::quote(&note));
             }
             println!("---\n{}\n---", rs(&x, "text").trim_end_matches('\n'));
+            print_warnings(&warnings_of(&x));
             if let Val::Ptr(Some(t)) = get(&RULE, &x, "test") {
                 print_test(t, true);
             }
@@ -192,6 +193,7 @@ pub fn main(args: &[String], st: &Store) -> Option<i32> {
             match d.r.draft(&sha, &crate::gotext::lossy(&b), &format!("written by {by}"), 0, now) {
                 Ok(x) => {
                     println!("draft {} kept; next: sudo heimdalld immunity rule test {}", x.id, x.id);
+                    print_warnings(&x.warnings);
                     Some(0)
                 }
                 Err(e) => fail(&e),
@@ -209,6 +211,7 @@ pub fn main(args: &[String], st: &Store) -> Option<i32> {
             };
             let Val::Ptr(Some(t)) = get(&RULE, &x, "test") else { return Some(1) };
             print_test(t, false);
+            print_warnings(&warnings_of(&x));
             if rs(&x, "status") == "tested" {
                 println!("next: sudo heimdalld immunity rule approve {}", rs(&x, "id"));
                 return Some(0);
@@ -264,6 +267,35 @@ pub fn main(args: &[String], st: &Store) -> Option<i32> {
     }
 }
 
+/// The warnings kept with a draft (Go: Rule.Warnings).
+fn warnings_of(x: &Val) -> Vec<String> {
+    match get(&RULE, x, "warnings") {
+        Val::Slice(Some(w)) => w
+            .iter()
+            .map(|v| match v {
+                Val::Str(s) => s.clone(),
+                _ => String::new(),
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn warnings_val(w: &[String]) -> Val {
+    Val::Slice(if w.is_empty() { None } else { Some(w.iter().cloned().map(Val::Str).collect()) })
+}
+
+/// Go's printRuleWarnings.
+fn print_warnings(w: &[String]) {
+    if w.is_empty() {
+        return;
+    }
+    println!("warnings ({}; they do not stop the draft):", w.len());
+    for x in w {
+        println!("  - {x}");
+    }
+}
+
 /// A test's result; with `with_time` the line `show` prints first, otherwise the caller printed its status line already.
 fn print_test(t: &Val, with_time: bool) {
     let tt = test_ty();
@@ -314,6 +346,24 @@ fn test(d: &Drafts, id: &str, st: &Store, roots: &[String], now: Time) -> Result
     let text = rs(&x, "text");
     if crate::immunity::check_rule(&text).is_err() || text_sha(&text) != rs(&x, "text_sha256") {
         return Err("the draft changed or is malformed; draft it again".into());
+    }
+    // the warnings again (YARA-X may have been installed since the draft); a rule YARA-X does not compile fails here
+    let (judged, warn) = crate::rulelint::judge(&d.r.check, &text);
+    if let Err(e) = judged {
+        let tt = test_ty();
+        let mut t = gostruct::zero(tt);
+        set(tt, &mut t, "time", Val::Time(now.utc()));
+        set(tt, &mut t, "text_sha256", Val::Str(rs(&x, "text_sha256")));
+        set(tt, &mut t, "scanned", Val::Slice(Some(roots.iter().map(|r| Val::Str(r.clone())).collect())));
+        set(tt, &mut t, "error", Val::Str(e.clone()));
+        let x = d.update(id, |x| {
+            set(&RULE, x, "test", Val::Ptr(Some(Box::new(t))));
+            set(&RULE, x, "status", Val::Str("failed".into()));
+            set(&RULE, x, "warnings", warnings_val(&warn));
+            Ok(())
+        })?;
+        print!("failed: matched the sample: false; matched 0 of this computer's files");
+        return Ok(x);
     }
     let base = std::env::var("TMPDIR").ok().filter(|t| !t.is_empty()).unwrap_or_else(|| "/tmp".into());
     let mut r = [0u8; 4];
@@ -369,6 +419,7 @@ fn test(d: &Drafts, id: &str, st: &Store, roots: &[String], now: Time) -> Result
     let x = d.update(id, |x| {
         set(&RULE, x, "test", Val::Ptr(Some(Box::new(t))));
         set(&RULE, x, "status", Val::Str(if passed { "tested" } else { "failed" }.into()));
+        set(&RULE, x, "warnings", warnings_val(&warn));
         Ok(())
     })?;
     let status = rs(&x, "status");

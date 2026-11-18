@@ -375,6 +375,8 @@ impl Root {
             ("USER".to_string(), if o.root { "root".into() } else { "owner".into() }),
             ("LANG".to_string(), "C.UTF-8".to_string()),
             ("TZ".to_string(), "America/New_York".to_string()),
+            // /usr/bin is this computer's: never use its YARA-X checker (a test that wants one passes its own stand-in)
+            ("HEIMDALL_YARA_CHECK".to_string(), "/nonexistent/heimdall-yara-check".to_string()),
         ];
         for (k, v) in &o.env {
             env.retain(|(ek, _)| ek != k);

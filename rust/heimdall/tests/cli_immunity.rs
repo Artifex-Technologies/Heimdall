@@ -375,6 +375,86 @@ fn immunity_rules_as_go() {
     p.step(&["immunity", "rule", "show", "nope"], &root);
 }
 
+/// heimdall-yara-check's stand-in: a rule naming nothing_here does not compile, any other gets one slow-pattern warning;
+/// with /tmp/yara-refuses present every rule is refused (YARA-X installed or changed after the draft).
+const YARA_CHECK: &str = r#"r=$(cat)
+if [ -e /tmp/yara-refuses ]; then
+  echo '{"errors":["E009: unknown identifier `x` (line 1)"],"ok":false,"warnings":["slow_pattern: slow pattern (line 2)"],"yara_x":"1.23.0"}'; exit 0
+fi
+case "$r" in
+*nothing_here*) echo '{"errors":["E009: unknown identifier `nothing_here` (line 4)"],"ok":false,"warnings":[],"yara_x":"1.23.0"}' ;;
+*garbage*) echo 'no verdict' ;;
+*) echo '{"errors":[],"ok":true,"warnings":["slow_pattern: slow pattern (line 2)"],"yara_x":"1.23.0"}' ;;
+esac
+"#;
+
+/// The lint and YARA-X's check (a stand-in) as a draft is kept and tested: the same refusals, warnings and test results.
+#[test]
+fn immunity_rule_lint_and_yara_check_as_go() {
+    let Some(p) = Pair::new("imm-yara", |r: &Root| {
+        system(r);
+        r.tool("heimdall-yara-check", YARA_CHECK);
+    }) else {
+        return;
+    };
+    let root = Opts::default();
+    let yx = Opts::default().env("HEIMDALL_YARA_CHECK", "/usr/bin/heimdall-yara-check");
+    p.step(&["immunity", "hold", "--reason", "x", "/home/owner/Downloads/rule-me.bin"], &root);
+    let sha = p.sha("/home/owner/Downloads/rule-me.bin");
+    let meta = "  meta:\n    sample_sha256 = \"x\"\n    author = \"owner\"\n    date = \"2026-11-18\"\n";
+    for r in [&p.rg, &p.rr] {
+        r.write("/tmp/clean.yar", format!("rule Heimdall_clean {{\n{meta}  strings:\n    $a = \"MATCHME\"\n  condition:\n    $a\n}}\n"));
+        r.write(
+            "/tmp/short.yar",
+            "rule Heimdall_short {\n  strings:\n    $a = \"MATCHME\"\n    $b = \"MA\"\n  condition:\n    any of them\n}\n",
+        );
+        r.write("/tmp/xor.yar", "rule Heimdall_xor {\n  strings:\n    $a = \"MATCHME\" xor\n  condition:\n    $a\n}\n");
+        r.write(
+            "/tmp/unknown.yar",
+            format!("rule Heimdall_unknown {{\n{meta}  strings:\n    $a = \"MATCHME\"\n  condition:\n    $a and nothing_here\n}}\n"),
+        );
+        r.write(
+            "/tmp/garbage.yar",
+            format!("rule Heimdall_garbage {{\n{meta}  strings:\n    $a = \"MATCHME garbage\"\n  condition:\n    $a\n}}\n"),
+        );
+        r.mkdir("/tmp/fp", 0o755);
+        r.write("/tmp/fp/clean", "nothing here");
+    }
+    // without the checker: the lint alone
+    p.step(&["immunity", "rule", "draft", &sha[..10], "/tmp/xor.yar"], &root);
+    p.step(&["immunity", "rule", "draft", &sha[..10], "/tmp/short.yar"], &root);
+    // with it
+    p.step(&["immunity", "rule", "draft", &sha[..10], "/tmp/unknown.yar"], &yx);
+    p.step(&["immunity", "rule", "draft", &sha[..10], "/tmp/garbage.yar"], &yx);
+    p.step(&["immunity", "rule", "draft", &sha[..10], "/tmp/clean.yar"], &yx);
+    // the drafts' ids are random: the Rust copy takes the Go copy's
+    let ids = |r: &Root| -> Vec<String> {
+        let v: serde_json::Value = serde_json::from_str(&r.read_str("/var/lib/heimdall/rule-drafts.json")).unwrap();
+        v.as_array().unwrap().iter().map(|d| d["id"].as_str().unwrap().to_string()).collect()
+    };
+    let (g, r) = (ids(&p.rg), ids(&p.rr));
+    let mut file = p.rr.read_str("/var/lib/heimdall/rule-drafts.json");
+    for (a, b) in r.iter().zip(&g) {
+        file = file.replace(a.as_str(), b.as_str());
+    }
+    p.rr.write("/var/lib/heimdall/rule-drafts.json", file);
+    p.step(&["immunity", "rule", "list"], &root);
+    for id in &g {
+        p.step(&["immunity", "rule", "show", id], &root);
+    }
+    // the short draft was kept without the checker: its test asks YARA-X now and keeps its warnings too
+    p.step(&["immunity", "rule", "test", &g[0], "--fp", "/tmp/fp"], &yx);
+    p.step(&["immunity", "rule", "show", &g[0]], &root);
+    // the clean one passes, then fails once YARA-X refuses it
+    let clean = g.last().unwrap();
+    p.step(&["immunity", "rule", "test", clean, "--fp", "/tmp/fp"], &yx);
+    for r in [&p.rg, &p.rr] {
+        r.write("/tmp/yara-refuses", "");
+    }
+    p.step(&["immunity", "rule", "test", clean, "--fp", "/tmp/fp"], &yx);
+    p.step(&["immunity", "rule", "show", clean], &root);
+}
+
 #[test]
 fn scan_files_as_go() {
     let build = |r: &Root| {

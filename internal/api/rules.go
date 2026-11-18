@@ -11,7 +11,8 @@ import (
 )
 
 // SetRules serves the drafting side of immunity's YARA rules: POST /v1/rules/drafts keeps a draft for a held sample
-// ({"sample_sha256", "rule", "note"}) after checking its form, and raises an alert naming the owner's next command;
+// ({"sample_sha256", "rule", "note"}) after checking its form (the answer carries the lint's and YARA-X's "warnings"
+// when there are any), and raises an alert naming the owner's next command;
 // GET /v1/rules/drafts lists the drafts. Testing needs the sample (root) and approving needs the owner, so neither is here.
 func (s *Server) SetRules(r immunity.Rules, held func() []immunity.Entry, sink alert.Sink) {
 	s.mux.HandleFunc("/v1/rules/drafts", func(w http.ResponseWriter, req *http.Request) {
@@ -59,7 +60,11 @@ func (s *Server) SetRules(r immunity.Rules, held func() []immunity.Entry, sink a
 						Fields: map[string]string{"rule_id": d.ID, "rule": d.Name, "sample": d.SampleSHA, "uid": itoa(uid)}}}))
 			}
 			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]string{"id": d.ID, "status": d.Status, "next": "sudo heimdalld immunity rule test " + d.ID})
+			out := map[string]any{"id": d.ID, "status": d.Status, "next": "sudo heimdalld immunity rule test " + d.ID}
+			if len(d.Warnings) > 0 {
+				out["warnings"] = d.Warnings // the lint's and YARA-X's notes; the draft is kept anyway
+			}
+			_ = json.NewEncoder(w).Encode(out)
 		default:
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}

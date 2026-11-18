@@ -37,6 +37,7 @@ pub mod quarantine;
 pub mod remoteaccess;
 pub mod replay;
 pub mod response;
+pub mod rulelint;
 pub mod rules;
 pub mod safefs;
 pub mod sources;

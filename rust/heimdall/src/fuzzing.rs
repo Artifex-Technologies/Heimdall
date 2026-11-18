@@ -192,6 +192,7 @@ pub fn http_request(data: &[u8]) {
             lan_dir: Some("/nonexistent".into()),
             immunity_dir: Some("/nonexistent".into()),
             rule_drafts: Some("/nonexistent/rule-drafts.json".into()),
+            yara_check: "/nonexistent/heimdall-yara-check".into(),
         },
     };
     // an account that is neither root nor this process's (nor in the empty lists)

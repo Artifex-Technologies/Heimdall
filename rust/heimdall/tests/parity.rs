@@ -224,7 +224,8 @@ fn the_go_fixtures_give_the_same_alerts() {
     for path in files {
         let name = path.file_name().unwrap().to_string_lossy().to_string();
         // functions, the audits, the correlator, the API, the responder, the commands (cli-*.json) and the maker lookup have
-        // their own formats and tests (audits.rs, step3.rs, response.rs, contain.rs, trust.rs, rust/macvendor/tests/parity.rs)
+        // their own formats and tests (audits.rs, step3.rs, response.rs, contain.rs, trust.rs, rust/macvendor/tests/parity.rs,
+        // rulelint.rs)
         if matches!(
             name.as_str(),
             "functions.json"
@@ -235,6 +236,7 @@ fn the_go_fixtures_give_the_same_alerts() {
                 | "contain.json"
                 | "trust.json"
                 | "macvendor.json"
+                | "rulelint.json"
         ) || !name.ends_with(".json")
             || name.starts_with("cli-")
         {

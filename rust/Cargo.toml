@@ -1,8 +1,9 @@
 [workspace]
 resolver = "2"
 members = ["heimdall", "scrub", "scrub-ladspa", "flyover-attack", "privacy", "multilink", "macvendor", "tools/attack-table"]
-# cargo-fuzz targets build with a nightly toolchain of their own; they are not part of the normal build
-exclude = ["fuzz"]
+# cargo-fuzz targets build with a nightly toolchain of their own; yara-check (YARA-X, wasmtime) is a workspace of its own
+# so the daemon's build never waits for it: neither is part of the normal build
+exclude = ["fuzz", "yara-check"]
 
 [workspace.package]
 edition = "2021"

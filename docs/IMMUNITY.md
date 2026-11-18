@@ -190,11 +190,14 @@ reports a match as `YARA.<rule name>`.
    rule with her `draft_yara_rule` tool: `POST /v1/rules/drafts` with `{"sample_sha256": "...", "rule": "...", "note": "..."}`. The owner can draft one too:
    `sudo heimdalld immunity rule draft SHA256 FILE`. Heimdall keeps a draft only if it is one rule, named `Heimdall_...`, with
    a condition, without `import` or `include` (an include would make ClamAV read another file), at most 16 KiB, for a sample
-   Heimdall holds. A `rule-draft` alert names the next command. Drafts live in `/var/lib/heimdall/rule-drafts.json`.
+   Heimdall holds, and only if it passes the lint and YARA-X's check below. A `rule-draft` alert names the next command.
+   Drafts live in `/var/lib/heimdall/rule-drafts.json`, with the lint's warnings (`warnings`).
 2. **Tested** (root): `sudo heimdalld immunity rule test ID`. The rule and the sample are put in a fresh root-only folder
    and ClamAV runs with only that rule loaded (seconds, not the full database). It must match the sample, and it must match
    none of this computer's own programs (`/usr/bin`, `/usr/local/bin`, `/usr/lib/systemd`; `--fp DIR` to choose). The sample is
-   read, never run. The result is kept with the exact text tested.
+   read, never run. The result is kept with the exact text tested. The test runs the lint and YARA-X's check again first (the
+   checker may have been installed since the draft): a rule YARA-X does not compile fails without a scan, and the warnings
+   are refreshed and shown.
 3. **Approved** (the owner): `sudo heimdalld immunity rule approve ID` shows the rule and asks for `yes`. Only a draft whose
    current text passed its test can be approved, and never from a command an AI agent started (the same guard as the grant
    gate, `GRANTS.md`). It is installed as `/var/lib/clamav/heimdall-rule-<name>.yar`; every ClamAV scan uses it from then on,
@@ -207,6 +210,61 @@ their tests.
 Tested on this PC: a rule drafted for a held demo script matched it and none of the 3203 programs in `/usr/bin` (about 40
 seconds), and after approval ClamAV reported the script as `YARA.Heimdall_demo_dropper.UNOFFICIAL`. A rule without strings
 (`condition: true`, "everything") is not loaded by ClamAV, so it matches nothing and fails its test.
+
+### Checking a draft: the lint and YARA-X (built 2026-11-18)
+
+Item R4 of Labyrinth_OS's `docs/REFERENCE_PLAN_2026-11.md`; I decided on 2026-11-18 to use YARA-X for the exact check.
+
+**The lint** (Go `internal/immunity/rulelint.go`, Rust `rust/heimdall/src/rulelint.rs`, the same answers:
+`testdata/parity/rulelint.json`). ClamAV is still where an approved rule goes, and it loads only part of YARA, so what it
+would not load is refused when the draft is sent, not discovered at the test. I tried each limit with ClamAV 1.5 and a
+one-rule database (`clamscan -d`); its manual says the same where it says anything:
+
+| Refused | Why |
+| --- | --- |
+| `global` or `private` rule | global rules are not supported; a private rule loads but never reports a match |
+| no strings, more than 64 strings | ClamAV needs at least one string and allows 64 |
+| a text string under 2 bytes; a hex string without 2 fixed bytes in a row (in each part between jumps) | "string is too short", "Can't find a static subpattern of length 2" |
+| `xor`, `base64`, `base64wide` or `private` on a string | a parse error: the rule is not loaded |
+| `~` (not) or a comment inside a hex string | a parse error |
+| a regular expression with flags (`/i`, `/s`) | loaded, but the flag is ignored: it would never match what it means to |
+| a string the condition does not use | "unreferenced string" |
+| `contains`, `matches`, `startswith`, `endswith`, `iequals` and their `i` forms, or a match length (`!a`) in the condition | not supported (one crashed clamscan) or a parse error |
+
+Warnings never refuse a draft; they are kept with it and shown by `rule draft`, `rule show` and `rule test`, and the API's
+answer to `POST /v1/rules/drafts` carries them as `"warnings"` (omitted when there are none):
+
+- a string without 4 fixed bytes in a row (what YARA-X calls a slow pattern: its atoms are poor, and it matches by chance);
+- a string that is one byte repeated (`00 00 00 00`, spaces), or one of the strings in nearly every program or page (`MZ`,
+  `This program cannot be run in DOS mode`, `kernel32.dll`, `http://`, `/bin/sh` and a few dozen more);
+- strings with many wildcards or jumps (16 or more bytes skipped, or an open jump or `*`/`+`) when the condition has no
+  `filesize` bound;
+- `meta` without `sample_sha256`, `author` or `date`, and an `attack` value that is not a list of ATT&CK technique IDs
+  (`T1059`, `T1059.004`, comma-separated).
+
+**YARA-X's check.** `heimdall-yara-check` (`rust/yara-check`, its own package `heimdall-yara-check-git`) is a small program
+on the `yara-x` crate (BSD-3, pinned exactly; its notice ships in `/usr/share/licenses/heimdall-yara-check/`). It reads one
+rule on stdin, compiles it (no modules, no includes; the rule is never built into a scanner, so no code is generated) and
+prints one line of JSON:
+
+```json
+{"errors":["E009: unknown identifier `x` (line 6)"],"ok":false,"warnings":["slow_pattern: slow pattern (line 3)"],"yara_x":"1.23.0"}
+```
+
+Both daemons run `/usr/bin/heimdall-yara-check` when it is there (a regular executable file), with a clean environment and
+at most 30 seconds, as a draft is kept and as it is tested: its errors refuse the draft (`YARA-X does not compile it: ...`),
+its warnings are kept marked `YARA-X:` (at most 20, 300 bytes each). Without it, drafts are judged as before by the lint
+and ClamAV. When it is there but gives no verdict (it failed, timed out, or printed something else), the draft is judged
+without it and the warning says so; it is never refused for that. Tests point `HEIMDALL_YARA_CHECK` at a stand-in.
+
+Why its own package: `yara-x` brings wasmtime and Cranelift. On my desktop (4 build jobs, `nice 19`) a clean release build
+takes about 2 minutes 10 seconds and 900 MB of build files for a 3.8 MB program, and it needs Rust 1.95; on a Raspberry Pi
+that is much longer, and the daemon itself stays as light as it was. A check takes about 2 ms.
+
+**Limbo's analysis image stays on C YARA for now.** YARA-X's command line (`yr`) is not in Arch's official repositories
+(checked 2026-11-18: `pacman -Si yara-x` finds nothing; `extra/yara` 4.5.8 is the C one), only in the AUR (`yara-x`,
+`yara-x-bin`). The image's recipe (Sarina `packaging/limbo/decompile`) installs from the official repositories, so it keeps
+`yara` until `yr` is packaged there.
 
 ## Limits
 

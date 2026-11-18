@@ -184,7 +184,7 @@ TIFF, PDF, Office, OpenDocument, ZIP, MP3, FLAC and WAV by its own code, videos 
 | `heimdalld trust init\|status\|mode\|sign\|forget\|restore\|verify\|watch` | The signed list of the agents' behaviour files |
 | `heimdalld contain status\|now\|emergency\|evidence\|release` | Containment |
 | `heimdalld immunity hold\|release\|release-if-proven\|add\|confirm\|list\|forget\|check\|inventory\|take-limbo` | Quarantine and immunity |
-| `heimdalld immunity rule list\|show\|draft\|test\|approve\|reject` | YARA rules for held samples, owner-approved (docs/IMMUNITY.md) |
+| `heimdalld immunity rule list\|show\|draft\|test\|approve\|reject` | YARA rules for held samples, owner-approved; checked by a lint and, with `heimdall-yara-check-git`, by YARA-X (docs/IMMUNITY.md) |
 | `heimdalld grant status\|approve\|deny\|tier\|revoke\|off` | The one gate for an AI agent asking for more (docs/GRANTS.md) |
 | `heimdalld mesh id\|init\|list\|enroll\|forget` | Alerts shared with your other computers, off by default (docs/MESH.md) |
 | `heimdalld kernel-check [--all]` | Known holes per installed kernel |

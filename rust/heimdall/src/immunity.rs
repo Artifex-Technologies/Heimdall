@@ -119,6 +119,7 @@ pub static RULE: Ty = Ty::Struct(
         Field("decided", &Ty::Time, true),
         Field("by", &Ty::Str, true),
         Field("installed", &Ty::Str, true),
+        Field("warnings", &STRS, true),
     ],
 );
 pub static RULES: Ty = Ty::Slice(&RULE);
@@ -149,12 +150,14 @@ pub fn held_hashes(dir: &str) -> Vec<String> {
 /// The drafts file (Go: immunity.Rules).
 pub struct Rules {
     pub path: String,
+    /// YARA-X's checker ("": HEIMDALL_YARA_CHECK, else the default; rulelint.rs).
+    pub check: String,
 }
 
 static LOCK: Mutex<()> = Mutex::new(());
 
-/// Go's CheckRule: one rule named Heimdall_..., with a condition, no import or include, at most 16 KiB of printable text;
-/// the rule's name. The patterns are Go's with its ASCII `\s` and `\b`.
+/// Go's CheckRule: one rule named Heimdall_..., with a condition, no import or include, at most 16 KiB of printable text,
+/// nothing ClamAV does not load (the lint's hard errors); the rule's name. The patterns are Go's with its ASCII `\s` and `\b`.
 pub fn check_rule(text: &str) -> Result<String, String> {
     use std::sync::OnceLock;
     static RX: OnceLock<(regex::Regex, regex::Regex, regex::Regex)> = OnceLock::new();
@@ -187,6 +190,10 @@ pub fn check_rule(text: &str) -> Result<String, String> {
     if !text.contains("condition:") {
         return Err("a rule needs a condition".into());
     }
+    let (e, _) = crate::rulelint::lint(text);
+    if !e.is_empty() {
+        return Err(e); // what ClamAV would not load (rulelint.rs)
+    }
     Ok(name)
 }
 
@@ -201,6 +208,8 @@ pub struct Drafted {
     pub name: String,
     pub sample: String,
     pub status: String,
+    /// The lint's and YARA-X's warnings kept with the draft.
+    pub warnings: Vec<String>,
 }
 
 impl Rules {
@@ -225,7 +234,10 @@ impl Rules {
         if !sha_ok(sample) {
             return Err("sample_sha256: the held sample's 64-character SHA-256".into());
         }
-        let name = check_rule(text)?;
+        let (name, warn) = match crate::rulelint::judge(&self.check, text) {
+            (Ok(n), w) => (n, w),
+            (Err(e), _) => return Err(e),
+        };
         // Go cuts the note at 2000 bytes, inside a letter if it falls there
         let note = if note.len() > 2000 { Val::Bytes(note.as_bytes()[..2000].to_vec()) } else { Val::Str(note.to_string()) };
         let _g = LOCK.lock().unwrap_or_else(|p| p.into_inner());
@@ -236,7 +248,11 @@ impl Rules {
         let sum = crate::state::hex(&<sha2::Sha256 as sha2::Digest>::digest(text.as_bytes()));
         let s = |r: &Val, k: &str| gostruct::str_field(&RULE, r, k).to_string();
         if let Some(o) = rs.iter().find(|o| s(o, "sample_sha256") == sample && s(o, "text_sha256") == sum) {
-            return Ok(Drafted { id: s(o, "id"), name: s(o, "name"), sample: s(o, "sample_sha256"), status: s(o, "status") });
+            let warnings = match gostruct::field(&RULE, o, "warnings") {
+                Some(Val::Slice(Some(w))) => w.iter().map(|x| if let Val::Str(s) = x { s.clone() } else { String::new() }).collect(),
+                _ => Vec::new(),
+            };
+            return Ok(Drafted { id: s(o, "id"), name: s(o, "name"), sample: s(o, "sample_sha256"), status: s(o, "status"), warnings });
         }
         let mut id = [0u8; 4];
         crate::grants::random(&mut id);
@@ -252,6 +268,7 @@ impl Rules {
             f[6] = Val::Uint(uid as u64);
             f[7] = Val::Time(now.utc());
             f[8] = Val::Str("draft".into());
+            f[13] = Val::Slice(if warn.is_empty() { None } else { Some(warn.iter().cloned().map(Val::Str).collect()) });
         }
         rs.push(d);
         if rs.len() > MAX_DRAFTS {
@@ -259,7 +276,7 @@ impl Rules {
             rs.drain(..cut);
         }
         self.save(&Val::Slice(Some(rs)))?;
-        Ok(Drafted { id, name, sample: sample.to_string(), status: "draft".into() })
+        Ok(Drafted { id, name, sample: sample.to_string(), status: "draft".into(), warnings: warn })
     }
 
     /// Go's save: MarshalIndent with two spaces, a temporary file beside it (0640, the folder's owner when root writes),

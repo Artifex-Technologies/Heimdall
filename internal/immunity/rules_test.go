@@ -150,3 +150,32 @@ func TestRealClamAVRule(t *testing.T) {
 		t.Fatalf("%+v", t2.Test)
 	}
 }
+
+// With the real YARA-X checker (rust/yara-check): HEIMDALL_TEST_YARA_X=/path/to/heimdall-yara-check. CI builds it and runs
+// this; a draft YARA-X does not compile is refused, its slow-pattern warning is kept.
+func TestRealYARAXCheck(t *testing.T) {
+	bin := os.Getenv("HEIMDALL_TEST_YARA_X")
+	if bin == "" {
+		t.Skip("set HEIMDALL_TEST_YARA_X to a built heimdall-yara-check")
+	}
+	s := store(t)
+	e, err := s.Keep(sample(t, planted), "planted skill", "owner")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := rules(t)
+	r.Check = bin
+	bad := strings.Replace(goodRule, "    $a\n}", "    $a and nothing_here\n}", 1)
+	if _, err := r.Draft(e.SHA256, bad, "", 0, time.Now()); err == nil || !strings.Contains(err.Error(), "YARA-X does not compile it: E009: unknown identifier `nothing_here`") {
+		t.Fatalf("an unknown identifier: %v", err)
+	}
+	slow := strings.Replace(goodRule, "    $a\n}", "    $a and $b\n}", 1)
+	slow = strings.Replace(slow, "  condition:", "    $b = { 00 00 }\n  condition:", 1)
+	d, err := r.Draft(e.SHA256, slow, "", 0, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(strings.Join(d.Warnings, "\n"), "YARA-X: slow_pattern: slow pattern (line 7)") {
+		t.Fatalf("warnings %q", d.Warnings)
+	}
+}

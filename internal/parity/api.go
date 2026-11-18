@@ -154,7 +154,8 @@ func RunAPI(c APICase, dir string) (APICase, error) {
 		s.SetDevices(func() any { return lan.List(filepath.Join(dir, "lan")) })
 	}
 	drafts := filepath.Join(dir, "rule-drafts.json")
-	s.SetRules(immunity.Rules{Path: drafts, RulesDir: filepath.Join(dir, "clamav")}, func() []immunity.Entry {
+	// YARA-X's checker: the case's stand-in (a file yara-check) or none, never the one installed on this computer
+	s.SetRules(immunity.Rules{Path: drafts, RulesDir: filepath.Join(dir, "clamav"), Check: filepath.Join(dir, "yara-check")}, func() []immunity.Entry {
 		es, _ := held.Load()
 		return es
 	}, raised)

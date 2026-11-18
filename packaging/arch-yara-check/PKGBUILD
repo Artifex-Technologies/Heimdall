@@ -1,0 +1,92 @@
+# Maintainer: Artifex Technologies (https://github.com/Artifex-Technologies)
+#
+# heimdall-yara-check-git: YARA-X's exact compile check of Heimdall's YARA rule drafts (docs/IMMUNITY.md, "Rules"), a
+# package of its own: it is built on the yara-x crate, which brings wasmtime and Cranelift (about two minutes and 900 MB of
+# build files on a desktop, much longer on a Raspberry Pi), while the program itself is small (about 4 MB) and only runs
+# when a draft is kept or tested. Heimdall works without it (its own lint and ClamAV judge the drafts).
+pkgname=heimdall-yara-check-git
+pkgver=1.0.0
+pkgrel=1
+pkgdesc="YARA-X's exact compile check and slow-pattern warnings for Heimdall's YARA rule drafts"
+arch=('x86_64' 'aarch64')
+url="https://github.com/Artifex-Technologies/Heimdall"
+license=('MPL2' 'BSD-3-Clause')
+depends=('glibc' 'gcc-libs')
+makedepends=('rust' 'git')
+provides=('heimdall-yara-check')
+conflicts=('heimdall-yara-check')
+source=("git+https://github.com/Artifex-Technologies/Heimdall.git")
+sha256sums=('SKIP')
+
+# The version is Heimdall's own (VERSION); the build number counts the commits since that release which touch this package's
+# files (the crate, install.sh), as Labyrinth_OS's scripts/package-version.sh does.
+# --- package version (scripts/package-version.sh) ---
+# _version CHECKOUT [PATH...]: sets pkgver and pkgrel. pkgver is the VERSION file at the top of CHECKOUT's git repository (as
+# committed); pkgrel, the build number, is 1 + the commits since that file last changed (the release) that touch the PATHs
+# in that repository (relative ones are from its top), with the Rust crates they use from it (their path dependencies), or
+# the whole repository when no PATH is in it. The recipe's own folder counts too; so does every PATH in another repository
+# (by date: its commits since the release). Without a VERSION file (no clone yet: makepkg reads a recipe before it fetches)
+# pkgver and pkgrel stay as they are.
+_version() {
+  local top base since rel=1 a q t todo=() paths=() others=("${startdir:-}")
+  top=$(git -C "$1" rev-parse --show-toplevel 2>/dev/null) && base=$(git -C "$top" log -1 --format=%H -- VERSION 2>/dev/null) \
+    && [[ -n $base ]] || return 0
+  for a in "${@:2}"; do
+    [[ $a == /* ]] || a=$top/$a
+    a=$(realpath -m "$a")
+    if [[ $a == "$top" || $a == "$top"/* ]]; then todo+=("$a"); else others+=("$a"); fi
+  done
+  while ((${#todo[@]})); do
+    a=${todo[0]}; todo=("${todo[@]:1}")
+    [[ " ${paths[*]} " == *" $a "* ]] && continue
+    paths+=("$a")
+    for q in $(sed -n 's/^[^#]*path *= *"\(\.\.[^"]*\)".*/\1/p' "$a/Cargo.toml" 2>/dev/null); do todo+=("$(realpath -m "$a/$q")"); done
+  done
+  since=$(git -C "$top" log -1 --format=%ct "$base")
+  for a in "${others[@]}"; do
+    [[ -n $a ]] && t=$(git -C "$a" rev-parse --show-toplevel 2>/dev/null) || continue
+    if [[ $t == "$top" ]]; then ((${#paths[@]})) && paths+=("$(realpath "$a")")
+    # another checkout of the same repository (an app's own recipe, built from a clone of it): counted above already
+    elif [[ $(git -C "$t" rev-list --max-parents=0 HEAD) == "$(git -C "$top" rev-list --max-parents=0 HEAD)" ]]; then continue
+    else rel=$((rel + $(git -C "$a" rev-list --count --since="@$since" HEAD -- .))); fi
+  done
+  pkgver=$(git -C "$top" show HEAD:VERSION)
+  pkgrel=$((rel + $(git -C "$top" rev-list --count "$base..HEAD" -- "${paths[@]}")))
+}
+# _srcdir: makepkg's $srcdir, also while makepkg reads the recipe before setting it (for the clones of -git recipes)
+_srcdir() {
+  if [[ -n ${srcdir:-} ]]; then echo "$srcdir"
+  elif [[ ${BUILDDIR:-} -ef ${startdir:-} ]]; then echo "$BUILDDIR/src"
+  else echo "${BUILDDIR:-}/$pkgname/src"; fi
+}
+# --- end of package version ---
+
+_paths=(rust/yara-check packaging/install.sh)
+_version "$(_srcdir)/Heimdall" "${_paths[@]}"
+
+pkgver() {
+	_version "$srcdir/Heimdall" "${_paths[@]}"
+	echo "$pkgver"
+}
+
+prepare() {
+	_version "$srcdir/Heimdall" "${_paths[@]}"
+	cd "$srcdir/Heimdall/rust/yara-check"
+	cargo fetch --locked
+}
+
+build() {
+	# its own workspace and lock file (rust/yara-check/Cargo.lock); yara-x 1.23 needs Rust 1.95
+	cd "$srcdir/Heimdall/rust/yara-check"
+	cargo build --release --locked --offline
+}
+
+check() {
+	cd "$srcdir/Heimdall/rust/yara-check"
+	cargo test --release --locked --offline
+}
+
+package() {
+	cd "$srcdir/Heimdall"
+	./packaging/install.sh "$pkgdir" yara-check
+}

@@ -180,6 +180,8 @@ pub struct Files {
     /// immunity's store (its index, immunity.json).
     pub immunity_dir: Option<String>,
     pub rule_drafts: Option<String>,
+    /// YARA-X's checker for the drafts ("": HEIMDALL_YARA_CHECK, else /usr/bin/heimdall-yara-check).
+    pub yara_check: String,
 }
 
 static DEVICE: Ty = Ty::Struct(
@@ -318,7 +320,7 @@ impl Api {
     }
 
     fn rule_drafts(&self, r: &Request, uid: u32) -> Response {
-        let rules = immunity::Rules { path: self.files.rule_drafts.clone().unwrap_or_default() };
+        let rules = immunity::Rules { path: self.files.rule_drafts.clone().unwrap_or_default(), check: self.files.yara_check.clone() };
         match r.method.as_str() {
             "GET" => match rules.load() {
                 Err(e) => text(500, &e),
@@ -363,6 +365,18 @@ impl Api {
                 o.str("id", &d.id);
                 o.str("next", &next);
                 o.str("status", &d.status);
+                if !d.warnings.is_empty() {
+                    // the lint's and YARA-X's notes; the draft is kept anyway
+                    let mut a = String::from("[");
+                    for (i, w) in d.warnings.iter().enumerate() {
+                        if i > 0 {
+                            a.push(',');
+                        }
+                        gojson::write_str(&mut a, w);
+                    }
+                    a.push(']');
+                    o.raw("warnings", &a);
+                }
                 o.end();
                 json(b)
             }

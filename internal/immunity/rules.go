@@ -61,6 +61,9 @@ type Rule struct {
 	Decided   time.Time `json:"decided,omitempty"`
 	By        string    `json:"by,omitempty"`
 	Installed string    `json:"installed,omitempty"`
+	// Warnings are the lint's and YARA-X's notes on the text (slow or common strings, missing meta): kept with the draft,
+	// shown by `rule show` and `rule test`, refreshed by each test. They never refuse a draft.
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 // RuleTest is the result of a test, for the exact text tested.
@@ -82,7 +85,8 @@ var (
 )
 
 // CheckRule checks a draft's form before it is kept: one rule, named Heimdall_..., with a condition, no import or include
-// (an include would make ClamAV read another file), at most 16 KiB of printable text. It returns the rule's name.
+// (an include would make ClamAV read another file), at most 16 KiB of printable text, and nothing ClamAV does not load
+// (the lint's hard errors, rulelint.go). It returns the rule's name.
 func CheckRule(text string) (string, error) {
 	if len(text) == 0 || len(text) > maxRule {
 		return "", errors.New("a rule is 1 byte to 16 KiB")
@@ -106,6 +110,9 @@ func CheckRule(text string) (string, error) {
 	if !strings.Contains(text, "condition:") {
 		return "", errors.New("a rule needs a condition")
 	}
+	if e, _ := lintRule(text); e != "" {
+		return "", errors.New(e) // what ClamAV would not load (rulelint.go)
+	}
 	return name, nil
 }
 
@@ -113,6 +120,7 @@ func CheckRule(text string) (string, error) {
 type Rules struct {
 	Path     string // DefaultRuleDrafts
 	RulesDir string // where approved rules are installed (ClamAV's database folder)
+	Check    string // YARA-X's checker ("": HEIMDALL_YARA_CHECK, else DefaultYARACheck; yaracheck.go)
 }
 
 func DefaultRules() Rules { return Rules{Path: DefaultRuleDrafts, RulesDir: DefaultRulesDir} }
@@ -171,7 +179,7 @@ func (r Rules) Draft(sample, text, note string, uid uint32, now time.Time) (Rule
 	if !shaRx.MatchString(sample) {
 		return Rule{}, errors.New("sample_sha256: the held sample's 64-character SHA-256")
 	}
-	name, err := CheckRule(text)
+	name, warn, err := r.judgeRule(text)
 	if err != nil {
 		return Rule{}, err
 	}
@@ -192,7 +200,7 @@ func (r Rules) Draft(sample, text, note string, uid uint32, now time.Time) (Rule
 	}
 	b := make([]byte, 4)
 	_, _ = rand.Read(b)
-	d := Rule{ID: hex.EncodeToString(b), Name: name, SampleSHA: sample, Text: text, TextSHA: sum, Note: note, UID: uid, Time: now.UTC(), Status: RuleDraft}
+	d := Rule{ID: hex.EncodeToString(b), Name: name, SampleSHA: sample, Text: text, TextSHA: sum, Note: note, UID: uid, Time: now.UTC(), Status: RuleDraft, Warnings: warn}
 	rs = append(rs, d)
 	if len(rs) > maxDrafts {
 		rs = rs[len(rs)-maxDrafts:]
@@ -263,6 +271,12 @@ func (r Rules) Test(id string, s Store, fpRoots []string, scan RuleScanner, now 
 	if _, err := CheckRule(d.Text); err != nil || textSHA(d.Text) != d.TextSHA {
 		return Rule{}, errors.New("the draft changed or is malformed; draft it again")
 	}
+	// the warnings again (YARA-X may have been installed since the draft); a rule YARA-X does not compile fails here
+	_, warn, yerr := r.judgeRule(d.Text)
+	if yerr != nil {
+		t := &RuleTest{Time: now.UTC(), TextSHA: d.TextSHA, Scanned: fpRoots, Error: yerr.Error()}
+		return r.update(id, func(x *Rule) error { x.Test, x.Status, x.Warnings = t, RuleFailed, warn; return nil })
+	}
 	work, err := os.MkdirTemp("", "heimdall-rule-")
 	if err != nil {
 		return Rule{}, err
@@ -297,6 +311,7 @@ func (r Rules) Test(id string, s Store, fpRoots []string, scan RuleScanner, now 
 	}
 	return r.update(id, func(x *Rule) error {
 		x.Test = t
+		x.Warnings = warn
 		x.Status = RuleFailed
 		if t.Error == "" && t.MatchedSample && t.FPCount == 0 {
 			x.Status = RuleTested

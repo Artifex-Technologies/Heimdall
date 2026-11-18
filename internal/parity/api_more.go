@@ -123,7 +123,7 @@ func moreAPICases(with func(string, func(*APICase))) {
 	// rule drafts: GET lists them; POST keeps one for a held sample
 	rule := "rule Heimdall_Test_1\n{\n strings:\n  $a = \"evil\"\n condition:\n  $a\n}\n"
 	held := `[{"sha256":"` + sha('a') + `","status":"held"},{"sha256":"abc","status":"held"}]`
-	old := `[{"id":"0a0b0c0d","name":"Heimdall_Old","sample_sha256":"` + sha('a') + `","text":"rule Heimdall_Old { condition: true }","text_sha256":"` + textSHA("rule Heimdall_Old { condition: true }") + `",
+	old := `[{"id":"0a0b0c0d","name":"Heimdall_Old","sample_sha256":"` + sha('a') + `","text":"rule Heimdall_Old { strings: $a = \"evil-thing\" condition: $a }","text_sha256":"` + textSHA("rule Heimdall_Old { strings: $a = \"evil-thing\" condition: $a }") + `",
 	 "uid":954,"time":"2026-11-05T11:00:00Z","status":"tested","test":{"time":"2026-11-05T11:05:00Z","text_sha256":"x","matched_sample":true,"fp_count":0,"scanned":["/usr/bin"]},
 	 "decided":"0001-01-01T00:00:00Z","note":"from <Sarina> & co"}]`
 	drafts := func(name string, files map[string]FileSpec) {
@@ -150,27 +150,46 @@ func moreAPICases(with func(string, func(*APICase))) {
 	withOld := map[string]FileSpec{"immunity/immunity.json": file(held), "rule-drafts.json": file(old)}
 	post("a new draft", body(sha('a'), rule, "Sarina's <note>"), heldOnly, true)
 	post("after an old one", body(sha('a'), rule, ""), withOld, true)
-	post("the same text again", body(sha('a'), "rule Heimdall_Old { condition: true }", "again"), withOld, true)
+	post("the same text again", body(sha('a'), "rule Heimdall_Old { strings: $a = \"evil-thing\" condition: $a }", "again"), withOld, true)
 	post("a sample not held", body(sha('d'), rule, ""), heldOnly, true)
 	post("nothing held", body(sha('a'), rule, ""), nil, true)
 	post("a held name that is not a hash", body("abc", rule, ""), heldOnly, true)
 	for _, bad := range []struct{ name, text string }{
-		{"empty rule", ""}, {"too long", "rule Heimdall_X { condition: true }" + strings.Repeat(" ", 16<<10)},
-		{"a control character", "rule Heimdall_X { condition: true }\x01"}, {"import", "import \"pe\"\n" + rule},
-		{"include after spaces", "  \t include \"x\"\n" + rule}, {"two rules", rule + "private rule Heimdall_Two { condition: true }"},
-		{"no rule", "condition: true"}, {"another name", "rule Evil { condition: true }"}, {"name too long", "rule Heimdall_" + strings.Repeat("a", 65) + " { condition: true }"},
-		{"no condition", "rule Heimdall_X { strings: $a = \"x\" }"}, {"global private", "global private rule Heimdall_G { condition: true }"},
-		{"rule on a later line", "// c\n\n   rule Heimdall_L : tag { condition: true }"}, {"imports is not import", "importsx\nrule Heimdall_I { condition: true }"},
-		{"vertical tab", "\vrule Heimdall_V { condition: true }"}, {"form feed and CR", "\f\rrule Heimdall_F {\r\n condition: true }"},
-		{"a tab before rule", "\trule Heimdall_T { condition: true }"},
+		{"empty rule", ""}, {"too long", "rule Heimdall_X { strings: $a = \"evil-thing\" condition: $a }" + strings.Repeat(" ", 16<<10)},
+		{"a control character", "rule Heimdall_X { strings: $a = \"evil-thing\" condition: $a }\x01"}, {"import", "import \"pe\"\n" + rule},
+		{"include after spaces", "  \t include \"x\"\n" + rule}, {"two rules", rule + "private rule Heimdall_Two { strings: $a = \"evil-thing\" condition: $a }"},
+		{"no rule", "condition: true"}, {"another name", "rule Evil { strings: $a = \"evil-thing\" condition: $a }"}, {"name too long", "rule Heimdall_" + strings.Repeat("a", 65) + " { strings: $a = \"evil-thing\" condition: $a }"},
+		{"no condition", "rule Heimdall_X { strings: $a = \"x\" }"}, {"global private", "global private rule Heimdall_G { strings: $a = \"evil-thing\" condition: $a }"},
+		{"rule on a later line", "// c\n\n   rule Heimdall_L : tag { strings: $a = \"evil-thing\" condition: $a }"}, {"imports is not import", "importsx\nrule Heimdall_I { strings: $a = \"evil-thing\" condition: $a }"},
+		{"vertical tab", "\vrule Heimdall_V { strings: $a = \"evil-thing\" condition: $a }"}, {"form feed and CR", "\f\rrule Heimdall_F {\r\n strings: $a = \"evil-thing\" condition: $a }"},
+		{"a tab before rule", "\trule Heimdall_T { strings: $a = \"evil-thing\" condition: $a }"},
 	} {
 		post(bad.name, body(sha('a'), bad.text, ""), heldOnly, true)
 	}
+	// the lint's and YARA-X's verdicts (YARA-X: a stand-in checker in the case's folder)
+	lintRule := "rule Heimdall_Lint\n{\n meta:\n  sample_sha256 = \"" + sha('a') + "\"\n  author = \"Sarina\"\n  date = \"2026-11-18\"\n strings:\n  $a = \"evil-thing\"\n  $b = \"ab\"\n condition:\n  any of them\n}\n"
+	post("a draft the lint warns about", body(sha('a'), lintRule, ""), heldOnly, true)
+	post("a draft the lint refuses (xor)", body(sha('a'), strings.Replace(lintRule, `"ab"`, `"abcd" xor`, 1), ""), heldOnly, true)
+	post("a draft the lint refuses (unused string)", body(sha('a'), strings.Replace(lintRule, "any of them", "$a", 1), ""), heldOnly, true)
+	withCheck := func(files map[string]FileSpec) map[string]FileSpec {
+		out := map[string]FileSpec{"yara-check": {Content: yaraStandIn, Mode: 0o755}}
+		for k, v := range files {
+			out[k] = v
+		}
+		return out
+	}
+	post("YARA-X compiles it, with a warning", body(sha('a'), lintRule, ""), withCheck(heldOnly), true)
+	post("YARA-X refuses it", body(sha('a'), strings.Replace(lintRule, "any of them", "any of them and nothing_here", 1), ""), withCheck(heldOnly), true)
+	post("YARA-X gives no verdict", body(sha('a'), strings.Replace(lintRule, "evil-thing", "evil-garbage", 1), ""), withCheck(heldOnly), true)
+	post("YARA-X fails", body(sha('a'), strings.Replace(lintRule, "evil-thing", "evil-exit-3", 1), ""), withCheck(heldOnly), true)
+	post("YARA-X says too much", body(sha('a'), strings.Replace(lintRule, "evil-thing", "evil-flood", 1), ""), withCheck(heldOnly), true)
+	post("a checker that is not executable", body(sha('a'), lintRule, ""),
+		map[string]FileSpec{"immunity/immunity.json": file(held), "yara-check": {Content: yaraStandIn, Mode: 0o644}}, true)
 	post("a long note cut inside a letter", body(sha('a'), rule, strings.Repeat("é", 1500)), heldOnly, true)
 	post("malformed", `{"rule":`, heldOnly, false)
 	post("oversized", body(sha('a'), rule, strings.Repeat("n", 33<<10)), heldOnly, false)
 	post("damaged drafts file", body(sha('a'), rule, ""), map[string]FileSpec{"immunity/immunity.json": file(held), "rule-drafts.json": file("[{")}, false)
-	post("keys in other case, trailing data", `{"SAMPLE_SHA256":"`+sha('a')+`","Rule":"rule Heimdall_C { condition: true }"} {"x":1}`, heldOnly, true)
+	post("keys in other case, trailing data", `{"SAMPLE_SHA256":"`+sha('a')+`","Rule":"rule Heimdall_C { strings: $a = \"evil-thing\" condition: $a }"} {"x":1}`, heldOnly, true)
 	var many []string
 	for i := 0; i < 100; i++ {
 		t := fmt.Sprintf("rule Heimdall_N%d { condition: true }", i)
@@ -180,3 +199,16 @@ func moreAPICases(with func(string, func(*APICase))) {
 	post("the 101st draft pushes out the oldest", body(sha('a'), rule, ""), map[string]FileSpec{"immunity/immunity.json": file(held), "rule-drafts.json": file("[" + strings.Join(many, ",") + "]")}, true)
 	with("rule drafts: PUT", func(c *APICase) { c.Method, c.Path = "PUT", "/v1/rules/drafts" })
 }
+
+// yaraStandIn is heimdall-yara-check's stand-in for the parity cases (Go and Rust run the same script): its verdict depends
+// on what the rule contains.
+const yaraStandIn = `#!/bin/sh
+r=$(cat)
+case "$r" in
+*nothing_here*) echo '{"errors":["E009: unknown identifier ` + "`nothing_here`" + ` (line 12)"],"ok":false,"warnings":[],"yara_x":"1.23.0"}' ;;
+*evil-garbage*) echo 'not a verdict' ;;
+*evil-exit-3*) echo '{"errors":[],"ok":true,"warnings":[],"yara_x":"1.23.0"}'; exit 3 ;;
+*evil-flood*) i=0; printf '{"errors":[],"ok":true,"warnings":['; while [ $i -lt 30 ]; do printf '"slow_pattern: w%d %0300d",' $i 0; i=$((i+1)); done; echo '"last"],"yara_x":"1.23.0"}' ;;
+*) echo '{"errors":[],"ok":true,"warnings":["slow_pattern: slow pattern (line 10)"],"yara_x":"1.23.0"}' ;;
+esac
+`

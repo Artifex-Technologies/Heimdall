@@ -27,6 +27,7 @@ __pycache__/
 
 # The Rust port's build output
 /rust/target/
+/rust/yara-check/target/
 /rust/fuzz/target/
 /rust/fuzz/corpus/
 /rust/fuzz/artifacts/

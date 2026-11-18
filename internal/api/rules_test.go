@@ -13,7 +13,7 @@ import (
 
 func TestRuleDraftsOnlyForHeldSamples(t *testing.T) {
 	sha := strings.Repeat("ab", 32)
-	r := immunity.Rules{Path: filepath.Join(t.TempDir(), "drafts.json")}
+	r := immunity.Rules{Path: filepath.Join(t.TempDir(), "drafts.json"), Check: "/nonexistent/heimdall-yara-check"}
 	ring := alert.NewRing(10)
 	s := NewServer(ring, nil)
 	s.SetAccess(&Access{PeerUID: func(*http.Request) (uint32, error) { return 954, nil }, Member: func(uint32) bool { return true }})

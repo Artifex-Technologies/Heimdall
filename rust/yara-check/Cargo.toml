@@ -1,0 +1,29 @@
+[package]
+name = "heimdall-yara-check"
+version = "0.1.0"
+description = "YARA-X's exact compile check of one YARA rule draft (read on stdin): its errors and warnings as stable JSON"
+edition = "2021"
+license = "MPL-2.0"
+# yara-x 1.23 needs Rust 1.95
+rust-version = "1.95"
+publish = false
+
+# A workspace of its own: yara-x brings wasmtime and Cranelift (minutes to build), so the daemon's workspace (rust/) does not
+# build it and its lock file is audited on its own (.github/workflows/rust.yml).
+[workspace]
+
+[[bin]]
+name = "heimdall-yara-check"
+path = "src/main.rs"
+
+[dependencies]
+# BSD-3-Clause (VirusTotal); my decision 2026-11-18 (Labyrinth_OS docs/REFERENCE_PLAN_2026-11.md §5, 1). No modules: a draft
+# never imports one (Heimdall refuses `import`), so none is built in.
+yara-x = { version = "=1.23.0", default-features = false, features = ["constant-folding", "exact-atoms"] }
+serde_json = "=1.0.154"
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
