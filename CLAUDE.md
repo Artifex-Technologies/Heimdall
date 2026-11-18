@@ -357,6 +357,8 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 - **For Sarina:** the same two fields, in `/v1/alerts` and in each line of `/var/lib/heimdall/alerts.jsonl`; a tag says what
   the detector watches, never that the technique is covered or that an attack happened (phase 3: her explanation names
   the technique and links MITRE's page).
+— Signed: Heimdall / Claude Opus 5.5
+
 ### 2026-11-18 (2) — URLhaus's ClamAV signatures in heimdall-intel-update (R5 phase 1)
 - `heimdall-intel-update` downloads URLhaus's ClamAV URL signatures daily (`https://urlhaus-api.abuse.ch/v2/files/exports/<key>/urlhaus_clamav.ndb`,
   download only, never a per-URL or per-hash question) when an abuse.ch Auth-Key is in `/etc/heimdall/abusech-auth-key`
