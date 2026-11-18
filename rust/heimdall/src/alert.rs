@@ -1,6 +1,7 @@
 //! Findings become alerts: timestamped, redacted, explained, written one JSON object per line exactly as the Go daemon
 //! writes them (Go: internal/alert).
 
+use crate::attack;
 use crate::detect::text::redact_credentials;
 use crate::event::{Fields, Finding, Severity};
 use crate::explain::{self, Text};
@@ -21,11 +22,17 @@ pub struct Alert {
     pub event_kind: String,
     pub event_text: String,
     pub fields: Fields,
+    /// ATT&CK technique IDs the detector watches for (crate::attack): what it looks for, never that a technique is covered
+    pub attack: Vec<String>,
     pub explain: Option<Text>,
 }
 
+/// The fixed explanation and the ATT&CK tags (with their names in the explanation).
 fn explained(mut a: Alert) -> Alert {
-    a.explain = Some(explain::for_alert(&a.detector_id, a.severity.as_str(), &a.fields));
+    let mut t = explain::for_alert(&a.detector_id, a.severity.as_str(), &a.fields);
+    a.attack = attack::tags_for(&a.detector_id, &a.event_kind, &a.fields);
+    t.attack = attack::names(&a.attack);
+    a.explain = Some(t);
     a
 }
 
@@ -43,6 +50,7 @@ impl Alert {
             event_kind: f.event.kind.clone(),
             event_text: redact_credentials(&f.event.text),
             fields,
+            attack: Vec::new(),
             explain: None,
         })
     }
@@ -61,6 +69,7 @@ impl Alert {
             event_kind: "integration_error".into(),
             event_text: String::new(),
             fields: f,
+            attack: Vec::new(),
             explain: None,
         })
     }
@@ -82,6 +91,17 @@ impl Alert {
         if !self.fields.is_empty() {
             w.map("fields", &self.fields);
         }
+        if !self.attack.is_empty() {
+            let o = w.key("attack");
+            o.push('[');
+            for (i, id) in self.attack.iter().enumerate() {
+                if i > 0 {
+                    o.push(',');
+                }
+                gojson::write_str(o, id);
+            }
+            o.push(']');
+        }
         if let Some(t) = &self.explain {
             let o = w.key("explain");
             let mut e = ObjectWriter::new(o);
@@ -89,6 +109,20 @@ impl Alert {
             e.str("serious", &t.serious);
             e.str("done", &t.done);
             e.str("do", &t.r#do);
+            if !t.attack.is_empty() {
+                let o = e.key("attack");
+                o.push('[');
+                for (i, r) in t.attack.iter().enumerate() {
+                    if i > 0 {
+                        o.push(',');
+                    }
+                    let mut ro = ObjectWriter::new(o);
+                    ro.str("id", &r.id);
+                    ro.str("name", &r.name);
+                    ro.end();
+                }
+                o.push(']');
+            }
             e.end();
         }
         w.end();
@@ -105,7 +139,7 @@ impl Alert {
             v => {
                 let mut t = TextJson::default();
                 t.read_into(v, "explain")?;
-                Some(Text { what: t.what, serious: t.serious, done: t.done, r#do: t.r#do })
+                Some(Text { what: t.what, serious: t.serious, done: t.done, r#do: t.r#do, attack: t.attack })
             }
         };
         Ok(Alert {
@@ -118,6 +152,7 @@ impl Alert {
             event_kind: r.event_kind,
             event_text: r.event_text,
             fields: r.fields,
+            attack: r.attack,
             explain,
         })
     }
@@ -134,6 +169,7 @@ struct AlertJson {
     event_kind: String,
     event_text: String,
     fields: Fields,
+    attack: Vec<String>,
     explain: Value,
 }
 crate::go_struct!(AlertJson {
@@ -146,6 +182,7 @@ crate::go_struct!(AlertJson {
     event_kind: "event_kind",
     event_text: "event_text",
     fields: "fields",
+    attack: "attack",
     explain: "explain",
 });
 
@@ -155,8 +192,9 @@ struct TextJson {
     serious: String,
     done: String,
     r#do: String,
+    attack: Vec<attack::Ref>,
 }
-crate::go_struct!(TextJson { what: "what", serious: "serious", done: "done", r#do: "do" });
+crate::go_struct!(TextJson { what: "what", serious: "serious", done: "done", r#do: "do", attack: "attack" });
 
 /// Receives every alert the engine raises.
 pub trait Sink: Send {

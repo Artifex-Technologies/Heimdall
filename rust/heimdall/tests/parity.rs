@@ -369,3 +369,37 @@ fn the_go_functions_give_the_same_answers() {
     let mut cfg = Config::default();
     cfg.read_into(&gojson::parse(include_bytes!("../../../packaging/arch/config.json.example")).unwrap(), "").unwrap();
 }
+
+/// The ATT&CK table and detector map (internal/attack, src/attack.rs): both languages read the same compiled-in files alike
+/// (version, count, a digest of every parsed row) and tag and name the same alerts.
+#[test]
+fn the_go_attack_table_reads_the_same() {
+    use sha2::{Digest, Sha256};
+    let doc = gojson::parse(&std::fs::read(fixtures().join("functions.json")).unwrap()).unwrap();
+    let a = obj(&doc, "attack").expect("functions.json has no attack section: run go test ./internal/parity -update");
+    let t = heimdall::attack::embedded();
+    assert_eq!(t.version, s(obj(a, "version")));
+    assert_eq!(t.techniques.len() as f64, num(obj(a, "count")));
+    let mut h = Sha256::new();
+    for r in &t.techniques {
+        h.update(format!("{}\t{}\t{}\n", r.id, r.name, r.tactics).as_bytes());
+    }
+    let digest: String = h.finalize().iter().map(|b| format!("{b:02x}")).collect();
+    assert_eq!(digest, s(obj(a, "sha256")), "the parsed rows differ from Go's");
+    let cases = arr(obj(a, "tags"));
+    assert!(cases.len() > 40, "too few tag cases: {}", cases.len());
+    for c in cases {
+        let mut fields = BTreeMap::new();
+        if let Some(Value::Object(m)) = obj(c, "fields") {
+            for (k, v) in m {
+                fields.insert(k.clone(), s(Some(v)));
+            }
+        }
+        let ids = heimdall::attack::tags_for(&s(obj(c, "detector")), &s(obj(c, "kind")), &fields);
+        let want: Vec<String> = arr(obj(c, "ids")).iter().map(|v| s(Some(v))).collect();
+        assert_eq!(ids, want, "{:?} {:?} {fields:?}", s(obj(c, "detector")), s(obj(c, "kind")));
+        let names: Vec<(String, String)> = heimdall::attack::names(&ids).into_iter().map(|r| (r.id, r.name)).collect();
+        let want: Vec<(String, String)> = arr(obj(c, "names")).iter().map(|r| (s(obj(r, "id")), s(obj(r, "name")))).collect();
+        assert_eq!(names, want);
+    }
+}

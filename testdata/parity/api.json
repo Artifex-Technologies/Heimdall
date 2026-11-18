@@ -610,6 +610,25 @@
    "alerts": []
   },
   {
+   "name": "alerts with ATT\u0026CK tags",
+   "method": "GET",
+   "path": "/v1/alerts",
+   "host": "127.0.0.1:8930",
+   "peer": 1000,
+   "members": [
+    1000,
+    954
+   ],
+   "ring": [
+    "{\"time\":\"2026-11-05T12:00:00Z\",\"detector_id\":\"lan-watch\",\"severity\":\"critical\",\"summary\":\"router changed\",\"source\":\"host-lan\",\"event_kind\":\"router_changed\",\"event_text\":\"\",\"fields\":{\"ssid\":\"Example\"},\"attack\":[\"T1557.002\"],\"explain\":{\"what\":\"Something on your local network is pretending to be your router or another device (its hardware address changed to a new one). That is how traffic on a shared network gets intercepted.\",\"serious\":\"Serious: look at it now.\",\"done\":\"Heimdall recorded it; nothing was changed on your computer.\",\"do\":\"On a network you do not control, disconnect or use a VPN. At home, restart the router and check which devices are connected.\",\"attack\":[{\"id\":\"T1557.002\",\"name\":\"Adversary-in-the-Middle: ARP Cache Poisoning\"}]}}"
+   ],
+   "reviewer": true,
+   "status": 200,
+   "response": "[{\"time\":\"TIME\",\"detector_id\":\"lan-watch\",\"severity\":\"critical\",\"summary\":\"router changed\",\"source\":\"host-lan\",\"event_kind\":\"router_changed\",\"event_text\":\"\",\"fields\":{\"ssid\":\"Example\"},\"attack\":[\"T1557.002\"],\"explain\":{\"what\":\"Something on your local network is pretending to be your router or another device (its hardware address changed to a new one). That is how traffic on a shared network gets intercepted.\",\"serious\":\"Serious: look at it now.\",\"done\":\"Heimdall recorded it; nothing was changed on your computer.\",\"do\":\"On a network you do not control, disconnect or use a VPN. At home, restart the router and check which devices are connected.\",\"attack\":[{\"id\":\"T1557.002\",\"name\":\"Adversary-in-the-Middle: ARP Cache Poisoning\"}]}}]\n",
+   "exact": true,
+   "alerts": []
+  },
+  {
    "name": "unknown path",
    "method": "GET",
    "path": "/v1/nothing",

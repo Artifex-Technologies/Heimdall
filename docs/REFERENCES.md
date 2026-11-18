@@ -67,7 +67,7 @@ happened.
 | [VirusTotal/yara-x](https://github.com/VirusTotal/yara-x) (BSD-3, Rust) | Pattern rules (successor) | Candidate | Rule-draft lint with slow-pattern warnings (R4); whether to depend on the crate is the owner's decision | 2026-11-17 |
 | [abusech/URLhaus](https://github.com/abusech/URLhaus) (data: [abuse.ch terms of use](https://abuse.ch/terms-of-use/), see note below) | Malware URL feed | Adapted (data, via malware-filter) + Adapted (data, own key) + Candidate | `packaging/net/heimdall-dns-blocklist` (URLhaus hosts filter, via malware-filter). ClamAV URL signatures (`urlhaus_clamav.ndb`, `https://urlhaus-api.abuse.ch/v2/files/exports/<key>/urlhaus_clamav.ndb`) through `heimdall-intel-update` into `/var/lib/clamav/heimdall-urlhaus.ndb` (`IMMUNITY.md`, "URLhaus"). Candidate: downloaded hash lists; per-hash API questions never by default (R5) | 2026-11-18 |
 | [Suryesh/OTX_AlienVault_URL](https://github.com/Suryesh/OTX_AlienVault_URL) (MIT) | AlienVault OTX client | Candidate | Optional OTX feed, pull-only: subscribed indicator lists into `intel`, never a question about what this computer saw (R6) | 2026-11-17 |
-| [mitre-attack/attack-stix-data](https://github.com/mitre-attack/attack-stix-data) (MITRE ATT&CK terms) | Technique catalogue | Candidate | Trimmed ID/name/tactic table, MITRE's notice kept verbatim; detector → technique tags on alerts (R1) | 2026-11-17 |
+| [mitre-attack/attack-stix-data](https://github.com/mitre-attack/attack-stix-data) (MITRE ATT&CK terms of use, `NOTICE-ATTACK`) | Technique catalogue | Adapted (data, trimmed) | Pinned: release **v20.1** (ATT&CK Enterprise 20.1, published 2026-11-05), `enterprise-attack.json` SHA-256 `539a843a…910b5`. `internal/attack/enterprise.tsv` (511 Linux/Windows techniques: ID, name, tactics), written by `rust/tools/attack-table`; detector → technique tags on alerts, `internal/attack/tags.tsv` (R1 phases 1-2). Regenerate: `docs/ATTACK.md`, "A new ATT&CK release". The bundle is not committed | 2026-11-18 |
 | [mitre-attack/mitreattack-python](https://github.com/mitre-attack/mitreattack-python) (Apache-2.0) | ATT&CK tooling | Candidate (idea only) | `heimdalld attack-layer`: a Navigator layer and a gap list of what the detectors watch (R2) | 2026-11-17 |
 | [bauerj/mac_vendor_lookup](https://github.com/bauerj/mac_vendor_lookup) (Apache-2.0) | MAC vendor lookup | Design reference | The offline half: `rust/macvendor` (crate `heimdall-macvendor`) and its Go twin `internal/macvendor`. The refresh with a kept last-good copy is designed (`docs/DEVICES.md`, "Vendor data"), not built: my decision on downloading (R3) | 2026-11-17 |
 | [Ringmast4r/OUI-Master-Database](https://github.com/Ringmast4r/OUI-Master-Database) (no licence) | MAC vendor data | Design reference (ideas only) | Built: all IEEE registries (MA-L, MA-M, MA-S, IAB), longest-prefix match, a shared crate (`rust/macvendor`, R3). Designed, not built: the monthly refresh. Its merged data is **not** used (mixed licences) | 2026-11-17 |
@@ -153,8 +153,10 @@ YARA subset of its own, so nothing breaks today. What changes: draft checks shou
 (short or common strings make slow rules), and Limbo's analysis image should move to YARA-X's `yr` when its package is
 ready. Using the `yara-x` crate inside Heimdall would be a dependency, not copied code; that is an owner decision.
 
-**ATT&CK data carries MITRE's notice.** If the trimmed table lands, it is committed with MITRE's copyright line and licence
-text verbatim, and its disclaimer holds here too: a tag says what a detector looks for, never that a technique is covered.
+**ATT&CK data carries MITRE's notice.** The trimmed table landed on 2026-11-18 (I approved it that day): it is committed with
+MITRE's copyright line and terms of use verbatim in `NOTICE-ATTACK` (installed beside the licence), and its disclaimer holds
+here too: a tag says what a detector looks for, never that a technique is covered. The reasons per tag and the gap list are
+in `docs/ATTACK.md`.
 
 **URLhaus's licence, checked 2026-11-18.** It is no longer plain CC0 from abuse.ch itself. Its
 [terms of use](https://abuse.ch/terms-of-use/) say "Access to the abuse.ch Platforms is provided only to: Users who have

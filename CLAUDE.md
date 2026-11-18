@@ -74,6 +74,7 @@ internal/
   sources/vaultsource/     The agent's vault notes at rest (inotify, no polling)
   sources/lansource/       New devices on a trusted home network (events.jsonl written by `heimdalld lan scan`)
   lan/                     The device list: neighbour sweep, mDNS, router names, NetBIOS; own unit, trusted networks only
+  attack/                  ATT&CK technique table (enterprise.tsv, generated) and detector map (tags.tsv); tags on alerts: docs/ATTACK.md
   macvendor/               Who made a hardware address: the IEEE registries (MA-L/M/S, IAB), longest prefix; twin of rust/macvendor
   governance/              Phase 4: reviews text via the existing detectors, out-of-process
   grants/                  Phase 4: the one gate for hand-offs and access tiers (owner decides, as root)
@@ -89,6 +90,7 @@ docs/
   DEVICES.md               The device list of trusted home networks (heimdalld lan, /v1/lan/devices)
   WIFI_HEALTH.md           Wi-Fi checks: why the Wi-Fi is slow (heimdalld wifi-health)
   MULTILINK.md             Several internet connections at once (heimdall-multilink, kernel multipath routing)
+  ATTACK.md                ATT&CK technique tags on alerts: why each detector has its tags, the gap list, a new release
   WIFI_TRUST.md            Wi-Fi trust levels (untrusted, trusted, home), the quiet table, the "protected" verdict
 packaging/arch/            PKGBUILD, systemd unit, sysusers -- mirrors Sarina's own layout
 internal/parity/          The Go table tests as scenarios; writes testdata/parity, the fixtures the Rust port must match
@@ -100,6 +102,7 @@ packaging/privacy/         the private microphone's PipeWire and WirePlumber fil
 packaging/arch-private-mic/ the recipe of heimdall-private-mic-git (its own package; install.sh DESTDIR private-mic)
 rust/privacy/              the privacy pack: heimdall-fileguard (downloads guard), heimdall-strip (Remove hidden info), lookalike.rs: docs/PRIVACY_PACK.md
 packaging/privacy-pack/    the downloads guard's user unit (in heimdall-private-mic-git too)
+rust/tools/attack-table/   writes internal/attack/enterprise.tsv from one pinned release of MITRE's attack-stix-data (by hand)
 rust/macvendor/            heimdall-macvendor: the maker lookup (no dependencies; Yggdrasil's Settings uses it as a git dependency): docs/DEVICES.md
 rust/multilink/            heimdall-multilink: several internet connections at once (kernel multipath routing): docs/MULTILINK.md
 packaging/multilink/       its unit and polkit action; packaging/arch-multilink/ the recipe of heimdall-multilink-git (its own package)
@@ -282,12 +285,42 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   points and of the vendor extras they announce. Its public API (`global`, `lookup`, `lookup_str`, `Table::lookup_oui`,
   `Answer`, `Vendor`, `is_local`, `parse_mac`) changes only with a log entry here and a matching change in Yggdrasil when it
   moves its `rev`. The crate stays free of dependencies, so it builds anywhere Settings does (a Raspberry Pi too).
+- **Heimdall → Yggdrasil Settings and Sarina (ATT&CK tags on alerts): live (2026-11-18).** Every alert in `GET /v1/alerts`
+  and in `alerts.jsonl` may carry `attack` (technique IDs such as `"T1557.002"`, in the map's order) and its `explain` object
+  `attack` (`[{"id", "name"}]`, the same IDs with MITRE's names, a sub-technique as "Parent: Sub"); both are left out when the
+  detector has no tag. They say what the detector watches, never that a technique is covered. Settings shows the names from
+  `explain.attack` (no lookup endpoint: every alert brings its names); MITRE's page is
+  `https://attack.mitre.org/techniques/<ID with "." as "/">/`, opened only on a click. Both fields are additive; renaming or
+  removing them, or changing their shapes, is a contract change here and in the readers. Which detector gets which tag
+  (`internal/attack/tags.tsv`) may change with a log entry; the reasons and the gap list are in `docs/ATTACK.md`.
 - **Ports owned by this repo:** `8930` (Heimdall's API, loopback-only) and
   `8931` (mesh, off by default; one non-loopback address chosen by the owner).
   Both are in Sarina's `docs/ECOSYSTEM.md` port registry.
 
 ### Coordination Log (newest first)
 
+### 2026-11-18 (3) — ATT&CK technique tags on alerts (R1, phases 1 and 2; approved 2026-11-18)
+- The table: `internal/attack/enterprise.tsv`, 511 techniques and sub-techniques of ATT&CK Enterprise 20.1 for Linux or
+  Windows (ID, name, tactics; revoked and deprecated left out; 33 KB), written by the new `rust/tools/attack-table`
+  (crate `heimdall-attack-table`, serde_json and sha2 at the daemon's pinned versions) from attack-stix-data release v20.1,
+  `enterprise-attack.json` SHA-256 `539a843a…910b5`; the bundle is not committed. `NOTICE-ATTACK` holds MITRE's copyright
+  line and terms of use verbatim and is installed as `/usr/share/licenses/heimdall/NOTICE-ATTACK` (`packaging/install.sh`).
+- The tags: `internal/attack/tags.tsv` maps detector, event kind and one field to technique IDs (first match wins); Go
+  `internal/attack` and Rust `attack.rs` read both files, compiled in, once. Tagged: file-integrity, tool-rules,
+  credential-shape, inbound (logins, port scans), lan-watch (ARP, rogue router, new device), remote-access (by kind),
+  limbo-guest (firewall order), limbo-network (scan), limbo-exchange (held file). Every row's reason and the gap list (the AI
+  agent detectors, connection-watch, wifi-safety, the audits, C2 implants, mesh VPNs, ...): `docs/ATTACK.md`.
+- Alerts gain `attack` (IDs) and `explain.attack` (`[{"id","name"}]`), both additive and left out when empty, in Go and Rust.
+  Fixtures: `go test ./internal/parity -update` changed only those fields (checked with a script that drops them and
+  compares), plus a new `api.json` case "alerts with ATT&CK tags" and an `attack` section in `functions.json` (version,
+  count, a digest of every parsed row, a match and a near miss for every map row), which the Rust tests run. Tests that
+  every mapped ID is in the table and every mapped detector exists, in both languages.
+- **CONTRACT (Yggdrasil Settings, Sarina):** the contract above, "ATT&CK tags on alerts".
+- **For Yggdrasil Settings:** read `explain.attack[].name` (and `.id`) of each alert from `GET /v1/alerts`; show the names
+  beside the explanation, link `https://attack.mitre.org/techniques/T1557/002/` only on a click; nothing new to ask for.
+- **For Sarina:** the same two fields, in `/v1/alerts` and in each line of `/var/lib/heimdall/alerts.jsonl`; a tag says what
+  the detector watches, never that the technique is covered or that an attack happened (phase 3: her explanation names
+  the technique and links MITRE's page).
 ### 2026-11-18 (2) — URLhaus's ClamAV signatures in heimdall-intel-update (R5 phase 1)
 - `heimdall-intel-update` downloads URLhaus's ClamAV URL signatures daily (`https://urlhaus-api.abuse.ch/v2/files/exports/<key>/urlhaus_clamav.ndb`,
   download only, never a per-URL or per-hash question) when an abuse.ch Auth-Key is in `/etc/heimdall/abusech-auth-key`

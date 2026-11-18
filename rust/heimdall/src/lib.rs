@@ -7,6 +7,7 @@
 pub mod advisor;
 pub mod alert;
 pub mod api;
+pub mod attack;
 pub mod audit;
 pub mod cli;
 pub mod config;

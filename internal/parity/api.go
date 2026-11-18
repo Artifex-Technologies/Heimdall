@@ -243,6 +243,11 @@ func AllAPI(tmp func() string) (APICases, error) {
 		with("alerts "+q, func(c *APICase) { c.Path, c.Ring = "/v1/alerts"+q, ring })
 	}
 	with("alerts, empty ring", func(c *APICase) { c.Path = "/v1/alerts" })
+	// ATT&CK tags (internal/attack): the alert's "attack" IDs and their names in "explain" travel through the ring as written
+	tagged := alert.FromFinding(detect.Finding{DetectorID: "lan-watch", Severity: detect.SeverityCritical, Summary: "router changed",
+		Event: detect.Event{Source: "host-lan", Kind: "router_changed", Time: t0, Fields: map[string]string{"ssid": "Example"}}})
+	tagged.Time = t0
+	with("alerts with ATT&CK tags", func(c *APICase) { c.Path, c.Ring = "/v1/alerts", []string{line(tagged)} })
 	with("unknown path", func(c *APICase) { c.Path = "/v1/nothing" })
 	with("incidents", func(c *APICase) { c.Path = "/v1/incidents" })
 	// review_test.go

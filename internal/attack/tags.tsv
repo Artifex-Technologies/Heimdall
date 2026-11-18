@@ -1,0 +1,28 @@
+# What each detector watches, in ATT&CK technique IDs (internal/attack/enterprise.tsv). A tag says what a detector looks
+# for, never that a technique is covered. The reason for every row, and what is not watched: docs/ATTACK.md.
+#
+# Columns (tab-separated): detector, event kind, condition on one alert field, technique IDs (comma-separated).
+# "*" matches anything; a condition is key=value, and key=* means the field is there and not empty.
+# The first row that matches an alert decides; an alert no row matches has no tags.
+# detector	kind	field	techniques
+file-integrity	file_created	*	T1565.001
+file-integrity	file_modified	*	T1565.001
+file-integrity	file_deleted	*	T1565.001
+tool-rules	*	*	T1554
+credential-shape	*	*	T1552.001
+inbound	*	block_command=*	T1110
+inbound	*	ports=*	T1046
+lan-watch	router_changed	*	T1557.002
+lan-watch	router_impersonated	*	T1557.002
+lan-watch	lan_device_changed	*	T1557.002
+lan-watch	rogue_router	*	T1557
+lan-watch	new_lan_device	*	T1200
+remote-access	*	ra_kind=remote-desktop	T1219.002
+remote-access	*	ra_kind=rmm	T1219
+remote-access	*	ra_kind=tunnel	T1572
+remote-access	*	ra_kind=anonymizer	T1090.003
+remote-access	remote_access	signal=tunnel	T1572
+limbo-guest	guest.start	*	T1686
+limbo-guest	policy.remove	*	T1686
+limbo-network	net.anomaly	reason=scan	T1046
+limbo-exchange	exchange.held	*	T1570

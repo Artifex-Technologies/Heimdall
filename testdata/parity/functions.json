@@ -4527,5 +4527,851 @@
    },
    "listed": false
   }
- ]
+ ],
+ "attack": {
+  "version": "20.1",
+  "count": 511,
+  "sha256": "456c5fdbbe8f1db44ccf149a0bc82321571cc3713c887cb7dadbfb422527f3c8",
+  "tags": [
+   {
+    "detector": "file-integrity",
+    "kind": "file_created",
+    "fields": null,
+    "ids": [
+     "T1565.001"
+    ],
+    "names": [
+     {
+      "id": "T1565.001",
+      "name": "Data Manipulation: Stored Data Manipulation"
+     }
+    ]
+   },
+   {
+    "detector": "file-integrity",
+    "kind": "file_created_not",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "file-integrity",
+    "kind": "file_modified",
+    "fields": null,
+    "ids": [
+     "T1565.001"
+    ],
+    "names": [
+     {
+      "id": "T1565.001",
+      "name": "Data Manipulation: Stored Data Manipulation"
+     }
+    ]
+   },
+   {
+    "detector": "file-integrity",
+    "kind": "file_modified_not",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "file-integrity",
+    "kind": "file_deleted",
+    "fields": null,
+    "ids": [
+     "T1565.001"
+    ],
+    "names": [
+     {
+      "id": "T1565.001",
+      "name": "Data Manipulation: Stored Data Manipulation"
+     }
+    ]
+   },
+   {
+    "detector": "file-integrity",
+    "kind": "file_deleted_not",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "tool-rules",
+    "kind": "some_kind",
+    "fields": null,
+    "ids": [
+     "T1554"
+    ],
+    "names": [
+     {
+      "id": "T1554",
+      "name": "Compromise Host Software Binary"
+     }
+    ]
+   },
+   {
+    "detector": "tool-rules",
+    "kind": "some_kind_not",
+    "fields": null,
+    "ids": [
+     "T1554"
+    ],
+    "names": [
+     {
+      "id": "T1554",
+      "name": "Compromise Host Software Binary"
+     }
+    ]
+   },
+   {
+    "detector": "credential-shape",
+    "kind": "some_kind",
+    "fields": null,
+    "ids": [
+     "T1552.001"
+    ],
+    "names": [
+     {
+      "id": "T1552.001",
+      "name": "Unsecured Credentials: Credentials In Files"
+     }
+    ]
+   },
+   {
+    "detector": "credential-shape",
+    "kind": "some_kind_not",
+    "fields": null,
+    "ids": [
+     "T1552.001"
+    ],
+    "names": [
+     {
+      "id": "T1552.001",
+      "name": "Unsecured Credentials: Credentials In Files"
+     }
+    ]
+   },
+   {
+    "detector": "inbound",
+    "kind": "some_kind",
+    "fields": {
+     "block_command": "1"
+    },
+    "ids": [
+     "T1110"
+    ],
+    "names": [
+     {
+      "id": "T1110",
+      "name": "Brute Force"
+     }
+    ]
+   },
+   {
+    "detector": "inbound",
+    "kind": "some_kind",
+    "fields": {
+     "block_command": "1_not"
+    },
+    "ids": [
+     "T1110"
+    ],
+    "names": [
+     {
+      "id": "T1110",
+      "name": "Brute Force"
+     }
+    ]
+   },
+   {
+    "detector": "inbound",
+    "kind": "some_kind",
+    "fields": {
+     "block_command": ""
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "inbound",
+    "kind": "some_kind",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "inbound",
+    "kind": "some_kind",
+    "fields": {
+     "ports": "1"
+    },
+    "ids": [
+     "T1046"
+    ],
+    "names": [
+     {
+      "id": "T1046",
+      "name": "Network Service Discovery"
+     }
+    ]
+   },
+   {
+    "detector": "inbound",
+    "kind": "some_kind",
+    "fields": {
+     "ports": "1_not"
+    },
+    "ids": [
+     "T1046"
+    ],
+    "names": [
+     {
+      "id": "T1046",
+      "name": "Network Service Discovery"
+     }
+    ]
+   },
+   {
+    "detector": "inbound",
+    "kind": "some_kind",
+    "fields": {
+     "ports": ""
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "inbound",
+    "kind": "some_kind",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "lan-watch",
+    "kind": "router_changed",
+    "fields": null,
+    "ids": [
+     "T1557.002"
+    ],
+    "names": [
+     {
+      "id": "T1557.002",
+      "name": "Adversary-in-the-Middle: ARP Cache Poisoning"
+     }
+    ]
+   },
+   {
+    "detector": "lan-watch",
+    "kind": "router_changed_not",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "lan-watch",
+    "kind": "router_impersonated",
+    "fields": null,
+    "ids": [
+     "T1557.002"
+    ],
+    "names": [
+     {
+      "id": "T1557.002",
+      "name": "Adversary-in-the-Middle: ARP Cache Poisoning"
+     }
+    ]
+   },
+   {
+    "detector": "lan-watch",
+    "kind": "router_impersonated_not",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "lan-watch",
+    "kind": "lan_device_changed",
+    "fields": null,
+    "ids": [
+     "T1557.002"
+    ],
+    "names": [
+     {
+      "id": "T1557.002",
+      "name": "Adversary-in-the-Middle: ARP Cache Poisoning"
+     }
+    ]
+   },
+   {
+    "detector": "lan-watch",
+    "kind": "lan_device_changed_not",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "lan-watch",
+    "kind": "rogue_router",
+    "fields": null,
+    "ids": [
+     "T1557"
+    ],
+    "names": [
+     {
+      "id": "T1557",
+      "name": "Adversary-in-the-Middle"
+     }
+    ]
+   },
+   {
+    "detector": "lan-watch",
+    "kind": "rogue_router_not",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "lan-watch",
+    "kind": "new_lan_device",
+    "fields": null,
+    "ids": [
+     "T1200"
+    ],
+    "names": [
+     {
+      "id": "T1200",
+      "name": "Hardware Additions"
+     }
+    ]
+   },
+   {
+    "detector": "lan-watch",
+    "kind": "new_lan_device_not",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "some_kind",
+    "fields": {
+     "ra_kind": "remote-desktop"
+    },
+    "ids": [
+     "T1219.002"
+    ],
+    "names": [
+     {
+      "id": "T1219.002",
+      "name": "Remote Access Tools: Remote Desktop Software"
+     }
+    ]
+   },
+   {
+    "detector": "remote-access",
+    "kind": "some_kind",
+    "fields": {
+     "ra_kind": "remote-desktop_not"
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "some_kind",
+    "fields": {
+     "ra_kind": ""
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "some_kind",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "some_kind",
+    "fields": {
+     "ra_kind": "rmm"
+    },
+    "ids": [
+     "T1219"
+    ],
+    "names": [
+     {
+      "id": "T1219",
+      "name": "Remote Access Tools"
+     }
+    ]
+   },
+   {
+    "detector": "remote-access",
+    "kind": "some_kind",
+    "fields": {
+     "ra_kind": "rmm_not"
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "some_kind",
+    "fields": {
+     "ra_kind": ""
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "some_kind",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "some_kind",
+    "fields": {
+     "ra_kind": "tunnel"
+    },
+    "ids": [
+     "T1572"
+    ],
+    "names": [
+     {
+      "id": "T1572",
+      "name": "Protocol Tunneling"
+     }
+    ]
+   },
+   {
+    "detector": "remote-access",
+    "kind": "some_kind",
+    "fields": {
+     "ra_kind": "tunnel_not"
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "some_kind",
+    "fields": {
+     "ra_kind": ""
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "some_kind",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "some_kind",
+    "fields": {
+     "ra_kind": "anonymizer"
+    },
+    "ids": [
+     "T1090.003"
+    ],
+    "names": [
+     {
+      "id": "T1090.003",
+      "name": "Proxy: Multi-hop Proxy"
+     }
+    ]
+   },
+   {
+    "detector": "remote-access",
+    "kind": "some_kind",
+    "fields": {
+     "ra_kind": "anonymizer_not"
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "some_kind",
+    "fields": {
+     "ra_kind": ""
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "some_kind",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "signal": "tunnel"
+    },
+    "ids": [
+     "T1572"
+    ],
+    "names": [
+     {
+      "id": "T1572",
+      "name": "Protocol Tunneling"
+     }
+    ]
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "signal": "tunnel_not"
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "signal": ""
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "limbo-guest",
+    "kind": "guest.start",
+    "fields": null,
+    "ids": [
+     "T1686"
+    ],
+    "names": [
+     {
+      "id": "T1686",
+      "name": "Disable or Modify System Firewall"
+     }
+    ]
+   },
+   {
+    "detector": "limbo-guest",
+    "kind": "guest.start_not",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "limbo-guest",
+    "kind": "policy.remove",
+    "fields": null,
+    "ids": [
+     "T1686"
+    ],
+    "names": [
+     {
+      "id": "T1686",
+      "name": "Disable or Modify System Firewall"
+     }
+    ]
+   },
+   {
+    "detector": "limbo-guest",
+    "kind": "policy.remove_not",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "limbo-network",
+    "kind": "net.anomaly",
+    "fields": {
+     "reason": "scan"
+    },
+    "ids": [
+     "T1046"
+    ],
+    "names": [
+     {
+      "id": "T1046",
+      "name": "Network Service Discovery"
+     }
+    ]
+   },
+   {
+    "detector": "limbo-network",
+    "kind": "net.anomaly",
+    "fields": {
+     "reason": "scan_not"
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "limbo-network",
+    "kind": "net.anomaly",
+    "fields": {
+     "reason": ""
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "limbo-network",
+    "kind": "net.anomaly",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "limbo-exchange",
+    "kind": "exchange.held",
+    "fields": null,
+    "ids": [
+     "T1570"
+    ],
+    "names": [
+     {
+      "id": "T1570",
+      "name": "Lateral Tool Transfer"
+     }
+    ]
+   },
+   {
+    "detector": "limbo-exchange",
+    "kind": "exchange.held_not",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "injection-phrase",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "credential-shape",
+    "kind": "",
+    "fields": null,
+    "ids": [
+     "T1552.001"
+    ],
+    "names": [
+     {
+      "id": "T1552.001",
+      "name": "Unsecured Credentials: Credentials In Files"
+     }
+    ]
+   },
+   {
+    "detector": "invisible-unicode",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "permission-escalation",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "session-burst",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "file-integrity",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "maintenance-window",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "resource-pressure",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "network-exposure",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "connection-watch",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "inbound",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "package-vulnerability",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "kernel-vulnerability",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "hardening",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "wifi-safety",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "lan-watch",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "baseline-drift",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "limbo-guest",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "limbo-network",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "limbo-exchange",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "integration",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "tool-rules",
+    "kind": "",
+    "fields": null,
+    "ids": [
+     "T1554"
+    ],
+    "names": [
+     {
+      "id": "T1554",
+      "name": "Compromise Host Software Binary"
+     }
+    ]
+   },
+   {
+    "detector": "agent-baseline",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "rule-draft",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "incident",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "grant-request",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "something-new",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   }
+  ]
+ }
 }

@@ -11,6 +11,9 @@ pub struct Text {
     pub serious: String,
     pub done: String,
     pub r#do: String,
+    /// The ATT&CK techniques the alert's detector watches for, with their names (crate::attack); empty: none, and the
+    /// field is left out of the JSON.
+    pub attack: Vec<crate::attack::Ref>,
 }
 
 /// An observed value made safe inside a sentence: no control characters, one line, at most n characters.

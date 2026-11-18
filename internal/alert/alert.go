@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Artifex-Technologies/Heimdall/internal/attack"
 	"github.com/Artifex-Technologies/Heimdall/internal/detect"
 	"github.com/Artifex-Technologies/Heimdall/internal/explain"
 )
@@ -30,13 +31,19 @@ type Alert struct {
 	// event is about), so a responder can act on it without parsing EventText.
 	// Additive: existing consumers that ignore it are unaffected.
 	Fields map[string]string `json:"fields,omitempty"`
+	// Attack is the ATT&CK technique IDs the detector watches for ("T1557.002"), from the fixed map in internal/attack
+	// (docs/ATTACK.md): what it looks for, never a claim that the technique is covered. Additive; omitted when none.
+	Attack []string `json:"attack,omitempty"`
 	// Explain says what the alert means in plain words (what happened, how serious, what was done, what to do), from fixed text:
 	// it is there with or without Sarina. Additive, like Fields.
 	Explain *explain.Text `json:"explain,omitempty"`
 }
 
+// explained adds the fixed explanation and the ATT&CK tags (with their names in the explanation).
 func explained(a Alert) Alert {
 	t := explain.For(a.DetectorID, string(a.Severity), a.Fields)
+	a.Attack = attack.For(a.DetectorID, a.EventKind, a.Fields)
+	t.Attack = attack.Names(a.Attack)
 	a.Explain = &t
 	return a
 }

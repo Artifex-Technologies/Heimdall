@@ -203,7 +203,7 @@ answers only root, Heimdall's account, the accounts in `api_users` (default `sar
 | Endpoint | Description |
 | --- | --- |
 | `GET /healthz` | liveness |
-| `GET /v1/alerts?n=50` | the most recent alerts, newest first (max 500) |
+| `GET /v1/alerts?n=50` | the most recent alerts, newest first (max 500); each with its plain-words `explain` and, where its detector has them, ATT&CK tags (`attack`, names in `explain.attack`: [docs/ATTACK.md](docs/ATTACK.md)) |
 | `GET /v1/audit` | what is open now: package and kernel holes, hardening gaps |
 | `GET /v1/quarantine` | what Heimdall holds, with each file's report |
 | `POST /v1/review` | governance: `{"kind","session_id","text"}` → `{"decision":"allow"\|"deny","reasons":[...]}` |
@@ -245,4 +245,5 @@ default.
 
 ## License
 
-MPL 2.0. See [`LICENSE`](LICENSE).
+MPL 2.0. See [`LICENSE`](LICENSE). The ATT&CK technique table compiled into the daemon (`internal/attack/enterprise.tsv`) is
+MITRE's, under MITRE's terms of use: [`NOTICE-ATTACK`](NOTICE-ATTACK).

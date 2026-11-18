@@ -9,6 +9,8 @@ package explain
 
 import (
 	"strings"
+
+	"github.com/Artifex-Technologies/Heimdall/internal/attack"
 )
 
 // Text is the plain-language explanation of one alert.
@@ -17,6 +19,9 @@ type Text struct {
 	Serious string `json:"serious"`
 	Done    string `json:"done"`
 	Do      string `json:"do"`
+	// Attack names the ATT&CK techniques the alert's detector watches for (the alert's "attack" IDs with their names, from
+	// internal/attack): what the detector looks for, never a claim that a technique is covered. Additive; omitted when none.
+	Attack []attack.Ref `json:"attack,omitempty"`
 }
 
 // clean makes an observed value safe to show inside a sentence: no control characters, one line, at most n characters.

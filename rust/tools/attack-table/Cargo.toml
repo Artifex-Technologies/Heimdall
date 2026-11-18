@@ -1,0 +1,18 @@
+[package]
+name = "heimdall-attack-table"
+version = "0.1.0"
+description = "Writes Heimdall's ATT&CK technique table (internal/attack/enterprise.tsv) from one release of MITRE's attack-stix-data"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish = false
+
+# Run by hand, never by the daemon or a package build (docs/ATTACK.md, "A new ATT&CK release").
+[[bin]]
+name = "attack-table"
+path = "src/main.rs"
+
+# Exact versions, both already in Cargo.lock for the daemon and its tests (cargo-audit covers them).
+[dependencies]
+serde_json = "=1.0.149"
+sha2 = { version = "=0.10.9", default-features = false, features = ["std"] }

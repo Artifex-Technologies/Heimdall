@@ -55,6 +55,8 @@ fi
 
 i 755 heimdalld                                  usr/bin/heimdalld
 i 644 LICENSE                                    usr/share/licenses/heimdall/LICENSE
+# MITRE's terms for the ATT&CK table compiled into heimdalld (docs/ATTACK.md)
+i 644 NOTICE-ATTACK                              usr/share/licenses/heimdall/NOTICE-ATTACK
 i 644 README.md                                  usr/share/doc/heimdall/README.md
 i 644 $p/arch/heimdall.service                   usr/lib/systemd/system/heimdall.service
 i 644 $p/arch/heimdall.sysusers                  usr/lib/sysusers.d/heimdall.conf

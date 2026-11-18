@@ -1,6 +1,8 @@
 package parity
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"math/rand"
 	"net"
@@ -9,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Artifex-Technologies/Heimdall/internal/attack"
 	"github.com/Artifex-Technologies/Heimdall/internal/config"
 	"github.com/Artifex-Technologies/Heimdall/internal/detect"
 	"github.com/Artifex-Technologies/Heimdall/internal/explain"
@@ -30,6 +33,25 @@ type Functions struct {
 	// Origins: lookups in the synthetic IP databases (testdata/parity/synthetic-*.mmdb, made by
 	// rust/parity/harness/genmmdb) and a threat list, as the connection watch and the journal name an address.
 	Origins []OriginCase `json:"origins"`
+	// Attack: the ATT&CK table and detector map as each language reads them (internal/attack, rust/heimdall/src/attack.rs).
+	Attack AttackCases `json:"attack"`
+}
+
+// AttackCases shows both loaders read the same embedded files alike: the version, the number of techniques and a digest
+// of every parsed row, then the tags and names of alerts made to match (and just miss) every map row.
+type AttackCases struct {
+	Version string       `json:"version"`
+	Count   int          `json:"count"`
+	SHA256  string       `json:"sha256"` // of "ID\tname\ttactics\n" per parsed row, in the file's order
+	Tags    []AttackCase `json:"tags"`
+}
+
+type AttackCase struct {
+	Detector string            `json:"detector"`
+	Kind     string            `json:"kind"`
+	Fields   map[string]string `json:"fields"`
+	IDs      []string          `json:"ids"`
+	Names    []attack.Ref      `json:"names"`
 }
 
 type OriginCase struct {
@@ -177,5 +199,43 @@ func AllFunctions() Functions {
 	} {
 		f.Explain = append(f.Explain, ExplainCase{Detector: c.id, Severity: c.sev, Fields: c.fields, Text: explain.For(c.id, c.sev, c.fields)})
 	}
+	f.Attack = attackCases(ids)
 	return f
+}
+
+func attackCases(detectors []string) AttackCases {
+	t := attack.Embedded()
+	h := sha256.New()
+	for _, id := range t.Order {
+		r := t.Techniques[id]
+		fmt.Fprintf(h, "%s\t%s\t%s\n", r.ID, r.Name, r.Tactics)
+	}
+	out := AttackCases{Version: t.Version, Count: len(t.Order), SHA256: hex.EncodeToString(h.Sum(nil))}
+	add := func(det, kind string, fields map[string]string) {
+		ids := t.For(det, kind, fields)
+		out.Tags = append(out.Tags, AttackCase{Detector: det, Kind: kind, Fields: fields, IDs: ids, Names: t.Names(ids)})
+	}
+	for _, tag := range t.Tags {
+		kind := tag.Kind
+		if kind == "*" {
+			kind = "some_kind"
+		}
+		if tag.Field == "*" {
+			add(tag.Detector, kind, nil)
+			add(tag.Detector, kind+"_not", nil)
+			continue
+		}
+		v := tag.Value
+		if v == "*" {
+			v = "1"
+		}
+		add(tag.Detector, kind, map[string]string{tag.Field: v})
+		add(tag.Detector, kind, map[string]string{tag.Field: v + "_not"})
+		add(tag.Detector, kind, map[string]string{tag.Field: ""})
+		add(tag.Detector, kind, nil)
+	}
+	for _, det := range detectors {
+		add(det, "", nil)
+	}
+	return out
 }
