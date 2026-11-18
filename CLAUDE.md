@@ -299,6 +299,42 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-11-18 (4) — Identifier privacy extras: wired networks, IPv6 privacy, Bluetooth address privacy (R19)
+- **Wired networks** (my decision 9, Labyrinth_OS `docs/REFERENCE_PLAN_2026-11.md`): `heimdall-wifi-guard up` (Python and its Rust
+  port) gives every untrusted wired (`802-3-ethernet`) profile the private settings: `ethernet.cloned-mac-address stable` (an
+  address chosen in Settings is kept), no DHCP host name, LLMNR and mDNS off. Nothing else of Wi-Fi's: no lockdown, VPN or quiet
+  table, Avahi untouched, `state.json` stays Wi-Fi's. While the real address is in use it notes once a day (`last.json` event
+  `wired`; `heimdall-wifi-notify` shows "Wired: NAME"). `trust --home [--real-address] [--uuid UUID]` works on a wired network;
+  plain `trust` is refused there (nothing to stop). Its entry in `/etc/heimdall/wifi-trusted.json`: `{"name", "wired": true,
+  "level": "home", "trusted_at", "routers"}` (no `ssid`). Home is bound to the router: on another router the profile goes back to
+  private (and says so if it used the real address there). `untrust NAME|UUID` and `status` ("wired now: ...") know them.
+- **Every untrusted profile**, Wi-Fi too: `ipv4.dhcp-client-id mac`, `ipv6.dhcp-duid ll`, `generate-mac-address-mask` cleared when
+  the guard sets `stable` (locally administered, no maker's prefix), and in a second `nmcli connection modify` `ipv6.ip6-privacy 2`
+  and `ipv6.addr-gen-mode stable-privacy` (its own call: a profile with an IPv6 token refuses it and keeps the rest).
+  `heimdall-wifi-privacy.conf` sets the same, plus no host name, as NetworkManager defaults for Wi-Fi and Ethernet devices (new
+  sections `connection-heimdall-wired-privacy`, `connection-heimdall-ipv6-privacy`), so a new profile has them from its first
+  connection. `docs/WIFI_TRUST.md` "Wired networks", "IPv6 privacy and DHCP identifiers".
+- **Hardening check, Bluetooth address privacy:** `bluetooth-privacy-off` (warning when Bluetooth starts at boot with an adapter,
+  else info) and `bluetooth-settings-unread` (info), from BlueZ's `Privacy` in `/etc/bluetooth/main.conf`, read as GLib reads it.
+  Go `internal/hardening/bluetooth.go`, Rust `audit/hardening_bluetooth.rs`; same IDs, levels and texts; 159 new hardening
+  scenarios in `testdata/parity/audits.json`. No new alert field. `docs/AUDITS.md`.
+- Tests: Python `packaging/tests/test_heimdall_wifi_guard.py` (wired up, home bound to its router, trust, untrust, status, the
+  private profile's calls); Rust `tests/cli_wifitools.rs` `guard_wired_as_python` (both programs in fake roots) and the notifier's
+  `wired` event; Go `TestKeyFileReadsAsGLib` (27 texts checked against GLib 2.90), `TestBluetoothGaps`,
+  `TestBluetoothSettingsUnread`; Rust `the_hardening_checks_answer_as_go` on the new fixtures.
+- **For Labyrinth OS:** (1) the image ships bluez and enables `bluetooth.service` (`scripts/build.sh`), so every computer with an
+  adapter gets the `bluetooth-privacy-off` warning until `/etc/bluetooth/main.conf` says `Privacy = device`. BlueZ reads no drop-in
+  folder: set it from `packages/pkgbuilds/labyrinth-tools/labyrinth-tools.install` (post_install and post_upgrade, beside
+  `labyrinth-os-release`; a small Rust helper, only where `ID=labyrinth`, adding the line under `[General]` only when no
+  uncommented `Privacy` line is there). labyrinth-tools is in the image, so its install also covers the live medium. (2) An
+  installed computer's wired network now gets a made-up address and sends no name until made home: the first-boot notes or the
+  installer should say `sudo heimdall-wifi-guard trust --home --real-address` for a home router that reserves an address.
+- **For Yggdrasil:** nothing breaks. Settings could show a wired network's level and offer "Home network, real address" with
+  `pkexec /usr/bin/heimdall-wifi-guard trust --home --real-address --uuid UUID`; netjoin's `mac.rs` reads only
+  `wifi.cloned-mac-address` (the wired default is `ethernet.cloned-mac-address` in `connection-heimdall-wired-privacy`).
+- **For LykanOS:** the same `Privacy = device` from its own tools package's install script; the wired default comes with Heimdall.
+— Signed: Heimdall / Claude Opus 5.5
+
 ### 2026-11-18 (3) — ATT&CK technique tags on alerts (R1, phases 1 and 2; approved 2026-11-18)
 - The table: `internal/attack/enterprise.tsv`, 511 techniques and sub-techniques of ATT&CK Enterprise 20.1 for Linux or
   Windows (ID, name, tactics; revoked and deprecated left out; 33 KB), written by the new `rust/tools/attack-table`

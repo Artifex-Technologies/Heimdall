@@ -7,7 +7,7 @@ itself: each finding says how to fix it, and Sarina (when installed) explains th
 | --- | --- | --- |
 | `package-vulnerability` | an installed package version with a known vulnerability | Arch's security tracker, daily |
 | `kernel-vulnerability` | an installed kernel with known holes that a newer kernel fixes | the kernel CVE team's records (osv.dev), with CISA's list of vulnerabilities exploited in the wild, weekly |
-| `hardening` | a setting that leaves a known kind of hole open where closing it costs nothing noticeable | this computer (/dev, /sys, /proc) |
+| `hardening` | a setting that leaves a known kind of hole open where closing it costs nothing noticeable | this computer (/dev, /sys, /proc, the SSH server's and BlueZ's settings) |
 
 `heimdall-intel-update` does every download (heimdalld never connects off the machine): only whole lists are fetched (public ones,
 and URLhaus's ClamAV signatures with my own abuse.ch key, `IMMUNITY.md`), nothing about this computer is sent.
@@ -67,3 +67,32 @@ links and whether `-s` (no passwords) is in `/etc/conf.d/dropbear` or `/etc/defa
 The alert fields (`check`, `now`, `why`, `fix`, `level`, and `cve` on `ssh-sshole` only) are stable names for readers;
 `GET /v1/audit`'s `hardening` entries gain `cve` the same way (left out when empty). The `hardening` detector makes a `critical`
 level a critical alert; every other gap stays a warning or info as before.
+
+### The Bluetooth address privacy check
+
+Added 2026-11-18 (R19 of Labyrinth OS's reference plan). Without address privacy, Bluetooth Low Energy announces and connects
+with this computer's fixed hardware address, and anything nearby (a shop's beacon, a tracker in a car park) can record it and
+follow the computer from place to place. With BlueZ's `Privacy` on, the kernel uses a resolvable private address that changes
+every 15 minutes; only devices it was paired with can tell it is this computer. Classic Bluetooth (BR/EDR, used by most
+headphones) has no such mode and keeps the fixed address while this computer is discoverable or connecting, whatever `Privacy`
+says. Read-only and offline; nothing is changed, I decide.
+
+What it reads: whether BlueZ is installed (`bluetoothd` in `/usr/lib/bluetooth`, `/usr/libexec/bluetooth`, `/usr/libexec` or
+`/usr/sbin`), whether Bluetooth starts at boot (`bluetooth.service` in a systemd `*.wants` folder, OpenRC's `bluetooth`),
+whether there is an adapter now (`/sys/class/bluetooth/hciN`), and `Privacy` under `[General]` in `/etc/bluetooth/main.conf`,
+read the way GLib reads it for BlueZ (checked against GLib itself): the last value wins, a `#` comment after the value is part of
+it, the spaces at the end of a value are kept, `\s`-style escapes are undone, and one line GLib cannot read makes BlueZ use none
+of the file. BlueZ compares the value exactly; these turn privacy on: `device`, `network`, `on`, `limited-device`,
+`limited-network`. `off`, no value and anything else leave it off.
+
+| check (`check` field) | level | fix |
+| --- | --- | --- |
+| `bluetooth-privacy-off`: `Privacy` off, not set, not a value BlueZ knows, or `main.conf` missing or unreadable to BlueZ | warning when Bluetooth starts at boot and there is an adapter; info otherwise | `Privacy = device` on a line of its own under `[General]`, then `sudo systemctl restart bluetooth`; a device paired before may need pairing again |
+| `bluetooth-settings-unread`: Heimdall may not read `main.conf` (Bluetooth starting at boot, with an adapter) | info | `sudo grep -n Privacy /etc/bluetooth/main.conf` |
+
+I chose `device` over `network`: both use changing addresses, and `device` still accepts devices that announce their fixed
+address (most keyboards, mice and headphones), so nothing paired stops working because of the mode itself.
+
+**Making it pass by default:** BlueZ reads no drop-in folder, so `Privacy = device` has to be in `/etc/bluetooth/main.conf`
+itself (a file the bluez package marks as the owner's: pacman keeps an edited copy and writes `main.conf.pacnew` beside it).
+A distribution sets it once at install, never over a `Privacy` line the owner wrote.

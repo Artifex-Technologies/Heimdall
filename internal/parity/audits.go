@@ -527,6 +527,52 @@ func AllAudits(tmp func() string) (Audits, error) {
 			}
 		}
 	}
+	// the Bluetooth address privacy check (internal/hardening/bluetooth.go): its table test's tree found and then closed, the
+	// settings unread, then every main.conf of TestKeyFileReadsAsGLib (and a few more) with each start and adapter state
+	btd := "usr/lib/bluetooth/bluetoothd"
+	btBoot := "etc/systemd/system/bluetooth.target.wants/bluetooth.service"
+	bt := map[string]FileSpec{btd: {Content: "x"}, btBoot: {Content: ""}, "sys/class/bluetooth/hci0": {Content: ""},
+		"etc/bluetooth/main.conf": {Content: "[General]\n#Privacy = off\n"}}
+	a.Hardening = append(a.Hardening, AuditScenario{Name: "hardening: TestBluetoothGaps (found, then closed by Privacy = device)", Steps: []AuditStep{
+		{Files: bt}, {}, {Files: with(bt, "etc/bluetooth/main.conf", "[General]\nPrivacy = device\n")}, {Files: bt}}})
+	unread := with(bt, "etc/bluetooth/main.conf", "")
+	unread["etc/bluetooth/main.conf"] = FileSpec{Content: "[General]\n", Mode: 0o200}
+	a.Hardening = append(a.Hardening, AuditScenario{Name: "hardening bluetooth: settings unread", NonRoot: true, Steps: []AuditStep{{Files: unread}}})
+	confs := []string{"", "[General]\nPrivacy = device\n", "[General]\nPrivacy = device   \n", "[General]\nPrivacy=device\t\n",
+		"[General]\n  Privacy = device\n", "[General]\nPrivacy = device # x\n", "[General]\nPrivacy = off\nPrivacy = device\n",
+		"[General]\nPrivacy = device\n[Policy]\n[General]\nPrivacy = off\n", "[General]\n  # c\nPrivacy = device\n",
+		"[General]\nbroken line\nPrivacy = device\n", "Privacy = device\n[General]\n", "[General] \nPrivacy = device\n",
+		"[ General ]\nPrivacy = device\n", "[General]\nprivacy = device\n", "[General]\nPrivacy  \t= device\n",
+		"[General]\r\nPrivacy = device\r\n", "[General]\n=x\nPrivacy = device\n", "[General]x\nPrivacy = device\n",
+		"[General]\nPrivacy = \"device\"\n", "[General]\nPrivacy = dev\\x\n", "[General]\nPrivacy = de\\svice\n", "[General]\nPrivacy = devic\\\x65\n",
+		"[General]\nPrivacy[de] = off\nPrivacy = device\n", "[General]\nPrivacy = device\n[General]\n", "\ufeff[General]\nPrivacy = device\n",
+		"[General]\nPri vacy = device\n", "[Gen]eral]\nPrivacy = device\n", "[General\nPrivacy = device\n", "[General]\nPrivacy\n",
+		"[General]\nPrivacy = network", "[General]\nPrivacy = on\n", "[General]\nPrivacy = limited-device\n", "[General]\nPrivacy = off\n",
+		"[General]\nPrivacy = Device\n", "[General]\nPrivacy = \n", "[General]\nPrivacy = device\\",
+		"[General]\nPrivacy = d\xc3\xa9vice\n", "# only\n", "[General]\nPrivacy = device\nPrivacy = limited-network\nPrivacy = 1\n"}
+	n = 0
+	for _, conf := range confs {
+		for _, setup := range []string{"boot+adapter", "boot", "installed", "openrc+connection", "libexec, no file"} {
+			f := map[string]FileSpec{btd: {Content: "x"}, "etc/bluetooth/main.conf": {Content: conf}}
+			switch setup {
+			case "boot+adapter":
+				f[btBoot], f["sys/class/bluetooth/hci0"] = FileSpec{}, FileSpec{}
+			case "boot":
+				f[btBoot] = FileSpec{}
+			case "openrc+connection":
+				f["etc/runlevels/default/bluetooth"], f["sys/class/bluetooth/hci0:11"], f["sys/class/bluetooth/hci1"] = FileSpec{}, FileSpec{}, FileSpec{}
+			case "libexec, no file":
+				delete(f, btd)
+				f["usr/libexec/bluetooth/bluetoothd"], f[btBoot], f["sys/class/bluetooth/hci0:11"] = FileSpec{Content: "x"}, FileSpec{}, FileSpec{}
+				if conf != "" {
+					continue
+				}
+				delete(f, "etc/bluetooth/main.conf")
+			}
+			a.Hardening = append(a.Hardening, AuditScenario{Name: fmt.Sprintf("generated bluetooth %d (%s)", n, setup), Steps: []AuditStep{{Files: f}}})
+			n++
+		}
+	}
 	for i := range a.Hardening {
 		if a.Hardening[i].NonRoot && os.Geteuid() == 0 {
 			return a, fmt.Errorf("write the audit fixtures as a normal user (an unreadable file reads fine for root)")

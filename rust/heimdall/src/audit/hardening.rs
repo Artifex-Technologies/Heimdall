@@ -1,7 +1,10 @@
 //! Settings that leave a known kind of hole open when closing it costs nothing a user would notice (Go: internal/hardening).
-//! Each gap with why it matters and the exact fix; nothing is changed. Reads /dev, /sys and /proc, and for the SSH server
-//! check (hardening_ssh.rs) /etc/ssh, the start links and the sshd program file.
+//! Each gap with why it matters and the exact fix; nothing is changed. Reads /dev, /sys and /proc, for the SSH server check
+//! (hardening_ssh.rs) /etc/ssh, the start links and the sshd program file, and for the Bluetooth address privacy check
+//! (hardening_bluetooth.rs) BlueZ's main.conf.
 
+#[path = "hardening_bluetooth.rs"]
+mod bluetooth;
 #[path = "hardening_ssh.rs"]
 mod ssh;
 pub use ssh::SSHOLE_CVE;
@@ -127,6 +130,7 @@ impl System {
             });
         }
         gaps.extend(self.ssh_gaps());
+        gaps.extend(self.bluetooth_gaps());
         gaps
     }
 }

@@ -1,7 +1,8 @@
 // Package hardening looks for settings that leave a known kind of hole open when closing it costs the user nothing they would
 // notice: no game, app, VM or developer tool stops working. Each gap is reported with why it matters and the exact fix; nothing
-// is changed here (the owner decides, and Sarina can explain it first). Read-only: /dev, /sys and /proc, and for the SSH server
-// check (ssh.go) /etc/ssh, the start links and the sshd program file.
+// is changed here (the owner decides, and Sarina can explain it first). Read-only: /dev, /sys and /proc, for the SSH server
+// check (ssh.go) /etc/ssh, the start links and the sshd program file, and for the Bluetooth address privacy check
+// (bluetooth.go) BlueZ's main.conf.
 package hardening
 
 import (
@@ -100,7 +101,8 @@ func (s System) Check() []Gap {
 		}
 		gaps = append(gaps, Gap{ID: "sysctl-" + c.name, Now: c.name + " = " + now, Why: c.why, Fix: sysctlFix(c.name, c.want), Level: "info"})
 	}
-	return append(gaps, s.sshGaps()...)
+	gaps = append(gaps, s.sshGaps()...)
+	return append(gaps, s.bluetoothGaps()...)
 }
 
 // Watcher reports each gap once (again when it comes back after being closed).

@@ -347,7 +347,8 @@ impl System {
         String::new()
     }
 
-    fn starts_at_boot(&self, names: &[&str]) -> String {
+    /// The first start link (systemd's *.wants folders, OpenRC's runlevels) for one of names, "" when none.
+    pub(super) fn starts_at_boot(&self, names: &[&str]) -> String {
         for base in ["/etc/systemd/system", "/etc/runlevels"] {
             for d in sorted_names(&self.path(base)) {
                 let d = String::from_utf8_lossy(&d).into_owned();
@@ -364,7 +365,7 @@ impl System {
         String::new()
     }
 
-    fn first_file(&self, paths: &[&str]) -> String {
+    pub(super) fn first_file(&self, paths: &[&str]) -> String {
         paths.iter().find(|p| std::fs::metadata(self.path(p)).is_ok_and(|m| m.is_file())).map(|p| p.to_string()).unwrap_or_default()
     }
 
