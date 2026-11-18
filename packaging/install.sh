@@ -36,6 +36,7 @@ if [ "$part" = private-mic ]; then
   i 644 LICENSE                                  usr/share/licenses/heimdall-private-mic/LICENSE
   i 644 rust/scrub/NOTICE                        usr/share/licenses/heimdall-private-mic/NOTICE.flyover-scrub
   i 644 docs/LOCATION_SOUNDS.md                  usr/share/doc/heimdall-private-mic/LOCATION_SOUNDS.md
+  i 644 docs/VOICE_DISGUISE.md                   usr/share/doc/heimdall-private-mic/VOICE_DISGUISE.md
   # the privacy pack (docs/PRIVACY_PACK.md): the downloads guard (a user service, on for every account) and Remove hidden
   # info; built in rust/ (cargo build --release --locked -p heimdall-privacy)
   i 755 $r/heimdall-fileguard                    usr/bin/heimdall-fileguard

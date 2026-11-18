@@ -20,7 +20,11 @@
 -- marked heimdall.private-mic.exempt = "sarina-voice" (Sarina's voice input, from Yggdrasil's panel) is linked to the
 -- physical microphone. On Labyrinth OS the fragment is never there, so this is not either: Sarina records the private
 -- microphone like every app. Turn it off with `heimdall-private-mic off` (Settings > Security > Privacy): everything goes back to normal at
--- once, no restart. What it cannot stop: a program that opens the sound card directly (ALSA hw: while PipeWire is not
+-- once, no restart.
+--
+-- "Disguise my voice" (off by default): while heimdall.private-mic.disguise is on, the filter's second plugin shifts the
+-- voice's pitch and formants by heimdall.private-mic.disguise-preset ("lower" or "higher"); this script sets its Preset
+-- control on the filter's nodes whenever a setting changes or the filter appears. docs/VOICE_DISGUISE.md. What it cannot stop: a program that opens the sound card directly (ALSA hw: while PipeWire is not
 -- using it), a portal client's own manual links, recordings on other devices. docs/LOCATION_SOUNDS.md.
 
 cutils = require ("common-utils")
@@ -32,6 +36,10 @@ CAPTURE = "heimdall.private-mic.capture"
 KEY = "heimdall.private-mic.enforce"
 SARINA_KEY = "heimdall.private-mic.sarina-raw"
 EXEMPT = "sarina-voice"
+DISGUISE_KEY = "heimdall.private-mic.disguise"
+DISGUISE_PRESET_KEY = "heimdall.private-mic.disguise-preset"
+-- the plugin's Preset control: 0 off, 1 lower, 2 higher
+DISGUISE_PRESETS = { lower = 1.0, higher = 2.0 }
 
 -- The LykanOS fragment's marker; read once (configuration does not change while WirePlumber runs).
 lykanos = false
@@ -255,3 +263,42 @@ Settings.subscribe (KEY, function ()
     source:call ("schedule-rescan", "linking")
   end
 end)
+
+-- The voice disguise: the filter's "disguise:Preset" control follows the two settings. An unknown preset name counts as
+-- "lower" (on means on).
+function disguiseValue ()
+  if Settings.get_boolean (DISGUISE_KEY) ~= true then
+    return 0.0
+  end
+  return DISGUISE_PRESETS [Settings.get_string (DISGUISE_PRESET_KEY)] or DISGUISE_PRESETS.lower
+end
+
+function applyDisguise (node)
+  local v = disguiseValue ()
+  log:info (node, "voice disguise control " .. tostring (v))
+  node:set_param ("Props", Pod.Object {
+    "Spa:Pod:Object:Param:Props", "Props",
+    params = Pod.Struct { "disguise:Preset", Pod.Float (v) }
+  })
+end
+
+private_filter_om = ObjectManager {
+  Interest {
+    type = "node",
+    Constraint { "node.name", "=", CAPTURE },
+  }
+}
+private_filter_om:connect ("object-added", function (_, node)
+  applyDisguise (node)
+end)
+private_filter_om:activate ()
+
+function disguiseChanged ()
+  log:notice ("voice disguise " .. (disguiseValue () > 0 and "on" or "off"))
+  for node in private_filter_om:iterate () do
+    applyDisguise (node)
+  end
+end
+
+Settings.subscribe (DISGUISE_KEY, disguiseChanged)
+Settings.subscribe (DISGUISE_PRESET_KEY, disguiseChanged)

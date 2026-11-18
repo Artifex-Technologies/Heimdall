@@ -2,12 +2,14 @@
 //! signal, wandering 50 Hz hum with harmonics and two gliding tones (so the hum notches and the ridge notches are all at
 //! work). Printed with `--nocapture`; the assertions only catch a gross regression (CI machines vary).
 //!
-//! `cargo test --release -p heimdall-scrub --test cpu -- --nocapture` gives the numbers quoted in docs/LOCATION_SOUNDS.md.
+//! `cargo test --release -p heimdall-scrub --test cpu -- --nocapture` gives the numbers quoted in docs/LOCATION_SOUNDS.md
+//! and docs/VOICE_DISGUISE.md.
 
 #![allow(clippy::needless_range_loop)]
 
 use std::time::Instant;
 
+use heimdall_scrub::disguise::{Disguise, Options, Preset};
 use heimdall_scrub::rng::Rng;
 use heimdall_scrub::{live::Live, offline::Offline, Config};
 
@@ -59,6 +61,56 @@ fn live_cpu_per_channel_at_48k() {
     );
     assert!(frac < 0.5);
     assert!(l.latency() as f64 / SR <= 0.030);
+}
+
+/// The voice disguise after the live scrub, as the private microphone runs it with the disguise on: each preset alone,
+/// then the two stages together.
+#[test]
+fn disguise_cpu_per_channel_at_48k() {
+    let seconds = 60.0;
+    let x = busy_input(seconds);
+    let mut y = vec![0.0f32; x.len()];
+    for p in Preset::ALL {
+        let mut d = Disguise::new(SR, Options { seed: Some(1), vary: true });
+        d.set_preset_now(Some(p));
+        let start = Instant::now();
+        for (i, o) in x.chunks(1024).zip(y.chunks_mut(1024)) {
+            d.process(i, o);
+        }
+        let frac = start.elapsed().as_secs_f64() / seconds;
+        eprintln!(
+            "disguise {}: {:.2} % of one core per channel at 48 kHz; latency {} samples ({:.1} ms)",
+            p.name(),
+            100.0 * frac,
+            d.latency(),
+            d.latency() as f64 / SR * 1000.0
+        );
+        assert!(frac < 0.25);
+        assert!(d.latency() as f64 / SR <= 0.035);
+    }
+    let mut l = Live::new(&Config { seed: Some(1), ..Config::default() }, SR);
+    let mut d = Disguise::new(SR, Options { seed: Some(1), vary: true });
+    d.set_preset_now(Some(Preset::Lower));
+    let mut mid = vec![0.0f32; 1024];
+    let start = Instant::now();
+    for (i, o) in x.chunks(1024).zip(y.chunks_mut(1024)) {
+        l.process(i, &mut mid[..i.len()]);
+        d.process(&mid[..i.len()], o);
+    }
+    let frac = start.elapsed().as_secs_f64() / seconds;
+    eprintln!(
+        "scrub + disguise: {:.2} % of one core per channel at 48 kHz; latency {} samples ({:.1} ms)",
+        100.0 * frac,
+        l.latency() + d.latency(),
+        (l.latency() + d.latency()) as f64 / SR * 1000.0
+    );
+    // off: a copy
+    let mut d = Disguise::new(SR, Options::default());
+    let start = Instant::now();
+    for (i, o) in x.chunks(1024).zip(y.chunks_mut(1024)) {
+        d.process(i, o);
+    }
+    eprintln!("disguise off: {:.3} % of one core", 100.0 * start.elapsed().as_secs_f64() / seconds);
 }
 
 #[test]

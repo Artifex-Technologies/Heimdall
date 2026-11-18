@@ -92,3 +92,36 @@ fn scrubs_a_copy_and_says_where() {
     assert!(left.is_empty());
     let _ = std::fs::remove_dir_all(&d);
 }
+
+#[test]
+fn disguise_is_an_added_option() {
+    let d = dir("disguise-refuse");
+    let a = d.join("a.wav");
+    wav(&a, 1);
+    for args in [&["--disguise", "nope"][..], &["--disguise"][..], &["--check", "--disguise", "lower"][..]] {
+        let st = Command::new(bin()).args(args).arg(&a).arg(d.join("o.wav")).output().unwrap();
+        assert_eq!(st.status.code(), Some(2), "{args:?}");
+    }
+    let _ = std::fs::remove_dir_all(&d);
+    if !have_ffmpeg() {
+        eprintln!("ffmpeg/ffprobe not found: skipped");
+        return;
+    }
+    let d = dir("disguise");
+    let a = d.join("a.wav");
+    wav(&a, 3);
+    let plain = d.join("plain.wav");
+    let out = d.join("disguised.wav");
+    let r = Command::new(bin()).args(["--seed", "1"]).arg(&a).arg(&plain).output().unwrap();
+    assert!(r.status.success());
+    let r = Command::new(bin()).args(["--progress", "--disguise", "higher"]).arg(&a).arg(&out).output().unwrap();
+    assert!(r.status.success(), "{}", String::from_utf8_lossy(&r.stderr));
+    let text = String::from_utf8_lossy(&r.stdout);
+    assert!(text.lines().any(|l| l.trim().starts_with("voice disguised: higher")));
+    // Minos's contract is unchanged: progress lines, and the last line is exactly "wrote PATH"
+    assert!(text.lines().any(|l| l.starts_with("progress ")));
+    assert_eq!(text.lines().last(), Some(format!("wrote {}", out.display()).as_str()));
+    // the same length as the plain scrub
+    assert_eq!(std::fs::metadata(&out).unwrap().len(), std::fs::metadata(&plain).unwrap().len());
+    let _ = std::fs::remove_dir_all(&d);
+}

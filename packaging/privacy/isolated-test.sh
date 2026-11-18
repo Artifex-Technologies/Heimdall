@@ -7,10 +7,13 @@
 # Sarina's voice input (a stream marked heimdall.private-mic.exempt = "sarina-voice") records the private microphone; only
 # as lykanos (its fragment installed, as os-setup links it there) and with heimdall.private-mic.sarina-raw on does it get
 # the device microphone, and every other recording stays private. As labyrinth the setting does not exist.
+# "Disguise my voice" (heimdall.private-mic.disguise, off by default): off, a synthetic voice comes through at its own
+# pitch; `heimdall-private-mic disguise higher|lower` moves it up or down on the private microphone (the filter's
+# disguise:Preset control follows at once); `disguise off` brings it back.
 #
 # TARGET_DIR holds release builds of heimdall-scrub, heimdall-private-mic and libheimdall_scrub_ladspa.so
 # (cd rust && cargo build --release -p heimdall-scrub -p heimdall-scrub-ladspa). Needs pipewire, wireplumber, ffmpeg.
-# Takes about a minute. Exit 0 = every check passed.
+# Takes about a minute and a half. Exit 0 = every check passed.
 set -u
 REL=$(realpath "${1:?usage: isolated-test.sh TARGET_DIR [labyrinth|lykanos]}")
 OS=${2:-labyrinth}
@@ -57,6 +60,12 @@ ffmpeg -nostdin -v error -y -f lavfi -i "anoisesrc=d=60:c=pink:a=0.02:r=48000" \
   -f lavfi -i "sine=f=240:d=60:sample_rate=48000" \
   -filter_complex "[0:a][1:a][2:a][3:a]amix=inputs=4:weights=1 0.08 0.12 0.06:normalize=0[a]" -map "[a]" -ac 1 \
   -c:a pcm_s16le "$T/feed.wav"
+# a synthetic voice (no recording of anyone): 137 Hz with an 8 Hz vibrato of +-10 Hz, in syllables, over room noise. Off
+# the mains harmonics, and moving too fast to be taken for an aircraft line.
+V='(2*PI*137*t-1.25*cos(16*PI*t))'
+ffmpeg -nostdin -v error -y -f lavfi -i "aevalsrc='lt(mod(t,0.4),0.28)*0.05*(sin($V)+0.8*sin(2*$V)+0.6*sin(3*$V)+0.5*sin(4*$V)+0.4*sin(5*$V)+0.3*sin(6*$V)+0.25*sin(7*$V)+0.2*sin(8*$V))':s=48000:d=40" \
+  -f lavfi -i "anoisesrc=d=40:c=pink:a=0.004:r=48000" -filter_complex "[0:a][1:a]amix=inputs=2:normalize=0[a]" -map "[a]" \
+  -c:a pcm_s16le "$T/voice.wav"
 
 export XDG_RUNTIME_DIR=$RUN PIPEWIRE_RUNTIME_DIR=$RUN XDG_CONFIG_HOME=$T/config XDG_STATE_HOME=$T/state \
   XDG_DATA_HOME=$T/data PIPEWIRE_CONFIG_DIR=$T/pwconf LADSPA_PATH=$T/ladspa PIPEWIRE_REMOTE=pipewire-0 \
@@ -157,6 +166,47 @@ for r in rec-default rec-named; do
   check "$r has sound and no mains hum" \
     '[ $(stat -c %s "$T/out/$r.wav") -gt 3000000 ] && "$REL/heimdall-scrub" --check "$T/out/$r.wav" | grep -q "no grid hum"'
 done
+# The voice disguise. Which way the voice moved is told by three bands around the fundamental: 115 Hz (three semitones
+# down), 137 (the voice) and 163 (three up). Against the undisguised recording, the band the preset moves to must gain
+# more than 4 dB on the voice's own band.
+node_id() { pw-cli ls Node 2>/dev/null | awk -v n="$1" '/^\tid/ { id = $2 } $0 ~ "node.name = \"" n "\"$" { print id }' | tr -d ,; }
+control() { pw-cli enum-params "$(node_id heimdall.private-mic.capture)" Props 2>/dev/null | grep -A1 '"disguise:Preset"' | tail -1 | awk '{ print $2 }'; }
+band() { ffmpeg -nostdin -v info -i "$1" -af "bandpass=f=$2:width_type=h:w=20,volumedetect" -f null - 2>&1 \
+  | sed -n 's/.*mean_volume: \(-*[0-9.]*\) dB/\1/p'; }
+gain() { awk -v a="$(band "$T/out/$1.wav" "$3")" -v b="$(band "$T/out/$1.wav" 137)" \
+  -v c="$(band "$T/out/$2.wav" "$3")" -v d="$(band "$T/out/$2.wav" 137)" 'BEGIN { exit !((a - b) - (c - d) > 4) }'; }
+rec_voice() { pw-record -P "{ node.name = $1 }" --rate 48000 --channels 1 "$T/out/$1.wav" & local r=$!; sleep 4; kill $r; wait $r 2>/dev/null; }
+check "the disguise is off by default" \
+  '"$REL/heimdall-private-mic" status --json | grep -q "\"disguise\":false,\"disguise_preset\":\"lower\"}"'
+check "off: the filter's disguise control is 0" '[ "$(control)" = 0 ]'
+"$REL/heimdall-private-mic" off
+sleep 1
+pw-cat -p -P '{ node.autoconnect = false node.name = voice }' --rate 48000 --channels 1 "$T/voice.wav" &
+VOICE=$!
+sleep 0.5
+pw-link voice:output_MONO alsa_input.test-mic:input_MONO
+"$REL/heimdall-private-mic" on
+sleep 2
+rec_voice rec-plain
+"$REL/heimdall-private-mic" disguise higher
+sleep 1
+check "disguise higher: status says so" \
+  '"$REL/heimdall-private-mic" status --json | grep -q "\"disguise\":true,\"disguise_preset\":\"higher\"}"'
+check "disguise higher: the filter's control is 2" '[ "$(control)" = 2 ]'
+rec_voice rec-higher
+"$REL/heimdall-private-mic" disguise lower
+sleep 1
+check "disguise lower: the filter's control is 1" '[ "$(control)" = 1 ]'
+rec_voice rec-lower
+"$REL/heimdall-private-mic" disguise off
+sleep 1
+check "disguise off: the filter's control is 0" '[ "$(control)" = 0 ]'
+rec_voice rec-plain2
+kill $VOICE 2>/dev/null
+wait $VOICE 2>/dev/null
+check "disguise higher: the voice moved up" 'gain rec-higher rec-plain 163'
+check "disguise lower: the voice moved down" 'gain rec-lower rec-plain 115'
+check "disguise off: the voice is back at its own pitch" '! gain rec-plain2 rec-plain 163 && ! gain rec-plain2 rec-plain 115'
 "$REL/heimdall-private-mic" off
 sleep 1
 check "a client sees the device microphone when off" \

@@ -122,6 +122,13 @@ impl Decimator {
         self.factor
     }
 
+    /// Forget the past (no allocation: the voice disguise restarts its pitch tracker on PipeWire's real-time thread).
+    pub fn reset(&mut self) {
+        self.hist.iter_mut().for_each(|v| *v = 0.0);
+        self.pos = 0;
+        self.phase = 0;
+    }
+
     /// Feed one sample; every `factor`-th call returns an output sample.
     #[inline]
     pub fn push(&mut self, x: f32) -> Option<f32> {

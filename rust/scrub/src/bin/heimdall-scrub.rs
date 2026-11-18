@@ -3,6 +3,7 @@
 //!
 //!     heimdall-scrub IN OUT                 write a scrubbed copy (never over IN; OUT must not exist without --force)
 //!     heimdall-scrub --check IN             report long gliding tones and mains hum, write nothing
+//!     heimdall-scrub --disguise lower IN OUT  the same, and the voice disguised (pitch and formants; docs/VOICE_DISGUISE.md)
 //!
 //! ffmpeg and ffprobe do the decoding and encoding, started with their arguments one by one (never through a shell), and
 //! every file name goes to them as `file:/absolute/path`, so a name like `-x.mp4` or `concat:a|b` is only ever a file.
@@ -18,6 +19,7 @@ use std::process::{Child, Command, ExitCode, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use heimdall_scrub::detect::{detect_enf, detect_ridges};
+use heimdall_scrub::disguise::{self, FileStage, Preset};
 use heimdall_scrub::live::Live;
 use heimdall_scrub::offline::Offline;
 use heimdall_scrub::{Config, Report};
@@ -28,7 +30,8 @@ extern "C" fn on_signal(_: libc::c_int) {
     STOP.store(true, Ordering::SeqCst);
 }
 
-const USAGE: &str = "usage: heimdall-scrub [--keep-hum] [--keep-metadata] [--live] [--progress] [--force] [--seed N] IN OUT
+const USAGE: &str =
+    "usage: heimdall-scrub [--keep-hum] [--keep-metadata] [--live] [--disguise PRESET] [--progress] [--force] [--seed N] IN OUT
        heimdall-scrub --check IN
 
 Writes a copy of IN to OUT without the sounds that can place or date a recording: aircraft tones (the Doppler curve of a
@@ -38,6 +41,8 @@ Speech and everything above 2 kHz are kept. Video is copied untouched; metadata 
   --keep-hum       keep steady tones such as mains hum (not recommended)
   --keep-metadata  keep the container's tags and chapters
   --live           use the live (causal) scrub instead of the whole-file one
+  --disguise P     also disguise the voice: P is lower or higher (pitch and formants shifted, a little varied per file).
+                   Hides casual recognition; a determined listener can partly undo it
   --progress       print 'progress 0.42' lines while working
   --force          replace OUT if it exists (never IN)
   --seed N         fixed noise seed (for tests)
@@ -53,6 +58,7 @@ struct Args {
     progress: bool,
     force: bool,
     seed: Option<u64>,
+    disguise: Option<Preset>,
 }
 
 fn parse(argv: Vec<OsString>) -> Result<Args, String> {
@@ -66,6 +72,7 @@ fn parse(argv: Vec<OsString>) -> Result<Args, String> {
         progress: false,
         force: false,
         seed: None,
+        disguise: None,
     };
     let mut files = Vec::new();
     let mut it = argv.into_iter();
@@ -84,12 +91,19 @@ fn parse(argv: Vec<OsString>) -> Result<Args, String> {
             b"--live" => a.live = true,
             b"--progress" => a.progress = true,
             b"--force" => a.force = true,
+            b"--disguise" => {
+                let v = it.next().ok_or("--disguise needs a preset: lower or higher")?;
+                a.disguise = Some(v.to_str().and_then(Preset::parse).ok_or("--disguise needs a preset: lower or higher")?);
+            }
             b"--seed" => {
                 let v = it.next().ok_or("--seed needs a number")?;
                 a.seed = Some(v.to_str().and_then(|v| v.parse().ok()).ok_or("--seed needs a number")?);
             }
             _ => return Err(format!("unknown option {}", s.to_string_lossy())),
         }
+    }
+    if a.check && a.disguise.is_some() {
+        return Err("--disguise makes a copy; it does not go with --check".into());
     }
     match (a.check, files.len()) {
         (true, 1) => a.input = files.remove(0),
@@ -319,6 +333,7 @@ fn scrub_stream(
     prog: &mut Progress,
     base: f64,
     share: f64,
+    disguise: Option<(Preset, u64)>,
 ) -> Result<(Report, f32), String> {
     let ch = st.channels.max(1) as usize;
     let sr = st.sample_rate.max(1);
@@ -336,6 +351,11 @@ fn scrub_stream(
     let mut stdout = guard.0.as_mut().unwrap().stdout.take().unwrap();
     let mut w = BufWriter::new(std::fs::File::create(raw).map_err(|e| format!("{}: {e}", raw.display()))?);
     let mut sc: Vec<Scrubber> = (0..ch).map(|_| Scrubber::new(cfg, sr as f64, live)).collect();
+    // after the scrub, as on the private microphone; every channel with the same session (one seed), so they move together
+    let mut dg: Vec<Option<FileStage>> = (0..ch)
+        .map(|_| disguise.map(|(p, seed)| FileStage::new(sr as f64, p, disguise::Options { seed: Some(seed), vary: true })))
+        .collect();
+    let mut mid: Vec<f32> = Vec::new();
     let mut outs: Vec<Vec<f32>> = vec![Vec::new(); ch];
     let mut buf = vec![0u8; 1 << 18];
     let mut pending: Vec<u8> = Vec::new();
@@ -376,7 +396,14 @@ fn scrub_stream(
         pending.drain(..whole);
         frames_in += (whole / frame_bytes) as u64;
         for c in 0..ch {
-            sc[c].push(&chans[c], &mut outs[c]);
+            match dg[c].as_mut() {
+                Some(d) => {
+                    mid.clear();
+                    sc[c].push(&chans[c], &mut mid);
+                    d.push(&mid, &mut outs[c]);
+                }
+                None => sc[c].push(&chans[c], &mut outs[c]),
+            }
         }
         write_ready(&mut outs, &mut w, &mut peak)?;
         if total > 0.0 {
@@ -386,7 +413,15 @@ fn scrub_stream(
     drop(stdout);
     guard.finish("decoding")?;
     for c in 0..ch {
-        sc[c].finish(&mut outs[c]);
+        match dg[c].as_mut() {
+            Some(d) => {
+                mid.clear();
+                sc[c].finish(&mut mid);
+                d.push(&mid, &mut outs[c]);
+                d.finish(&mut outs[c]);
+            }
+            None => sc[c].finish(&mut outs[c]),
+        }
     }
     write_ready(&mut outs, &mut w, &mut peak)?;
     w.flush().map_err(|e| format!("writing the temporary audio: {e}"))?;
@@ -424,13 +459,15 @@ fn scrub_file(a: &Args) -> Result<(), String> {
     let n = p.audio.len();
     let mut raws = Vec::new();
     let mut summary = Vec::new();
+    // one disguise session per file: every stream and channel varies the same way, the next file differently
+    let disguise = a.disguise.map(|p| (p, a.seed.unwrap_or_else(|| heimdall_scrub::rng::Rng::from_os().next_u64())));
     for (i, st) in p.audio.iter().enumerate() {
         if st.sample_rate == 0 || st.channels == 0 {
             return Err(format!("audio stream {i} has no sample rate or channel count"));
         }
         let raw = tmp.0.join(format!("a{i}.f32"));
         let (rep, peak) =
-            scrub_stream(&input, i, st, &raw, &cfg, a.live, p.duration, &mut prog, 0.95 * i as f64 / n as f64, 0.95 / n as f64)?;
+            scrub_stream(&input, i, st, &raw, &cfg, a.live, p.duration, &mut prog, 0.95 * i as f64 / n as f64, 0.95 / n as f64, disguise)?;
         summary.push(format!(
             "audio {i}: {} Hz, {} ch | tonal ridges: {} | in-band bins replaced: {:.0}% | mains hum: {}{}",
             st.sample_rate,
@@ -502,6 +539,9 @@ fn scrub_file(a: &Args) -> Result<(), String> {
     }
     if !a.keep_metadata {
         println!("  metadata removed (tags, chapters, location, dates, encoder)");
+    }
+    if let Some(p) = a.disguise {
+        println!("  voice disguised: {} (pitch and formants shifted, varied for this file; hides casual recognition only)", p.name());
     }
     // the last line, exactly "wrote PATH": Minos reads the path from it
     println!("wrote {}", output.display());

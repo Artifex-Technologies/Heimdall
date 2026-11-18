@@ -75,7 +75,7 @@ happened.
 | [feross/SpoofMAC](https://github.com/feross/SpoofMAC) | MAC address change | Design reference | `packaging/net/heimdall-wifi-privacy.conf`, `heimdall-wifi-guard` (stable random address per untrusted network). Planned: wired networks, IPv6 privacy, Bluetooth check (R19) | 2026-11-17 |
 | [claffin/cloudproxy](https://github.com/claffin/cloudproxy) (MIT) | Throwaway egress | Candidate (Limbo) | Limbo analysis network: sinkhole first, then a per-run tunnel so the home address is never seen (R8); `limbo-network` alerts keep covering it | 2026-11-17 |
 | [NationalSecurityAgency/datawave](https://github.com/NationalSecurityAgency/datawave) (Apache-2.0) | Labelled data access | Candidate (idea only) | Per-record visibility labels on alerts and evidence, checked at read time in `api.rs` (R9) | 2026-11-17 |
-| [storytold/realtime-voice-conversion](https://github.com/storytold/realtime-voice-conversion) (no licence) | Real-time voice conversion | Candidate (idea only) | Private mic: "disguise my voice", DSP first, synthetic voices only, never a real person's (R18) | 2026-11-17 |
+| [storytold/realtime-voice-conversion](https://github.com/storytold/realtime-voice-conversion) (no licence) | Real-time voice conversion | Idea only (nothing used) | Private mic: "disguise my voice". Phase 1 built as DSP from the published methods (TD-PSOLA, YIN): `rust/scrub/src/disguise.rs`, `docs/VOICE_DISGUISE.md`. A neural phase only to synthetic voices, never a real person's (R18) | 2026-11-18 |
 
 ## Notes on the newer or less obvious entries
 

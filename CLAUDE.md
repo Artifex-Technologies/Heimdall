@@ -96,7 +96,8 @@ packaging/arch/            PKGBUILD, systemd unit, sysusers -- mirrors Sarina's 
 internal/parity/          The Go table tests as scenarios; writes testdata/parity, the fixtures the Rust port must match
 rust/                      The Rust port of the daemon (heimdalld-rs, shadow mode until the switch): docs/RUST_PORT.md
 rust/scrub/                heimdall-scrub: aircraft tones and mains hum out of audio (file tool, live DSP): docs/LOCATION_SOUNDS.md
-rust/scrub-ladspa/         the live scrub as a LADSPA plugin: the private microphone (PipeWire filter-chain)
+rust/scrub-ladspa/         the live scrub as a LADSPA plugin: the private microphone (PipeWire filter-chain); also the voice disguise
+                           (rust/scrub/src/disguise.rs, off by default): docs/VOICE_DISGUISE.md
 rust/flyover-attack/       the flyover scorer as a library; its tests prove the scrub defeats it
 packaging/privacy/         the private microphone's PipeWire and WirePlumber files, hooks, and its isolated end-to-end test
 packaging/arch-private-mic/ the recipe of heimdall-private-mic-git (its own package; install.sh DESTDIR private-mic)
@@ -302,6 +303,38 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   Both are in Sarina's `docs/ECOSYSTEM.md` port registry.
 
 ### Coordination Log (newest first)
+
+### 2026-11-18 (6) — Disguise my voice, phase 1: light DSP on the private microphone and in files (R18)
+- **What** (my decision 8, Labyrinth_OS `docs/REFERENCE_PLAN_2026-11.md`; DSP first, any later neural phase only to synthetic
+  voices that belong to nobody): `rust/scrub/src/disguise.rs`, TD-PSOLA with resampled grains (pitch and formants, independent)
+  and a YIN pitch tracker at 12 kHz, written from the published methods (no code adapted, no NOTICE). Presets only: `lower`
+  (-3 semitones, formants x0.88) and `higher` (+3, x1.12). Per session (each PipeWire start, each file) an offset from the OS's
+  randomness (up to 0.4 semitone, 2.5 %) and a slow wander (1.5 s memory); never stored. Off by default; off is the input sample
+  for sample with no delay. Honest label everywhere: hides casual recognition, a determined listener can partly undo it.
+- **Live:** a second LADSPA plugin in the same library, `heimdall_disguise` (index 1, id 4850218; ports Input, Output, `Preset`
+  control in 0 off / 1 lower / 2 higher, `latency` out), linked after `heimdall_scrub` in `packaging/privacy/pipewire-private-mic.conf`.
+  Order: scrub -> (voiceprint tap, planned) -> disguise. State: two WirePlumber settings beside `enforce`/`sarina-raw`,
+  `heimdall.private-mic.disguise` (bool, default false) and `heimdall.private-mic.disguise-preset` (string, default "lower");
+  `private-mic.lua` sets `disguise:Preset` on the filter's capture node at once and whenever the node appears. A plugin fault
+  gives silence, never the undisguised voice. 32 ms (1536 samples at 48 kHz) added while on; PipeWire keeps reporting the
+  filter's start-up latency (21 ms), checked.
+- **Commands (additive):** `heimdall-private-mic disguise on|off|lower|higher` (a preset name also switches it on);
+  `status --json` gains `"disguise":BOOL,"disguise_preset":"lower"|"higher"` after the existing four fields.
+  `heimdall-scrub --disguise PRESET IN OUT` disguises a file after the scrub (one session per file); Minos's contract
+  (`--progress`, last line exactly `wrote PATH`) unchanged and tested.
+- **Measured** (`rust/scrub/tests/disguise.rs`, synthetic voices only): F0 -3.00 / +3.00 semitones exactly with the variation
+  off; F2 x0.876 / x1.096, F1 x0.840 / x1.183 (F1 moves 4-6 % further, a PSOLA property, documented); level within 0.1 dB;
+  length kept, timing within 10 ms; output identical for any block sizes; largest step 1.03x the input's while switching on,
+  between presets and off; after the live scrub -2.6 / +2.5 semitones. CPU (release, i9-9900K): 0.7 % of one core, about 2 %
+  with the scrub; Pi 4 estimate 3.5-5.5 % (10-17 % both). `packaging/privacy/isolated-test.sh` gained 9 disguise checks (control
+  0/2/1/0, a recording's voice moves up, down and back), passing as Labyrinth OS and LykanOS. `docs/VOICE_DISGUISE.md`.
+- **For Sarina:** the speaker check and "my voice only" (`docs/VOICE_AND_TRUST_PLAN.md` section 9) must read the signal before
+  the disguise: their tap goes between the two filter nodes. Until it exists, on Labyrinth OS Sarina hears the disguised voice
+  while it is on (LykanOS with `sarina-raw` on skips the filter).
+- **For Yggdrasil:** Settings > Security > Privacy (and Peripherals > Microphone) has "Disguise my voice" and a Lower/Higher row,
+  as my user like the other private-mic switches (`docs/APPS_SETTINGS.md` there).
+- **For Labyrinth OS:** add `docs/VOICE_DISGUISE.md` to `_paths` in `packages/pkgbuilds/heimdall-private-mic-git` (it is in
+  `packaging/arch-private-mic/PKGBUILD` here and installed by `packaging/install.sh`).
 
 ### 2026-11-18 (5) — Rule drafts: the lint, and YARA-X's compile check (R4; my decision 1 of 2026-11-18)
 - **Lint** (Go `internal/immunity/rulelint.go`, Rust `rust/heimdall/src/rulelint.rs`; same answers: `testdata/parity/rulelint.json`,

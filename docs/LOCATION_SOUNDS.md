@@ -23,6 +23,10 @@ Both keep speech and everything above 2 kHz. In the band where aircraft tones an
 re-synthesise the quiet background with fresh noise at the same level, remove long slowly gliding tones and steady mains
 harmonics, and leave loud foreground (a voice) untouched. It is evidence, not a guarantee: read [the limits](#limits).
 
+The voice itself is the next identifier: off by default, the private microphone and `heimdall-scrub --disguise` can also
+shift my voice's pitch and formants so it is not recognised at a casual listen (light DSP, partly reversible):
+[VOICE_DISGUISE.md](VOICE_DISGUISE.md).
+
 ## The package
 
 Everything here is in its own package, `heimdall-private-mic-git` (provides `heimdall-private-mic`), not in heimdall-git:
@@ -36,6 +40,7 @@ heimdall-scrub holiday.mov "holiday (scrubbed).mov"   # a scrubbed copy; the ori
 heimdall-scrub --check holiday.mov                    # report gliding tones and mains hum, write nothing
 heimdall-private-mic status                           # on (every app records the scrubbed microphone)
 heimdall-private-mic off                              # e.g. to record music with full bass; `on` to switch back
+heimdall-private-mic disguise lower                   # also disguise my voice (off by default): VOICE_DISGUISE.md
 ```
 
 - `heimdall-scrub IN OUT`: never writes over IN, and not over an existing OUT without `--force`. `--keep-hum` keeps steady
@@ -179,7 +184,8 @@ the usual ratio of a Cortex-A72 core to this one (5-8x slower) I expect about 7-
   the STFT 6 dB louder (frames of independent noise overlap-add to a quarter of their power: the room tone came out 6 dB
   quiet without it).
 
-`rust/scrub-ladspa`: the live scrub as a LADSPA plugin (`heimdall_scrub`, ports Input, Output, latency).
+`rust/scrub-ladspa`: the live scrub as a LADSPA plugin (`heimdall_scrub`, ports Input, Output, latency), and the voice
+disguise after it in the same filter graph (`heimdall_disguise`, ports Input, Output, Preset, latency; VOICE_DISGUISE.md).
 `rust/flyover-attack`: the attack (brightness scorer, trace and fit, emission-time physics) as a library, so the defence is
 measured instead of assumed: audio and flights in, ranked places out. It has no network code.
 
@@ -191,7 +197,7 @@ In `heimdall-private-mic-git` (recipes: Labyrinth_OS's `packages/pkgbuilds/heimd
 | Installed | From |
 | --- | --- |
 | `/usr/bin/heimdall-scrub`, `/usr/bin/heimdall-private-mic` | `rust/scrub` |
-| `/usr/lib/ladspa/heimdall-scrub.so` | `rust/scrub-ladspa` |
+| `/usr/lib/ladspa/heimdall-scrub.so` (the scrub, and the voice disguise after it) | `rust/scrub-ladspa` |
 | `/usr/share/pipewire/pipewire.conf.d/60-heimdall-private-mic.conf` | `packaging/privacy/pipewire-private-mic.conf` |
 | `/usr/share/wireplumber/wireplumber.conf.d/60-heimdall-private-mic.conf` | `packaging/privacy/wireplumber-private-mic.conf` |
 | `/usr/share/wireplumber/scripts/heimdall/private-mic.lua` | `packaging/privacy/private-mic.lua` |

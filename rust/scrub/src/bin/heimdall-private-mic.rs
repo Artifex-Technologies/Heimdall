@@ -1,8 +1,12 @@
 //! heimdall-private-mic: the private microphone's switches, for the owner and for Settings.
 //!
-//!     heimdall-private-mic status [--json]   {"enforce":true,"node":true,"lykanos":false,"sarina_raw":false}
+//!     heimdall-private-mic status [--json]   {"enforce":true,"node":true,"lykanos":false,"sarina_raw":false,
+//!                                             "disguise":false,"disguise_preset":"lower"}
 //!     heimdall-private-mic on | off          every app records the private microphone, or the owner's own choice again
 //!     heimdall-private-mic sarina-raw on|off LykanOS only: Sarina's voice input records the real microphone (off by default)
+//!     heimdall-private-mic disguise on|off|lower|higher
+//!                                            "Disguise my voice" on the private microphone (off by default); a preset
+//!                                            name switches it on with that preset (docs/VOICE_DISGUISE.md)
 //!     heimdall-private-mic os-setup [--remove] [--root DIR]
 //!                                            (root, run by the package's pacman hook) the LykanOS-only part on or off
 //!
@@ -10,13 +14,20 @@
 //! is whether PipeWire has the "Microphone (private)" node; "lykanos" is /etc/os-release saying ID=lykanos; "sarina_raw" is
 //! the LykanOS-only setting heimdall.private-mic.sarina-raw. That setting exists only where os-setup linked its WirePlumber
 //! fragment (LykanOS), and WirePlumber's script honours it only with that fragment's marker, so on Labyrinth OS it is not
-//! there to switch. wpctl and pw-cli are run with their arguments one by one; nothing else is touched.
+//! there to switch. "disguise" and "disguise_preset" are the settings heimdall.private-mic.disguise (default off) and
+//! heimdall.private-mic.disguise-preset (default "lower"); WirePlumber's script sets the filter's disguise control from them,
+//! at once, and they are saved like the others. wpctl and pw-cli are run with their arguments one by one; nothing else is
+//! touched.
 
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 
 const KEY: &str = "heimdall.private-mic.enforce";
 const SARINA_KEY: &str = "heimdall.private-mic.sarina-raw";
+const DISGUISE_KEY: &str = "heimdall.private-mic.disguise";
+const DISGUISE_PRESET_KEY: &str = "heimdall.private-mic.disguise-preset";
+/// The presets the filter knows (heimdall_scrub::disguise::Preset), the first the default.
+const PRESETS: [&str; 2] = ["lower", "higher"];
 const NODE: &str = "heimdall.private-mic";
 /// The LykanOS-only WirePlumber fragment (in the package) and where os-setup links it.
 const LYKANOS_FRAGMENT: &str = "usr/share/heimdall-private-mic/lykanos.conf";
@@ -45,6 +56,22 @@ fn setting(key: &str) -> Option<bool> {
     run("wpctl", &["settings", key]).and_then(|(ok, o)| if ok { setting_from(&o) } else { None })
 }
 
+/// A string setting's value, without its quotes: `Value: "lower" (Saved: "lower")` or `Value: lower`.
+fn string_setting_from(text: &str) -> Option<String> {
+    let v = text.lines().find_map(|l| l.trim().strip_prefix("Value:"))?.trim();
+    let v = match v.strip_prefix('"') {
+        Some(rest) => rest.split('"').next()?,
+        None => v.split_whitespace().next()?,
+    };
+    (!v.is_empty()).then(|| v.to_string())
+}
+
+/// The preset in use: the saved one when the filter knows it, else the default.
+fn preset() -> &'static str {
+    let v = run("wpctl", &["settings", DISGUISE_PRESET_KEY]).and_then(|(ok, o)| if ok { string_setting_from(&o) } else { None });
+    PRESETS.iter().find(|p| v.as_deref() == Some(**p)).copied().unwrap_or(PRESETS[0])
+}
+
 /// `pw-cli ls Node` lists every node with its properties; ours is the one named heimdall.private-mic exactly.
 fn node_from(text: &str) -> bool {
     text.lines().any(|l| l.trim().strip_prefix("node.name = ").is_some_and(|v| v.trim_matches('"') == NODE))
@@ -64,6 +91,8 @@ struct Status {
     node: bool,
     lykanos: bool,
     sarina_raw: bool,
+    disguise: bool,
+    disguise_preset: &'static str,
 }
 
 fn status() -> Status {
@@ -74,12 +103,17 @@ fn status() -> Status {
         node: run("pw-cli", &["ls", "Node"]).is_some_and(|(ok, o)| ok && node_from(&o)),
         lykanos: lyk,
         sarina_raw: lyk && setting(SARINA_KEY).unwrap_or(false),
+        disguise: setting(DISGUISE_KEY).unwrap_or(false),
+        disguise_preset: preset(),
     }
 }
 
 /// Set a WirePlumber setting now (the script acts on it at once), then save it so it stays after a restart.
 fn set(key: &str, on: bool) -> ExitCode {
-    let val = if on { "true" } else { "false" };
+    set_value(key, if on { "true" } else { "false" })
+}
+
+fn set_value(key: &str, val: &str) -> ExitCode {
     let r = match run("wpctl", &["settings", key, val]) {
         Some((true, _)) => run("wpctl", &["settings", "--save", key]),
         other => other,
@@ -124,7 +158,8 @@ fn os_setup(root: &Path, remove: bool) -> Result<&'static str, String> {
     Ok("switched on the LykanOS-only part (Sarina's real-microphone setting, off)")
 }
 
-const USAGE: &str = "usage: heimdall-private-mic status [--json] | on | off | sarina-raw on|off | os-setup [--remove] [--root DIR]";
+const USAGE: &str =
+    "usage: heimdall-private-mic status [--json] | on | off | sarina-raw on|off | disguise on|off|lower|higher | os-setup [--remove] [--root DIR]";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -132,7 +167,10 @@ fn main() -> ExitCode {
     match a.as_slice() {
         ["status", "--json"] => {
             let s = status();
-            println!("{{\"enforce\":{},\"node\":{},\"lykanos\":{},\"sarina_raw\":{}}}", s.enforce, s.node, s.lykanos, s.sarina_raw);
+            println!(
+                "{{\"enforce\":{},\"node\":{},\"lykanos\":{},\"sarina_raw\":{},\"disguise\":{},\"disguise_preset\":\"{}\"}}",
+                s.enforce, s.node, s.lykanos, s.sarina_raw, s.disguise, s.disguise_preset
+            );
             ExitCode::SUCCESS
         }
         ["status"] | [] => {
@@ -148,6 +186,15 @@ fn main() -> ExitCode {
                     if s.sarina_raw { "the real microphone (only her voice input)" } else { "the private microphone, like every app" }
                 );
             }
+            if s.disguise {
+                println!(
+                    "voice disguise: on ({}; hides casual recognition only){}",
+                    s.disguise_preset,
+                    if s.enforce { "" } else { "; while the private microphone is off it reaches only apps that pick it" }
+                );
+            } else {
+                println!("voice disguise: off");
+            }
             ExitCode::SUCCESS
         }
         [v @ ("on" | "off")] => set(KEY, *v == "on"),
@@ -159,6 +206,14 @@ fn main() -> ExitCode {
                 return ExitCode::from(1);
             }
             set(SARINA_KEY, *v == "on")
+        }
+        ["disguise", v @ ("on" | "off")] => set(DISGUISE_KEY, *v == "on"),
+        ["disguise", p] if PRESETS.contains(p) => {
+            // the preset first, so switching on never starts with the old one
+            match set_value(DISGUISE_PRESET_KEY, p) {
+                c if c == ExitCode::SUCCESS => set(DISGUISE_KEY, true),
+                c => c,
+            }
         }
         ["os-setup", rest @ ..] => {
             let mut root = PathBuf::from("/");
@@ -215,6 +270,10 @@ mod tests {
         let ls = "\tid 30, type PipeWire:Interface:Node/3\n \t\tnode.name = \"heimdall.private-mic\"\n";
         assert!(node_from(ls));
         assert!(!node_from(" \t\tnode.name = \"heimdall.private-mic.capture\"\n"));
+        assert_eq!(string_setting_from("Value: \"higher\" (Saved: \"higher\")\n").as_deref(), Some("higher"));
+        assert_eq!(string_setting_from("Value: lower\n").as_deref(), Some("lower"));
+        assert_eq!(string_setting_from("Value: \"\"\n"), None);
+        assert_eq!(string_setting_from(""), None);
     }
 
     #[test]

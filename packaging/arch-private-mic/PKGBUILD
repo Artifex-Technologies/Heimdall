@@ -63,7 +63,7 @@ _srcdir() {
 }
 # --- end of package version ---
 
-_paths=(rust/scrub rust/scrub-ladspa rust/privacy packaging/privacy-pack docs/PRIVACY_PACK.md rust/Cargo.toml rust/Cargo.lock packaging/privacy packaging/install.sh docs/LOCATION_SOUNDS.md)
+_paths=(rust/scrub rust/scrub-ladspa rust/privacy packaging/privacy-pack docs/PRIVACY_PACK.md rust/Cargo.toml rust/Cargo.lock packaging/privacy packaging/install.sh docs/LOCATION_SOUNDS.md docs/VOICE_DISGUISE.md)
 _version "$(_srcdir)/Heimdall" "${_paths[@]}"
 
 pkgver() {
