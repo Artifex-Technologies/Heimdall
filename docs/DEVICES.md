@@ -120,25 +120,11 @@ counts as missing, so hwdata's list is used.
 In the device list, `vendor` is the short name (of the maker or of a special address) and `private_mac` is true for a locally
 administered address.
 
-### Downloading the IEEE's files (designed, not built)
+### Downloading the IEEE's files: not built (my decision, 2026-11-18)
 
-Whether to download the four IEEE files each month or stay with hwdata's two is my decision (#3 in Labyrinth_OS
-`docs/REFERENCE_PLAN_2026-11.md`). If I say yes, this is the plan:
-
-- `heimdall-intel-update` (daily timer, as the `heimdall` user) gets one more step that runs when the newest file in
-  `/var/lib/heimdall-ieee` is older than 30 days: it fetches `https://standards-oui.ieee.org/oui/oui.csv`, `oui28/mam.csv`,
-  `oui36/oui36.csv` and `iab/iab.csv` with the same rules as its other downloads (HTTPS only, TLS 1.2 or newer, a time limit, a
-  size limit of 64 MB). Nothing is sent but the four requests; no address seen on any network.
-- Each file goes to a temporary file in the folder and is checked before it replaces the one in use, by a new
-  `heimdalld macvendor-check FILE REGISTRY [LAST_GOOD]` (Go and Rust, through this crate's reader): it must be the IEEE's CSV
-  layout, hold at least a floor of blocks (MA-L 30,000, MA-M 3,000, MA-S 3,000, IAB 4,000) and not fewer than 90 % of the last
-  good copy's. Then a rename puts it in place; otherwise the last good copy stays (and with none, hwdata's list).
-- The folder comes from a tmpfiles.d line (`d /var/lib/heimdall-ieee 0755 heimdall heimdall`); the files are written 0644; the
-  update unit's `ReadWritePaths` gains the folder.
-- The readers need no change: `heimdalld lan scan` is a new process every 5 minutes and Settings reads the files when it
-  starts.
-- If the IEEE's server refuses the download or changes its layout, the check fails and nothing changes.
-- "hwdata only" needs nothing: the code above is what runs today.
+I decided to stay with what Arch provides (#3 in Labyrinth_OS `docs/REFERENCE_PLAN_2026-11.md`): hwdata's two lists, updated
+with the system. Nothing downloads the IEEE's files. The reader still uses the CSV files in `/var/lib/heimdall-ieee` when they
+are there, so putting them there by hand adds the MA-M and MA-S blocks; nothing creates or refreshes that folder.
 
 ## Files
 
