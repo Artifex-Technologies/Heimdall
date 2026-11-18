@@ -35,7 +35,10 @@ jobs:
       # the command tests run Go and Rust in fake roots (user + mount namespaces); Ubuntu's AppArmor blocks those for
       # normal users by default, which made every fake-root test fail here since 6b1c858
       - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      # tests/cli_shtools.rs (the shell scripts beside their ports) needs Arch's tools: the job shtools-arch runs it
       - run: cargo test --locked
+        env:
+          HEIMDALL_SHTOOLS_RUN_IN_ARCH: "1"
       - name: the rogue-router watch on the kernel's IPv6 table, in a throwaway network namespace
         working-directory: .
         run: go test ./internal/sources/netsource && packaging/tests/netns-rogue.sh
@@ -45,6 +48,26 @@ jobs:
       - name: the engine differential (Go and Rust on the same synthetic events)
         working-directory: .
         run: rust/parity/engine-differential.sh 50000
+  # tests/cli_shtools.rs: the shell programs (which only ever run on Arch) beside their Rust ports, the scripts with Arch's
+  # own curl, coreutils, gawk, grep and sed, as on a real install (Ubuntu's differ: uutils coreutils' messages, awk only
+  # through /etc/alternatives). Privileged: the fake roots are user, mount, pid and network namespaces.
+  shtools-arch:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+      options: --privileged
+    defaults:
+      run:
+        working-directory: rust
+    steps:
+      - name: Arch's tools, Rust, and subordinate ids for the fake roots' other users
+        working-directory: /
+        run: |
+          pacman -Syu --noconfirm --needed git rust gcc python openssl curl gzip gawk grep sed coreutils findutils util-linux iproute2 shadow
+          echo root:100000:65536 >> /etc/subuid
+          echo root:100000:65536 >> /etc/subgid
+      - uses: actions/checkout@v4
+      - run: cargo test --locked -p heimdall --test cli_shtools -- --nocapture
   # heimdall-yara-check (rust/yara-check): YARA-X's compile check of rule drafts, a workspace of its own (yara-x brings
   # wasmtime); then the Go daemon's drafts against the real checker
   yara-check:

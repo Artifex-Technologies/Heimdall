@@ -438,6 +438,18 @@ fn run_all(cases: Vec<Case>) -> Vec<(String, Out, Out)> {
     out
 }
 
+/// The scripts only ever run on Arch, so the script's side of each comparison needs Arch's tools: elsewhere their words and
+/// behaviour differ (Ubuntu's CI runner: uutils coreutils' messages, and awk only through /etc/alternatives, which the fake
+/// root's own /etc does not have). The Ubuntu job sets `HEIMDALL_SHTOOLS_RUN_IN_ARCH` and runs these in an Arch container
+/// instead (.github/workflows/rust.yml, job `shtools-arch`).
+fn arch_tools(test: &str) -> bool {
+    if std::env::var_os("HEIMDALL_SHTOOLS_RUN_IN_ARCH").is_some() {
+        eprintln!("{test}: skipped here, run in CI's Arch container (the scripts' tools are Arch's)");
+        return false;
+    }
+    true
+}
+
 fn network_ok(test: &str) -> bool {
     if curl().is_none() {
         eprintln!("{test}: skipped, no curl to run the script with");
@@ -480,7 +492,7 @@ fn age(r: &Root, p: &str, days: u64) {
 
 #[test]
 fn intel_update_as_the_script() {
-    if !network_ok("intel_update_as_the_script") {
+    if !arch_tools("intel_update_as_the_script") || !network_ok("intel_update_as_the_script") {
         return;
     }
     let [m, prev] = months();
@@ -826,7 +838,7 @@ fn nm(r: &Root, breaks: bool, code: u8) {
 
 #[test]
 fn dns_blocklist_as_the_script() {
-    if !network_ok("dns_blocklist_as_the_script") {
+    if !arch_tools("dns_blocklist_as_the_script") || !network_ok("dns_blocklist_as_the_script") {
         return;
     }
     let net = dns_net();
@@ -971,6 +983,9 @@ fn dns_blocklist_as_the_script() {
 /// every odd kind, compared by the block file each makes.
 #[test]
 fn dns_lines_as_the_script() {
+    if !arch_tools("dns_lines_as_the_script") {
+        return;
+    }
     let mut x: u64 = std::env::var("HEIMDALL_PROP_SEED").ok().and_then(|s| s.parse().ok()).unwrap_or(0x5eed_1234);
     let mut rnd = move |n: u64| {
         x ^= x << 13;
@@ -1050,6 +1065,9 @@ fn dns_lines_as_the_script() {
 
 #[test]
 fn enable_defaults_as_the_script() {
+    if !arch_tools("enable_defaults_as_the_script") {
+        return;
+    }
     let ed = |name: &str, args: &[&str], build: fn(&Root)| case(name, "heimdall-enable-defaults", args, build).dirs(&["/etc/heimdall"]);
     let cases = vec![
         ed("ed-plain", &[], |r: &Root| {
@@ -1094,6 +1112,9 @@ fn enable_defaults_as_the_script() {
 
 #[test]
 fn netid_as_the_script() {
+    if !arch_tools("netid_as_the_script") {
+        return;
+    }
     let nid = |name: &str, args: &[&str], build: fn(&Root)| {
         case(name, "91-heimdall-netid", args, build).dirs(&["/run", "/srv/run"]).env("CONNECTION_UUID", "0000-ab\"x; rm -rf /")
     };

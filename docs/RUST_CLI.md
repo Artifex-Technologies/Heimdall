@@ -471,7 +471,10 @@ for netid), every request the servers got (the request line and headers but the 
 tool (`nmcli`, `systemctl`, `systemd-detect-virt`; curl in the port's root is a fake that would record a call). The
 internet is HTTPS servers on loopback addresses in a network namespace of the run's own
 (`rust/parity/harness/fetch-net.py`), the real names pointed at them by the fake root's `/etc/hosts`, certificates from a
-test authority the fake root trusts and some it does not:
+test authority the fake root trusts and some it does not. The scripts only ever run on Arch, so their side needs Arch's
+tools; CI runs this test in an Arch container (job `shtools-arch` in `.github/workflows/rust.yml`), and the Ubuntu job skips
+it (`HEIMDALL_SHTOOLS_RUN_IN_ARCH`): there, uutils coreutils words its errors otherwise and awk is only a link through
+`/etc/alternatives`, which the fake root's own `/etc` does not have:
 
 - **intel-update** (35 runs): everything answering (DB-IP this month, chunked and close-delimited bodies), last good
   copies to compare with, fresh files (the kernel list under six days, a database under 25: not fetched) and the two
