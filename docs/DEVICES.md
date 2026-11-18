@@ -39,6 +39,21 @@ Addresses whose first byte has the "locally administered" bit set are private ad
 
 What a device *is* (TV, speaker, printer, phone, computer, console, smart-home gadget) is a guess from its services, name and maker, shown as an icon.
 
+### When the guess is wrong
+
+I can say what a device is myself: in Settings (**Wi-Fi & Network > Devices**, the device's page, "This device is") or on a
+terminal:
+
+```
+sudo heimdalld lan kind MAC KIND     tv, phone, computer, console, speaker, printer, smart, router or other
+sudo heimdalld lan kind MAC guess    back to Heimdall's guess
+```
+
+It is kept in `kinds.json` next to the list (`{"MAC": "kind"}`, upper-case hardware addresses), written only by that command (as
+root; Settings runs it through pkexec, which asks for the administrator's password). The scan never reads or changes it, so `kind`
+in the list stays the guess; `heimdalld lan list` and `GET /v1/lan/devices` add my word as `owner_kind`, and `lan list` shows it
+in place of the guess. It follows the device by its hardware address, on every network. A damaged file counts as no corrections.
+
 ### Why not SSDP (UPnP)
 
 SSDP's answers come back unicast to a multicast question. The firewall cannot match those answers to the question, so it drops them, and Heimdall's inbound watch would then count every answer as a port tried. Multicast DNS answers go to the group, which the firewall's default rules accept.
@@ -51,7 +66,8 @@ This also explains a pattern in the inbound alerts: when a program on this compu
 | --- | --- |
 | `/var/lib/heimdall/lan/devices.json` | the list, per network (connection UUID and name), plus the last scan's status |
 | `/var/lib/heimdall/lan/events.jsonl` | one line per new device; heimdalld follows it (`events.offset`) |
+| `/var/lib/heimdall/lan/kinds.json` | what I said devices are, by hardware address (`heimdalld lan kind`, as root) |
 
-Both are readable only by the `heimdall` account. Settings reads the list through the local API (`GET /v1/lan/devices`, the same callers as every other endpoint). `heimdalld lan list` prints it on a terminal (as root or heimdall).
+The list and the events are readable only by the `heimdall` account. Settings reads the list through the local API (`GET /v1/lan/devices`, the same callers as every other endpoint). `heimdalld lan list` prints it on a terminal (as root or heimdall).
 
 Configuration: `lan_dir` in `/etc/heimdall/config.json` (default `/var/lib/heimdall/lan`; empty turns the alert and the API route off).

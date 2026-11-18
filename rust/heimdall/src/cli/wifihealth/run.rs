@@ -207,6 +207,7 @@ mod store {
             Field("vendor", &Ty::Str, true),
             Field("model", &Ty::Str, true),
             Field("kind", &Ty::Str, false),
+            Field("owner_kind", &Ty::Str, true),
             Field("services", &STRS, true),
             Field("private_mac", &Ty::Bool, true),
             Field("first_seen", &Ty::Time, false),

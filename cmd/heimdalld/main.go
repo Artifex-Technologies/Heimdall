@@ -144,9 +144,10 @@ Usage:
   heimdalld wifi-health [--speed] [--json]
                                     Why the Wi-Fi is slow: signal, a crowded channel, other devices, or a problem past the router
                                     (about 10 seconds; --speed adds a speed test).
-  heimdalld lan scan|list [--dir DIR]
+  heimdalld lan scan|list|kind [--dir DIR] [MAC KIND|guess]
                                     The devices on a trusted home network: maker, name, first and last seen (heimdall-lan-scan
-                                    runs the scan every 5 minutes; it does nothing on a network you have not trusted).
+                                    runs the scan every 5 minutes; it does nothing on a network you have not trusted;
+                                    kind, as root, says what a device is when the guess is wrong).
   heimdalld version                 Print the version and exit.
 
 See README.md and docs/ARCHITECTURE.md for configuration and design.
@@ -284,13 +285,7 @@ func cmdRun(args []string) int {
 		srv.SetAudit(func() any { return audit(cfg) })
 		srv.SetIncidents(func() any { return corr.Incidents() })
 		if cfg.LANDir != "" {
-			srv.SetDevices(func() any {
-				st, err := lan.Load(filepath.Join(cfg.LANDir, "devices.json"))
-				if err != nil {
-					return &lan.Store{Status: "unreadable"}
-				}
-				return st
-			})
+			srv.SetDevices(func() any { return lan.List(cfg.LANDir) })
 		}
 		srv.SetRules(immunity.Rules{Path: cfg.RuleDraftsPath, RulesDir: immunity.DefaultRulesDir}, func() []immunity.Entry {
 			es, _ := immunity.Default().Load()

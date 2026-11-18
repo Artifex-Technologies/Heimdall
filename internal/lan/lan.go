@@ -10,8 +10,10 @@ package lan
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
@@ -19,13 +21,16 @@ import (
 
 // Device is one device on a network, keyed by its hardware address.
 type Device struct {
-	MAC        string    `json:"mac"`
-	IP         string    `json:"ip"`
-	Name       string    `json:"name,omitempty"`  // the best name found: announced, from the router, or from Windows networking
-	Names      []string  `json:"names,omitempty"` // every name found, best first
-	Vendor     string    `json:"vendor,omitempty"`
-	Model      string    `json:"model,omitempty"`
-	Kind       string    `json:"kind"` // router, this, tv, speaker, printer, phone, computer, console, smart, private, other
+	MAC    string   `json:"mac"`
+	IP     string   `json:"ip"`
+	Name   string   `json:"name,omitempty"`  // the best name found: announced, from the router, or from Windows networking
+	Names  []string `json:"names,omitempty"` // every name found, best first
+	Vendor string   `json:"vendor,omitempty"`
+	Model  string   `json:"model,omitempty"`
+	Kind   string   `json:"kind"` // router, this, tv, speaker, printer, phone, computer, console, smart, private, other
+	// OwnerKind is what the owner said the device is (KindsFile), filled in when the list is read for Settings and `lan list`;
+	// a scan never sets it and Kind stays the guess.
+	OwnerKind  string    `json:"owner_kind,omitempty"`
 	Services   []string  `json:"services,omitempty"`
 	PrivateMAC bool      `json:"private_mac,omitempty"`
 	FirstSeen  time.Time `json:"first_seen"`
@@ -281,6 +286,103 @@ func kindOf(d Device) string {
 		return "private" // a made-up address: almost always a phone, tablet or laptop
 	}
 	return "other"
+}
+
+// KindsFile, in the state directory, holds the owner's corrections of the guess: {"MAC": "kind"} (upper-case hardware
+// addresses). `heimdalld lan kind` writes it as root (Settings runs it through pkexec); the scan never touches it.
+const KindsFile = "kinds.json"
+
+// OwnerKinds are the kinds the owner may give a device. "this" and "private" are only ever the list's own words.
+var OwnerKinds = []string{"tv", "phone", "computer", "console", "speaker", "printer", "smart", "router", "other"}
+
+var macForm = regexp.MustCompile(`^[0-9A-F]{2}(:[0-9A-F]{2}){5}$`)
+
+func ownerKind(k string) bool {
+	for _, o := range OwnerKinds {
+		if k == o {
+			return true
+		}
+	}
+	return false
+}
+
+// upperASCII upper-cases a-z only, so a hardware address matches whatever case the list or the owner wrote it in.
+func upperASCII(s string) string {
+	b := []byte(s)
+	for i, c := range b {
+		if c >= 'a' && c <= 'z' {
+			b[i] = c - 32
+		}
+	}
+	return string(b)
+}
+
+// LoadKinds reads the owner's corrections. A missing or damaged file is none; an entry that is not an upper-case hardware
+// address with one of OwnerKinds is left out.
+func LoadKinds(path string) map[string]string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var raw map[string]any
+	if json.Unmarshal(b, &raw) != nil {
+		return nil
+	}
+	out := map[string]string{}
+	for m, k := range raw {
+		if s, ok := k.(string); ok && macForm.MatchString(m) && ownerKind(s) {
+			out[m] = s
+		}
+	}
+	return out
+}
+
+// ApplyKinds fills in each device's OwnerKind from the owner's corrections.
+func (s *Store) ApplyKinds(kinds map[string]string) {
+	for i := range s.Networks {
+		for j := range s.Networks[i].Devices {
+			d := &s.Networks[i].Devices[j]
+			d.OwnerKind = kinds[upperASCII(d.MAC)]
+		}
+	}
+}
+
+// List is the device list as the API serves it: the store in dir with the owner's kinds filled in, or {"status":
+// "unreadable"} when the store cannot be read.
+func List(dir string) *Store {
+	st, err := Load(filepath.Join(dir, "devices.json"))
+	if err != nil {
+		return &Store{Status: "unreadable"}
+	}
+	st.ApplyKinds(LoadKinds(filepath.Join(dir, KindsFile)))
+	return st
+}
+
+// SetKind records what the owner says a device is; "guess" takes the correction away, so the list's guess shows again. It
+// returns the address as stored. The file is written whole (write and rename), readable by all who can reach the directory.
+func SetKind(path, mac, kind string) (string, error) {
+	m := upperASCII(mac)
+	if !macForm.MatchString(m) {
+		return "", fmt.Errorf("%q is not a hardware address (six pairs of hex digits with colons): nothing changed", mac)
+	}
+	if kind != "guess" && !ownerKind(kind) {
+		return "", fmt.Errorf("unknown kind %q (%s, or guess): nothing changed", kind, strings.Join(OwnerKinds, ", "))
+	}
+	kinds := LoadKinds(path)
+	if kinds == nil {
+		kinds = map[string]string{}
+	}
+	if kind == "guess" {
+		delete(kinds, m)
+	} else {
+		kinds[m] = kind
+	}
+	b, _ := json.Marshal(kinds) // keys sorted
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, append(b, '\n'), 0o644); err != nil {
+		return "", err
+	}
+	return m, os.Rename(tmp, path)
 }
 
 // statePaths are the files in the state directory.

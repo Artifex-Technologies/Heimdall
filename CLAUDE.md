@@ -270,6 +270,17 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-11-17 — The device list: what I say a device is (owner_kind)
+- New `heimdalld lan kind [--dir DIR] MAC KIND|guess` (as root; Go and Rust, compared in `tests/cli_lan.rs`; fixtures `kinds`,
+  `set_kind` in `cli-lan.json` and four `/v1/lan/devices` cases in `api.json`): writes `kinds.json` in the lan directory
+  (`{"MAC": "kind"}`; kinds tv, phone, computer, console, speaker, printer, smart, router, other; `guess` removes one). The scan never
+  touches it. `lan.Device` gains `owner_kind` (omitempty), filled in by `heimdalld lan list` (shown in place of the guess) and
+  `GET /v1/lan/devices` (Go `lan.List`, used by heimdalld and the parity harness); `kind` stays the guess. `docs/DEVICES.md`.
+- **For Yggdrasil Settings:** the device page offers "This device is" when the security integration declares
+  `devices_kind = /usr/bin/heimdalld lan kind` (run with pkexec + MAC KIND|guess); it shows `owner_kind` over `kind`. Network
+  kind: Settings now reads and sets it (`pkexec heimdall-wifi-guard kind`); no Heimdall change for that.
+— Signed: Heimdall / Claude Opus 5.5
+
 ### 2026-11-16 (5) — The device list: a device taking another's address
 - `heimdalld lan scan` (Go `lan.Takeovers`, Rust `store::takeovers`) records a known device's address answered by a hardware
   address that also answers for another address while the old one is gone: an `events.jsonl` line with the new optional fields

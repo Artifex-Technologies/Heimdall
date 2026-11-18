@@ -178,9 +178,14 @@ are neither compared nor remembered; on a mesh, each address is learned like a n
 of the mesh's addresses is the anchor; the other kinds remember every signal.
 
 On every kind, the router's address changing during a connection, or two addresses answering as the router at once, stays a sign
-of someone in the middle. Heimdall may suggest a kind but never sets it. **For Settings:** a list next to the trust level and the
-discoverable switch on a Wi-Fi network's page, read with `heimdall-wifi-guard kind --uuid UUID` (`NAME: kind KIND`) and set with
-`pkexec heimdall-wifi-guard kind KIND --uuid UUID` or a unit like the discoverable ones (not shipped yet).
+of someone in the middle. Heimdall may suggest a kind but never sets it. **In Settings:** "This network is" next to the trust level
+and the discoverable switch on a saved Wi-Fi network's page (Yggdrasil 2026-11-17), read with `heimdall-wifi-guard kind --uuid
+UUID` (`NAME: kind KIND`) and set with `pkexec /usr/bin/heimdall-wifi-guard kind KIND --uuid UUID` (polkit's default: the
+administrator's password); on an untrusted network it is shown off, "Trust this network first".
+
+To do: a suggestion. Heimdall does not offer one yet; when it does (a phone hotspot's maker in the router's hardware address, a
+mesh's several access points), the guard should print it (for example a `suggest KIND` line from `kind --uuid UUID`) so Settings
+can show "Looks like a phone hotspot" beside the list, never applying it by itself.
 
 ## Discoverable: announcing on a network, whatever its level
 

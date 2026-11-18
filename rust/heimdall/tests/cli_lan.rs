@@ -224,6 +224,60 @@ fn the_list_and_its_files_as_go_keeps_them() {
 }
 
 #[test]
+fn the_owners_kinds_as_go_reads_and_writes_them() {
+    let f = fixture();
+    let dir = std::env::temp_dir().join(format!("heimdall-cli-lan-kinds-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let kp = dir.join(store::KINDS_FILE).to_string_lossy().into_owned();
+    let dev = |mac: &str, kind: &str, owner: &str| store::Device {
+        mac: mac.into(),
+        kind: kind.into(),
+        owner_kind: owner.into(),
+        ..Default::default()
+    };
+    let listed = store::Store {
+        networks: Some(vec![
+            store::Network {
+                uuid: "u".into(),
+                devices: Some(vec![
+                    dev("00:00:5E:00:53:01", "router", ""),
+                    dev("06:00:00:00:00:0a", "private", "tv"),
+                    dev("0A:00:00:00:00:0B", "other", ""),
+                    dev("\u{17f}0:00:00:00:00:0C", "other", ""),
+                ]),
+                ..Default::default()
+            },
+            store::Network { uuid: "v".into(), ..Default::default() },
+        ]),
+        ..Default::default()
+    };
+    for c in arr(&f, "kinds") {
+        let _ = std::fs::remove_file(&kp);
+        let doc = unhex(st(&c["in"]));
+        if !doc.is_empty() {
+            std::fs::write(&kp, &doc).unwrap();
+        }
+        let k = store::load_kinds(&kp);
+        let want: Option<BTreeMap<String, String>> = serde_json::from_value(c["out"].clone()).unwrap();
+        assert_eq!(k, want, "{c}");
+        let mut s = listed.clone();
+        s.apply_kinds(k.as_ref());
+        assert_eq!(s.marshal().unwrap(), st(&c["list"]), "{c}");
+    }
+    std::fs::write(&kp, r#"{"06:00:00:00:00:0A": "tv", "bad": "tv", "0A:00:00:00:00:0B": 1}"#).unwrap();
+    for c in arr(&f, "set_kind") {
+        let r = store::set_kind(&kp, st(&c["Mac"]), st(&c["Kind"]));
+        let (ret, err) = match r {
+            Ok(m) => (m, String::new()),
+            Err(e) => (String::new(), e),
+        };
+        assert_eq!((ret.as_str(), err.as_str()), (st(&c["Ret"]), st(&c["Err"])), "{c}");
+        assert_eq!(std::fs::read_to_string(&kp).unwrap(), st(&c["After"]), "{c}");
+    }
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+#[test]
 fn the_resolver_question_is_gos() {
     // what Go's resolver sent for 192.0.2.5 (id 0x1234), taken from a Go run against a fake router
     let q = resolver::question(0x1234, "5.2.0.192.in-addr.arpa.", false);
@@ -306,6 +360,43 @@ fn lan_list_as_go() {
         };
         let Some(((g, _), (r, _))) = both("lan-list", build, &["lan", "list"], &Opts::user().env("TZ", tz)) else { return };
         assert_same(tz, &g, &r);
+        n += 1;
+    }
+    // the owner's kinds: shown in the list, and written by `lan kind`
+    let kinds = r#"{"06:00:00:00:00:05": "speaker", "06:00:00:00:00:07": "console", "00:00:5E:00:53:0A": "nonsense"}"#;
+    for (what, doc) in [("kinds", kinds), ("kinds damaged", "{\"06:00:00:00:00:05\": "), ("kinds wrong type", "[\"tv\"]")] {
+        let build = |r: &Root| {
+            r.write("/var/lib/heimdall/lan/devices.json", DEVICES);
+            r.write("/var/lib/heimdall/lan/kinds.json", doc);
+        };
+        let Some(((g, _), (r, _))) = both("lan-list", build, &["lan", "list"], &Opts::user()) else { return };
+        assert_same(what, &g, &r);
+        n += 1;
+    }
+    let kind_cases: Vec<(&str, Vec<&str>, Option<&str>)> = vec![
+        ("kind set", vec!["lan", "kind", "06:00:00:00:00:07", "tv"], Some(kinds)),
+        ("kind set, lower case, no file", vec!["lan", "kind", "0a:00:00:00:00:0b", "printer"], None),
+        ("kind guess", vec!["lan", "kind", "06:00:00:00:00:05", "guess"], Some(kinds)),
+        ("kind dir flag", vec!["lan", "kind", "--dir", "/srv/lan", "06:00:00:00:00:05", "phone"], None),
+        ("kind bad address", vec!["lan", "kind", "06-00-00-00-00-05", "tv"], Some(kinds)),
+        ("kind bad word", vec!["lan", "kind", "06:00:00:00:00:05", "private"], Some(kinds)),
+        ("kind one word", vec!["lan", "kind", "06:00:00:00:00:05"], Some(kinds)),
+        ("kind three words", vec!["lan", "kind", "06:00:00:00:00:05", "tv", "x"], Some(kinds)),
+        ("kind no folder", vec!["lan", "kind", "--dir", "/nowhere/lan", "06:00:00:00:00:05", "tv"], None),
+    ];
+    for (what, args, doc) in &kind_cases {
+        let build = |r: &Root| {
+            r.mkdir("/var/lib/heimdall/lan", 0o755);
+            r.mkdir("/srv/lan", 0o755);
+            if let Some(d) = doc {
+                r.write("/var/lib/heimdall/lan/kinds.json", d);
+            }
+        };
+        let Some(((g, rg), (r, rr))) = both("lan-kind", build, args, &Opts::user()) else { return };
+        assert_same(what, &g, &r);
+        for f in ["/var/lib/heimdall/lan/kinds.json", "/srv/lan/kinds.json"] {
+            assert_eq!(rg.read_str(f), rr.read_str(f), "{what}: {f}");
+        }
         n += 1;
     }
     eprintln!("lan list: {n} runs compared with Go");

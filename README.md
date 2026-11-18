@@ -139,7 +139,8 @@ order. `sudo heimdalld kernel-check` lists the holes per kernel.
 - **Device list ([docs/DEVICES.md](docs/DEVICES.md)).** On a network you trust, `heimdalld lan scan` (every 5 minutes, its own
   sandboxed unit) lists the devices on it: what each one is, who made it, its name, first and last seen. A device new to the
   network is a `lan-watch` warning; a known device's address answered by another device (ARP spoofing a device) is critical.
-  Settings shows the list under Wi-Fi & Network > Devices.
+  Settings shows the list under Wi-Fi & Network > Devices, where a wrong guess of what a device is can be corrected
+  (`heimdalld lan kind`).
 - **Wi-Fi checks ([docs/WIFI_HEALTH.md](docs/WIFI_HEALTH.md)).** `heimdalld wifi-health` measures the connection for about ten
   seconds and names the likely cause of slow Wi-Fi: weak signal, crowded channel, other devices, the router, or the internet
   provider. `--speed` adds a download test. It changes nothing, and any user may run it.

@@ -15,6 +15,9 @@ pub struct Device {
     pub vendor: String,
     pub model: String,
     pub kind: String,
+    /// What the owner said the device is (KINDS_FILE), filled in when the list is read for Settings and `lan list`; a scan
+    /// never sets it and `kind` stays the guess.
+    pub owner_kind: String,
     pub services: Vec<String>,
     pub private_mac: bool,
     pub first_seen: Time,
@@ -54,6 +57,7 @@ pub static DEVICE: Ty = Ty::Struct(
         Field("vendor", &Ty::Str, true),
         Field("model", &Ty::Str, true),
         Field("kind", &Ty::Str, false),
+        Field("owner_kind", &Ty::Str, true),
         Field("services", &STRS, true),
         Field("private_mac", &Ty::Bool, true),
         Field("first_seen", &Ty::Time, false),
@@ -138,10 +142,11 @@ impl Device {
             vendor: s(&f[4]),
             model: s(&f[5]),
             kind: s(&f[6]),
-            services: strs(&f[7]),
-            private_mac: matches!(f[8], Val::Bool(true)),
-            first_seen: t(&f[9]),
-            last_seen: t(&f[10]),
+            owner_kind: s(&f[7]),
+            services: strs(&f[8]),
+            private_mac: matches!(f[9], Val::Bool(true)),
+            first_seen: t(&f[10]),
+            last_seen: t(&f[11]),
         }
     }
     pub fn to_val(&self) -> Val {
@@ -153,6 +158,7 @@ impl Device {
             Val::Str(self.vendor.clone()),
             Val::Str(self.model.clone()),
             Val::Str(self.kind.clone()),
+            Val::Str(self.owner_kind.clone()),
             strs_val(&self.services),
             Val::Bool(self.private_mac),
             Val::Time(self.first_seen),
@@ -293,6 +299,82 @@ impl Store {
         crate::gopath::write_file(&tmp, b.as_bytes(), 0o640)?;
         crate::gopath::rename(&tmp, path)
     }
+}
+
+/// In the state directory: the owner's corrections of the guess, {"MAC": "kind"} (upper-case hardware addresses).
+/// `heimdalld lan kind` writes it as root (Settings runs it through pkexec); the scan never touches it.
+pub const KINDS_FILE: &str = "kinds.json";
+
+/// The kinds the owner may give a device. "this" and "private" are only ever the list's own words.
+pub const OWNER_KINDS: [&str; 9] = ["tv", "phone", "computer", "console", "speaker", "printer", "smart", "router", "other"];
+
+/// Six pairs of upper-case hex digits with colons (Go: macForm).
+fn mac_form(m: &str) -> bool {
+    let b = m.as_bytes();
+    b.len() == 17
+        && b.iter().enumerate().all(|(i, c)| if i % 3 == 2 { *c == b':' } else { c.is_ascii_digit() || (b'A'..=b'F').contains(c) })
+}
+
+/// Go's LoadKinds: a missing or damaged file is none (None); an entry that is not an upper-case hardware address with one of
+/// OWNER_KINDS is left out. Read as Go's json.Unmarshal into a map reads it (the last of duplicate keys wins).
+pub fn load_kinds(path: &str) -> Option<std::collections::BTreeMap<String, String>> {
+    let b = std::fs::read(path).ok()?;
+    let v = crate::gojson::parse(&b).ok()?;
+    let mut raw = std::collections::BTreeMap::new();
+    match v {
+        crate::gojson::Value::Null => {}
+        crate::gojson::Value::Object(members) => {
+            for (k, x) in members {
+                raw.insert(k, x);
+            }
+        }
+        _ => return None,
+    }
+    Some(
+        raw.into_iter()
+            .filter_map(|(m, k)| match k {
+                crate::gojson::Value::String(s) if mac_form(&m) && OWNER_KINDS.contains(&s.as_str()) => Some((m, s)),
+                _ => None,
+            })
+            .collect(),
+    )
+}
+
+impl Store {
+    /// Go's ApplyKinds: each device's owner_kind from the owner's corrections (its address matched in any case).
+    pub fn apply_kinds(&mut self, kinds: Option<&std::collections::BTreeMap<String, String>>) {
+        for n in self.networks.iter_mut().flatten() {
+            for d in n.devices.iter_mut().flatten() {
+                d.owner_kind = kinds.and_then(|k| k.get(&d.mac.to_ascii_uppercase())).cloned().unwrap_or_default();
+            }
+        }
+    }
+}
+
+/// Go's SetKind: records what the owner says a device is ("guess" takes the correction away) and returns the address as
+/// stored. The file is written whole (a .tmp file, 0644, and a rename).
+pub fn set_kind(path: &str, mac: &str, kind: &str) -> Result<String, String> {
+    let m = mac.to_ascii_uppercase();
+    if !mac_form(&m) {
+        let q = crate::gotext::quote(mac);
+        return Err(format!("{q} is not a hardware address (six pairs of hex digits with colons): nothing changed"));
+    }
+    if kind != "guess" && !OWNER_KINDS.contains(&kind) {
+        let q = crate::gotext::quote(kind);
+        return Err(format!("unknown kind {q} ({}, or guess): nothing changed", OWNER_KINDS.join(", ")));
+    }
+    let mut kinds = load_kinds(path).unwrap_or_default();
+    if kind == "guess" {
+        kinds.remove(&m);
+    } else {
+        kinds.insert(m.clone(), kind.to_string());
+    }
+    // every key and value is checked ASCII without characters JSON escapes
+    let body: Vec<String> = kinds.iter().map(|(k, v)| format!("\"{k}\":\"{v}\"")).collect();
+    let tmp = format!("{path}.tmp");
+    crate::gopath::write_file(&tmp, format!("{{{}}}\n", body.join(",")).as_bytes(), 0o644)?;
+    crate::gopath::rename(&tmp, path)?;
+    Ok(m)
 }
 
 /// Go's lan.Load: a missing file is an empty store; the error otherwise is Go's text. Like Go, a store that read only in part

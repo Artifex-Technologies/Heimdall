@@ -1,6 +1,7 @@
-//! `heimdalld lan scan|list` (Go: cmd/heimdalld/lan.go, internal/lan): the device list of trusted home networks. `scan` runs
-//! every 5 minutes from heimdall-lan-scan.timer (its own sandboxed unit, user heimdall; heimdalld itself stays off the
-//! network) and does nothing on a network the owner has not trusted; `list` prints the list.
+//! `heimdalld lan scan|list|kind` (Go: cmd/heimdalld/lan.go, internal/lan): the device list of trusted home networks. `scan`
+//! runs every 5 minutes from heimdall-lan-scan.timer (its own sandboxed unit, user heimdall; heimdalld itself stays off the
+//! network) and does nothing on a network the owner has not trusted; `list` prints the list; `kind MAC KIND|guess` (as root,
+//! Settings runs it through pkexec) records what the owner says a device is.
 
 pub mod discover;
 pub mod dns;
@@ -19,8 +20,8 @@ use super::tabwriter::TabWriter;
 /// One scan of the current network, or the list, as `heimdalld lan` does.
 pub fn main(args: &[String]) -> Option<i32> {
     let what = args.first().map(String::as_str);
-    if what != Some("scan") && what != Some("list") {
-        eprintln!("usage: heimdalld lan scan|list [--dir DIR]");
+    if what != Some("scan") && what != Some("list") && what != Some("kind") {
+        eprintln!("usage: heimdalld lan scan|list|kind [--dir DIR] [MAC KIND|guess]");
         return Some(2);
     }
     let what = what.unwrap_or_default();
@@ -32,6 +33,9 @@ pub fn main(args: &[String]) -> Option<i32> {
     let dir = fs.get_str("dir");
     if what == "scan" {
         return Some(scan_command(&dir));
+    }
+    if what == "kind" {
+        return Some(kind(&dir, fs.args()));
     }
     Some(list(&dir))
 }
@@ -62,13 +66,36 @@ fn scan_command(dir: &str) -> i32 {
     }
 }
 
+/// What the owner says a device is (Go: the "kind" branch of cmdLAN).
+fn kind(dir: &str, args: &[String]) -> i32 {
+    if args.len() != 2 {
+        eprintln!("usage: heimdalld lan kind [--dir DIR] MAC KIND|guess");
+        return 2;
+    }
+    match store::set_kind(&format!("{dir}/{}", store::KINDS_FILE), &args[0], &args[1]) {
+        Err(e) => {
+            eprintln!("lan kind: {e}");
+            1
+        }
+        Ok(m) => {
+            if args[1] == "guess" {
+                println!("{m}: the list's guess");
+            } else {
+                println!("{m}: {}", args[1]);
+            }
+            0
+        }
+    }
+}
+
 /// The list: per network a line, then a table of its devices (Go's tabwriter: minwidth 2, tab width 4, padding 2).
 pub fn list(dir: &str) -> i32 {
-    let (st, err) = store::load(&format!("{dir}/devices.json"));
+    let (mut st, err) = store::load(&format!("{dir}/devices.json"));
     if let Some(e) = err {
         eprintln!("{e}");
         return 1;
     }
+    st.apply_kinds(store::load_kinds(&format!("{dir}/{}", store::KINDS_FILE)).as_ref());
     let mut out = String::new();
     for n in st.networks.iter().flatten() {
         let devices = n.devices.as_deref().unwrap_or_default();
@@ -81,7 +108,7 @@ pub fn list(dir: &str) -> i32 {
                 d.ip,
                 d.name,
                 d.vendor,
-                d.kind,
+                if d.owner_kind.is_empty() { &d.kind } else { &d.owner_kind }, // the owner's word over the guess
                 d.first_seen.local().format("2006-01-02 15:04"),
                 d.last_seen.local().format("2006-01-02 15:04")
             ));

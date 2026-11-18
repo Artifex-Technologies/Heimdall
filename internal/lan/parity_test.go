@@ -530,6 +530,50 @@ func TestRustFixture(t *testing.T) {
 	}
 	out["fold"] = folds
 
+	// the owner's corrections (kinds.json): as LoadKinds reads them and ApplyKinds gives them to a list
+	type pKinds struct {
+		In   string            `json:"in"`
+		Out  map[string]string `json:"out"`
+		List string            `json:"list"`
+	}
+	var kindsOut []pKinds
+	kp := filepath.Join(dir, KindsFile)
+	listed := Store{Networks: []Network{{UUID: "u", Devices: []Device{{MAC: "00:00:5E:00:53:01", Kind: "router"}, {MAC: "06:00:00:00:00:0a", Kind: "private", OwnerKind: "tv"},
+		{MAC: "0A:00:00:00:00:0B", Kind: "other"}, {MAC: "ſ0:00:00:00:00:0C", Kind: "other"}}}, {UUID: "v"}}}
+	for _, d := range []string{"", "{}", "null", "[]", "\"x\"", "{\"06:00:00:00:00:0A\": \"tv\", \"00:00:5E:00:53:01\": \"speaker\"}",
+		"{\"06:00:00:00:00:0a\": \"tv\", \"0A:00:00:00:00:0B\": \"this\", \"S0:00:00:00:00:0C\": \"tv\", \"00:00:5E:00:53:01\": 5}",
+		"{\"0A:00:00:00:00:0B\": \"phone\", \"0A:00:00:00:00:0B\": \"Phone\"}", "{\"0A:00:00:00:00:0B\": \"console\", \"0A:00:00:00:00:0B\": \"smart\"}",
+		"{\"0A:00:00:00:00:0B\": \"pr\\u0069nter\", \"\\u0030A:00:00:00:00:0B\": \"router\"}", "{\"06:00:00:00:00:0A\": \"tv\"} x",
+		"{\"06:00:00:00:00:0A\": \"tv\", \"x\": \"\xff\", \"y\": [1, {\"z\": null}]}", "{\"06:00:00:00:00:0A\": \"tv\""} {
+		os.Remove(kp)
+		if d != "" {
+			os.WriteFile(kp, []byte(d), 0o644)
+		}
+		k := LoadKinds(kp)
+		st := listed
+		st.Networks = append([]Network(nil), listed.Networks...)
+		st.Networks[0].Devices = append([]Device(nil), listed.Networks[0].Devices...)
+		st.ApplyKinds(k)
+		b, _ := json.MarshalIndent(st, "", " ")
+		kindsOut = append(kindsOut, pKinds{hexs(d), k, string(b)})
+	}
+	out["kinds"] = kindsOut
+
+	// and as SetKind writes them, one change after another
+	type pSet struct {
+		Mac, Kind, Ret, Err, After string
+	}
+	var sets []pSet
+	os.WriteFile(kp, []byte("{\"06:00:00:00:00:0A\": \"tv\", \"bad\": \"tv\", \"0A:00:00:00:00:0B\": 1}"), 0o644)
+	for _, c := range [][2]string{{"0a:00:00:00:00:0b", "phone"}, {"06:00:00:00:00:0A", "guess"}, {"06:00:00:00:00:0A", "guess"}, {"00:00:5e:00:53:01", "router"},
+		{"0A:00:00:00:00:0B", "this"}, {"0A:00:00:00:00:0B", "Phone"}, {"0A-00-00-00-00-0B", "tv"}, {"0A:00:00:00:00:0", "tv"}, {"0A:00:00:00:00:0BB", "tv"},
+		{"", "tv"}, {"ſA:00:00:00:00:0B", "tv"}, {"0A:00:00:00:00:0B\n", "tv"}, {"0a:00:00:00:00:0b", "guess"}, {"00:00:5E:00:53:01", "guess"}} {
+		m, err := SetKind(kp, c[0], c[1])
+		after, _ := os.ReadFile(kp)
+		sets = append(sets, pSet{c[0], c[1], m, errs(err), string(after)})
+	}
+	out["set_kind"] = sets
+
 	// events.jsonl lines
 	ev := filepath.Join(dir, "events.jsonl")
 	os.Remove(ev)

@@ -151,13 +151,7 @@ func RunAPI(c APICase, dir string) (APICase, error) {
 			System: hardening.System{Root: filepath.Join(dir, "root")}})
 	})
 	if c.LAN {
-		s.SetDevices(func() any {
-			st, err := lan.Load(filepath.Join(dir, "lan", "devices.json"))
-			if err != nil {
-				return &lan.Store{Status: "unreadable"}
-			}
-			return st
-		})
+		s.SetDevices(func() any { return lan.List(filepath.Join(dir, "lan")) })
 	}
 	drafts := filepath.Join(dir, "rule-drafts.json")
 	s.SetRules(immunity.Rules{Path: drafts, RulesDir: filepath.Join(dir, "clamav")}, func() []immunity.Entry {

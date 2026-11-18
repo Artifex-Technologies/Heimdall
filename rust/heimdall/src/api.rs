@@ -192,6 +192,7 @@ static DEVICE: Ty = Ty::Struct(
         Field("vendor", &Ty::Str, true),
         Field("model", &Ty::Str, true),
         Field("kind", &Ty::Str, false),
+        Field("owner_kind", &Ty::Str, true),
         Field("services", &Ty::Slice(&Ty::Str), true),
         Field("private_mac", &Ty::Bool, true),
         Field("first_seen", &Ty::Time, false),
@@ -218,6 +219,25 @@ static LAN_STORE: Ty = Ty::Struct(
         Field("status_time", &Ty::Time, false),
     ],
 );
+
+/// Go's Store.ApplyKinds on the read device list: each device's owner_kind (field 7) from the owner's corrections, by its
+/// hardware address (field 0) in any case.
+fn apply_kinds(store: &mut Val, kinds: Option<&std::collections::BTreeMap<String, String>>) {
+    let Val::Struct(f) = store else { return };
+    let Val::Slice(Some(nets)) = &mut f[0] else { return };
+    for n in nets {
+        let Val::Struct(nf) = n else { continue };
+        let Val::Slice(Some(devs)) = &mut nf[4] else { continue };
+        for d in devs {
+            let Val::Struct(df) = d else { continue };
+            let mac = match &df[0] {
+                Val::Str(s) => s.to_ascii_uppercase(),
+                _ => String::new(), // not UTF-8: no hardware address matches it
+            };
+            df[7] = Val::Str(kinds.and_then(|k| k.get(&mac)).cloned().unwrap_or_default());
+        }
+    }
+}
 
 /// Go's Encoder.Encode of a value: the JSON and a newline, or nothing at all when it cannot be written.
 fn encoded(t: &Ty, v: &Val) -> Response {
@@ -267,6 +287,15 @@ impl Api {
                         _ => None,
                     },
                 };
+                let kinds = crate::cli::lan::store::load_kinds(&format!(
+                    "{}/{}",
+                    self.files.lan_dir.as_deref().unwrap_or_default(),
+                    crate::cli::lan::store::KINDS_FILE
+                ));
+                let read = read.map(|mut v| {
+                    apply_kinds(&mut v, kinds.as_ref());
+                    v
+                });
                 let v = read.unwrap_or_else(|| {
                     let mut z = gostruct::zero(&LAN_STORE);
                     if let Val::Struct(f) = &mut z {

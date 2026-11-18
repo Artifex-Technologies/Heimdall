@@ -76,6 +76,12 @@ func moreAPICases(with func(string, func(*APICase))) {
 	devices("empty lists, keys in other case", map[string]FileSpec{"lan/devices.json": file(`{"NETWORKS":[{"Devices":[],"UUID":"x"}],"Status":"offline"}`)}, true)
 	devices("a folder in its place", map[string]FileSpec{"lan/devices.json/x": file("")}, true)
 	devices("null", map[string]FileSpec{"lan/devices.json": file("null")}, true)
+	// the owner's kinds (kinds.json) fill in owner_kind; a damaged file is none
+	kinds := `{"02:00:00:00:00:01": "speaker", "02:00:00:00:00:02": "this", "02:00:00:00:00:03": "tv"}`
+	devices("the owner's kinds", map[string]FileSpec{"lan/devices.json": file(store), "lan/kinds.json": file(kinds)}, true)
+	devices("the owner's kinds damaged", map[string]FileSpec{"lan/devices.json": file(store), "lan/kinds.json": file(kinds[:20])}, true)
+	devices("the owner's kinds without a list", map[string]FileSpec{"lan/kinds.json": file(kinds)}, true)
+	devices("owner_kind in the list itself", map[string]FileSpec{"lan/devices.json": file(`{"networks":[{"devices":[{"mac":"02:00:00:00:00:09","owner_kind":"tv"},{"owner_kind":5}]}]}`)}, true)
 
 	// the audit report: the package tracker, pacman's database, the kernel list, the modules folder, the hardening checks
 	groups := []pkgaudit.Group{

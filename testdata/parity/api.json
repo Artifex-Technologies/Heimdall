@@ -1621,6 +1621,100 @@
    "lan": true
   },
   {
+   "name": "lan devices: the owner's kinds",
+   "method": "GET",
+   "path": "/v1/lan/devices",
+   "host": "127.0.0.1:8930",
+   "peer": 1000,
+   "members": [
+    1000,
+    954
+   ],
+   "reviewer": true,
+   "status": 200,
+   "response": "{\"networks\":[{\"uuid\":\"u-1\",\"ssid\":\"Home \\u003c5G\\u003e\",\"first_scan\":\"2026-11-07T08:00:00Z\",\"last_scan\":\"2026-11-07T09:00:00+01:00\",\"devices\":[{\"mac\":\"02:00:00:00:00:01\",\"ip\":\"192.0.2.10\",\"name\":\"tv\",\"names\":[\"tv\",\"TV-1\"],\"vendor\":\"Made Up\",\"model\":\"M1\",\"kind\":\"tv\",\"owner_kind\":\"speaker\",\"services\":[\"_googlecast._tcp\"],\"private_mac\":true,\"first_seen\":\"2026-11-07T08:00:00Z\",\"last_seen\":\"2026-11-07T09:00:00Z\"},{\"mac\":\"02:00:00:00:00:02\",\"ip\":\"192.0.2.1\",\"kind\":\"router\",\"first_seen\":\"2026-11-07T08:00:00Z\",\"last_seen\":\"2026-11-07T08:00:00Z\"}]}],\"status\":\"scanned\",\"status_uuid\":\"u-1\",\"status_time\":\"2026-11-07T09:00:00Z\"}\n",
+   "exact": true,
+   "alerts": [],
+   "files": {
+    "lan/devices.json": {
+     "content": "{\"networks\":[{\"uuid\":\"u-1\",\"ssid\":\"Home \u003c5G\u003e\",\"first_scan\":\"2026-11-07T08:00:00Z\",\"last_scan\":\"2026-11-07T09:00:00+01:00\",\n\t \"devices\":[{\"mac\":\"02:00:00:00:00:01\",\"ip\":\"192.0.2.10\",\"name\":\"tv\",\"names\":[\"tv\",\"TV-1\"],\"vendor\":\"Made Up\",\"model\":\"M1\",\"kind\":\"tv\",\n\t \"services\":[\"_googlecast._tcp\"],\"private_mac\":true,\"first_seen\":\"2026-11-07T08:00:00Z\",\"last_seen\":\"2026-11-07T09:00:00Z\"},\n\t {\"mac\":\"02:00:00:00:00:02\",\"ip\":\"192.0.2.1\",\"kind\":\"router\",\"private_mac\":false,\"first_seen\":\"2026-11-07T08:00:00Z\",\"last_seen\":\"2026-11-07T08:00:00Z\"}]}],\n\t \"status\":\"scanned\",\"status_uuid\":\"u-1\",\"status_time\":\"2026-11-07T09:00:00Z\",\"extra\":true}"
+    },
+    "lan/kinds.json": {
+     "content": "{\"02:00:00:00:00:01\": \"speaker\", \"02:00:00:00:00:02\": \"this\", \"02:00:00:00:00:03\": \"tv\"}"
+    }
+   },
+   "lan": true
+  },
+  {
+   "name": "lan devices: the owner's kinds damaged",
+   "method": "GET",
+   "path": "/v1/lan/devices",
+   "host": "127.0.0.1:8930",
+   "peer": 1000,
+   "members": [
+    1000,
+    954
+   ],
+   "reviewer": true,
+   "status": 200,
+   "response": "{\"networks\":[{\"uuid\":\"u-1\",\"ssid\":\"Home \\u003c5G\\u003e\",\"first_scan\":\"2026-11-07T08:00:00Z\",\"last_scan\":\"2026-11-07T09:00:00+01:00\",\"devices\":[{\"mac\":\"02:00:00:00:00:01\",\"ip\":\"192.0.2.10\",\"name\":\"tv\",\"names\":[\"tv\",\"TV-1\"],\"vendor\":\"Made Up\",\"model\":\"M1\",\"kind\":\"tv\",\"services\":[\"_googlecast._tcp\"],\"private_mac\":true,\"first_seen\":\"2026-11-07T08:00:00Z\",\"last_seen\":\"2026-11-07T09:00:00Z\"},{\"mac\":\"02:00:00:00:00:02\",\"ip\":\"192.0.2.1\",\"kind\":\"router\",\"first_seen\":\"2026-11-07T08:00:00Z\",\"last_seen\":\"2026-11-07T08:00:00Z\"}]}],\"status\":\"scanned\",\"status_uuid\":\"u-1\",\"status_time\":\"2026-11-07T09:00:00Z\"}\n",
+   "exact": true,
+   "alerts": [],
+   "files": {
+    "lan/devices.json": {
+     "content": "{\"networks\":[{\"uuid\":\"u-1\",\"ssid\":\"Home \u003c5G\u003e\",\"first_scan\":\"2026-11-07T08:00:00Z\",\"last_scan\":\"2026-11-07T09:00:00+01:00\",\n\t \"devices\":[{\"mac\":\"02:00:00:00:00:01\",\"ip\":\"192.0.2.10\",\"name\":\"tv\",\"names\":[\"tv\",\"TV-1\"],\"vendor\":\"Made Up\",\"model\":\"M1\",\"kind\":\"tv\",\n\t \"services\":[\"_googlecast._tcp\"],\"private_mac\":true,\"first_seen\":\"2026-11-07T08:00:00Z\",\"last_seen\":\"2026-11-07T09:00:00Z\"},\n\t {\"mac\":\"02:00:00:00:00:02\",\"ip\":\"192.0.2.1\",\"kind\":\"router\",\"private_mac\":false,\"first_seen\":\"2026-11-07T08:00:00Z\",\"last_seen\":\"2026-11-07T08:00:00Z\"}]}],\n\t \"status\":\"scanned\",\"status_uuid\":\"u-1\",\"status_time\":\"2026-11-07T09:00:00Z\",\"extra\":true}"
+    },
+    "lan/kinds.json": {
+     "content": "{\"02:00:00:00:00:01\""
+    }
+   },
+   "lan": true
+  },
+  {
+   "name": "lan devices: the owner's kinds without a list",
+   "method": "GET",
+   "path": "/v1/lan/devices",
+   "host": "127.0.0.1:8930",
+   "peer": 1000,
+   "members": [
+    1000,
+    954
+   ],
+   "reviewer": true,
+   "status": 200,
+   "response": "{\"networks\":null,\"status\":\"\",\"status_time\":\"0001-01-01T00:00:00Z\"}\n",
+   "exact": true,
+   "alerts": [],
+   "files": {
+    "lan/kinds.json": {
+     "content": "{\"02:00:00:00:00:01\": \"speaker\", \"02:00:00:00:00:02\": \"this\", \"02:00:00:00:00:03\": \"tv\"}"
+    }
+   },
+   "lan": true
+  },
+  {
+   "name": "lan devices: owner_kind in the list itself",
+   "method": "GET",
+   "path": "/v1/lan/devices",
+   "host": "127.0.0.1:8930",
+   "peer": 1000,
+   "members": [
+    1000,
+    954
+   ],
+   "reviewer": true,
+   "status": 200,
+   "response": "{\"networks\":null,\"status\":\"unreadable\",\"status_time\":\"0001-01-01T00:00:00Z\"}\n",
+   "exact": true,
+   "alerts": [],
+   "files": {
+    "lan/devices.json": {
+     "content": "{\"networks\":[{\"devices\":[{\"mac\":\"02:00:00:00:00:09\",\"owner_kind\":\"tv\"},{\"owner_kind\":5}]}]}"
+    }
+   },
+   "lan": true
+  },
+  {
    "name": "audit: nothing downloaded",
    "method": "GET",
    "path": "/v1/audit",
