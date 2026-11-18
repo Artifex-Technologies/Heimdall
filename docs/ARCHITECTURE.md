@@ -3,13 +3,14 @@
 Heimdall is a security agent for [Sarina](https://github.com/Artifex-Technologies/Sarina),
 built as a separate process on purpose: a security monitor that shares a
 runtime, a dependency tree, or a crash with the thing it's watching is a
-weaker monitor. Go was chosen over Python (Sarina's language) for the same
+weaker monitor. Go was chosen over Python (Sarina's language at the time) for the same
 reason CrowdSec and Tailscale are Go and not Python — a single static
 binary, no interpreter or GC-heavy runtime sitting between the monitor and
 the host, low idle CPU/RAM for something meant to run forever in the
-background. If Sarina itself moves toward Rust later, that only strengthens
-the case for Heimdall staying a separate binary talking to it across a
-process boundary rather than an in-process library.
+background. Sarina's core moved to Rust on 2026-11-18 (and Heimdall has its own
+Rust port, `docs/RUST_SWITCH.md`); that only strengthens the case for Heimdall
+staying a separate binary talking to it across a process boundary rather than
+an in-process library.
 
 **Every phase below is designed against a real reference project so the
 design has a citation, not just a name-drop** — see
@@ -309,7 +310,7 @@ consultation — allowed or denied — is also recorded as an alert
 (`source: "governance-review"`), so it shows up in `/v1/alerts` and
 `alert_log_path` like anything else Heimdall detects. (The first version,
 2026-09-26, was Sarina's legacy Python `sarina/memory_security.py`; the Go
-core replaced it.)
+core replaced it, and the Rust core replaced that on 2026-11-18.)
 
 **Why out-of-process is the actual point, not a formality.** Sarina's own
 in-process check and Heimdall's copy currently run the identical three

@@ -32,7 +32,7 @@ It is one of the repos of the Artifex Ecosystem:
 | `Argus_Firmware` | fork of flipperzero-firmware; runs on the hardware |
 | `Heimdall` | this repo — security agent watching Sarina |
 
-Sarina carries the authoritative four-repo integration contract:
+Sarina carries the authoritative integration contract of the ecosystem:
 [`Sarina/docs/ECOSYSTEM.md`](https://github.com/Artifex-Technologies/Sarina/blob/main/docs/ECOSYSTEM.md).
 Heimdall's own contracts with Sarina are recorded in **§5** below; Sarina's
 side of each is in its `docs/ECOSYSTEM.md` §4 (session files §4a, review §4b).
@@ -192,11 +192,11 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   (`sarina doctor`'s `session_contract` check); a change to it needs a log entry on
   both boards. Sarina writes each file atomically (temp file + rename).
 - **Sarina → Heimdall (governance, Phase 4):** **live, opt-in.**
-  The reverse direction (Sarina `docs/ECOSYSTEM.md` §4b): Sarina's `go/heimdall`
+  The reverse direction (Sarina `docs/ECOSYSTEM.md` §4b): Sarina's `heimdall.rs` (Go: `go/heimdall`)
   calls Heimdall's `POST /v1/review` (`internal/governance` + `internal/api/review.go`)
   over loopback HTTP, opt-in via `HEIMDALL_REVIEW_URL` on Sarina's side (the old
   `SENTRY_REVIEW_URL` is still read when the new name is unset). Its only caller is
-  the shared scan gate in `go/guard` (memory writes), after Sarina's own in-process
+  the shared scan gate in `guard.rs` (Go: `go/guard`; memory writes), after Sarina's own in-process
   checks pass; a `"deny"` folds into the same blocked result those checks already
   produce. **Fails open on Heimdall's absence, fails closed on an actual verdict** —
   see `docs/ARCHITECTURE.md`'s Phase 4 section. First verified end-to-end on
@@ -259,7 +259,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   asks Sarina's service for a static analysis: same API as the advisory with `tool_allowlist: ["reverse_engineer"]`,
   `max_turns` 12, `max_tool_calls` 10, `timeout_seconds` 300, and **nothing is sent unless the service reports `tools: 1`**
   (`sarina_contract_tools_mismatch`). The file is named as her sandbox sees it, `/quarantine/<sha256>.sample` (her service
-  account's labyrinth quarantine folder is a link to the share; Sarina's `go/reverse` reads such paths since 2026-11-17). The
+  account's labyrinth quarantine folder is a link to the share; Sarina's `reverse.rs`, Go `go/reverse`, reads such paths since 2026-11-17). The
   answer is untrusted: kept as `sarina_analysis` on the held file's index entry (additive field), a YARA block in it only a
   rule draft; it can release, delete or run nothing. Never while Sarina is contained; one at a time; session closed on every
   path. Changing the allowlist, the tools check, the share path or the `/quarantine` naming is a contract change in both
@@ -268,9 +268,9 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   Sarina files requests (`POST /v1/requests`: `kind` escalation|access_tier, `detail`,
   `session_id`, `reason`) and reads the owner's answers from `/etc/heimdall/grants.json`
   (root's; `access_tier` cap and `escalations` with `tier`, `session_id`, `until`), never from
-  HTTP. Sarina side: `go/heimdall/grants.go`, called only from `config.AccessTierFromEnv` and
-  `tiers.Router.attempt` (Sarina commit `123453e`). Changing either JSON shape is a contract
-  change in both repos. `docs/GRANTS.md`.
+  HTTP. Sarina side: `heimdall.rs` (Go: `go/heimdall/grants.go`), called only from the access-tier
+  reading (`config.AccessTierFromEnv`) and the tiers' router (`tiers.Router.attempt`; Sarina commit
+  `123453e`). Changing either JSON shape is a contract change in both repos. `docs/GRANTS.md`.
 - **Heimdall API access (all clients): live.** Every endpoint but `/healthz` answers only root,
   heimdalld's account, `api_users` (default `sarina`) and members of `api_groups` (default
   `wheel`), identified from `/proc/net/tcp`; clients send nothing new. Clients today: Sarina
