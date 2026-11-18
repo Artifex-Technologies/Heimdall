@@ -19,6 +19,27 @@ closed rather than deleting it -- the history of *why* is worth keeping.
 
 ---
 
+## 2026-11-18 — The shadow week read: no port bug; a fresh shadow day still owed before the switch
+
+The first week (2026-11-10 to 2026-11-18, shadow binary of 2026-11-11) did not say "NO DIFFERENCE". Every difference has a
+cause outside the port; none is a Rust bug, and nothing in the connection watch changed since the binary was built.
+
+- **Connection log (connection-watch):** Rust wrote about 2.7 times Go's alerts. Most (about 400) were destinations Go
+  learned weeks before the shadow began: step 3 of `docs/RUST_SHADOW.md` did not copy `connections-state.json`, so the
+  shadow daemon learned only what was open at its first look (fixed in the doc). The rest were short connections each daemon
+  caught on its own polls (about 50 on each side, even in every address family and scope) and the same destination first
+  seen on another socket. Both daemons key a destination the same way (process, address as Go writes it, IPv4-mapped written
+  as IPv4, port), name a socket whose owner they cannot find "unknown" with pid 0, and treat carrier-grade NAT the same.
+  New Rust tests: the Go watcher test ported, and Go's state file read at a handover (`sources::net` tests).
+- **Hidden by the tool's 40-line cap:** 10 Go-only alerts of other detectors. A watched file added to the Go config after
+  the shadow config was made (file-integrity); the SSH server check, added to both after the shadow binary was built
+  (hardening); a program's listeners that started while the shadow daemon was not running (lan-watch).
+- `shadow-compare.py` now prints counts per side and detector and has three written rules for the connection log (another
+  socket; one poll only, with a balance test; `--conn-state-not-copied` for this week only). With the flag, this week's only
+  differences are the 10 above.
+- **Before the switch:** regenerate the shadow config, install a shadow binary from today's main, copy the state files
+  (now with `connections-state.json`), run a day, compare without `--conn-state-not-copied`.
+
 ## 2026-11-15 — Wi-Fi trust levels: DONE in the working tree, both reviews' findings fixed (not committed; owner checks below)
 
 **My ask:** mark a network trusted so it stops saying "untrusted" each time, still see devices that try to connect or ask for

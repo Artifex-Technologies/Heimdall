@@ -45,10 +45,11 @@ sudo install -Dm640 -o root -g heimdall /tmp/shadow-config.json /etc/heimdall/sh
 
 # 3. its state: a copy of the Go daemon's positions, so it starts where the Go daemon is (no flood of old sessions)
 sudo install -d -o heimdall -g heimdall -m 0750 /var/lib/heimdall-rs
-for f in agent-sessions.json vault-notes.json agent-baseline.json fim.json limbo-offset package-audit.json kernel-audit.json hardening.json; do
+for f in agent-sessions.json vault-notes.json agent-baseline.json fim.json limbo-offset package-audit.json kernel-audit.json hardening.json connections-state.json; do
   sudo test -e /var/lib/heimdall/$f && sudo install -o heimdall -g heimdall -m 0600 /var/lib/heimdall/$f /var/lib/heimdall-rs/$f
 done
 # (fim.json and limbo-offset: only if /etc/heimdall/config.json names them there; check fim_state_path, limbo_state_path)
+# (connections-state.json: the destinations the Go daemon has learned; added 2026-11-18, see "Reading the connection log")
 
 # 4. the unit, with the same read access as the Go daemon (its drop-ins: Limbo's group, the connection read rights)
 sudo install -Dm644 packaging/arch/heimdall-shadow.service /etc/systemd/system/heimdall-shadow.service
@@ -105,8 +106,41 @@ python3 -I rust/parity/shadow-compare.py /tmp/go-alerts.jsonl /tmp/rs-alerts.jso
 ```
 
 "NO DIFFERENCE in the compared detectors" is the result wanted. Any difference it prints is a bug in the port to fix
-before the switch (the alert lines are real data: keep them private, do not paste them into an issue). Put the CPU and
-memory readings and the comparison's summary lines in `progress.md`.
+before the switch (the alert lines are real data: keep them private, do not paste them into an issue), unless it is one of
+the causes below that are not the port's. The tool prints how many alerts differ on each side and for which detectors, then
+the first 40 lines of each side: read the counts, not only the lines (the first week's 40 and 40 lines were all
+connection-watch, sorted first, and hid ten differences of other detectors). Put the CPU and memory readings and the
+comparison's summary lines in `progress.md`.
+
+Causes that are not the port's (check each before calling a difference a bug):
+
+- **The Go config changed during the week.** The shadow config is a copy made at step 2; a path added to the Go config later
+  (a new `fim_paths` entry) is watched only by the Go daemon. Compare the two (`sudo diff <(python3 -I
+  rust/parity/shadow-config.py /etc/heimdall/config.json) /etc/heimdall/shadow-config.json`, only the moved paths and
+  `api_addr` may differ), and run step 2 again (then restart the shadow daemon) whenever the Go config changes.
+- **A check newer than the shadow binary.** The Go daemon is the package from a recent main; a detector or audit check added
+  after the shadow binary was built is Go's only. `heimdalld-rs version` and the date of the commit that added it tell.
+- **One daemon was not running.** A listener that started while the shadow daemon was stopped is part of what it finds
+  already listening when it starts, which it records without an alert, as the Go daemon does on its own start
+  (`journalctl -u heimdall-shadow` shows when it started).
+
+## Reading the connection log
+
+The connection watch (`connection-watch` and, for a remote-access tool, `remote-access` alerts on `new_connection`) reads
+/proc/net every 10 seconds in each daemon, at each daemon's own moment, and reports each (process, address, port) once, then
+remembers it in `connections-state.json`. Three things make its alerts differ without a bug, and `shadow-compare.py` has a
+rule for each (its header has the exact rules):
+
+1. The first connection each daemon saw to a destination may be another socket of it (another local port, another process of
+   the same name): compared without the socket's and process's own fields.
+2. A connection short enough to fall between one daemon's polls is reported by the other only ("one poll only"). Expected
+   only while both sides miss about equally; the tool prints the counts per address family, scope and named/unnamed owner,
+   and a lopsided group (one daemon missing far more, which a port bug would cause) is a difference.
+3. A shadow week started without the Go daemon's `connections-state.json` (step 3 did not copy it before 2026-11-18): the
+   shadow daemon learned only the connections open at its first look, then reported every destination the Go daemon had
+   learned weeks before. `--conn-state-not-copied` counts those as expected (only in the shadow log, a destination the Go
+   log reported before the window). Do not pass it for a shadow week that copied the file: then such an alert would be the
+   shadow daemon failing to read the state.
 
 ## Stop the shadow week
 

@@ -680,6 +680,82 @@ mod tests {
         assert_eq!(ip_text(&mapped), "127.0.0.1");
     }
 
+    /// A fake /proc as Go's conn_test.go builds it: pid 4242 ("curl", app slice lapp_demo) holds socket 777, established to
+    /// 5.0.0.10:443; a loopback connection that must be ignored; and, in tcp6, socket 888 to the IPv4-mapped ::ffff:5.0.0.11:443.
+    fn fake_proc(name: &str) -> String {
+        let root = std::env::temp_dir().join(format!("heimdall-conn-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(root.join("net")).unwrap();
+        std::fs::write(root.join("net/tcp"), "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n   0: 0100007F:C000 0A000005:01BB 01 00000000:00000000 00:00000000 00000000  1000        0 777 1 0000000000000000 20 4 30 10 -1\n   1: 0100007F:C001 0100007F:223D 01 00000000:00000000 00:00000000 00000000  1000        0 778 1 0000000000000000 20 4 30 10 -1\n").unwrap();
+        std::fs::write(root.join("net/tcp6"), "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n   0: 0000000000000000FFFF00000100007F:C002 0000000000000000FFFF00000B000005:01BB 01 00000000:00000000 00:00000000 00000000  1000        0 888 1 0000000000000000 20 4 30 10 -1\n").unwrap();
+        let pid = root.join("4242");
+        std::fs::create_dir_all(pid.join("fd")).unwrap();
+        std::os::unix::fs::symlink("socket:[777]", pid.join("fd/5")).unwrap();
+        std::os::unix::fs::symlink("socket:[888]", pid.join("fd/6")).unwrap();
+        std::fs::write(pid.join("comm"), "curl\n").unwrap();
+        std::fs::write(pid.join("cgroup"), "0::/user.slice/user-1000.slice/user@1000.service/lapp_demo.slice/x.scope\n").unwrap();
+        root.to_string_lossy().into_owned()
+    }
+
+    fn poll(w: &mut ConnWatcher, root: &str) -> Vec<Event> {
+        let all = read_tables(&[format!("{root}/net/tcp"), format!("{root}/net/tcp6")]).unwrap();
+        let (ev, err) = w.observe(&all);
+        assert!(err.is_none(), "{err:?}");
+        ev
+    }
+
+    /// Go: TestConnWatcherLearnsThenReportsNew, with the IPv4-mapped socket.
+    #[test]
+    fn learns_then_reports_new_like_go() {
+        let root = fake_proc("learn");
+        let state = format!("{root}/state.json");
+        let policy = format!("{root}/policy.json");
+        std::fs::write(&policy, r#"{"rules":{"1000":{"demo":"block"}}}"#).unwrap();
+        let mut w = ConnWatcher::new(&root, &state, &policy);
+        let ev = poll(&mut w, &root);
+        assert_eq!(ev.len(), 2, "first poll: {:?}", ev.iter().map(|e| &e.text).collect::<Vec<_>>());
+        let f = &ev[0].fields;
+        for (k, v) in
+            [("process", "curl"), ("app", "demo"), ("remote_addr", "5.0.0.10"), ("remote_port", "443"), ("learning", "1"), ("blocked", "1")]
+        {
+            assert_eq!(f.get(k).map(String::as_str), Some(v), "{k}");
+        }
+        assert_eq!(ev[1].fields["remote_addr"], "5.0.0.11", "an IPv4-mapped address is written as IPv4, as Go's net.IP does");
+        assert!(poll(&mut w, &root).is_empty(), "a known connection must not be reported again");
+        // a restart keeps the memory and is no longer learning
+        assert!(poll(&mut ConnWatcher::new(&root, &state, &policy), &root).is_empty(), "state was not kept");
+        std::fs::remove_file(format!("{root}/4242/fd/5")).unwrap();
+        std::os::unix::fs::symlink("socket:[999]", format!("{root}/4242/fd/5")).unwrap();
+        // owner now unknown: a new (process, destination) pair, and no longer learning
+        let ev = poll(&mut ConnWatcher::new(&root, &state, &policy), &root);
+        assert_eq!(ev.len(), 1);
+        assert_eq!((ev[0].fields["process"].as_str(), ev[0].fields["pid"].as_str()), ("unknown", "0"));
+        assert!(!ev[0].fields.contains_key("learning"));
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// The switch hands the Go daemon's connections-state.json to this one: its keys (written by Go's json.Marshal of a map,
+    /// in map order, "process|address|port" with Go's address text) are what this daemon knows, so nothing is reported again
+    /// and the first poll is not a learning one.
+    #[test]
+    fn reads_the_go_daemons_learned_destinations() {
+        let root = fake_proc("handover");
+        let state = format!("{root}/connections-state.json");
+        std::fs::write(&state, r#"{"known":["curl|5.0.0.11|443","unknown|192.0.2.1|80","curl|5.0.0.10|443"]}"#).unwrap();
+        let mut w = ConnWatcher::new(&root, &state, "");
+        assert!(poll(&mut w, &root).is_empty(), "a destination in Go's state was reported again");
+        std::fs::write(format!("{root}/net/tcp"), "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n   0: 0100007F:C000 0C000005:01BB 01 00000000:00000000 00:00000000 00000000  1000        0 777 1 0000000000000000 20 4 30 10 -1\n").unwrap();
+        let ev = poll(&mut w, &root);
+        assert_eq!(ev.len(), 1);
+        assert_eq!(ev[0].fields["remote_addr"], "5.0.0.12");
+        assert!(!ev[0].fields.contains_key("learning"), "with Go's state the watcher is not learning");
+        let saved = std::fs::read_to_string(&state).unwrap();
+        for k in ["curl|5.0.0.10|443", "curl|5.0.0.11|443", "curl|5.0.0.12|443", "unknown|192.0.2.1|80"] {
+            assert!(saved.contains(k), "{k} not kept in {saved}");
+        }
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
     #[test]
     fn scripts_like_go() {
         let a = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
