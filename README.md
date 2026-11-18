@@ -163,6 +163,13 @@ metadata removed). Speech and everything above 2 kHz are kept. Both are the pack
 Labyrinth OS and LykanOS install has, with or without Heimdall. A Rust rewrite of
 [flyover-scrub](https://github.com/lizTheDeveloper/flyover-scrub) (MIT).
 
+### Disguise my voice ([docs/VOICE_DISGUISE.md](docs/VOICE_DISGUISE.md))
+
+Off by default. On, the private microphone (after the scrub) shifts my voice's pitch and formants, with a little variation
+per session, so it is not recognised at a casual listen: `heimdall-private-mic disguise lower|higher|off` (Settings >
+Security > Privacy), or `heimdall-scrub --disguise lower IN OUT` for a file. Light signal processing (TD-PSOLA): 32 ms added,
+0.7 % of a desktop core. A determined listener can partly undo it; it never claims more.
+
 ### The privacy pack ([docs/PRIVACY_PACK.md](docs/PRIVACY_PACK.md))
 
 Files that give you away, on by default. **The downloads guard** (`heimdall-fileguard`, a user service) watches the download
