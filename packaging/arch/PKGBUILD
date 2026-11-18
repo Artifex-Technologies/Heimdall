@@ -6,7 +6,8 @@ pkgdesc="Heimdall -- security agent monitoring Sarina for prompt injection, cred
 arch=('x86_64')
 url="https://github.com/Artifex-Technologies/Heimdall"
 license=('MPL2')
-depends=('glibc' 'curl' 'gzip' 'python' 'iproute2' 'iw' 'networkmanager' 'dnsmasq' 'nftables')
+# (no curl or gzip: the downloads are the Rust heimdalld's own, docs/RUST_CLI.md, "Shell programs")
+depends=('glibc' 'python' 'iproute2' 'iw' 'networkmanager' 'dnsmasq' 'nftables')
 optdepends=('heimdall-yara-check-git: YARA-X'"'"'s exact compile check and slow-pattern warnings for YARA rule drafts')
 makedepends=('go' 'git')
 provides=('heimdall')

@@ -19,6 +19,7 @@ d=${1:?usage: packaging/install.sh DESTDIR [private-mic|multilink|yara-check]}
 part=${2:-heimdall}
 p=packaging
 i() { install -D -m "$1" "$2" "$d/$3"; }
+l() { mkdir -p "$d/$(dirname "$2")"; ln -sfn "$1" "$d/$2"; }
 
 if [ "$part" = private-mic ]; then
   # every install of Labyrinth OS and LykanOS gets this, with or without Heimdall
@@ -66,6 +67,16 @@ fi
 [ "$part" = heimdall ] || { echo "packaging/install.sh: unknown part $part" >&2; exit 2; }
 
 i 755 heimdalld                                  usr/bin/heimdalld
+# The programs that were shell scripts (heimdall-intel-update, heimdall-dns-blocklist, heimdall-enable-defaults, the
+# dispatcher 91-heimdall-netid) are the Rust heimdalld under their names: links to it (docs/RUST_CLI.md, "Shell programs").
+# Only the Rust heimdalld answers to them (stage 1 of the switch, docs/RUST_SWITCH.md): started as heimdall-dns-blocklist
+# without arguments it prints that program's usage and nothing else; anything else stops the build here, so a package
+# never ships links to the Go binary.
+l heimdalld                                      usr/bin/heimdall-dns-blocklist
+if ! "$d/usr/bin/heimdall-dns-blocklist" 2>/dev/null | grep -q '^heimdall-dns-blocklist: block known'; then
+  echo "install.sh: usr/bin/heimdalld is not the Rust heimdalld, which the shell programs' links need: merge this with stage 1 of the switch (docs/RUST_SWITCH.md)" >&2
+  exit 1
+fi
 i 644 LICENSE                                    usr/share/licenses/heimdall/LICENSE
 # MITRE's terms for the ATT&CK table compiled into heimdalld (docs/ATTACK.md)
 i 644 NOTICE-ATTACK                              usr/share/licenses/heimdall/NOTICE-ATTACK
@@ -96,7 +107,7 @@ i 644 $p/arch/limbo-integration.conf.example     etc/heimdall/limbo-integration.
 i 644 $p/arch/heimdall-firewall.conf.example     usr/lib/systemd/system/heimdall.service.d/firewall.conf
 
 # threat lists, the security tracker and the IP databases (downloaded daily, used offline)
-i 755 $p/arch/heimdall-intel-update              usr/bin/heimdall-intel-update
+l heimdalld                                      usr/bin/heimdall-intel-update
 i 644 $p/arch/heimdall-intel-update.service      usr/lib/systemd/system/heimdall-intel-update.service
 i 644 $p/arch/heimdall-intel-update.timer        usr/lib/systemd/system/heimdall-intel-update.timer
 
@@ -104,7 +115,8 @@ i 644 $p/arch/heimdall-intel-update.timer        usr/lib/systemd/system/heimdall
 i 755 $p/arch/heimdall-wifi-check                usr/bin/heimdall-wifi-check
 i 644 $p/arch/heimdall-wifi-check@.service       usr/lib/systemd/system/heimdall-wifi-check@.service
 i 755 $p/net/dispatcher.d/90-heimdall-wifi       usr/lib/NetworkManager/dispatcher.d/90-heimdall-wifi
-i 755 $p/net/dispatcher.d/91-heimdall-netid      usr/lib/NetworkManager/dispatcher.d/91-heimdall-netid
+# (NetworkManager follows a link to a root-owned program and starts it under the link's name)
+l /usr/bin/heimdalld                             usr/lib/NetworkManager/dispatcher.d/91-heimdall-netid
 
 # the device list of trusted home networks (every 5 minutes; Settings > Wi-Fi & Network > Devices; docs/DEVICES.md)
 i 644 $p/arch/heimdall-lan-scan.service          usr/lib/systemd/system/heimdall-lan-scan.service
@@ -124,7 +136,7 @@ i 644 $p/net/units/heimdall-wifi-discoverable-off@.service usr/lib/systemd/syste
 i 644 docs/WIFI_TRUST.md                         usr/share/doc/heimdall/WIFI_TRUST.md
 
 # the DNS block list (NetworkManager's local DNS cache refuses malware, phishing and scam domains)
-i 755 $p/net/heimdall-dns-blocklist              usr/bin/heimdall-dns-blocklist
+# (usr/bin/heimdall-dns-blocklist: the link made beside heimdalld above)
 i 644 $p/net/heimdall-dns.conf                   usr/lib/NetworkManager/conf.d/heimdall-dns.conf
 i 644 $p/net/heimdall-blocklist.conf             etc/NetworkManager/dnsmasq.d/heimdall-blocklist.conf
 i 644 $p/net/heimdall-rebind.conf                etc/NetworkManager/dnsmasq.d/heimdall-rebind.conf
@@ -139,5 +151,5 @@ i 644 $p/net/user-units/heimdall-wifi-notify.path    usr/lib/systemd/user/heimda
 i 644 $p/net/user-units/heimdall-wifi-notify.service usr/lib/systemd/user/heimdall-wifi-notify.service
 
 # switched on by itself on a fresh install (never again on upgrades, so the owner's choices stay)
-i 755 $p/net/heimdall-enable-defaults            usr/bin/heimdall-enable-defaults
+l heimdalld                                      usr/bin/heimdall-enable-defaults
 i 644 $p/net/heimdall-install.hook               usr/share/libalpm/hooks/heimdall-install.hook
