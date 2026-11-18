@@ -2,7 +2,7 @@
 
 The daemon (`heimdalld run`) is ported (`docs/RUST_PORT.md`). This is the rest of the Go heimdalld, so that the Go binary
 can go at the switch (`docs/RUST_SWITCH.md`): every subcommand of `cmd/heimdalld`, and the helpers the package ships that are
-Go or Python today.
+Go, Python or shell today.
 
 Until a command is ported, the Rust `heimdalld` hands it to the Go one kept beside it (`/usr/lib/heimdall/heimdalld-go`) with
 the same arguments; a ported one is answered by Rust (`rust/heimdall/src/cli/`).
@@ -42,12 +42,16 @@ The same as the daemon's port:
 | Labyrinth `labyrinth-scan-downloads`, `labyrinth-security-setting` | `heimdalld scan-files --state FILE PATH` | `INFECTED PATH: SIGNATURE` lines; exit codes 0, 1, 2 |
 | Labyrinth `labyrinth-agent` | `heimdalld maintenance on --for 15m --reason ...`, `maintenance off|status` | the exit code |
 | Sarina `go/reverse/netmap.go` | `heimdalld origin IP...` | `IP  ORIGIN` lines (two spaces) |
-| `heimdall-intel-update` | `heimdalld ipdb-check FILE`, `heimdalld intel-check list|tracker|kernel ...` | the exit code |
+| `heimdall-intel-update` (until the switch; the port calls the checks in its own process) | `heimdalld ipdb-check FILE`, `heimdalld intel-check list|tracker|kernel ...` | the exit code |
 | units | `lan scan` (timer, 5 min), `immunity inventory` (timer, daily), `immunity run-requests` and `contain run-request` (path units) | the exit code, the journal |
 | NetworkManager's dispatcher (`90-heimdall-wifi` starts `heimdall-wifi-check@UUID.service`, sandboxed, as heimdall) | `heimdall-wifi-check --uuid UUID` | nothing; the daemon reads its `results.jsonl` and `current.json`, the notification its `last.json` |
 | NetworkManager's dispatcher (`pre-up.d/50-heimdall-wifi-guard` waits for it; `50-heimdall-wifi-guard` starts it with `systemd-run`) | `heimdall-wifi-guard pre-up|up|down IFACE UUID` | nothing; it acts (nft, nmcli, systemctl) and writes its state and `last.json` |
 | me, in a terminal | `heimdall-wifi-guard status|trust|untrust|vpn-import|vpn-remove|sign-in|ruleset-check` | the text and exit code |
 | my session (`heimdall-wifi-notify.path`, a user unit) | `heimdall-wifi-notify` | nothing; it calls `notify-send` |
+| units (timers, daily) | `heimdall-intel-update` (as heimdall), `heimdall-dns-blocklist update`, then `apply` as root | the exit code, the journal |
+| the pacman hook `heimdall-install.hook` (first install; LykanOS's image build), Labyrinth's `bootfinish` | `heimdall-enable-defaults [--force]` | the exit code |
+| NetworkManager's dispatcher (root, every connection event) | `91-heimdall-netid IFACE ACTION` | nothing; the daemon's router watch reads `/run/heimdall-net/netid.jsonl` |
+| me, in a terminal | `heimdall-dns-blocklist status|test|allow` | the text and exit code |
 
 The Wi-Fi helpers have no callers in the sibling repositories (Yggdrasil, Labyrinth, LykanOS, Sarina, Limbo were searched
 on 2026-11-11): Settings' Wi-Fi checks run `heimdalld wifi-health`, and `heimdalld lan scan` reads the guard's trusted
@@ -58,11 +62,12 @@ list (`/etc/heimdall/wifi-trusted.json`), which keeps its form.
 | Group | Commands | State | Proof |
 | --- | --- | --- | --- |
 | lan | `lan scan`, `lan list` | **done** | `tests/cli_lan.rs`: cli-lan.json (4,091 cases), 19 `lan list` runs, 11 `lan scan` runs without a scan, and a whole scan of a made-up network in network namespaces (output, devices.json, events.jsonl and every question sent equal to Go's); fuzz targets `lan_dns`, `lan_answer` and the Kani harness body exhaustively on small messages (`tests/lan_fuzz.rs`) |
-| intel | `ipdb-check`, `intel-check`, `origin`, `kernel-check`, `heimdall-intel-update` | the four commands **done**; `heimdall-intel-update` stays the shell script that calls them | `tests/cli_intel.rs`: 80 runs against Go in fake roots (kernel lists of 1,300+ made-up records byte for byte, zip and zip64) |
+| intel | `ipdb-check`, `intel-check`, `origin`, `kernel-check` | **done** | `tests/cli_intel.rs`: 80 runs against Go in fake roots (kernel lists of 1,300+ made-up records byte for byte, zip and zip64) |
 | immunity | `immunity ...`, `scan-files` | **done** | `tests/cli_immunity.rs`: 73 steps of both binaries on two copies of one made-up system, the store, ClamAV's folder, the user's files (owners, modes, times) and every tool called compared after each step |
 | contain and admin | `contain ...`, `maintenance`, `grant`, `remote` | **done** | `tests/cli_admin.rs`: 135 differential runs, 447 fixture cases; `tests/cli_contain.rs`: 16 runs of `contain now|emergency|run-request|release` in their own process and network namespaces, a real containment of a made-up Sarina included |
 | Wi-Fi | `wifi-health` | **done** | cli-wifi.json: 3,361 parser cases and 160 whole reports byte for byte; 19 runs of both binaries in fake roots with a made-up Wi-Fi, the speed test over TLS included |
 | Wi-Fi helpers | `heimdall-wifi-check`, `heimdall-wifi-guard`, `heimdall-wifi-notify` (Python) | **done** (2026-11-11); installed as links on branch `wifi-helpers-rust`, not merged | `tests/cli_wifitools.rs`: 493 runs of the Python program and the port in fake roots (check 64 on made-up networks, guard 375, notify 54); `tests/wifitools_python.rs`: 36,988 parser cases against Python itself; 6 fuzz targets |
+| shell programs | `heimdall-intel-update`, `heimdall-dns-blocklist`, `heimdall-enable-defaults`, `91-heimdall-netid` (shell) | **done** (2026-11-18); installed as links on branch `shell-tools-rust`, not merged | `tests/cli_shtools.rs`: 97 runs of the script and the port in fake roots, the downloads from HTTPS servers on loopback (below) |
 | trust, mesh, scan | `trust ...`, `scan`, `mesh ...` | **done** | `tests/cli_trust.rs`: 155 fixture cases (trust 96, mesh 59), 67 steps; `tests/cli_scan.rs`: 21 steps; `tests/cli_mesh.rs`: 44 steps; all against Go |
 | basics | `version`, `help`, unknown commands, `__write-as-owner` | **done** | `tests/cli.rs` against Go |
 
@@ -135,8 +140,7 @@ Not 1:1:
   `kernel_vulns` among them); the port then uses the default list path.
 - `intel-check kernel`: two records with the same id are kept in the archive's order (Go's sort is not stable; the daemon
   reads both either way).
-- `heimdall-intel-update` is not ported: it stays the shell script (curl and the checks above), which the package already
-  ships; porting it means an HTTPS client or curl from Rust for no gain in what runs (it runs once a day for seconds).
+- `heimdall-intel-update`, which runs these checks on every download, is ported with the other shell programs (below).
 
 ## immunity
 
@@ -402,6 +406,127 @@ Not 1:1, on purpose or where nothing reads the difference:
   authorities trusted are OpenSSL's: its default file and the hashed names in its default folder.
 - No HTTP proxy from the environment (the check's unit has none; urllib would honour `http_proxy`); a redirect to `ftp://`
   is no answer (urllib would try the FTP server).
+
+## Shell programs
+
+`heimdall-intel-update` (the daily downloads: threat lists, Arch's tracker, the kernel's CVE list, the IP databases),
+`heimdall-dns-blocklist` (the DNS block list), `heimdall-enable-defaults` (the first-install hook) and NetworkManager's
+dispatcher `91-heimdall-netid` (the lease each connection got, for the router watch) were the package's last programs in
+shell. Their ports are `rust/heimdall/src/cli/shtools/` (`intel_update.rs`, `dnsblock.rs`, `enable_defaults.rs`, `netid.rs`),
+on three small modules that do what the scripts left to other programs: `fetch.rs` (curl's download), `gunzip.rs`
+(`gzip -dc`) and `coreutils.rs` (`mkdir -p`, `mktemp -d`, `mv -f`, `cp`, `find -mtime`, `sort -u`, `wc -l`, `tail -n`, with
+GNU's error lines).
+
+**The shape:** as the Wi-Fi helpers: the same `heimdalld`, started under the program's name (`cli::tool`; `cli::is_tool`
+also knows `91-heimdall-netid`, the dispatcher's file name, which NetworkManager starts it as). `heimdall-intel-update` runs
+the checks (`ipdb-check`, `intel-check`) in its own process instead of starting `heimdalld` again. No crate was added.
+
+**The download** (`fetch.rs`) is what curl did with the scripts' flags, `-fsSL --proto '=https' --tlsv1.2 --max-time 300
+--max-filesize N` (200 MB for intel-update, 100 MB for the block lists), and nothing more:
+
+- the same URLs, no other destination; https only, the first address and every redirect (a redirect to `http://` or `ftp://`
+  is refused with curl's words); redirects of 300, 301, 302, 303, 307 and 308 followed, at most 50, a Location resolved as
+  curl resolves it; the IPinfo token's Authorization header sent only to the first host, scheme and port, as curl does
+  (a redirect to a storage host does not get it: tested);
+- TLS 1.2 or 1.3 with rustls (the daemon's, for the mesh and the Wi-Fi checks); the authorities curl reads
+  (`$CURL_CA_BUNDLE`, else `$SSL_CERT_FILE` and `$SSL_CERT_DIR`, else `/etc/ssl/certs/ca-certificates.crt`); the host name
+  checked first, then the chain, each refusal in curl's words (`SSL: no alternative certificate subject name matches target
+  hostname '...'`, `SSL certificate OpenSSL verify result: certificate has expired (10)`, self-signed (18), unknown authority
+  (20)) with curl's paragraph after it;
+- 300 seconds for everything: the name lookup (in a thread, so the limit holds), the connection (curl's happy eyeballs: the
+  other address family joins after 200 ms), the handshake, every redirect and the body; curl's words when it runs out;
+- the size limit as curl applies it: a Content-Length over it is refused before anything is written (`(63) Maximum file
+  size exceeded`); a body without one is written up to the limit and then refused;
+- `-f`: a status of 400 or more fails with `(22) The requested URL returned error: N` and writes nothing;
+- the file as curl writes it (opened at the first byte of the body, 0666 less the umask; an empty body still makes an
+  empty file; what arrived before a failure stays) and curl's exit codes and lines for a name that does not resolve (6), a
+  refused connection (7), a body cut short (18), a response that is not HTTP (1), an empty reply (52), a disk that fills
+  (23);
+- the request curl sends over HTTP/1.1: `GET`, `Host`, `User-Agent: curl/8.23.0`, `Accept: */*`, then the Authorization
+  header. The servers get what they got from the script; a User-Agent naming Heimdall would mark every computer running it.
+
+Why not curl from Rust: rustls does what these downloads need (TLS 1.2 and 1.3, the system's authorities, the host
+name), and what differs (below) is wording or cases none of these servers is in. The program no longer needs curl or
+gzip installed.
+
+**Fixed in the scripts too (2026-11-18), so the port matches the fixed scripts:**
+
+- `heimdall-dns-blocklist` ran its text steps in the system's language. With a UTF-8 language (the services get the
+  system's), sed's `.` stops at a byte that is not UTF-8, so `evil.example # comment` with such a byte in the comment kept
+  the comment and lost the domain; one zero byte anywhere made grep call the whole list binary and keep none of it; and
+  `sort` ordered the block file by the language's rules. Both now run with `LC_ALL=C` and `grep -a`: bytes, the same on
+  every computer.
+- `heimdall-dns-blocklist`: a disk that filled while the block file was written could put a block file cut short in place
+  of the good one (a cut last line blocks a different name). The lines are now counted first: `the block file could not
+  be written in full; the last good block file stays`, exit 1.
+- `heimdall-dns-blocklist allow` rebuilt the list where `set -e` does not hold; a failed `mktemp` left the temporary folder's
+  name empty and the steps after it wrote into `/`. It now stops there.
+- `heimdall-intel-update` sets `LC_ALL=C` as well, so the tools' messages in the journal are the same whatever the system's
+  language (and the port can match them).
+
+Proof: `tests/cli_shtools.rs` runs the script (`packaging/...`, mounted under its installed name, with the real curl,
+gzip and coreutils, and the Rust `heimdalld` as its `heimdalld`) and the port in two copies of the same fake root, and
+compares standard output and error, the exit code, every file under the folders the program writes (modes, and groups
+for netid), every request the servers got (the request line and headers but the User-Agent), and every call of a fake
+tool (`nmcli`, `systemctl`, `systemd-detect-virt`; curl in the port's root is a fake that would record a call). The
+internet is HTTPS servers on loopback addresses in a network namespace of the run's own
+(`rust/parity/harness/fetch-net.py`), the real names pointed at them by the fake root's `/etc/hosts`, certificates from a
+test authority the fake root trusts and some it does not:
+
+- **intel-update** (35 runs): everything answering (DB-IP this month, chunked and close-delimited bodies), last good
+  copies to compare with, fresh files (the kernel list under six days, a database under 25: not fetched) and the two
+  `FORCE` switches, the IPinfo token (sent, redirected to a storage host without it, refused, junk, empty, a folder,
+  elsewhere), DB-IP last month's file, none, gzip that is not gzip, cut short, with a wrong CRC, with trailing garbage,
+  in two members, not a database; lists refused by the checks or shrunk too far against the last copy; bodies cut short
+  (with and without TLS's close_notify), an empty reply, a reply that is not HTTP; HTTP errors; redirects (relative,
+  `../`, scheme-relative, to `http://`, to `ftp://`, a loop of 51, an empty Location); a Content-Length over the limit and
+  one at it; four kinds of refused certificate; names that do not resolve and refused connections; nothing reachable;
+  the folders elsewhere, empty variables, not writable (as a user), a file or a folder in the way; a full disk.
+- **dns-blocklist** (44 runs): `update` on a fresh system and over an earlier one, one list down, a refused
+  certificate, both down with and without last copies, lists too small, cut short, redirected, hostile (zero bytes, bytes
+  that are not UTF-8, dnsmasq directives), the minimum raised, folders and the allow list elsewhere, the allow list a
+  folder, no downloads (`HEIMDALL_DNS_SKIP_FETCH`), not writable, the block file's name a folder, a full disk when the
+  block file is written; `status` (none, as a user, odd files, the cache on); `test` (blocked, exact, not, empty, newlines,
+  a name that makes grep see two patterns, no block file); the usage; `apply` and `allow` as a user, with NetworkManager
+  reloading well, failing (its exit code), breaking name lookups (the block file set aside after ten seconds) and offline;
+  `allow` with upper case, a hosts line, two lines, not a domain, nothing, a new allow file, one without its last newline,
+  too few names to rebuild.
+- **the text steps** (`dns_lines_as_the_script`): 33,000 made-up lines of every odd kind (addresses before names with
+  every kind of space, comments, zero bytes, bytes that are not UTF-8, Unicode spaces, labels at the length limits) and
+  3,000 real-looking ones with odd tails, in both lists and in the allow list, through the scripts' sed, tr, grep, sort and
+  awk and through the port: the same block file and lists (`HEIMDALL_PROP_SEED` for other seeds).
+- **enable-defaults** (9 runs): first install, `defaults-off` (also as a broken link) with and without `--force`, units
+  that cannot be enabled, a running system (started too) and a chroot (only enabled), no systemctl.
+- **91-heimdall-netid** (8 runs): each action, a VPN (no `device`), values with quotes and junk, long names and values cut
+  to length, the file cut to its last 200 lines past 64 KiB, the folders elsewhere, no arguments.
+
+Not 1:1:
+
+- Failures inside TLS (a handshake refused, a connection closed without TLS's close_notify): curl prints OpenSSL's words
+  (`curl: (56) OpenSSL SSL_read: OpenSSL/4.1.0: error:0A000126:...`); the port gives the same error number in rustls's
+  words. A server offering only TLS 1.2 cipher suites rustls does not have (CBC, RSA key exchange) is refused by the port
+  and taken by curl; none of these servers does that (all speak TLS 1.3).
+- HTTP/2: curl asked for it where the server offered it (these all do); the port speaks HTTP/1.1, the same request.
+- A certificate naming the host only in its common name (no subjectAltName): curl accepts it, rustls does not. Public
+  authorities have put the name in subjectAltName since 2017.
+- A full disk or a body cut at the size limit: curl's "passed N returned M" and "with N bytes" follow the pieces each
+  program writes (compared with the numbers taken out); on a full disk the tools' own lines come from different steps
+  (compared without them; the exit code and the files left are the same).
+- Not read: `~/.curlrc` and proxies from the environment (`https_proxy`, `ALL_PROXY`); the units have neither.
+- gzip: only gzip's own format (GNU gzip also unpacks `compress`, `pack` and one-file zip archives given as `.gz`).
+- `HEIMDALL_DNS_MIN` must be a number (the script evaluated bash arithmetic: `0x10`, `010` in octal, a variable's name);
+  it exists for tests.
+- Lines from bash itself (a redirection that fails, `wc` on a file `status` cannot read) carry the script's line number;
+  the port's line for those names what failed. Not reached by the units (root's folders).
+- `HEIMDALL_INTEL_DIR` with spaces or `*` in it: the script split the CISA file's path (`$kev` unquoted); the port passes
+  it whole.
+- enable-defaults without `systemd-detect-virt`: sh printed "not found" (and treated it as not a chroot, as the port does,
+  silently).
+- An argument that is not UTF-8 is read with U+FFFD where it breaks (as for the Wi-Fi helpers); interface names and
+  domain names are ASCII.
+- The dispatcher shims `50-heimdall-wifi-guard`, `pre-up.d/50-heimdall-wifi-guard` and `90-heimdall-wifi` stay shell: each
+  only cleans NetworkManager's values and starts the Wi-Fi guard or check (already Rust) with `exec`, so a port would be
+  the same `exec`; and the guard's two shims share one file name, so a link could not tell them apart.
 
 ## trust, mesh, scan
 

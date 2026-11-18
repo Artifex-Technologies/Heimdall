@@ -23,7 +23,7 @@ fn main() -> ExitCode {
     let args: Vec<String> = std::env::args_os().map(|a| a.to_string_lossy().into_owned()).collect();
     // started by a helper's name (a link to this program, after the switch): that helper
     let name = args.first().map(|a| a.rsplit('/').next().unwrap_or(a).to_string()).unwrap_or_default();
-    if name.starts_with("heimdall-") {
+    if heimdall::cli::is_tool(&name) {
         return match heimdall::cli::tool(&name, &args[1..]) {
             Some(code) => ExitCode::from(code as u8),
             None => {

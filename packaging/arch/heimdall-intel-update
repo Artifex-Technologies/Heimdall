@@ -18,6 +18,8 @@
 # as the heimdall user. A source that fails keeps its last good file.
 set -euo pipefail
 umask 027
+# the tools' messages in the journal are the same on every computer, whatever its language
+export LC_ALL=C
 
 dir=${HEIMDALL_IPDB_DIR:-/var/lib/heimdall/ipdb}
 intel=${HEIMDALL_INTEL_DIR:-/var/lib/heimdall/intel}

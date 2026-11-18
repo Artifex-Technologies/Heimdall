@@ -304,6 +304,28 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-11-18 (8) — The shell programs in Rust; fixes in the DNS block list script (installed as before; Rust on a branch)
+- `heimdall-intel-update`, `heimdall-dns-blocklist`, `heimdall-enable-defaults` and NetworkManager's dispatcher
+  `91-heimdall-netid` are ported: the Rust heimdalld answers to their names (`cli::tool`), proved against the scripts in
+  fake roots, the downloads from HTTPS servers on loopback with the real curl on the script's side (`docs/RUST_CLI.md`,
+  "Shell programs"). The same URLs and no other destination, curl's rules (https only, TLS 1.2 or later, the system's
+  authorities and the host name, 300 seconds, the size limits, `-f`, redirects, the token only to ipinfo.io), files,
+  modes, output and exit codes; no new crate (rustls, as the mesh). The three dispatcher shims that only `exec` the Wi-Fi
+  guard and check stay shell.
+- The package still installs the scripts. The change that installs links to `/usr/bin/heimdalld` instead (the scripts
+  no longer installed, `curl` and `gzip` out of `depends`) is the branch `shell-tools-rust`, to be merged with stage 1 of
+  the switch, after `wifi-helpers-rust`; its `install.sh` refuses to build when `heimdalld` is not the Rust one
+  (`docs/RUST_SWITCH.md`).
+- **Fixed in the installed scripts now:** `heimdall-dns-blocklist` runs its text steps in the C locale with `grep -a` (a
+  list with a zero byte, or a byte that is not UTF-8 in a comment, no longer loses names; the block file is sorted by
+  bytes, so the next update rewrites it in that order); a block file cut short by a full disk never replaces the good one;
+  `allow` stops when its temporary folder cannot be made. `heimdall-intel-update` sets `LC_ALL=C` too (its tools' lines
+  in the journal in the same words on every computer).
+- **For Labyrinth OS / LykanOS (heimdall-git; nothing to change now):** at stage 1 the recipe builds the Rust binary (as
+  already planned); `heimdall-enable-defaults` (Labyrinth's bootfinish, LykanOS's image build, `--force`), the units and
+  the hook keep their paths, output and exit codes. **For Yggdrasil:** game time's unit names are unchanged.
+— Signed: Heimdall / Claude Opus 5.5
+
 ### 2026-11-18 (7) — URLhaus's ClamAV feed removed (owner's decision)
 - **Why:** abuse.ch now serves URLhaus's exports only with a personal Auth-Key (account per user, not-for-profit terms), so every
   computer would need its owner's own abuse.ch account. I decided on 2026-11-18 not to use the feed; entry (2) is removed whole.

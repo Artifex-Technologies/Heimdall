@@ -17,6 +17,7 @@ pub mod maintenance;
 pub mod mesh;
 pub mod remote;
 pub mod scan;
+pub mod shtools;
 pub mod trust;
 pub mod wifihealth;
 pub mod wifitools;
@@ -62,12 +63,24 @@ pub fn dispatch(cmd: &str, args: &[String]) -> Option<i32> {
 /// as; None for any other name.
 pub fn tool(name: &str, args: &[String]) -> Option<i32> {
     match name {
-        "heimdall-intel-update" => intel::update_tool(args),
+        "heimdall-intel-update" => Some(shtools::intel_update::main(args)),
+        "heimdall-dns-blocklist" => Some(shtools::dnsblock::main(args)),
+        "heimdall-enable-defaults" => Some(shtools::enable_defaults::main(args)),
+        DISPATCHER_NETID => Some(shtools::netid::main(args)),
         "heimdall-wifi-check" => wifitools::wifi_check(args),
         "heimdall-wifi-guard" => wifitools::wifi_guard(args),
         "heimdall-wifi-notify" => wifitools::wifi_notify(args),
         _ => None,
     }
+}
+
+/// NetworkManager's dispatcher that records each lease (its file name in /usr/lib/NetworkManager/dispatcher.d, which
+/// orders it among the others).
+pub const DISPATCHER_NETID: &str = "91-heimdall-netid";
+
+/// Whether this program, started under `name` (a link's name), is one of the helpers rather than heimdalld.
+pub fn is_tool(name: &str) -> bool {
+    name.starts_with("heimdall-") || name == DISPATCHER_NETID
 }
 
 /// Go's usage text (cmd/heimdalld's `usage`), printed to standard error.

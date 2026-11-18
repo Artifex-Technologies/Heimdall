@@ -11,6 +11,8 @@
 
 #![allow(dead_code)]
 
+pub mod intel_data;
+
 use std::collections::BTreeMap;
 use std::io::{Read, Write};
 use std::os::unix::fs::{MetadataExt, PermissionsExt};

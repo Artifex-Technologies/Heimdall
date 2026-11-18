@@ -16,8 +16,12 @@ A plan, not done. The Go daemon stays in charge until every item under "Before" 
   leaves the build entirely. The Rust `heimdalld` still hands a command it does not know to that path when the file is
   there (`main.rs`, tested in `tests/run.rs`), which after stage 2 never happens: an unknown command gets Go's own
   "unknown command" message and exit code 2.
-- Still not Rust, and not needing the Go binary: `heimdall-intel-update` (shell; curl and the checks above),
-  `heimdall-dns-blocklist` and `heimdall-enable-defaults` (shell).
+- The shell programs `heimdall-intel-update`, `heimdall-dns-blocklist`, `heimdall-enable-defaults` and NetworkManager's
+  dispatcher `91-heimdall-netid` are ported (2026-11-18, `docs/RUST_CLI.md`, "Shell programs"): the Rust `heimdalld`
+  answers to their names. The package change that installs them as links to `/usr/bin/heimdalld`, the scripts no longer
+  installed, is on the branch `shell-tools-rust` (below), pushed and not merged: its links need `/usr/bin/heimdalld` to be
+  the Rust binary, so it goes in **with stage 1**, never before. The three dispatcher shims (`50-heimdall-wifi-guard`, its
+  `pre-up.d` twin, `90-heimdall-wifi`) stay shell: they only `exec` the Wi-Fi guard and check.
 - The Wi-Fi helpers `heimdall-wifi-check`, `heimdall-wifi-guard`, `heimdall-wifi-notify` are ported (2026-11-11,
   `docs/RUST_CLI.md`, "Wi-Fi helpers"): the Rust `heimdalld` answers to their names (`cli::tool`). The package change that
   installs them as links, with the Python programs kept as the fallback, is on the branch `wifi-helpers-rust` (below),
@@ -127,6 +131,27 @@ Made in the same commit as the switch, not before (a package built from it insta
   `sudo ln -sfn /usr/lib/heimdall/python/heimdall-wifi-guard /usr/bin/heimdall-wifi-guard` (likewise `-check`,
   `-notify`); fully: the previous package from pacman's cache.
 
+**The shell programs (branch `shell-tools-rust`, merged at stage 1):**
+
+- `packaging/install.sh`: `/usr/bin/heimdall-intel-update`, `heimdall-dns-blocklist` and `heimdall-enable-defaults` are links
+  to `heimdalld` (beside it in `/usr/bin`), `/usr/lib/NetworkManager/dispatcher.d/91-heimdall-netid` a link to
+  `/usr/bin/heimdalld` (NetworkManager follows a link to a root-owned program and starts it under the link's name). The
+  scripts are no longer installed. Before making the links, `install.sh` starts the installed `heimdalld` as
+  `heimdall-dns-blocklist` (it prints its usage, nothing else) and stops the build if the answer is not the Rust program's:
+  merged before stage 1, the package fails to build rather than ship links to the Go binary.
+- `depends` loses `curl` and `gzip` (nothing else in the package uses them). The units, the pacman hook and the other
+  dispatcher scripts are unchanged: they call the same paths.
+- The scripts stay in the repository as the reference `tests/cli_shtools.rs` runs the port against (like the Go sources),
+  and as the rollback below.
+- `packaging/tests/test_install_shell_tools.py` runs `install.sh` into a temporary folder: the links resolve to
+  `/usr/bin/heimdalld`, the program behind them sees each name, no script is installed, the units and the hook call the
+  same paths, and the build stops when `heimdalld` is not the Rust one.
+- Rollback of one program (lasts until the next package upgrade): `sudo install -m755
+  ~/Documents/Github/Heimdall/packaging/net/heimdall-dns-blocklist /usr/bin/heimdall-dns-blocklist` (likewise
+  `packaging/arch/heimdall-intel-update`, `packaging/net/heimdall-enable-defaults`, and
+  `packaging/net/dispatcher.d/91-heimdall-netid` into `/usr/lib/NetworkManager/dispatcher.d/`; the scripts need `curl` and
+  `gzip`, which every Arch install has); fully: the previous package from pacman's cache.
+
 **Stage 2 (a week after the switch, when nothing went back to Go):** the Go binary goes.
 
 - `makedepends`: drop `go`. `build()`: only the cargo line. `packaging/install.sh`: drop the `heimdalld-go` line (the
@@ -138,6 +163,12 @@ Made in the same commit as the switch, not before (a package built from it insta
 
 ```bash
 cd ~/Documents/Github/Heimdall && git pull
+# 0. stage 1 is one step: the stage-1 commit (above) and both branches merged on top of it, in this order
+git merge --no-ff origin/wifi-helpers-rust     # the Wi-Fi helpers as links (in install.sh, point them at heimdalld and
+                                               # drop the second copy, /usr/lib/heimdall/heimdalld-rs, as described above)
+git merge --no-ff origin/shell-tools-rust      # the shell programs as links to heimdalld
+(cd rust && scripts/nicecargo.sh test --offline) && python3 -m unittest discover -s packaging/tests -p 'test_*.py'
+git push
 # 1. the shadow daemon off (it must not run beside the daemon in charge)
 sudo systemctl disable --now heimdall-shadow
 # 2. build and install the package (Labyrinth's heimdall-git), keeping the old one in pacman's cache for the rollback
@@ -154,6 +185,16 @@ heimdalld lan list | head -3                               # a one-shot command,
 sudo systemctl start heimdall-lan-scan.service; journalctl -u heimdall-lan-scan -n 5 --no-pager   # the scan under its sandbox
 sudo systemctl start heimdall-inventory.service; journalctl -u heimdall-inventory -n 3 --no-pager  # "inventory: N programs"
 heimdalld contain status; heimdalld trust status | head -3; heimdalld wifi-health --json | head -c 200; echo
+# the shell programs, now links (branch shell-tools-rust)
+ls -l /usr/bin/heimdall-{intel-update,dns-blocklist,enable-defaults} /usr/lib/NetworkManager/dispatcher.d/91-heimdall-netid
+heimdall-dns-blocklist status; heimdall-dns-blocklist test example.org      # the same lines as before; "is not blocked"
+sudo systemctl start heimdall-dns-blocklist.service; journalctl -u heimdall-dns-blocklist -n 8 --no-pager
+                                                           # "N domains blocked", "DNS cache reloaded ...; names resolve"
+sudo systemctl start heimdall-intel-update.service; journalctl -u heimdall-intel-update -n 20 --no-pager
+                                                           # each list "N entries", nothing "not updated" (it fetches only
+                                                           # what is due: the timer would run it today anyway)
+ls -l /var/lib/heimdall/intel /var/lib/heimdall/ipdb       # owner heimdall, mode 640, today's times on the lists
+tail -n 1 /run/heimdall-net/netid.jsonl                    # after the next lease renewal or reconnect: a new line
 pid=$(systemctl show -p MainPID --value heimdall)
 grep -E '^(VmRSS|Threads)' /proc/$pid/status; sudo grep -E '^Pss:' /proc/$pid/smaps_rollup
 # 4. tidy the shadow week away
@@ -201,6 +242,9 @@ The state files are the same for both daemons, so going back loses nothing and r
 - [ ] Wi-Fi helpers: branch `wifi-helpers-rust` merged with stage 1 or later; `test_install_layout.py` passes; the checks
       above (the check under its unit on a real network, the guard's status, the notification), and once the guard on an
       untrusted network with the VPN; a week later, the Python fallbacks can go with stage 2
+- [ ] Shell programs: branch `shell-tools-rust` merged with stage 1 (after `wifi-helpers-rust`);
+      `test_install_shell_tools.py` passes; the checks above (the links, `status`, both units' journals, the files'
+      owners and modes, a new line in `netid.jsonl`)
 - [ ] Stage 2, a week later: the package stops building Go (`makedepends` without `go`, `install.sh` without
       `heimdalld-go`); Coordination Log entry
 - [ ] A day later: no `integration` alerts from the daemon itself; CPU over the day; then the shadow leftovers removed

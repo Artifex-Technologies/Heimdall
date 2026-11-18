@@ -2,8 +2,8 @@
 //! subject names, the validity and the key identifiers. A small reader of the DER of X.509 (RFC 5280); anything it cannot
 //! read is simply not known (`None`), never a panic.
 
-/// One TLV: (tag, contents, the rest after it).
-fn tlv(b: &[u8]) -> Option<(u8, &[u8], &[u8])> {
+/// One TLV: (tag, contents, the rest after it). Also read by curl's name check in `cli::shtools::fetch`.
+pub fn tlv(b: &[u8]) -> Option<(u8, &[u8], &[u8])> {
     let (&tag, rest) = b.split_first()?;
     let (&l0, mut rest) = rest.split_first()?;
     let len = if l0 < 0x80 {

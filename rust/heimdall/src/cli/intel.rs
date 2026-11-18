@@ -562,8 +562,3 @@ fn pad(s: &str, n: usize) -> String {
         format!("{s}{}", " ".repeat(n - c))
     }
 }
-
-/// `heimdall-intel-update`: stays the shell script (packaging/arch/heimdall-intel-update) that calls the checks above.
-pub fn update_tool(_args: &[String]) -> Option<i32> {
-    None
-}
