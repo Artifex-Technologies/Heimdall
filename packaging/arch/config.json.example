@@ -33,7 +33,6 @@
   "sarina_url": "http://127.0.0.1:8899",
   "sarina_cwd": "/var/lib/heimdall",
   "sarina_analysis": "ask",
-  "urlhaus_clamav": true,
 
   "baseline_min_samples": 20,
   "baseline_z_threshold": 3.0

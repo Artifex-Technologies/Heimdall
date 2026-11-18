@@ -1,5 +1,5 @@
 [Unit]
-Description=Heimdall -- fetch IP databases, threat lists, the security tracker and URLhaus's ClamAV signatures (used offline)
+Description=Heimdall -- fetch IP databases, threat lists and the security tracker (used offline)
 Documentation=https://github.com/Artifex-Technologies/Heimdall
 Wants=network-online.target
 After=network-online.target
@@ -9,10 +9,6 @@ Type=oneshot
 User=heimdall
 Group=heimdall
 ExecStart=/usr/bin/heimdall-intel-update
-# "+": this one step runs as root, outside the sandbox below and without the network part: it reads back the URLhaus
-# signatures the download kept, lets only signature lines through, and puts them into ClamAV's folder owned like ClamAV's own
-# files (heimdall cannot write there); with "urlhaus_clamav": false in /etc/heimdall/config.json it removes them
-ExecStartPost=+/usr/bin/heimdall-intel-update install-clamav
 # a background download and check: the smallest share of a busy computer (it also waits for games, Yggdrasil's game time)
 Nice=10
 CPUWeight=20

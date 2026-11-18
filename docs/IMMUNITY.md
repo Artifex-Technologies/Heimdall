@@ -88,41 +88,6 @@ against its hash, from one root-only folder into another. Disk use is bounded by
 The guest that tried to hand the file out is also restricted (`limbo-exchange` on `exchange.held` triggers the same Limbo
 quarantine as a network probe; approved 2026-11-05).
 
-## URLhaus: known malware addresses (built 2026-11-18)
-
-ClamAV's own signatures are about files. URLhaus (abuse.ch) lists the addresses that spread malware right now and publishes
-them as ClamAV signatures, so a downloaded document, script or mail that carries one of those addresses is flagged by the
-scans that already run (the downloads watch, Settings' scan, `heimdalld scan-files`, Limbo's exchange, `immunity hold`). It is
-on by default (my decision, 2026-11-18), download only: the whole export is fetched once a day, and no address or file of this
-computer is ever asked about.
-
-- **The key.** abuse.ch serves its exports only to an account (free for not-for-profit use, sign-in at
-  [auth.abuse.ch](https://auth.abuse.ch/)); without its Auth-Key the download is skipped and nothing else changes. Once:
-  ```
-  sudo install -m 0640 -o root -g heimdall /dev/stdin /etc/heimdall/abusech-auth-key   # paste the key, then Ctrl+D
-  sudo systemctl start heimdall-intel-update.service                                    # or wait for the daily run
-  ```
-  The key goes in the address's path (abuse.ch's exports take it nowhere else). curl reads the address from its standard
-  input, so the key is not in the process list, and the script never prints the address.
-- **Off:** `"urlhaus_clamav": false` in `/etc/heimdall/config.json`. The next run downloads nothing and takes the signatures out
-  of ClamAV's folder. Anything else (missing, `true`, a damaged config) leaves it on.
-- **Download (as heimdall, in its sandbox).** `heimdall-intel-update` fetches
-  `https://urlhaus-api.abuse.ch/v2/files/exports/<key>/urlhaus_clamav.ndb` (at most 50 MB) and keeps only lines that are plain
-  ClamAV body signatures (`name:target:offset:hex`) of at least 8 literal bytes: a hostile or broken file cannot add other
-  signature kinds or a pattern so short it matches everywhere. It is refused, and the last good copy
-  (`/var/lib/heimdall/intel/urlhaus.ndb`) stays, when it holds fewer than 500 signatures, when more than a tenth of its lines are
-  not signatures (the format changed), when it shrank to under a quarter of the last copy, or when ClamAV cannot load it
-  (`clamscan -d` with only this file, when ClamAV is installed).
-- **Install (as root).** The unit's `ExecStartPost=+heimdall-intel-update install-clamav` copies the last good file without
-  following a link, lets only signature lines through again, and replaces `/var/lib/clamav/heimdall-urlhaus.ndb` in one rename,
-  owned like ClamAV's own files and readable by everyone (scans run as each user). An unchanged file is not rewritten.
-  clamd picks it up at its next database check; `clamscan` at its next start.
-- **What a match looks like:** `URLhaus.<name>.UNOFFICIAL` (ClamAV adds `.UNOFFICIAL` to every signature that is not its own).
-  Like any ClamAV finding it counts as malware: a file Heimdall holds becomes a reference entry.
-- **Limits.** A signature matches the address's text anywhere in a file, so a file that merely names such an address (a saved
-  report, a mail about it) is flagged too: read the finding before acting on it. Remembered scans of unchanged files are not
-  redone when these signatures change (they change daily); new and changed files are scanned with them.
-
 ## Sarina's analysis (built 2026-11-17)
 
 I approved this on 2026-11-17 (Ghidra BSim followed on 2026-11-18: "Similar programs" below). Heimdall may ask Sarina to read a held file with her

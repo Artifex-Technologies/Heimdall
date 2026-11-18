@@ -304,6 +304,22 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-11-18 (7) — URLhaus's ClamAV feed removed (owner's decision)
+- **Why:** abuse.ch now serves URLhaus's exports only with a personal Auth-Key (account per user, not-for-profit terms), so every
+  computer would need its owner's own abuse.ch account. I decided on 2026-11-18 not to use the feed; entry (2) is removed whole.
+- **Removed:** in `packaging/arch/heimdall-intel-update` the URLhaus download, the key file (`/etc/heimdall/abusech-auth-key`),
+  the signature filter and checks, and the `install-clamav` root step; the unit's `ExecStartPost=+... install-clamav` and its
+  description; `"urlhaus_clamav"` in `config.json.example`; `packaging/tests/test_heimdall_intel_update.py` (it held only the
+  URLhaus tests); the README, `docs/IMMUNITY.md` ("URLhaus") and `docs/AUDITS.md` lines. These files are back to their state
+  before 3ee28c9.
+- **Kept:** `heimdall-dns-blocklist`'s URLhaus hosts list from malware-filter (keyless, CC0), unchanged. `docs/REFERENCES.md`
+  keeps the URLhaus row for it, with the licence note and a line that the ClamAV feed was tried and dropped.
+- **No cleanup step:** no installed build ever had the feature (the heimdall-git on my PC was built before 3ee28c9), so no
+  machine has `/var/lib/clamav/heimdall-urlhaus.ndb` or `/var/lib/heimdall/intel/urlhaus.ndb`.
+- **For Labyrinth OS / LykanOS:** no key page or `urlhaus_clamav` switch to offer. **For Limbo / Sarina:** no `URLhaus.*` ClamAV
+  findings; nothing else changes.
+— Signed: Heimdall / Claude Opus 5.5
+
 ### 2026-11-18 (6) — Disguise my voice, phase 1: light DSP on the private microphone and in files (R18)
 - **What** (my decision 8, Labyrinth_OS `docs/REFERENCE_PLAN_2026-11.md`; DSP first, any later neural phase only to synthetic
   voices that belong to nobody): `rust/scrub/src/disguise.rs`, TD-PSOLA with resampled grains (pitch and formants, independent)
@@ -426,7 +442,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   the technique and links MITRE's page).
 — Signed: Heimdall / Claude Opus 5.5
 
-### 2026-11-18 (2) — URLhaus's ClamAV signatures in heimdall-intel-update (R5 phase 1)
+### 2026-11-18 (2) — URLhaus's ClamAV signatures in heimdall-intel-update (R5 phase 1) (removed the same day; see 2026-11-18 (7))
 - `heimdall-intel-update` downloads URLhaus's ClamAV URL signatures daily (`https://urlhaus-api.abuse.ch/v2/files/exports/<key>/urlhaus_clamav.ndb`,
   download only, never a per-URL or per-hash question) when an abuse.ch Auth-Key is in `/etc/heimdall/abusech-auth-key`
   (root:heimdall 0640); without one it says so and skips. Switch: `"urlhaus_clamav"` in `/etc/heimdall/config.json`, on unless
