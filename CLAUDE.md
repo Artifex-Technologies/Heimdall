@@ -288,6 +288,20 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-11-18 — Sarina's analysis asks for similar programs (Ghidra BSim) when her library exists
+- `heimdalld immunity analyze --sarina` (and the `auto` requests): when `/var/lib/sarina/.local/share/labyrinth/rea-work/bsim/library.mv.db`
+  is a plain file (her service's similarity library, a Ghidra BSim database made once at setup), the request gains a fifth
+  point: run `reverse_engineer` with the command `similar` (Sarina 2290596) and copy the closest programs and functions
+  with their scores; the kept analysis records `similar: true` (`sarina_analysis.similar`, additive, omitted when false).
+  Nothing else changes: same session, same one tool, same bounds. Go: `internal/immunity/sarina.go` (`DefaultSarinaLibrary`,
+  `SarinaJob.Library`, `similarAsk`); Rust: `cli/immunity/sarina.rs` (`DEFAULT_LIBRARY`, `Job.library`, `similar_ask`),
+  `immunity.rs` (the field).
+- Tests: Go `TestSarinaComparesOnlyWhileTheSimilarityLibraryIsThere` (none, a folder in its place, a file); Rust
+  `immunity_sarina_analysis_as_go` gains the same steps, both binaries in fake roots against the scripted Sarina: the
+  prompts sent and the files kept are the same, the folder asks nothing more, the file asks for `similar`.
+- **CONTRACT (Sarina):** her `reverse_engineer` command `similar` (Sarina `docs/ECOSYSTEM.md` §4d, its log 2026-11-18 (2)).
+— Signed: Heimdall / Claude Opus 5.5
+
 ### 2026-11-17 (3) — Heimdall asks Sarina to analyse a held file (approved 2026-11-17; BSim later)
 - New: `sudo heimdalld immunity analyze --sarina SHA256`, and with `sarina_analysis: "auto"` a request queued after each new
   hold ClamAV does not know (hold, take-limbo, run-requests' take), run by `heimdall-requests.service` after the other requests,

@@ -25,6 +25,9 @@ const (
 	// DefaultSarinaShare is where a sample is lent while Sarina analyses it. Sarina's service account sees it as
 	// /quarantine (its labyrinth quarantine folder is a link to it; docs/IMMUNITY.md). root's, readable by the sarina group.
 	DefaultSarinaShare = "/var/lib/heimdall-sarina-share"
+	// DefaultSarinaLibrary is the similarity library of Sarina's service account (a Ghidra BSim database of the programs
+	// it analysed before; Labyrinth docs/REA.md). Made once at setup; while it is there she is asked to compare.
+	DefaultSarinaLibrary = "/var/lib/sarina/.local/share/labyrinth/rea-work/bsim/library.mv.db"
 	// SarinaInside is that folder as Sarina's sandbox shows it.
 	SarinaInside = "/quarantine"
 	// DefaultSarinaWait bounds a whole analysis (Ghidra takes minutes on a large program).
@@ -45,6 +48,9 @@ type SarinaAnalysis struct {
 	// RuleDraft is the YARA rule draft made from her answer (heimdalld immunity rule show ID): not active until tested
 	// and approved.
 	RuleDraft string `json:"rule_draft,omitempty"`
+	// Similar: the similarity library was there, so she was asked to compare the file with the programs analysed before
+	// (her reverse_engineer command similar); what it found is in Output, with the rest of her reading.
+	Similar bool `json:"similar,omitempty"`
 }
 
 // Analyst asks Sarina (response.Sarina.Analyse: a session with only reverse_engineer, verified).
@@ -59,6 +65,7 @@ type SarinaJob struct {
 	Trigger string
 	Rules   *Rules        // nil: a rule in the answer is not kept
 	Wait    time.Duration // 0: DefaultSarinaWait
+	Library string        // the similarity library's file ("": none); she compares only while it is a plain file
 }
 
 // ErrSarinaBusy: Sarina analyses one held file at a time.
@@ -85,6 +92,10 @@ func (s Store) AnalyseWithSarina(ctx context.Context, sha string, j SarinaJob) (
 	}
 	defer unlock()
 	a := SarinaAnalysis{Time: time.Now().UTC().Truncate(time.Second), Trigger: j.Trigger}
+	if j.Library != "" {
+		fi, err := os.Stat(j.Library)
+		a.Similar = err == nil && fi.Mode().IsRegular()
+	}
 	inside, takeBack, err := s.lend(e.SHA256, j.Share)
 	if err != nil {
 		a.Status, a.Error = "failed", clipText("the file could not be lent to Sarina's sandbox: "+err.Error(), maxSarinaError)
@@ -94,7 +105,7 @@ func (s Store) AnalyseWithSarina(ctx context.Context, sha string, j SarinaJob) (
 			wait = DefaultSarinaWait
 		}
 		cctx, cancel := context.WithTimeout(ctx, wait)
-		out, err := j.Analyst.Analyse(cctx, SarinaPrompt(e, inside))
+		out, err := j.Analyst.Analyse(cctx, SarinaPrompt(e, inside, a.Similar))
 		cancel()
 		takeBack()
 		if err != nil {
@@ -183,8 +194,9 @@ func shareWithSarina(path string, mode os.FileMode) {
 
 // SarinaPrompt asks for the analysis. The file's facts are fenced and declared untrusted (its name and the reason it was
 // held can come from an attacker), and so is everything the file itself contains. The instruction cannot make a steered
-// answer impossible, which is why the answer is only ever evidence the owner reads.
-func SarinaPrompt(e Entry, inside string) string {
+// answer impossible, which is why the answer is only ever evidence the owner reads. With similar, she also compares the
+// file with the programs analysed before (the similarity library) and copies what that found.
+func SarinaPrompt(e Entry, inside string, similar bool) string {
 	facts, _ := json.MarshalIndent(map[string]any{
 		"file": inside, "sha256": e.SHA256, "size": e.Size, "kind": e.Kind,
 		"held_from": e.Original, "held_because": e.Reason, "held_by": e.Source,
@@ -202,8 +214,19 @@ func SarinaPrompt(e Entry, inside string) string {
 		"(services, autostart entries, cron, shell profiles).\n" +
 		"4. A YARA rule draft in a ```yara block: one rule named Heimdall_ and a short name, built only from strings or " +
 		"bytes the analysis showed, with a condition, without import or include. The owner tests it before anything uses it.\n" +
+		similarAsk(similar) +
 		"Say what you did not verify.\n\n" +
 		"<<<UNTRUSTED FILE FACTS\n" + string(facts) + "\nEND UNTRUSTED FILE FACTS>>>"
+}
+
+// similarAsk is the prompt's fifth point when the similarity library is there.
+func similarAsk(similar bool) string {
+	if !similar {
+		return ""
+	}
+	return "5. Similar programs: run reverse_engineer with the command similar on the file, then copy the closest programs " +
+		"and functions it lists, with their scores, exactly as shown (this list does not count toward the 400 words). A match " +
+		"is a hint that code is shared, not proof of the same origin; say which matching functions you decompiled.\n"
 }
 
 // YARAFromAnswer is the first fenced block of the answer (```yara or a plain ```) that holds a rule with a condition, or

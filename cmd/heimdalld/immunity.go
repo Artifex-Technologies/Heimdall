@@ -516,7 +516,8 @@ func askSarina(st immunity.Store, sha, trigger string) int {
 	}
 	client.SetTimeout(immunity.DefaultSarinaWait)
 	rules := ruleDrafts()
-	a, err := st.AnalyseWithSarina(context.Background(), sha, immunity.SarinaJob{Share: immunity.DefaultSarinaShare, Analyst: client, Trigger: trigger, Rules: &rules})
+	a, err := st.AnalyseWithSarina(context.Background(), sha, immunity.SarinaJob{Share: immunity.DefaultSarinaShare, Analyst: client, Trigger: trigger, Rules: &rules,
+		Library: immunity.DefaultSarinaLibrary})
 	if err != nil {
 		return fail(err)
 	}

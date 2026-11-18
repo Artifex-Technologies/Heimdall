@@ -57,6 +57,7 @@ pub static SARINA_ANALYSIS: Ty = Ty::Struct(
         Field("output", &Ty::Str, true),
         Field("error", &Ty::Str, true),
         Field("rule_draft", &Ty::Str, true),
+        Field("similar", &Ty::Bool, true),
     ],
 );
 /// One held sample (Go: immunity.Entry).

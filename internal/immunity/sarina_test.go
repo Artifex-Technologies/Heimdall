@@ -221,3 +221,43 @@ func TestQueueSarina(t *testing.T) {
 		t.Fatal("only a full lowercase SHA-256")
 	}
 }
+
+// The similarity library (a Ghidra BSim database of the programs analysed before): only while it is a plain file is she
+// asked to compare (her reverse_engineer command similar), and the kept analysis says she was; what she found is in her
+// answer with the rest. A folder or a missing file in its place asks nothing more.
+func TestSarinaComparesOnlyWhileTheSimilarityLibraryIsThere(t *testing.T) {
+	s, e := heldForSarina(t)
+	share := filepath.Join(t.TempDir(), "share")
+	lib := filepath.Join(t.TempDir(), "library.mv.db")
+	answer := "1. A shell script.\n5. Similar programs: 1. 0123abcd.sample: 6 of 8 functions, best 1.000"
+	ask := func() (*analyst, SarinaAnalysis) {
+		a := &analyst{share: share, answer: answer}
+		got, err := s.AnalyseWithSarina(context.Background(), e.SHA256, SarinaJob{Share: share, Analyst: a, Library: lib})
+		if err != nil || got.Status != "done" {
+			t.Fatal(got, err)
+		}
+		return a, got
+	}
+	a, got := ask()
+	if got.Similar || strings.Contains(a.prompt, "similar") {
+		t.Fatalf("no library, yet asked to compare: %v\n%s", got.Similar, a.prompt)
+	}
+	_ = os.Mkdir(lib, 0o755)
+	if a, got = ask(); got.Similar || strings.Contains(a.prompt, "similar") {
+		t.Fatal("a folder in the library's place is not a library")
+	}
+	_ = os.Remove(lib)
+	_ = os.WriteFile(lib, []byte("h2"), 0o640)
+	a, got = ask()
+	if !got.Similar || !strings.Contains(a.prompt, "5. Similar programs: run reverse_engineer with the command similar on the file") ||
+		!strings.Contains(a.prompt, "not proof of the same origin") || strings.Index(a.prompt, "5. Similar") > strings.Index(a.prompt, "<<<UNTRUSTED") {
+		t.Fatalf("library there: %v\n%s", got.Similar, a.prompt)
+	}
+	es, _ := s.Load()
+	if es[0].Sarina == nil || !es[0].Sarina.Similar || es[0].Sarina.Output != answer {
+		t.Fatalf("%+v", es[0].Sarina)
+	}
+	if b, _ := json.Marshal(es[0].Sarina); !strings.Contains(string(b), `"similar":true`) {
+		t.Fatalf("%s", b)
+	}
+}

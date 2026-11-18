@@ -621,6 +621,7 @@ fn ask_sarina(st: &Store, sha: &str, trigger: &str) -> i32 {
         trigger: trigger.to_string(),
         rules: Some(&rules),
         wait: std::time::Duration::ZERO,
+        library: sarina::DEFAULT_LIBRARY.to_string(),
     };
     let a = match sarina::analyse_with_sarina(st, sha, &job) {
         Ok(a) => a,

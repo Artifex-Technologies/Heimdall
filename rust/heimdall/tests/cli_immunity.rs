@@ -598,6 +598,34 @@ fn immunity_sarina_analysis_as_go() {
     p.step(&["immunity", "hold", "--reason", "x", "/home/owner/Downloads/ünïcode name.txt"], &root);
     let uni = p.sha("/home/owner/Downloads/ünïcode name.txt");
     assert!(p.rg.host(&format!("/var/lib/heimdall-requests/sarina-{}.json", &uni[..16])).exists(), "\"auto\" queues a new hold");
+    // the similarity library is there (Sarina's service made it once): she is also asked to compare, and the kept
+    // analysis says she was; a folder in its place is no library
+    for r in [&p.rg, &p.rr] {
+        r.write("/var/lib/sarina/.local/share/labyrinth/rea-work/bsim/library.mv.db/x", "not a library");
+    }
+    sarina.script(r#"{"session_id":"s-4","tools":1}"#, r#"{"final_output":"A text file.","stop_reason":"completed"}"#);
+    p.step(&["immunity", "analyze", "--sarina", &notes], &root);
+    let seen = sarina.take_same("a folder is no library");
+    assert!(seen.len() == 4 && !seen[1].contains("similar"), "{seen:#?}");
+    let similar = "5. Similar programs: 1. 0123abcd.sample (md5 6d4f): 6 of 8 functions, best 1.000, significance 220.7";
+    for r in [&p.rg, &p.rr] {
+        std::fs::remove_dir_all(r.host("/var/lib/sarina/.local/share/labyrinth/rea-work/bsim/library.mv.db")).unwrap();
+        r.write("/var/lib/sarina/.local/share/labyrinth/rea-work/bsim/library.mv.db", "h2");
+    }
+    sarina.script(r#"{"session_id":"s-5","tools":1}"#, &format!(r#"{{"final_output":"{similar}","stop_reason":"completed"}}"#));
+    let (g, _) = p.step(&["immunity", "analyze", "--sarina", &notes], &root);
+    assert!(g.code == 0 && g.stdout.contains(similar), "{g:?}");
+    let seen = sarina.take_same("library there");
+    assert!(seen.len() == 4 && seen[1].contains("run reverse_engineer with the command similar on the file"), "{seen:#?}");
+    for r in [&p.rg, &p.rr] {
+        let idx: serde_json::Value = serde_json::from_str(&r.read_str("/var/lib/heimdall-immunity/immunity.json")).unwrap();
+        let e = idx.as_array().unwrap().iter().find(|e| e["sha256"].as_str() == Some(&notes)).unwrap();
+        assert_eq!(
+            (e["sarina_analysis"]["similar"].as_bool(), e["sarina_analysis"]["output"].as_str()),
+            (Some(true), Some(similar)),
+            "{e}"
+        );
+    }
     // contained: she is not asked, even by the owner
     for r in [&p.rg, &p.rr] {
         r.write("/etc/heimdall/contained", r#"{"reason":"test"}"#);

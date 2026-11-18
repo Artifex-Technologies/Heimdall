@@ -13,6 +13,9 @@ use std::time::{Duration, Instant};
 
 /// Where a sample is lent while Sarina analyses it (her service account sees it as /quarantine).
 pub const DEFAULT_SHARE: &str = "/var/lib/heimdall-sarina-share";
+/// The similarity library of Sarina's service account (a Ghidra BSim database of the programs it analysed before; Go's
+/// `DefaultSarinaLibrary`). While it is there she is asked to compare.
+pub const DEFAULT_LIBRARY: &str = "/var/lib/sarina/.local/share/labyrinth/rea-work/bsim/library.mv.db";
 /// That folder as Sarina's sandbox shows it.
 pub const INSIDE: &str = "/quarantine";
 /// The whole analysis (Ghidra takes minutes on a large program).
@@ -41,6 +44,8 @@ pub struct Job<'a> {
     pub trigger: String,
     pub rules: Option<&'a crate::immunity::Rules>,
     pub wait: Duration,
+    /// The similarity library's file ("": none); she compares only while it is a plain file.
+    pub library: String,
 }
 
 fn field(a: &Val, k: &str) -> String {
@@ -67,6 +72,8 @@ pub fn analyse_with_sarina(st: &Store, sha: &str, j: &Job) -> Result<Val, String
     let put = |a: &mut Val, k: &str, v: Val| store::set(&SARINA_ANALYSIS, a, k, v);
     put(&mut a, "time", Val::Time(now));
     put(&mut a, "trigger", Val::Str(j.trigger.clone()));
+    let similar = !j.library.is_empty() && std::fs::metadata(&j.library).is_ok_and(|m| m.is_file());
+    put(&mut a, "similar", Val::Bool(similar));
     match lend(st, &full, &j.share) {
         Err(err) => {
             put(&mut a, "status", Val::Str("failed".into()));
@@ -74,7 +81,7 @@ pub fn analyse_with_sarina(st: &Store, sha: &str, j: &Job) -> Result<Val, String
         }
         Ok((inside, lent)) => {
             let wait = if j.wait.is_zero() { DEFAULT_WAIT } else { j.wait };
-            let r = j.analyst.analyse(&prompt(&e, &inside), Instant::now() + wait);
+            let r = j.analyst.analyse(&prompt(&e, &inside, similar), Instant::now() + wait);
             let _ = std::fs::remove_file(&lent);
             match r {
                 Err(err) => {
@@ -162,8 +169,8 @@ fn share_with_sarina(path: &str, mode: u32) {
     }
 }
 
-/// Go's `SarinaPrompt`: the request, with the file's facts fenced as untrusted data.
-pub fn prompt(e: &Val, inside: &str) -> String {
+/// Go's `SarinaPrompt`: the request, with the file's facts fenced as untrusted data; with `similar`, the fifth point.
+pub fn prompt(e: &Val, inside: &str, similar: bool) -> String {
     let st = |v: String| Value::String(v);
     // Go's MarshalIndent of a map: the keys sorted
     let facts = Value::Object(vec![
@@ -191,9 +198,21 @@ pub fn prompt(e: &Val, inside: &str) -> String {
          (services, autostart entries, cron, shell profiles).\n\
          4. A YARA rule draft in a ```yara block: one rule named Heimdall_ and a short name, built only from strings or \
          bytes the analysis showed, with a condition, without import or include. The owner tests it before anything uses it.\n\
+         {}\
          Say what you did not verify.\n\n\
-         <<<UNTRUSTED FILE FACTS\n{j}\nEND UNTRUSTED FILE FACTS>>>"
+         <<<UNTRUSTED FILE FACTS\n{j}\nEND UNTRUSTED FILE FACTS>>>",
+        similar_ask(similar)
     )
+}
+
+/// Go's `similarAsk`: the prompt's fifth point when the similarity library is there.
+fn similar_ask(similar: bool) -> &'static str {
+    if !similar {
+        return "";
+    }
+    "5. Similar programs: run reverse_engineer with the command similar on the file, then copy the closest programs \
+     and functions it lists, with their scores, exactly as shown (this list does not count toward the 400 words). A match \
+     is a hint that code is shared, not proof of the same origin; say which matching functions you decompiled.\n"
 }
 
 /// Go's `YARAFromAnswer`: the first fenced block (```yara or a plain ```) holding a rule with a condition, or "".

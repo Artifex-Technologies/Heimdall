@@ -90,7 +90,7 @@ quarantine as a network probe; approved 2026-11-05).
 
 ## Sarina's analysis (built 2026-11-17)
 
-I approved this on 2026-11-17 (Ghidra BSim comes later). Heimdall may ask Sarina to read a held file with her
+I approved this on 2026-11-17 (Ghidra BSim followed on 2026-11-18: "Similar programs" below). Heimdall may ask Sarina to read a held file with her
 `reverse_engineer` tool: REA with Ghidra inside the `labyrinth-rea` sandbox (no network, files read-only, static commands only;
 Labyrinth_OS `docs/REA.md`). Drivers and new malware have no write-ups; reading what they do is how a rule gets written.
 
@@ -121,9 +121,20 @@ is how to let Heimdall ask at once.
 4. The request names the file by its sandbox path and frames the file's facts (hash, size, kind, where it was held from and
    why) as untrusted data: a name or a reason can come from an attacker, and so can every string inside the file.
 5. Her answer is untrusted text. It is kept with the held file (`sarina_analysis` in the index: time, trigger, status, output
-   up to 32 KiB, error, rule draft) and shown labelled as hers. It can never release, delete or run anything; a failure is kept
+   up to 32 KiB, error, rule draft, whether it was compared with the library) and shown labelled as hers. It can never release, delete or run anything; a failure is kept
    too, so I see why there is none. A YARA rule in it (a ```yara block) becomes a rule draft only if it passes the draft checks
    below, and then waits for `rule test` and my approval like any other.
+
+**Similar programs (built 2026-11-18).** When Sarina's service account has a similarity library
+(`/var/lib/sarina/.local/share/labyrinth/rea-work/bsim/library.mv.db`: a Ghidra BSim database of every program it analysed
+before, made once at setup; Labyrinth_OS `docs/REA.md`), the request asks one thing more: run `reverse_engineer` with the
+command `similar` and copy the closest programs and functions it lists, with their scores. That command compares the held
+file's functions with the library inside the same sandbox (nothing is run) and then adds the file, so the next held file
+can be matched against it ("shares three functions with `<sha256>.sample` at 1.000"). Held files are named by their SHA-256
+there, so a match points at a held file `heimdalld immunity list` shows, with its ClamAV name or its own analysis. The kept
+analysis records `similar: true`; what she found is in her answer with the rest, untrusted like it: a match is a hint
+that code is shared (a common library matches too), not proof of the same family. Only a plain file counts as the
+library; without one the request is as before.
 
 Her session is written to her session folder like any other, so Heimdall's own watch reads it too (strings from a sample can
 look like an injection there: that is evidence, not her doing).
