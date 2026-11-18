@@ -77,6 +77,8 @@ const (
 	CodeServerError  = "sarina_server_error"
 	CodeBackendError = "sarina_backend_error"
 	CodeBusy         = "sarina_busy"
+	// CodeToolsMismatch: an analysis session (reverse_engineer only) was not confirmed as exactly that one tool.
+	CodeToolsMismatch = "sarina_contract_tools_mismatch"
 
 	maxReply          = 1 << 20 // largest HTTP body read from Sarina
 	maxDetail         = 200     // bytes of a service error message quoted back
@@ -119,8 +121,45 @@ func (s *Sarina) AdviseBacklog(ctx context.Context, summary string) (string, err
 	return s.consult(ctx, BuildBacklogPrompt(summary))
 }
 
+// AnalysisTool is the one tool an analysis session has: Sarina's sandboxed, static reverse_engineer.
+const AnalysisTool = "reverse_engineer"
+
+// maxAnalysis bounds what is accepted back from an analysis (the immunity store keeps it with the held file).
+const maxAnalysis = 32 << 10
+
+// Analyse asks Sarina for a static analysis of a held file in a session whose ONLY tool is reverse_engineer (her REA tool
+// in the labyrinth-rea sandbox: no network, files read-only, static commands only, paths outside the analysis folder and
+// the quarantine refused). Nothing is sent unless the service confirms the session has exactly one tool: an older service
+// ignores the allowlist, and a service without the tool switched on would give her none. The answer is untrusted text for
+// the owner; it is never acted on. The session is closed on every path; nothing is retried but a refused connection.
+func (s *Sarina) Analyse(ctx context.Context, prompt string) (string, error) {
+	return s.consultIn(ctx, prompt, analysisSession)
+}
+
+// SetTimeout sets how long one call to the service may take (an analysis waits for Ghidra: minutes, not seconds).
+func (s *Sarina) SetTimeout(d time.Duration) { s.http.Timeout = d }
+
+// sessionSpec is what a consultation's session may have and how long it may run.
+type sessionSpec struct {
+	allowlist      []string
+	maxTurns       int
+	timeoutSeconds int
+	maxToolCalls   int // 0: not sent
+	maxOut         int
+}
+
+var (
+	advisorySession = sessionSpec{allowlist: []string{}, maxTurns: 3, timeoutSeconds: 120, maxOut: maxAdvice}
+	analysisSession = sessionSpec{allowlist: []string{AnalysisTool}, maxTurns: 12, timeoutSeconds: 300, maxToolCalls: 10, maxOut: maxAnalysis}
+)
+
 // consult runs one prompt through a fresh tool-less session.
 func (s *Sarina) consult(ctx context.Context, prompt string) (string, error) {
+	return s.consultIn(ctx, prompt, advisorySession)
+}
+
+// consultIn runs one prompt through a fresh session with exactly the tools of spec.
+func (s *Sarina) consultIn(ctx context.Context, prompt string, spec sessionSpec) (string, error) {
 	var sess struct {
 		SessionID string `json:"session_id"`
 		// Tools is how many tools the session really has. Older services ignore
@@ -128,11 +167,15 @@ func (s *Sarina) consult(ctx context.Context, prompt string) (string, error) {
 		// reported" is distinguishable from 0.
 		Tools *int `json:"tools"`
 	}
-	err := s.post(ctx, "POST", "/v1/sessions", map[string]any{
+	body := map[string]any{
 		"cwd": s.cwd, "allow_shell": false, "allow_write": false,
-		"tool_allowlist": []string{},
-		"max_turns":      3, "timeout_seconds": 120,
-	}, &sess)
+		"tool_allowlist": spec.allowlist,
+		"max_turns":      spec.maxTurns, "timeout_seconds": spec.timeoutSeconds,
+	}
+	if spec.maxToolCalls > 0 {
+		body["max_tool_calls"] = spec.maxToolCalls
+	}
+	err := s.post(ctx, "POST", "/v1/sessions", body, &sess)
 	if err != nil {
 		return "", err
 	}
@@ -147,12 +190,15 @@ func (s *Sarina) consult(ctx context.Context, prompt string) (string, error) {
 	// Trust, but verify: an older service silently ignores tool_allowlist and
 	// would hand a possibly-manipulated model its whole tool set. Refuse unless
 	// the service confirms the session has no tools.
-	if sess.Tools == nil || *sess.Tools != 0 {
+	if sess.Tools == nil || *sess.Tools != len(spec.allowlist) {
 		got := "not reported"
 		if sess.Tools != nil {
 			got = strconv.Itoa(*sess.Tools)
 		}
-		return "", &SarinaError{CodeToolsNonzero, "sarina did not confirm a tool-less session (tools=" + got + "); refusing to send evidence", "upgrade sarina-service to a build that supports tool_allowlist"}
+		if len(spec.allowlist) == 0 {
+			return "", &SarinaError{CodeToolsNonzero, "sarina did not confirm a tool-less session (tools=" + got + "); refusing to send evidence", "upgrade sarina-service to a build that supports tool_allowlist"}
+		}
+		return "", &SarinaError{CodeToolsMismatch, "sarina did not confirm a session with only " + AnalysisTool + " (tools=" + got + "); refusing to send the file", "switch the tool on for sarina-service (SARINA_REVERSE=on in /etc/sarina/service.env, labyrinth-rea set up for its account; docs/IMMUNITY.md)"}
 	}
 	var chat struct {
 		FinalOutput string `json:"final_output"`
@@ -169,7 +215,7 @@ func (s *Sarina) consult(ctx context.Context, prompt string) (string, error) {
 	if strings.TrimSpace(chat.FinalOutput) == "" {
 		return "", &SarinaError{CodeBadResponse, "chat reply has an empty final_output", "check the model server; Sarina answered without text"}
 	}
-	return strings.ToValidUTF8(clip(chat.FinalOutput, maxAdvice), ""), nil
+	return strings.ToValidUTF8(clip(chat.FinalOutput, spec.maxOut), ""), nil
 }
 
 func clip(s string, n int) string {

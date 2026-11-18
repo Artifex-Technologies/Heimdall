@@ -177,6 +177,12 @@ type Config struct {
 	// Heimdall asks her nothing and does not report her session folder as missing; it runs on its own, explaining its alerts with
 	// its built-in text. Checked as Heimdall goes, so installing her later needs no restart.
 	SarinaInstalled string `json:"sarina_installed"`
+	// SarinaAnalysis is the standing permission "Heimdall may ask Sarina to analyse quarantined files" (docs/IMMUNITY.md,
+	// "Sarina's analysis"): "off" (never), "ask" (the default: only when the owner asks, `heimdalld immunity analyze
+	// --sarina`; a new held file is offered to him, not sent), "auto" (also every new held file ClamAV does not know). The
+	// analysis is always static, in her sandbox, and its answer is evidence for the owner, never acted on. Settings reads it
+	// here (this file is readable by all).
+	SarinaAnalysis string `json:"sarina_analysis"`
 
 	// Baseline-drift detector tuning (Phase 5) -- see
 	// detect.NewBaselineDriftDetector. Runs by default on the same
@@ -250,6 +256,7 @@ func Default() Config {
 		LimboAutoQuarantine:      true,
 		SarinaCwd:                "/var/lib/heimdall",
 		SarinaInstalled:          "/usr/bin/sarina",
+		SarinaAnalysis:           "ask",
 
 		BaselineMinSamples: 20,
 		BaselineZThreshold: 3.0,
@@ -321,4 +328,14 @@ func (c Config) ConnPollInterval() time.Duration {
 
 func (c Config) LimboPollInterval() time.Duration {
 	return time.Duration(c.LimboPollIntervalSeconds) * time.Second
+}
+
+// SarinaAnalysisMode is sarina_analysis as one of "off", "ask" and "auto". Anything else is "off": a broken setting narrows
+// what Heimdall may do, never widens it.
+func (c Config) SarinaAnalysisMode() string {
+	switch c.SarinaAnalysis {
+	case "ask", "auto":
+		return c.SarinaAnalysis
+	}
+	return "off"
 }

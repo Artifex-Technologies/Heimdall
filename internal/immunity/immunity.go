@@ -81,6 +81,8 @@ type Entry struct {
 	Report *Report `json:"report,omitempty"`
 	// Analysis: what Limbo found taking it apart in a sealed guest (queued after every hold)
 	Analysis *Analysis `json:"analysis,omitempty"`
+	// Sarina: what Sarina read in it with her sandboxed reverse_engineer tool (sarina.go): untrusted text for the owner
+	Sarina *SarinaAnalysis `json:"sarina_analysis,omitempty"`
 }
 
 // Name is the signature name ClamAV reports.

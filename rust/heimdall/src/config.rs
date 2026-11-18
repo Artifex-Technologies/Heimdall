@@ -62,6 +62,7 @@ pub struct Config {
     pub sarina_token: String,
     pub sarina_cwd: String,
     pub sarina_installed: String,
+    pub sarina_analysis: String,
     pub baseline_min_samples: i64,
     pub baseline_z_threshold: f64,
     pub agent_baseline_state_path: String,
@@ -128,6 +129,7 @@ crate::go_struct!(Config {
     sarina_token: "sarina_token",
     sarina_cwd: "sarina_cwd",
     sarina_installed: "sarina_installed",
+    sarina_analysis: "sarina_analysis",
     baseline_min_samples: "baseline_min_samples",
     baseline_z_threshold: "baseline_z_threshold",
     agent_baseline_state_path: "agent_baseline_state_path",
@@ -209,6 +211,7 @@ impl Default for Config {
             sarina_token: String::new(),
             sarina_cwd: s("/var/lib/heimdall"),
             sarina_installed: s("/usr/bin/sarina"),
+            sarina_analysis: s("ask"),
             baseline_min_samples: 20,
             baseline_z_threshold: 3.0,
             agent_baseline_state_path: s("/var/lib/heimdall/agent-baseline.json"),
@@ -284,6 +287,14 @@ impl Config {
     }
     pub fn conn_poll_interval(&self) -> i64 {
         self.conn_poll_interval_seconds.wrapping_mul(SEC)
+    }
+    /// Go's `SarinaAnalysisMode`: "off", "ask" or "auto"; anything else is "off" (a broken setting narrows, never widens).
+    pub fn sarina_analysis_mode(&self) -> &str {
+        match self.sarina_analysis.as_str() {
+            "ask" => "ask",
+            "auto" => "auto",
+            _ => "off",
+        }
     }
     pub fn limbo_poll_interval(&self) -> i64 {
         self.limbo_poll_interval_seconds.wrapping_mul(SEC)

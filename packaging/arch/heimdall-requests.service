@@ -7,8 +7,9 @@ Type=oneshot
 # root: held files are root's. A request only names a file; the proof is checked here, so no request can release more than the proof
 # covers (and none while Sarina is contained).
 ExecStart=/usr/bin/heimdalld immunity run-requests
-# an analysis in Limbo takes a minute or more (a fresh guest per file, at most two per run)
-TimeoutStartSec=40min
+# an analysis in Limbo takes a minute or more (a fresh guest per file, at most two per run); Sarina's analysis (with
+# sarina_analysis "auto") up to 20 minutes, one per run
+TimeoutStartSec=70min
 # its own work (checking the proof, copying files) takes a small share when the computer is busy; the guest runs under Limbo
 Nice=10
 CPUWeight=20

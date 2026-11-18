@@ -47,6 +47,18 @@ static ANALYSIS: Ty = Ty::Struct(
         Field("error", &Ty::Str, true),
     ],
 );
+/// Sarina's analysis of a held sample (Go: immunity.SarinaAnalysis): untrusted text for the owner.
+pub static SARINA_ANALYSIS: Ty = Ty::Struct(
+    "immunity.SarinaAnalysis",
+    &[
+        Field("time", &Ty::Time, false),
+        Field("trigger", &Ty::Str, false),
+        Field("status", &Ty::Str, false),
+        Field("output", &Ty::Str, true),
+        Field("error", &Ty::Str, true),
+        Field("rule_draft", &Ty::Str, true),
+    ],
+);
 /// One held sample (Go: immunity.Entry).
 pub static ENTRY: Ty = Ty::Struct(
     "immunity.Entry",
@@ -72,6 +84,7 @@ pub static ENTRY: Ty = Ty::Struct(
         Field("copies", &STRS, true),
         Field("report", &Ty::Ptr(&REPORT), true),
         Field("analysis", &Ty::Ptr(&ANALYSIS), true),
+        Field("sarina_analysis", &Ty::Ptr(&SARINA_ANALYSIS), true),
     ],
 );
 pub static ENTRIES: Ty = Ty::Slice(&ENTRY);

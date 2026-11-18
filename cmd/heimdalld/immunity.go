@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -16,6 +18,7 @@ import (
 	"github.com/Artifex-Technologies/Heimdall/internal/config"
 	"github.com/Artifex-Technologies/Heimdall/internal/contain"
 	"github.com/Artifex-Technologies/Heimdall/internal/immunity"
+	"github.com/Artifex-Technologies/Heimdall/internal/response"
 	"github.com/Artifex-Technologies/Heimdall/internal/trust"
 )
 
@@ -33,11 +36,16 @@ func notifyOwner(text string) {
 // sarinaHere says whether Sarina is installed (the configured marker file, by default her program), so messages offer her help only
 // when she is there.
 func sarinaHere() bool {
+	return sarinaInstalled(heimdallConfig())
+}
+
+// heimdallConfig is /etc/heimdall/config.json (the defaults when it cannot be read).
+func heimdallConfig() config.Config {
 	cfg, err := config.Load("/etc/heimdall/config.json")
 	if err != nil {
 		cfg = config.Default()
 	}
-	return sarinaInstalled(cfg)
+	return cfg
 }
 
 func proofFuncs() (func(string, string) bool, func(string) bool) {
@@ -122,6 +130,7 @@ func cmdImmunity(args []string) int {
 		notifyHeld(e)
 		if e.Status == immunity.Held {
 			_ = immunity.QueueAnalysis(RequestDir, e.SHA256)
+			queueSarina(e)
 		}
 		return 0
 	case "take-limbo":
@@ -143,6 +152,7 @@ func cmdImmunity(args []string) int {
 		if err != nil {
 			return fail(err)
 		}
+		queueSarina(e)
 		extra := ""
 		if e.ClamAV != "" {
 			extra = " (ClamAV: " + e.ClamAV + ")"
@@ -180,9 +190,16 @@ func cmdImmunity(args []string) int {
 		fmt.Println("released (" + e.ReleasedBy + "): " + e.Original)
 		return 0
 	case "analyze":
-		// take a kept sample apart in Limbo now (root; holds queue this by themselves)
+		// take a kept sample apart in Limbo now (root; holds queue this by themselves), or with --sarina ask Sarina for a
+		// static analysis with her sandboxed reverse_engineer tool
+		if len(args) == 3 && args[1] == "--sarina" {
+			if !needRoot() {
+				return 2
+			}
+			return askSarina(st, args[2], "owner")
+		}
 		if len(args) != 2 {
-			fmt.Fprintln(os.Stderr, "usage: heimdalld immunity analyze SHA256")
+			fmt.Fprintln(os.Stderr, "usage: heimdalld immunity analyze [--sarina] SHA256")
 			return 2
 		}
 		if !needRoot() {
@@ -309,6 +326,9 @@ func notifyHeld(e immunity.Entry) {
 		what += " (" + e.Reason + "). ClamAV does not know it; you decide (Settings > Security)."
 		if sarinaHere() {
 			what += " Sarina can look at it with you."
+			if heimdallConfig().SarinaAnalysisMode() == "ask" {
+				what += " For her static analysis: sudo heimdalld immunity analyze --sarina " + e.SHA256[:12]
+			}
 		}
 	}
 	notifyOwner(what)
@@ -322,6 +342,10 @@ type request struct {
 	Analyze string `json:"analyze"`
 	// TakeLimbo: keep a copy of a file Limbo held (heimdalld queues one per exchange.held); four per run at most.
 	TakeLimbo string `json:"take_limbo"`
+	// Sarina: have Sarina analyse a new held file (queued after a hold with sarina_analysis "auto"). Anyone could ask, so
+	// root checks the switch itself and takes only a held file ClamAV does not know and Sarina has not looked at; one per
+	// run, after the other requests.
+	Sarina string `json:"sarina"`
 }
 
 // analyzeHeld takes one held sample apart in Limbo, if it has no analysis yet, and tells the owner what it is now ready.
@@ -362,6 +386,7 @@ func runRequests(st immunity.Store) int {
 	_, contained := contain.ReadMarker(contain.MarkerPath)
 	signed, behaviour := proofFuncs()
 	done, analyzed, taken := 0, 0, 0
+	sarinaNext := ""
 	for _, ent := range ents {
 		p := filepath.Join(RequestDir, ent.Name())
 		// opened without following links (anyone can write here), read at most 4 KiB
@@ -388,7 +413,14 @@ func runRequests(st immunity.Store) int {
 					fmt.Fprintln(os.Stderr, "heimdalld immunity: not taken from Limbo:", r.TakeLimbo, err)
 				} else {
 					fmt.Printf("taken from Limbo: %s %s\n", e.Status, e.SHA256)
+					queueSarina(e)
 				}
+			}
+			continue
+		}
+		if r.Sarina != "" {
+			if sarinaNext == "" {
+				sarinaNext = r.Sarina
 			}
 			continue
 		}
@@ -419,6 +451,91 @@ func runRequests(st immunity.Store) int {
 		fmt.Println("released (" + e.ReleasedBy + "): " + e.Original)
 		notifyOwner("Heimdall released " + e.Original + " from quarantine: " + e.ReleasedBy + ". Asked because: " + why)
 	}
+	if sarinaNext != "" {
+		sarinaHeld(st, sarinaNext)
+	}
+	return 0
+}
+
+// newUnknown says whether a held file is one Sarina may be asked about by herself: held (or kept from Limbo), ClamAV does
+// not know it, and she has not looked at it yet.
+func newUnknown(e immunity.Entry) bool {
+	return (e.Status == immunity.Held || e.Status == immunity.Suspect) && e.ClamAV == "" && e.Sarina == nil
+}
+
+// queueSarina leaves a request for Sarina's analysis of a new held file when the owner allows it without asking
+// (sarina_analysis "auto"). Root's run-requests checks everything again: the request only names the file.
+func queueSarina(e immunity.Entry) {
+	if newUnknown(e) && heimdallConfig().SarinaAnalysisMode() == "auto" {
+		_ = immunity.QueueSarina(RequestDir, e.SHA256)
+	}
+}
+
+// sarinaHeld runs a queued request for Sarina's analysis, if the switch still allows it and the file still qualifies.
+func sarinaHeld(st immunity.Store, sha string) {
+	if heimdallConfig().SarinaAnalysisMode() != "auto" {
+		fmt.Fprintln(os.Stderr, "heimdalld immunity: Sarina is not asked by herself (sarina_analysis is not \"auto\"):", sha)
+		return
+	}
+	es, err := st.Load()
+	if err != nil {
+		return
+	}
+	for _, e := range es {
+		if e.SHA256 == sha {
+			if newUnknown(e) {
+				askSarina(st, sha, "auto")
+			}
+			return
+		}
+	}
+}
+
+// askSarina has Sarina analyse a held file now (the owner's `analyze --sarina`, or a queued request): the switch, her
+// presence and containment are checked first; then the sample is lent to her sandbox, she is asked in a session whose only
+// tool is reverse_engineer, and what she said is kept with the held file and shown labelled as hers.
+func askSarina(st immunity.Store, sha, trigger string) int {
+	fail := func(err error) int { fmt.Fprintln(os.Stderr, "heimdalld immunity:", err); return 1 }
+	cfg := heimdallConfig()
+	if cfg.SarinaAnalysisMode() == "off" {
+		return fail(errors.New("Heimdall may not ask Sarina: sarina_analysis is off in /etc/heimdall/config.json (\"ask\" lets you ask her)"))
+	}
+	if cfg.SarinaURL == "" || !sarinaInstalled(cfg) {
+		return fail(errors.New("Sarina is not set up for Heimdall (sarina_url in /etc/heimdall/config.json)"))
+	}
+	if _, contained := contain.ReadMarker(contain.MarkerPath); contained {
+		return fail(errors.New("Sarina is contained: she is not asked until the containment is lifted"))
+	}
+	token := cfg.SarinaToken
+	if token == "" {
+		token = os.Getenv("HEIMDALL_SARINA_TOKEN")
+	}
+	client, err := response.NewSarina(cfg.SarinaURL, token, cfg.SarinaCwd)
+	if err != nil {
+		return fail(err)
+	}
+	client.SetTimeout(immunity.DefaultSarinaWait)
+	rules := ruleDrafts()
+	a, err := st.AnalyseWithSarina(context.Background(), sha, immunity.SarinaJob{Share: immunity.DefaultSarinaShare, Analyst: client, Trigger: trigger, Rules: &rules})
+	if err != nil {
+		return fail(err)
+	}
+	fmt.Printf("Sarina's analysis: %s\n", a.Status)
+	if a.Error != "" {
+		fmt.Println(a.Error)
+	}
+	if a.Output != "" {
+		fmt.Println("--- what Sarina says (her reading of an untrusted file: evidence, not a verdict) ---")
+		fmt.Println(strings.TrimRight(a.Output, "\n"))
+		fmt.Println("---")
+	}
+	if a.RuleDraft != "" {
+		fmt.Printf("her YARA rule is draft %s: sudo heimdalld immunity rule test %s (nothing uses it until you approve it)\n", a.RuleDraft, a.RuleDraft)
+	}
+	if a.Status != "done" {
+		return 1
+	}
+	notifyOwner("Sarina's analysis of a held file is with it (Settings > Security). It is her reading of an untrusted file: evidence, not a verdict.")
 	return 0
 }
 
@@ -444,6 +561,7 @@ heimdalld immunity: malware Heimdall has learned that ClamAV (the reference) doe
   heimdalld immunity suspect --reason WHY FILE  only keep it, for later (root); containments do this with their evidence
   heimdalld immunity confirm SHA256             a held file or suspect is malware: learn it (root)
   heimdalld immunity analyze SHA256             take a kept sample apart in Limbo's sealed machine now (root; holds queue it)
+  heimdalld immunity analyze --sarina SHA256    ask Sarina for a static analysis (root; sarina_analysis "ask" or "auto")
   heimdalld immunity inventory                  look at the programs outside the packages again (root; daily by itself)
   heimdalld immunity list [--json]              held, immune (learned), reference (ClamAV's), released, suspect (root)
   heimdalld immunity forget SHA256              a mistake: remove the sample and its fingerprint (root)

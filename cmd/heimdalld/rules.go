@@ -20,7 +20,8 @@ const ruleUsage = `usage:
   sudo heimdalld immunity rule reject ID            refuse it; an approved rule is removed from ClamAV
 See docs/IMMUNITY.md, "Rules".`
 
-func cmdRule(args []string, st immunity.Store) int {
+// ruleDrafts is the drafts file root works on (HEIMDALL_RULE_DRAFTS and HEIMDALL_RULES_DIR in tests).
+func ruleDrafts() immunity.Rules {
 	r := immunity.DefaultRules()
 	if p := os.Getenv("HEIMDALL_RULE_DRAFTS"); p != "" { // tests
 		r.Path = p
@@ -28,6 +29,11 @@ func cmdRule(args []string, st immunity.Store) int {
 	if d := os.Getenv("HEIMDALL_RULES_DIR"); d != "" {
 		r.RulesDir = d
 	}
+	return r
+}
+
+func cmdRule(args []string, st immunity.Store) int {
+	r := ruleDrafts()
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, ruleUsage)
 		return 2

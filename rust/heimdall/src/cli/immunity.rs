@@ -3,6 +3,7 @@
 
 mod elf;
 mod gomatch;
+pub mod sarina;
 pub mod scan;
 pub mod store;
 
@@ -73,7 +74,15 @@ pub fn notify(summary: &str) {
 
 /// Go's `sarinaHere`.
 fn sarina_here() -> bool {
-    let cfg = crate::config::Config::load_go("/etc/heimdall/config.json").unwrap_or_default();
+    sarina_installed(&heimdall_config())
+}
+
+/// Go's `heimdallConfig`: /etc/heimdall/config.json (the defaults when it cannot be read).
+fn heimdall_config() -> crate::config::Config {
+    crate::config::Config::load_go("/etc/heimdall/config.json").unwrap_or_default()
+}
+
+fn sarina_installed(cfg: &crate::config::Config) -> bool {
     cfg.sarina_installed.is_empty() || std::fs::metadata(&cfg.sarina_installed).is_ok()
 }
 
@@ -96,6 +105,7 @@ const USAGE: &str = "heimdalld immunity: malware Heimdall has learned that ClamA
   heimdalld immunity suspect --reason WHY FILE  only keep it, for later (root); containments do this with their evidence
   heimdalld immunity confirm SHA256             a held file or suspect is malware: learn it (root)
   heimdalld immunity analyze SHA256             take a kept sample apart in Limbo's sealed machine now (root; holds queue it)
+  heimdalld immunity analyze --sarina SHA256    ask Sarina for a static analysis (root; sarina_analysis \"ask\" or \"auto\")
   heimdalld immunity inventory                  look at the programs outside the packages again (root; daily by itself)
   heimdalld immunity list [--json]              held, immune (learned), reference (ClamAV's), released, suspect (root)
   heimdalld immunity forget SHA256              a mistake: remove the sample and its fingerprint (root)
@@ -127,6 +137,10 @@ fn notify_held(e: &Val) {
         what += &format!(" ({}). ClamAV does not know it; you decide (Settings > Security).", s(e, "reason"));
         if sarina_here() {
             what += " Sarina can look at it with you.";
+            if heimdall_config().sarina_analysis_mode() == "ask" {
+                let sha = s(e, "sha256");
+                what += &format!(" For her static analysis: sudo heimdalld immunity analyze --sarina {}", &sha[..sha.len().min(12)]);
+            }
         }
     }
     notify_owner(&what);
@@ -209,6 +223,7 @@ pub fn main(args: &[String]) -> Option<i32> {
             notify_held(&e);
             if s(&e, "status") == store::HELD {
                 let _ = store::queue_analysis(crate::immunity::REQUEST_DIR, &s(&e, "sha256"));
+                queue_sarina(&e);
             }
             Some(0)
         }
@@ -227,6 +242,7 @@ pub fn main(args: &[String]) -> Option<i32> {
             }
             match st.take_from_limbo(&dir, &sha) {
                 Ok(e) => {
+                    queue_sarina(&e);
                     let c = s(&e, "clamav");
                     let extra = if c.is_empty() { String::new() } else { format!(" (ClamAV: {c})") };
                     println!("{} {} {}{extra}", s(&e, "status"), s(&e, "sha256"), s(&e, "original"));
@@ -262,7 +278,13 @@ pub fn main(args: &[String]) -> Option<i32> {
             }
         }
         "analyze" => {
-            let Some(sha) = one("analyze SHA256") else { return Some(2) };
+            if args.len() == 3 && args[1] == "--sarina" {
+                if !need_root() {
+                    return Some(2);
+                }
+                return Some(ask_sarina(&st, &args[2], "owner"));
+            }
+            let Some(sha) = one("analyze [--sarina] SHA256") else { return Some(2) };
             if !need_root() {
                 return Some(2);
             }
@@ -419,6 +441,7 @@ static REQUEST: crate::gostruct::Ty = crate::gostruct::Ty::Struct(
         crate::gostruct::Field("why", &crate::gostruct::Ty::Str, false),
         crate::gostruct::Field("analyze", &crate::gostruct::Ty::Str, false),
         crate::gostruct::Field("take_limbo", &crate::gostruct::Ty::Str, false),
+        crate::gostruct::Field("sarina", &crate::gostruct::Ty::Str, false),
     ],
 );
 
@@ -465,6 +488,7 @@ fn run_requests(st: &Store) -> Option<i32> {
     let contained = crate::contain::read_marker(crate::contain::MARKER_PATH).is_some();
     let proof = store::Proof::load();
     let (mut done, mut analyzed, mut taken) = (0, 0, 0);
+    let mut sarina_next = String::new();
     for n in names {
         let mut p = dir.as_bytes().to_vec();
         p.push(b'/');
@@ -484,14 +508,23 @@ fn run_requests(st: &Store) -> Option<i32> {
             continue;
         }
         let f = |k: &str| crate::gostruct::str_field(&REQUEST, &r, k).to_string();
-        let (release, why, analyze, take) = (f("release_if_proven"), f("why"), f("analyze"), f("take_limbo"));
+        let (release, why, analyze, take, sarina) = (f("release_if_proven"), f("why"), f("analyze"), f("take_limbo"), f("sarina"));
         if !take.is_empty() {
             if taken < 4 {
                 taken += 1;
                 match st.take_from_limbo(store::LIMBO_HELD_DIR, &take) {
                     Err(e) => eprintln!("heimdalld immunity: not taken from Limbo: {take} {e}"),
-                    Ok(e) => println!("taken from Limbo: {} {}", s(&e, "status"), s(&e, "sha256")),
+                    Ok(e) => {
+                        println!("taken from Limbo: {} {}", s(&e, "status"), s(&e, "sha256"));
+                        queue_sarina(&e);
+                    }
                 }
+            }
+            continue;
+        }
+        if !sarina.is_empty() {
+            if sarina_next.is_empty() {
+                sarina_next = sarina;
             }
             continue;
         }
@@ -522,7 +555,95 @@ fn run_requests(st: &Store) -> Option<i32> {
         println!("released ({}): {}", s(&e, "released_by"), s(&e, "original"));
         notify_owner(&format!("Heimdall released {} from quarantine: {}. Asked because: {why}", s(&e, "original"), s(&e, "released_by")));
     }
+    if !sarina_next.is_empty() {
+        sarina_held(st, &sarina_next);
+    }
     Some(0)
+}
+
+/// Go's `newUnknown`: held (or kept from Limbo), unknown to ClamAV, not yet looked at by Sarina.
+fn new_unknown(e: &Val) -> bool {
+    let status = s(e, "status");
+    (status == store::HELD || status == store::SUSPECT)
+        && s(e, "clamav").is_empty()
+        && matches!(store::get(&crate::immunity::ENTRY, e, "sarina_analysis"), Val::Ptr(None))
+}
+
+/// Go's `queueSarina`: a request for Sarina's analysis of a new held file, with sarina_analysis "auto" only.
+fn queue_sarina(e: &Val) {
+    if new_unknown(e) && heimdall_config().sarina_analysis_mode() == "auto" {
+        let _ = sarina::queue_sarina(crate::immunity::REQUEST_DIR, &s(e, "sha256"));
+    }
+}
+
+/// Go's `sarinaHeld`: a queued request, if the switch still allows it and the file still qualifies.
+fn sarina_held(st: &Store, sha: &str) {
+    if heimdall_config().sarina_analysis_mode() != "auto" {
+        eprintln!("heimdalld immunity: Sarina is not asked by herself (sarina_analysis is not \"auto\"): {sha}");
+        return;
+    }
+    let Ok(es) = st.load() else { return };
+    if let Some(e) = es.unwrap_or_default().iter().find(|e| s(e, "sha256") == sha) {
+        if new_unknown(e) {
+            ask_sarina(st, sha, "auto");
+        }
+    }
+}
+
+/// Go's `askSarina`: the switch, her presence and containment first; then lend, ask (reverse_engineer only), keep and show
+/// what she said, labelled as hers.
+fn ask_sarina(st: &Store, sha: &str, trigger: &str) -> i32 {
+    let fail = |e: &str| {
+        eprintln!("heimdalld immunity: {e}");
+        1
+    };
+    let cfg = heimdall_config();
+    if cfg.sarina_analysis_mode() == "off" {
+        return fail("Heimdall may not ask Sarina: sarina_analysis is off in /etc/heimdall/config.json (\"ask\" lets you ask her)");
+    }
+    if cfg.sarina_url.is_empty() || !sarina_installed(&cfg) {
+        return fail("Sarina is not set up for Heimdall (sarina_url in /etc/heimdall/config.json)");
+    }
+    if crate::contain::read_marker(crate::contain::MARKER_PATH).is_some() {
+        return fail("Sarina is contained: she is not asked until the containment is lifted");
+    }
+    let token =
+        if cfg.sarina_token.is_empty() { std::env::var("HEIMDALL_SARINA_TOKEN").unwrap_or_default() } else { cfg.sarina_token.clone() };
+    let mut client = match crate::advisor::Sarina::new(&cfg.sarina_url, &token, &cfg.sarina_cwd) {
+        Ok(c) => c,
+        Err(e) => return fail(&e),
+    };
+    client.timeout = sarina::DEFAULT_WAIT;
+    let rules = rules::drafts_file();
+    let job = sarina::Job {
+        share: sarina::DEFAULT_SHARE.to_string(),
+        analyst: &client,
+        trigger: trigger.to_string(),
+        rules: Some(&rules),
+        wait: std::time::Duration::ZERO,
+    };
+    let a = match sarina::analyse_with_sarina(st, sha, &job) {
+        Ok(a) => a,
+        Err(e) => return fail(&e),
+    };
+    let (status, error, output, draft) = sarina::fields(&a);
+    println!("Sarina's analysis: {status}");
+    if !error.is_empty() {
+        println!("{error}");
+    }
+    if !output.is_empty() {
+        println!("--- what Sarina says (her reading of an untrusted file: evidence, not a verdict) ---");
+        println!("{}", output.trim_end_matches('\n'));
+        println!("---");
+    }
+    if !draft.is_empty() {
+        println!("her YARA rule is draft {draft}: sudo heimdalld immunity rule test {draft} (nothing uses it until you approve it)");
+    }
+    if status != "done" {
+        return 1;
+    }
+    notify_owner("Sarina's analysis of a held file is with it (Settings > Security). It is her reading of an untrusted file: evidence, not a verdict.");
+    0
 }
 
 /// `heimdalld immunity rule ...` (Go: cmd/heimdalld/rules.go).

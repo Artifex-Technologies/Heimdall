@@ -30,6 +30,13 @@ pub const CODE_EVICTED: &str = "sarina_session_evicted";
 pub const CODE_SERVER_ERROR: &str = "sarina_server_error";
 pub const CODE_BACKEND_ERROR: &str = "sarina_backend_error";
 pub const CODE_BUSY: &str = "sarina_busy";
+/// An analysis session (reverse_engineer only) was not confirmed as exactly that one tool.
+pub const CODE_TOOLS_MISMATCH: &str = "sarina_contract_tools_mismatch";
+
+/// The one tool an analysis session has: Sarina's sandboxed, static reverse_engineer.
+pub const ANALYSIS_TOOL: &str = "reverse_engineer";
+/// What is kept of an analysis (the immunity store keeps it with the held file).
+pub const MAX_ANALYSIS: usize = 32 << 10;
 
 /// What is kept of Sarina's opinion (Limbo bounds it again).
 pub const MAX_ADVICE: usize = 16 << 10;
@@ -121,16 +128,38 @@ impl Sarina {
         })
     }
 
-    /// Opens a session, asks, and always closes the session (Go: consult).
+    /// Opens a tool-less session, asks, and always closes the session (Go: consult).
     fn consult(&self, prompt: &str, by: Instant) -> Result<String, SarinaError> {
+        self.consult_in(prompt, &ADVISORY_SESSION, by)
+    }
+
+    /// Go's `Analyse`: a static analysis of a held file in a session whose ONLY tool is reverse_engineer (verified: the
+    /// service must report exactly one tool, or nothing is sent). The answer is untrusted text for the owner.
+    pub fn analyse(&self, prompt: &str, by: Instant) -> Result<String, SarinaError> {
+        self.consult_in(prompt, &ANALYSIS_SESSION, by)
+    }
+
+    /// Opens a session with exactly the tools of `spec`, asks, and always closes the session (Go: consultIn).
+    fn consult_in(&self, prompt: &str, spec: &SessionSpec, by: Instant) -> Result<String, SarinaError> {
         let mut body = String::new();
         let mut o = gojson::ObjectWriter::new(&mut body);
         o.raw("allow_shell", "false");
         o.raw("allow_write", "false");
         o.str("cwd", &self.cwd);
-        o.raw("max_turns", "3");
-        o.raw("timeout_seconds", "120");
-        o.raw("tool_allowlist", "[]");
+        if spec.max_tool_calls > 0 {
+            o.raw("max_tool_calls", &spec.max_tool_calls.to_string());
+        }
+        o.raw("max_turns", &spec.max_turns.to_string());
+        o.raw("timeout_seconds", &spec.timeout_seconds.to_string());
+        let mut list = String::from("[");
+        for (i, t) in spec.allowlist.iter().enumerate() {
+            if i > 0 {
+                list.push(',');
+            }
+            gojson::write_str(&mut list, t);
+        }
+        list.push(']');
+        o.raw("tool_allowlist", &list);
         o.end();
         let sess = self.post("POST", "/v1/sessions", Some(&body), Some(&SESSION), by)?.expect("decoded");
         let id = gostruct::str_field(&SESSION, &sess, "session_id").to_string();
@@ -142,14 +171,14 @@ impl Sarina {
                 "check the sarina-service version; expected a reply of {session_id, tools}",
             ));
         }
-        let r = self.ask(&id, &sess, prompt, by);
+        let r = self.ask(&id, &sess, prompt, spec, by);
         // closed on every path; a 404 (already evicted) is fine
         let _ = self.post("DELETE", &format!("/v1/sessions/{id}"), None, None, Instant::now() + Duration::from_secs(5));
         r
     }
 
-    fn ask(&self, id: &str, sess: &Val, prompt: &str, by: Instant) -> Result<String, SarinaError> {
-        // trust, but verify: refuse unless the service confirms the session has no tools
+    fn ask(&self, id: &str, sess: &Val, prompt: &str, spec: &SessionSpec, by: Instant) -> Result<String, SarinaError> {
+        // trust, but verify: refuse unless the service confirms the session has exactly the tools asked for
         let tools = match gostruct::field(&SESSION, sess, "tools") {
             Some(Val::Ptr(Some(v))) => match **v {
                 Val::Int(n) => Some(n),
@@ -157,12 +186,19 @@ impl Sarina {
             },
             _ => None,
         };
-        if tools != Some(0) {
+        if tools != Some(spec.allowlist.len() as i64) {
             let got = tools.map_or("not reported".to_string(), |n| n.to_string());
+            if spec.allowlist.is_empty() {
+                return Err(fail(
+                    CODE_TOOLS_NONZERO,
+                    format!("sarina did not confirm a tool-less session (tools={got}); refusing to send evidence"),
+                    "upgrade sarina-service to a build that supports tool_allowlist",
+                ));
+            }
             return Err(fail(
-                CODE_TOOLS_NONZERO,
-                format!("sarina did not confirm a tool-less session (tools={got}); refusing to send evidence"),
-                "upgrade sarina-service to a build that supports tool_allowlist",
+                CODE_TOOLS_MISMATCH,
+                format!("sarina did not confirm a session with only {ANALYSIS_TOOL} (tools={got}); refusing to send the file"),
+                "switch the tool on for sarina-service (SARINA_REVERSE=on in /etc/sarina/service.env, labyrinth-rea set up for its account; docs/IMMUNITY.md)",
             ));
         }
         let mut body = String::new();
@@ -186,7 +222,7 @@ impl Sarina {
                 "check the model server; Sarina answered without text",
             ));
         }
-        Ok(valid_prefix(out, MAX_ADVICE).to_string())
+        Ok(valid_prefix(out, spec.max_out).to_string())
     }
 
     /// One call, retried once if the connection itself failed (Go: post).
@@ -306,6 +342,21 @@ impl Sarina {
     }
 }
 
+/// What a consultation's session may have and how long it may run (Go: sessionSpec).
+struct SessionSpec {
+    allowlist: &'static [&'static str],
+    max_turns: i64,
+    timeout_seconds: i64,
+    /// 0: not sent
+    max_tool_calls: i64,
+    max_out: usize,
+}
+
+static ADVISORY_SESSION: SessionSpec =
+    SessionSpec { allowlist: &[], max_turns: 3, timeout_seconds: 120, max_tool_calls: 0, max_out: MAX_ADVICE };
+static ANALYSIS_SESSION: SessionSpec =
+    SessionSpec { allowlist: &[ANALYSIS_TOOL], max_turns: 12, timeout_seconds: 300, max_tool_calls: 10, max_out: MAX_ANALYSIS };
+
 /// What a reply means (Go: the end of once): the status as a code, then the body read into `out`.
 fn judge(
     method: &str,
@@ -367,6 +418,7 @@ pub const CODES: &[&str] = &[
     CODE_EVICTED,
     CODE_SERVER_ERROR,
     CODE_BACKEND_ERROR,
+    CODE_TOOLS_MISMATCH,
 ];
 
 /// The fuzz target's body: a raw HTTP reply from the service, read as the create-session and the chat reply would be.

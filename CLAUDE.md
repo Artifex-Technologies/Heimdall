@@ -245,6 +245,17 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   `tools` count (Sarina commit "Add a per-session tool allowlist"; **requires a
   Sarina that has it**). This is Heimdall initiating contact with Sarina, a first;
   recorded here and in Sarina's `docs/ECOSYSTEM.md` §4c.
+- **Heimdall → Sarina (analysis of a held file): live 2026-11-17, `sarina_analysis` "ask" by default.** Root's
+  `heimdalld immunity analyze --sarina SHA256` (and, with `"auto"`, a queued `{"sarina": sha}` after a new hold ClamAV does not
+  know) lends an uncompressed read-only copy to `/var/lib/heimdall-sarina-share/<sha256>.sample` (root:sarina 0440) while it
+  asks Sarina's service for a static analysis: same API as the advisory with `tool_allowlist: ["reverse_engineer"]`,
+  `max_turns` 12, `max_tool_calls` 10, `timeout_seconds` 300, and **nothing is sent unless the service reports `tools: 1`**
+  (`sarina_contract_tools_mismatch`). The file is named as her sandbox sees it, `/quarantine/<sha256>.sample` (her service
+  account's labyrinth quarantine folder is a link to the share; Sarina's `go/reverse` reads such paths since 2026-11-17). The
+  answer is untrusted: kept as `sarina_analysis` on the held file's index entry (additive field), a YARA block in it only a
+  rule draft; it can release, delete or run nothing. Never while Sarina is contained; one at a time; session closed on every
+  path. Changing the allowlist, the tools check, the share path or the `/quarantine` naming is a contract change in both
+  repos (Sarina `docs/ECOSYSTEM.md` §4d). `docs/IMMUNITY.md`, "Sarina's analysis".
 - **Sarina → Heimdall (grant gate, Phase 4): live, off until the owner switches it on.**
   Sarina files requests (`POST /v1/requests`: `kind` escalation|access_tier, `detail`,
   `session_id`, `reason`) and reads the owner's answers from `/etc/heimdall/grants.json`
@@ -276,6 +287,26 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   Both are in Sarina's `docs/ECOSYSTEM.md` port registry.
 
 ### Coordination Log (newest first)
+
+### 2026-11-17 (3) — Heimdall asks Sarina to analyse a held file (approved 2026-11-17; BSim later)
+- New: `sudo heimdalld immunity analyze --sarina SHA256`, and with `sarina_analysis: "auto"` a request queued after each new
+  hold ClamAV does not know (hold, take-limbo, run-requests' take), run by `heimdall-requests.service` after the other requests,
+  one per run (its timeout is 70 minutes now). The switch `sarina_analysis` (config, default `"ask"`; anything but `ask`/`auto`
+  is off) is in `config.json.example`. Go: `internal/immunity/sarina.go`, `response.Sarina.Analyse`, `cmd/heimdalld/immunity.go`;
+  Rust: `cli/immunity/sarina.rs`, `advisor.rs` `analyse`, `cli/immunity.rs`. The advisory's own session and words are unchanged.
+- Safety: the session has only `reverse_engineer` and is refused unless the service reports exactly 1 tool; the lent copy is
+  read-only and removed on every path; a link in place of the share folder is not followed; the file's facts are fenced as
+  untrusted; her answer is bounded (32 KiB) and stored, never acted on; her YARA block goes through the rule-draft checks and
+  waits for `rule test` and my approval; refused while contained; one at a time (flock); 20 minutes at most.
+- Tests: Go `internal/immunity/sarina_test.go` (lent copy, take-back on success, failure and timeout, busy, released file,
+  link, rule refused, bounds) and `internal/response/analyse_test.go` (allowlist sent, tools 0/2/70/missing refused with no
+  chat, session closed, timeout); Rust `tests/cli_immunity.rs` `immunity_sarina_analysis_as_go`: Go and Rust binaries side by
+  side in fake roots against one scripted Sarina on loopback, comparing output, files and every request each sent her.
+- **CONTRACT (Sarina):** contract above; Sarina `docs/ECOSYSTEM.md` §4d. Sarina's reverse tool reads `/quarantine/...` and
+  `/samples/...` paths as those folders (Go and Rust, Sarina 2026-11-17). Index entries gain `sarina_analysis` (additive).
+- **For Settings (Yggdrasil):** `sarina_analysis` in `/etc/heimdall/config.json` is the switch to show; a held file's
+  `sarina_analysis` (time, trigger, status, output, error, rule_draft) is the text to show labelled as Sarina's.
+— Signed: Heimdall / Claude Opus 5.5
 
 ### 2026-11-17 (2) — One maker lookup for every IEEE registry: heimdall-macvendor (R3)
 - New crate `rust/macvendor` (`heimdall-macvendor`, no dependencies) and its Go twin `internal/macvendor`: who made a hardware

@@ -135,7 +135,7 @@ pub fn kind(head: &[u8]) -> &'static str {
 }
 
 /// The group id of `name` from /etc/group (Go's `user.LookupGroup`).
-fn group_id(name: &str) -> Option<u32> {
+pub(super) fn group_id(name: &str) -> Option<u32> {
     let g = std::fs::read_to_string("/etc/group").ok()?;
     g.lines().find_map(|l| {
         let f: Vec<&str> = l.split(':').collect();
@@ -391,7 +391,7 @@ impl Store {
     }
 
     /// Go's `save`: newest first, two-space JSON and a newline, readable by the heimdall group.
-    fn save(&self, es: &mut [Val]) -> Result<(), String> {
+    pub(super) fn save(&self, es: &mut [Val]) -> Result<(), String> {
         es.sort_by_key(|e| std::cmp::Reverse(t(e, "added")));
         let body = gostruct::to_json_indented(&crate::immunity::ENTRIES, &Val::Slice(Some(es.to_vec())), "  ").unwrap_or_default();
         crate::gopath::mkdir_all(&self.dir, 0o750)?;

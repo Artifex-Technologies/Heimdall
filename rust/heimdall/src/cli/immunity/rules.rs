@@ -90,12 +90,15 @@ fn clam_rule_scan(rule: &str, paths: &[String]) -> Result<Vec<String>, String> {
     }
 }
 
+/// Go's `ruleDrafts`: the drafts file root works on (HEIMDALL_RULE_DRAFTS in tests).
+pub fn drafts_file() -> crate::immunity::Rules {
+    let p = std::env::var("HEIMDALL_RULE_DRAFTS").ok().filter(|v| !v.is_empty());
+    crate::immunity::Rules { path: p.unwrap_or_else(|| crate::immunity::DEFAULT_RULE_DRAFTS.to_string()) }
+}
+
 pub fn main(args: &[String], st: &Store) -> Option<i32> {
     let env = |k: &str, d: &str| std::env::var(k).ok().filter(|v| !v.is_empty()).unwrap_or_else(|| d.to_string());
-    let d = Drafts {
-        r: crate::immunity::Rules { path: env("HEIMDALL_RULE_DRAFTS", crate::immunity::DEFAULT_RULE_DRAFTS) },
-        rules_dir: env("HEIMDALL_RULES_DIR", "/var/lib/clamav"),
-    };
+    let d = Drafts { r: drafts_file(), rules_dir: env("HEIMDALL_RULES_DIR", "/var/lib/clamav") };
     if args.is_empty() {
         eprintln!("{USAGE}");
         return Some(2);

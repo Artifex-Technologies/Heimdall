@@ -48,6 +48,7 @@ sudo heimdalld immunity release SHA256                 it is good
 sudo heimdalld immunity release-if-proven SHA256       only with a proof
 sudo heimdalld immunity confirm SHA256                 it is malware: learn it
 sudo heimdalld immunity analyze SHA256                 take it apart in Limbo's sealed machine now
+sudo heimdalld immunity analyze --sarina SHA256        ask Sarina for a static analysis (below)
 sudo heimdalld immunity add --reason "why" FILE        hold and learn in one step
 sudo heimdalld immunity take-limbo SHA256              keep a copy of a file Limbo held at a guest's exchange
 sudo heimdalld immunity forget SHA256                  a mistake: remove it and its fingerprint
@@ -86,6 +87,52 @@ against its hash, from one root-only folder into another. Disk use is bounded by
 
 The guest that tried to hand the file out is also restricted (`limbo-exchange` on `exchange.held` triggers the same Limbo
 quarantine as a network probe; approved 2026-11-05).
+
+## Sarina's analysis (built 2026-11-17)
+
+I approved this on 2026-11-17 (Ghidra BSim comes later). Heimdall may ask Sarina to read a held file with her
+`reverse_engineer` tool: REA with Ghidra inside the `labyrinth-rea` sandbox (no network, files read-only, static commands only;
+Labyrinth_OS `docs/REA.md`). Drivers and new malware have no write-ups; reading what they do is how a rule gets written.
+
+**When.** The standing permission is `sarina_analysis` in `/etc/heimdall/config.json` (readable by all, so Settings shows it):
+
+- `"ask"` (the default): only when I ask, `sudo heimdalld immunity analyze --sarina SHA256`. A new held file is not sent; the
+  notification names that command.
+- `"auto"`: also every new held file ClamAV does not know (a hold, or a copy taken from Limbo's exchange): the hold leaves
+  `{"sarina": "<sha256>"}` in the root request queue and `heimdall-requests.service` runs it after the other requests, one per
+  run. Root checks again whatever the request says: the switch, that the file is held, unknown to ClamAV and not yet looked at.
+- `"off"`, or anything else: never, not even when I ask.
+
+Never while Sarina is contained (`/etc/heimdall/contained`). Asking without waiting in a critical case is not built: no hold
+carries a severity today, and the most critical one (containment's evidence) is exactly when Sarina must not be asked; `"auto"`
+is how to let Heimdall ask at once.
+
+**How, and the safety checks.**
+
+1. One at a time (a lock in the store); a second request is refused.
+2. Root lends the sample: an uncompressed copy at `/var/lib/heimdall-sarina-share/<sha256>.sample`, root:sarina 0440 in a
+   root:sarina 0750 folder that is made there and never followed if something else stands in its place. Sarina's service
+   account sees it as `/quarantine/<sha256>.sample` (its labyrinth quarantine folder is a link to the share). The copy is
+   removed when the answer is in, on every path; the sample in the store is never touched.
+3. Heimdall opens a session on Sarina's service (`sarina_url`, loopback only) with `tool_allowlist: ["reverse_engineer"]`,
+   no shell, no writing, at most 12 turns and 10 tool calls, and sends nothing unless the service reports exactly one tool
+   (`sarina_contract_tools_mismatch` otherwise: an older service ignores the allowlist and would report every tool; a service
+   without the tool switched on reports none). The session is closed on every path; the whole analysis may take 20 minutes.
+4. The request names the file by its sandbox path and frames the file's facts (hash, size, kind, where it was held from and
+   why) as untrusted data: a name or a reason can come from an attacker, and so can every string inside the file.
+5. Her answer is untrusted text. It is kept with the held file (`sarina_analysis` in the index: time, trigger, status, output
+   up to 32 KiB, error, rule draft) and shown labelled as hers. It can never release, delete or run anything; a failure is kept
+   too, so I see why there is none. A YARA rule in it (a ```yara block) becomes a rule draft only if it passes the draft checks
+   below, and then waits for `rule test` and my approval like any other.
+
+Her session is written to her session folder like any other, so Heimdall's own watch reads it too (strings from a sample can
+look like an injection there: that is evidence, not her doing).
+
+**Setting it up on Sarina's side** (once): `SARINA_REVERSE=on` in `/etc/sarina/service.env`,
+REA and Ghidra where the `sarina` account can read them (`LABYRINTH_APPS`), and its quarantine folder linked to the share:
+`/var/lib/sarina/.local/share/labyrinth/quarantine -> /var/lib/heimdall-sarina-share`. It needs a Sarina that reads
+`/quarantine/...` paths (Sarina, 2026-11-17). With `SARINA_REVERSE=on`, other service sessions that do not narrow their tools
+are offered the reverse tools too.
 
 ## Rules: catching variants (YARA)
 
