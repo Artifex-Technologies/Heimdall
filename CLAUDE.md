@@ -101,7 +101,8 @@ rust/scrub-ladspa/         the live scrub as a LADSPA plugin: the private microp
 rust/flyover-attack/       the flyover scorer as a library; its tests prove the scrub defeats it
 packaging/privacy/         the private microphone's PipeWire and WirePlumber files, hooks, and its isolated end-to-end test
 packaging/arch-private-mic/ the recipe of heimdall-private-mic-git (its own package; install.sh DESTDIR private-mic)
-rust/privacy/              the privacy pack: heimdall-fileguard (downloads guard), heimdall-strip (Remove hidden info), lookalike.rs: docs/PRIVACY_PACK.md
+rust/privacy/              the privacy pack: heimdall-fileguard (downloads guard; safe file intake: scan, extract in a Landlock
+                           sandbox, new files in my folders), heimdall-strip (Remove hidden info), lookalike.rs: docs/PRIVACY_PACK.md
 packaging/privacy-pack/    the downloads guard's user unit (in heimdall-private-mic-git too)
 rust/tools/attack-table/   writes internal/attack/enterprise.tsv from one pinned release of MITRE's attack-stix-data (by hand)
 rust/macvendor/            heimdall-macvendor: the maker lookup (no dependencies; Yggdrasil's Settings uses it as a git dependency): docs/DEVICES.md
@@ -298,11 +299,61 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   `https://attack.mitre.org/techniques/<ID with "." as "/">/`, opened only on a click. Both fields are additive; renaming or
   removing them, or changing their shapes, is a contract change here and in the readers. Which detector gets which tag
   (`internal/attack/tags.tsv`) may change with a log entry; the reasons and the gap list are in `docs/ATTACK.md`.
+- **Heimdall → Yggdrasil Settings (fonts page) and Minos (Extract): safe file intake, live (2026-11-18).**
+  `heimdall-fileguard scan --json FILE...` prints `{"files":[{"path","verdict":"ok"|"warn"|"refused","reasons":[...],
+  "clamav":"clean"|"infected:SIG"|"unavailable"|"not-fully-scanned"}]}`; `heimdall-fileguard extract --json [--only EXT,EXT]
+  ARCHIVE OUTDIR` prints `{"files":[{"name","path","size","verdict","reasons","clamav"}],"skipped":[{"name","reason"}],
+  "refused":null|"..."}`. Exit 0 nothing refused, 1 refused, 2 usage or reading error. OUTDIR must not exist; on a refusal
+  nothing is left. These keys and codes change only with a log entry here and the matching change in Yggdrasil
+  (docs/PRIVACY_PACK.md section 5). privacy.json gained the optional switch `folders_guard` (missing = on).
 - **Ports owned by this repo:** `8930` (Heimdall's API, loopback-only) and
   `8931` (mesh, off by default; one non-loopback address chosen by the owner).
   Both are in Sarina's `docs/ECOSYSTEM.md` port registry.
 
 ### Coordination Log (newest first)
+
+### 2026-11-18 (9) — Safe file intake: scan, extract in a sandbox, new files in my folders, ClamAV's limits
+- **Decided by me on 2026-11-18:** files I add (fonts dropped into Settings, archives unpacked in Minos, copies from a USB drive)
+  are checked by Heimdall whatever their origin, and a decompression bomb must not hurt the system. All in `rust/privacy`
+  (`heimdall-fileguard`, package heimdall-private-mic-git, on every install with or without Heimdall). docs/PRIVACY_PACK.md
+  section 5.
+- **`heimdall-fileguard scan [--json] FILE...`:** names (look-alikes, hidden characters), a program dressed as a font, picture,
+  song or document (refused), a "font" that is not one (refused), the downloads guard's checks, an archive's dry run in the
+  sandbox (bomb, zip slip, two names for one file: refused; too big, damaged, encrypted parts: warn), ClamAV (clamdscan when clamd
+  answers, else clamscan with explicit limits; files passed as `/proc/self/fd/N`). Known malware refused; PUA and heuristics
+  warn; "Heuristics.Limits.Exceeded.*" is `not-fully-scanned` (warn), never malware.
+- **`heimdall-fileguard extract [--json] [--only EXT,EXT] ARCHIVE OUTDIR`:** ZIP, tar, tar.gz (flate2), tar.xz/.zst/.bz2 and
+  single compressed files (the system's xz/zstd/bzip2 with a 256 MiB memory limit; lzma-rs was rejected: it buffers a whole
+  LZMA2 block before streaming). Limits counted on real bytes: 512 MiB in all, 256 MiB per file, 10,000 entries, 100:1 per file
+  and overall (after 1 MiB / 4 MiB). Overlaps, `..`, absolute names, duplicates, two-name tricks refuse the archive; links,
+  devices, FIFOs, encrypted entries are skipped; inner archives are files. The unpacking runs in `extract-worker`: Landlock
+  (write only OUTDIR, read/run only /usr, TCP/scopes where the kernel knows them), an empty network namespace, rlimits (1 GiB,
+  120 s CPU, RLIMIT_FSIZE, 64 files), 300 s wall. Each file then goes through `scan`; any refusal removes OUTDIR.
+- **The guard's `watch`:** also Desktop, Documents, Pictures, Music, Videos (new optional switch `folders_guard` in
+  privacy.json, missing = on), inotify only. Light checks at once; the heavy half (archive dry run, ClamAV only via clamd) waits
+  while `yggdrasil-gametime status` says a game runs (asked once a minute, only while something waits; `HEIMDALL_GAMETIME`
+  names another tool, as for the daemon). A drive mounted under /run/media/$USER gets a notice "Scan this drive" (never
+  automatic); the scan runs in its own `systemd-run --user --scope` (2 GiB, nice 10, idle I/O). Idle cost, measured in a made-up
+  home (release builds, 60 s idle): 0 CPU ticks and 0 wake-ups before and after; memory 2.9 MB before, 3.3 MB after (808
+  inotify watches for a tree of 500 folders, against 2); a burst of 520 new files 10 ms of CPU before, 40 ms after (20 ZIPs
+  each checked by a sandboxed worker).
+- **Tests:** hostile archives built in the tests (classic and many-small bombs, overlap and quine, too many entries, lying sizes,
+  wrong checksums, two names, zip slip variants, links/devices/FIFOs, encrypted, nesting, every cut-short ZIP/tar/tar.gz, tar.gz
+  bomb, xz/zstd/bzip2 bombs where installed), each bounded to a few megabytes; ClamAV a stand-in (EICAR built at run time); the
+  JSON contracts; the sandbox in a child; the watcher end to end. New fuzz target `privacy_extract` (seeds in
+  rust/fuzz/seeds/privacy_extract, two new samples for every privacy target).
+- **For Yggdrasil (Settings fonts page, Minos Extract):** the two commands and their JSON, as in the contract above:
+  `heimdall-fileguard scan --json FILE...` → `{"files":[{"path","verdict","reasons","clamav"}]}`; `heimdall-fileguard extract
+  --json [--only ttf,otf,ttc,woff2] ARCHIVE OUTDIR` → `{"files":[{"name","path","size","verdict","reasons","clamav"}],
+  "skipped":[{"name","reason"}],"refused":null|"..."}`; exit 0/1/2. Give `extract` a new OUTDIR (it refuses an existing one);
+  show `refused` as it is (plain words). Optional: a Settings > Security > Privacy switch "Check new files in my folders" for
+  `folders_guard`.
+- **For Labyrinth OS / LykanOS:** Labyrinth ships `/etc/clamav/clamd.conf` with the same limits and `AlertExceedsMax yes`
+  (Labyrinth_OS profile/airootfs/etc/clamav/clamd.conf), and labyrinth-scan-downloads logs "Heuristics.Limits.Exceeded.*" as NOT
+  FULLY SCANNED without a notice. LykanOS ships no clamd.conf of its own: nothing to change unless it starts clamd. Nothing to
+  install: the next heimdall-private-mic-git build brings it. **For the daemon's switch:** `heimdalld immunity` should treat
+  "Heuristics.Limits.Exceeded.*" as "not known" (docs/IMMUNITY.md); not changed now.
+— Signed: Heimdall / Claude Opus 5.5
 
 ### 2026-11-18 (8) — The shell programs in Rust; fixes in the DNS block list script (installed as before; Rust on a branch)
 - `heimdall-intel-update`, `heimdall-dns-blocklist`, `heimdall-enable-defaults` and NetworkManager's dispatcher

@@ -88,6 +88,8 @@ impl Entry {
 pub struct Archive {
     pub entries: Vec<Entry>,
     pub comment: Vec<u8>,
+    /// How many entries the end record says there are (more than `entries` holds when the directory is damaged).
+    pub declared: u64,
 }
 
 impl Archive {
@@ -202,7 +204,19 @@ pub fn read(src: &dyn Source) -> Result<Archive, String> {
         entries.push(e);
         i = end;
     }
-    Ok(Archive { entries, comment })
+    Ok(Archive { entries, comment, declared: count })
+}
+
+/// The name an entry's local header gives it (it must be the directory's: two names are a trick to hide a file).
+pub fn local_name(src: &dyn Source, e: &Entry) -> Result<Vec<u8>, String> {
+    let mut h = [0u8; 30];
+    src.read_at(e.local, &mut h).map_err(|_| bad("an entry is out of place"))?;
+    if &h[0..4] != b"PK\x03\x04" {
+        return Err(bad("an entry has no header"));
+    }
+    let mut n = vec![0u8; u16_at(&h, 26) as usize];
+    src.read_at(e.local + 30, &mut n).map_err(|_| bad("an entry is out of place"))?;
+    Ok(n)
 }
 
 /// Where an entry's compressed bytes are: (start, length).

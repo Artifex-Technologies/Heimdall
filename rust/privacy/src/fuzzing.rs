@@ -57,6 +57,34 @@ pub fn zip(data: &[u8]) {
     }
 }
 
+/// The extraction (its dry run) on bytes as a ZIP, a tar, a gzipped tar or file, and the name cleaning: never a panic, and
+/// never more unpacked than the limit (and one buffer).
+pub fn extract(data: &[u8]) {
+    use crate::extract::{self, Discard, Limits, Options};
+    let o = Options {
+        only: vec![],
+        limits: Limits {
+            total: 4 << 20,
+            per_file: 1 << 20,
+            entries: 64,
+            ratio: 100,
+            entry_allowance: 256 << 10,
+            total_allowance: 512 << 10,
+        },
+    };
+    let bound = o.limits.total + (128 << 10);
+    let z = extract::zip(&data, &o, &mut Discard);
+    assert!(z.unpacked <= bound, "the ZIP reader ran over its limit");
+    let mut r: &[u8] = data;
+    let t = extract::stream(&mut r, data.len() as u64, "x.tar", false, &o, &mut Discard);
+    assert!(t.unpacked <= bound, "the tar reader ran over its limit");
+    let mut g = flate2::read::MultiGzDecoder::new(data);
+    let t = extract::stream(&mut g, data.len() as u64, "x.gz", true, &o, &mut Discard);
+    assert!(t.unpacked <= bound, "the gzip stream ran over its limit");
+    let _ = extract::detect(data);
+    let _ = extract::clean_name(&data[..data.len().min(4096)]);
+}
+
 /// The PDF scanner on its own.
 pub fn pdf(data: &[u8]) {
     let d = crate::pdf::Doc::scan(data);

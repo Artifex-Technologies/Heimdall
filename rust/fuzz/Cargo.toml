@@ -272,6 +272,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "privacy_extract"
+path = "fuzz_targets/privacy_extract.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "macvendor"
 path = "fuzz_targets/macvendor.rs"
 test = false

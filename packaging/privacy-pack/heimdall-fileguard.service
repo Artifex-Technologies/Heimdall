@@ -1,9 +1,12 @@
 # The downloads guard (docs/PRIVACY_PACK.md): a notice when a finished download would contact a server as soon as it is opened
 # (Office remote templates, PDF auto-actions, SVG/HTML outside resources, playlists, shortcuts, files in archives). It only
 # reads files. On by default for every account (graphical-session.target.wants); Settings > Security > Privacy > Check
-# downloads switches the checking off (~/.config/heimdall/privacy.json), and the guard then watches nothing.
+# downloads switches the checking off (~/.config/heimdall/privacy.json), and the guard then watches nothing. Since 2026-11-18 it
+# also checks new files in my own folders (Desktop, Documents, Pictures, Music, Videos; switch "folders_guard"): programs dressed
+# as something else, decompression bombs (in a Landlock sandbox), ClamAV when clamd runs; heavy checks wait while a game runs.
+# A connected drive gets a notice offering a scan, which runs in a scope of its own (systemd-run), outside this 512M.
 [Unit]
-Description=Heimdall downloads guard (files that contact a server when opened)
+Description=Heimdall file guard (downloads and new files: what contacts a server, what is not what it says)
 Documentation=file:///usr/share/doc/heimdall-private-mic/PRIVACY_PACK.md
 After=graphical-session.target
 PartOf=graphical-session.target

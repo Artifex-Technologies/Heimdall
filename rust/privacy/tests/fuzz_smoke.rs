@@ -16,6 +16,7 @@ const TARGETS: &[(&str, Target)] = &[
     ("privacy_pdf", fuzzing::pdf),
     ("privacy_markup", fuzzing::markup),
     ("privacy_lookalike", fuzzing::lookalike),
+    ("privacy_extract", fuzzing::extract),
 ];
 
 pub fn seeds() -> Vec<Vec<u8>> {
@@ -43,6 +44,8 @@ pub fn seeds() -> Vec<Vec<u8>> {
         b"[playlist]\nFile1=http://a.example.com\n".to_vec(),
         b"[Desktop Entry]\nType=Link\nURL=https://a.example.com\nIcon=http://b.example.com/i.png\n".to_vec(),
         "Viv\u{0430}ldi \u{202E}fdp.exe \u{FF36}\u{1D405}".as_bytes().to_vec(),
+        samples::tar(),
+        samples::tar_gz(),
     ]
 }
 

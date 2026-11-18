@@ -1,5 +1,8 @@
 //! The privacy pack's switches, one file per person: `$XDG_CONFIG_HOME/heimdall/privacy.json` (by default
-//! `~/.config/heimdall/privacy.json`): `{"downloads_guard": bool, "remove_hidden_info": bool, "lookalike_warnings": bool}`.
+//! `~/.config/heimdall/privacy.json`): `{"downloads_guard": bool, "folders_guard": bool, "remove_hidden_info": bool,
+//! "lookalike_warnings": bool}`. `downloads_guard` switches the whole guard; `folders_guard` (added 2026-11-18) only the
+//! watching of the person's own folders (Desktop, Documents, Pictures, Music, Videos) and the notice when a drive is
+//! connected.
 //! Settings > Security > Privacy writes it; the downloads guard, Minos, Agora, Settings and Labyrinth's network question read
 //! it. Everything is on by default: a missing file, a missing key or a value that is not true or false counts as on.
 
@@ -35,17 +38,18 @@ pub fn path() -> PathBuf {
     config_home().join("heimdall").join("privacy.json")
 }
 
-/// The three switches this file holds.
+/// The switches this file holds.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Prefs {
     pub downloads_guard: bool,
+    pub folders_guard: bool,
     pub remove_hidden_info: bool,
     pub lookalike_warnings: bool,
 }
 
 impl Default for Prefs {
     fn default() -> Self {
-        Prefs { downloads_guard: true, remove_hidden_info: true, lookalike_warnings: true }
+        Prefs { downloads_guard: true, folders_guard: true, remove_hidden_info: true, lookalike_warnings: true }
     }
 }
 
@@ -56,6 +60,7 @@ impl Prefs {
         let on = |k: &str| v.get(k).and_then(|x| x.as_bool()).unwrap_or(true);
         Prefs {
             downloads_guard: on("downloads_guard"),
+            folders_guard: on("folders_guard"),
             remove_hidden_info: on("remove_hidden_info"),
             lookalike_warnings: on("lookalike_warnings"),
         }
@@ -82,6 +87,7 @@ mod tests {
         assert_eq!(Prefs::parse(b"[]"), Prefs::default());
         assert_eq!(Prefs::parse(b"{\"downloads_guard\": \"no\"}"), Prefs::default(), "not a boolean: on");
         let p = Prefs::parse(br#"{"downloads_guard": false, "lookalike_warnings": true, "other": 1}"#);
-        assert!(!p.downloads_guard && p.remove_hidden_info && p.lookalike_warnings);
+        assert!(!p.downloads_guard && p.folders_guard && p.remove_hidden_info && p.lookalike_warnings);
+        assert!(!Prefs::parse(br#"{"folders_guard": false}"#).folders_guard);
     }
 }

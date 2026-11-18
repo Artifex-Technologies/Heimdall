@@ -9,6 +9,7 @@ parts; all four are on by default, each with its own switch in Settings > Securi
 | Part | Where | Switch (Settings > Security > Privacy) |
 | --- | --- | --- |
 | The downloads guard: a notice when a downloaded file would contact a server when opened | Heimdall: `heimdall-fileguard` (a user service) | Check downloads |
+| Safe file intake: every file I add is checked (`scan`), archives are unpacked safely (`extract`), new files in my own folders and drives are checked | Heimdall: `heimdall-fileguard scan`, `extract`; Settings' fonts page and Minos' Extract call them | Check new files in my folders (`folders_guard`) |
 | Remove hidden info: a clean copy of a photo, video, song or document | Heimdall: `heimdall-strip`; Minos' right-click menu | Remove hidden info in Minos |
 | Viewer apps ask before going online the first time | Labyrinth OS: `labyrinth-appnet` (its docs/PRIVACY_PACK.md) | Viewer apps ask before going online |
 | Look-alike names: a warning on names that imitate others ("Vivаldi" with a Cyrillic а) | the same small module in Heimdall, Labyrinth OS and Yggdrasil | Warn about look-alike names |
@@ -22,11 +23,14 @@ without Heimdall (`packaging/install.sh DESTDIR private-mic`).
 `~/.config/heimdall/privacy.json` (`$XDG_CONFIG_HOME/heimdall/privacy.json`), one per person:
 
 ```json
-{"downloads_guard": true, "remove_hidden_info": true, "lookalike_warnings": true}
+{"downloads_guard": true, "folders_guard": true, "remove_hidden_info": true, "lookalike_warnings": true}
 ```
 
 Settings writes it (keeping any other keys; temporary file and rename). The downloads guard, Minos, Agora, Settings > Apps and
 Labyrinth's network question read it. A missing file, a missing key or a value that is not `true` or `false` counts as **on**.
+`downloads_guard` switches the whole guard (off: nothing is watched); `folders_guard` (2026-11-18) only the watching of my own
+folders (Desktop, Documents, Pictures, Music, Videos) and the notice when a drive is connected. `scan` and `extract` are asked
+for by an app and always run: no switch turns them off.
 The fourth switch (viewer apps) is Labyrinth's own, kept by `labyrinth-appnet` (root's), not here.
 
 ## 1. The downloads guard (`heimdall-fileguard`)
@@ -38,9 +42,11 @@ inotify:
 - the torrent clients' folders: Deluge (`download_location`, and `move_completed_path` when moving is on, from
   `~/.config/deluge/core.conf`), qBittorrent (`Session\DefaultSavePath`, older `Downloads\SavePath`), Transmission
   (`download-dir`, also of transmission-daemon), each also as its Flatpak;
-- any folder in `~/.config/heimdall/fileguard.json`: `{"folders": ["~/Torrents", "/mnt/data/incoming"]}`.
+- any folder in `~/.config/heimdall/fileguard.json`: `{"folders": ["~/Torrents", "/mnt/data/incoming"]}`;
+- with `folders_guard` on (the default): Desktop, Documents, Pictures, Music and Videos (their `XDG_*_DIR`, else `~/Desktop`
+  ...), so a file copied in from a USB drive, saved by an app or unpacked by hand is checked the same way, whatever brought it.
 
-Sub-folders are watched too (four levels, 4096 watches at most). Never `/`, a system folder or the whole home. The settings
+Sub-folders are watched too (four levels, 4096 watches at most, the download folders first). Never `/`, a system folder or the whole home. The settings
 files are watched as well, so a folder changed in a torrent client, or the switch moved in Settings, is followed within a
 second; the folders are also read again every five minutes (a drive mounted later).
 
@@ -96,6 +102,9 @@ heimdall-fileguard check [--json] FILE...   exit 0: nothing found, 1: something 
 heimdall-fileguard watch                    the service
 heimdall-fileguard folders                  the folders it watches
 heimdall-fileguard status --json            {"enabled":bool,"running":bool,"folders":[...]}
+heimdall-fileguard scan [--json] FILE...    section 5
+heimdall-fileguard scan-drive FOLDER        section 5 (what "Scan this drive" runs)
+heimdall-fileguard extract [--json] [--only EXT,EXT] ARCHIVE OUTDIR   section 5
 ```
 
 `check --json` prints one line per file: `{"path","kind","found","complete","notes","findings":[{"sure","what","target",
@@ -156,6 +165,127 @@ its program, the host name of the address), Settings > Apps (an app's name, with
 listings (with what the listing really is: package, AUR package, Flatpak id). Each shows a badge or warning and the real
 thing, never hides the name.
 
+## 5. Safe file intake (`scan`, `extract`)
+
+I decided on 2026-11-18 that files I add (fonts dropped into Settings, archives unpacked in Minos, files copied from a USB drive)
+are checked by Heimdall whatever their origin, and that a decompression bomb ("ZIP bomb") must not hurt the system. It is the
+same program, in the same package (`heimdall-private-mic-git`, on every Labyrinth OS and LykanOS install, with or without
+Heimdall).
+
+### `heimdall-fileguard scan [--json] FILE...`
+
+The one "check this file before I use it". For each file:
+
+| Check | Verdict |
+| --- | --- |
+| Its name: a look-alike, invisible, direction-changing or control character (section 4) | warn |
+| What it really is: a program (Linux, Windows, macOS, or a `#!` script) named like a font, picture, song, video or document | refused |
+| A font extension (`ttf otf ttc otc woff woff2 pfb pfa`) whose content is not a font | refused |
+| The downloads guard's checks (section 1): something that contacts a server when opened | warn |
+| An archive (ZIP, which Office and OpenDocument files are too, tar, compressed tar, a single `.gz/.xz/.zst/.bz2` file): `extract`'s dry run in its sandbox, nothing written, one level deep | bomb, a name that escapes, a file named two ways: refused; too big to check in full, damaged, two entries with one name: warn; encrypted parts: warn |
+| ClamAV: `clamdscan` when the clamd daemon answers, else `clamscan`, else none | known malware: refused; possibly unwanted or a heuristic guess: warn; stopped at a limit: warn ("not fully scanned"); none: `unavailable` |
+
+`--json` prints one document (the keys are a contract with Yggdrasil):
+
+```json
+{"files":[{"path":"/home/me/Inter.ttf","verdict":"ok","reasons":[],"clamav":"clean"}]}
+```
+
+`verdict` is `ok`, `warn` or `refused`; `reasons` are plain sentences, the most important first; `clamav` is `clean`,
+`infected:SIGNATURE`, `unavailable` (no ClamAV, or it could not run) or `not-fully-scanned` (ClamAV stopped at a limit, or the
+file is bigger than ClamAV's limits: the verdict is then at least `warn`, and a reason says so). Exit 0 when nothing is
+refused, 1 when something is, 2 when a file could not be read (it is listed as `refused` with the reason) or the command was
+wrong. The text form gives one line per file, its reasons under it, and "ClamAV: ...".
+
+ClamAV gets the files as `/proc/self/fd/N` of descriptors this program opened: it scans the very file that was checked, and its
+answer cannot be confused by a name with ": " or a line break in it. `HEIMDALL_CLAMAV=off|clamscan|clamdscan` forces a choice.
+
+### ClamAV's limits
+
+clamscan gets them on its command line (it does not read clamd.conf); clamd from `/etc/clamav/clamd.conf`, which Labyrinth OS
+ships with the same values (`profile/airootfs/etc/clamav/clamd.conf`):
+
+| Limit | Value | Why |
+| --- | --- | --- |
+| MaxFileSize | 256 MiB | as `extract`'s per-file limit; ClamAV cannot scan over 2 GB at all |
+| MaxScanSize | 512 MiB | as `extract`'s total (an archive and what it unpacks to count together) |
+| MaxRecursion | 12 | archives in archives; ClamAV's default is 17 |
+| MaxFiles | 10,000 | as `extract`'s entry limit |
+| MaxScanTime | 120 s | ClamAV's default, said explicitly |
+| AlertExceedsMax | yes | ClamAV says "Heuristics.Limits.Exceeded.*" instead of a silent "OK" |
+
+That name is never malware: `scan` calls it `not-fully-scanned` (a warning), Labyrinth's labyrinth-scan-downloads logs it as
+NOT FULLY SCANNED without a notice, so a big legitimate archive is never quarantined for its size. Where clamd runs without
+AlertExceedsMax (another distribution), `scan` compares the sizes with clamd's limits itself.
+
+### `heimdall-fileguard extract [--json] [--only EXT,EXT] ARCHIVE OUTDIR`
+
+Unpacks into OUTDIR, which must not exist: it is made, 0700. The formats: ZIP (stored and deflated entries, ZIP64), tar (ustar,
+GNU long names, pax), tar compressed with gzip (in the program, flate2), xz, zstd or bzip2 (the system's `xz`, `zstd` and
+`bzip2`, which every Arch install has, each with a memory limit of 256 MiB), and a single compressed file. 7z and RAR are not
+opened ("Heimdall does not open 7z archives"). I looked at a pure-Rust xz reader (lzma-rs 0.3): it keeps a whole LZMA2 block in
+memory before it hands out a byte, so the size could not be counted as it streams; the system's xz streams.
+
+The limits, counted on the bytes really unpacked (a header that says less is caught on the first byte too many; a header that
+admits to too much only makes the refusal come sooner):
+
+| Limit | Value |
+| --- | --- |
+| Unpacked in all (for a compressed tar: the whole stream, files skipped by `--only` included) | 512 MiB |
+| One file | 256 MiB (the kernel enforces it too: RLIMIT_FSIZE) |
+| Entries | 10,000 |
+| Growth of one file, and of the archive in all | 100 times, once a file has unpacked to 1 MiB and the archive to 4 MiB (small files compress well and are harmless) |
+| Archives inside | written as files, never opened by `extract`; `scan` then looks into each once, one level deep |
+
+Refused, the whole archive, before or while writing: a name that is absolute or climbs out with `..` ("zip slip", also when it
+only becomes `..` once cleaned), files that share bytes (overlapping entries, quines), a file whose two headers give two
+names, two entries with one name (or a file and a folder), a name over 255 bytes or 64 folders deep, damage (a checksum, a size
+that does not match, a cut-short archive). Left out and listed in `skipped`: links, hard links, devices, FIFOs, sockets (never
+made), encrypted entries (Heimdall cannot look inside), compression methods it does not read, and with `--only` every file of
+another kind (`--only ttf,otf,ttc,woff2` for fonts; folders are then made only for the files kept). Names are cleaned: control
+characters become `_`, invisible and direction-changing characters are removed. Files are written 0600, never runnable: a
+program inside loses its run permission. Each file is then checked by `scan` (ClamAV included).
+
+On any refusal, of the archive or of a file in it, everything written is removed, OUTDIR too, and `refused` says why in plain
+words. `--json`:
+
+```json
+{"files":[{"name":"Inter/Inter.ttf","path":"/home/me/.cache/x/Inter/Inter.ttf","size":303616,"verdict":"ok","reasons":[],"clamav":"clean"}],
+ "skipped":[{"name":"Inter/OFL.txt","reason":"not one of the kinds asked for (ttf, otf, ttc, woff2)"}],
+ "refused":null}
+```
+
+`name` is the name in the archive (made safe to show), `path` where it was written. When `refused` is not null nothing is left on
+disk; `files` then lists what was checked before the stop (a file `scan` refused names itself in `refused`: "NAME: reason").
+Exit 0 done, 1 refused, 2 a usage or reading error (OUTDIR exists, the archive cannot be read; `--json` still prints the
+document with `refused` saying why).
+
+**The sandbox.** The unpacking runs in a process of its own (`heimdall-fileguard extract-worker`, the same program) that opens
+the archive and OUTDIR, then shuts itself in with **Landlock**: it may create files and folders only inside OUTDIR, read and run
+only what is under `/usr` (the decompressors), nothing else (not my home, not `/etc`); TCP is shut where the kernel's Landlock
+knows networks (version 4), and signals and abstract sockets where it knows scopes (version 6). It also takes an empty network
+namespace when the kernel allows it. The parent sets its limits before it starts: 1 GiB of memory (address space), 120 s of
+processor time, 256 MiB per file, 64 open files, no core dump, and kills it after 300 s. A worker that dies of those limits is a
+refusal ("the archive could not be unpacked safely"). I chose Landlock over bubblewrap: it is in the kernel (5.13 and later,
+also on the Raspberry Pi), needs nothing installed and costs a few system calls, not a process of its own. Without it (an old
+kernel) the unpacking runs under the limits and the namespace only, and says so on standard error. `scan` runs an archive's dry
+run in the same worker.
+
+### New files in my folders and drives
+
+The guard's `watch` (section 1) now also watches Desktop, Documents, Pictures, Music and Videos (switch `folders_guard`), still
+with inotify only. When a file arrives it gets the light checks at once (the guard's, its name, a program dressed as something
+else: a notice "This file is not safe to use." when refused, with Show details, Show in Minos, Dismiss). The heavy part follows
+(an archive's dry run; ClamAV only when clamd runs: clamscan loads about a gigabyte of signatures for each run, not a background
+job; labyrinth-scan-watch already scans Downloads, Desktop and drives with it): a notice when it refuses the file or ClamAV
+names it. **While a game runs** (`yggdrasil-gametime status`, asked at most once a minute, only while something waits) the heavy
+part waits for the game to end; the light checks keep running, at nice 10 and idle I/O as before.
+
+**Drives.** When a drive is mounted under `/run/media/$USER` (udisks2), a notice "Drive NAME connected" offers **Scan this
+drive**. Nothing is scanned unless I press it. The scan (`heimdall-fileguard scan-drive FOLDER`: up to 100,000 files, not
+following links) runs in a scope of its own (`systemd-run --user --scope`, 2 GiB, nice 10, idle I/O), outside the guard's own
+512 MiB limit, and ends with a notice ("N files checked: R not safe to use, W worth a look") whose Show details lists them.
+
 ## Tests and fuzzing
 
 `cd rust && cargo test -p heimdall-privacy` (all offline; no test sends anything anywhere):
@@ -172,10 +302,21 @@ thing, never hides the name.
 - the commands (`tests/cli.rs`): arguments, output and exit codes as Minos and Settings use them; never over a file.
 - caps: a 32 MiB part packed into a few kilobytes (a ZIP bomb) is not unpacked; nesting stops at a limit; a TIFF whose
   strips all point at the same bytes is refused.
+- safe file intake (`src/extract/tests.rs`, `src/scan/tests.rs`, `tests/cli.rs`): archives built byte by byte in the tests: a
+  classic ZIP bomb, many small bombs that only the overall ratio catches, overlapping entries (Fifield's) and entries sharing one
+  header (a quine), more entries than the limit, a header that says less or more than the file holds, a wrong checksum, two names
+  for one file, zip slip names (`..`, absolute, `C:`, backslashes, a `..` that only appears once cleaned), links, devices,
+  FIFOs, encrypted entries, archives in archives, every cut-short version of a ZIP, a tar and a tar.gz, a tar.gz bomb, GNU and
+  pax long names, a base-256 size, and xz, zstd and bzip2 bombs through the system's programs where installed. Every bomb test
+  stops after a few megabytes. ClamAV is a stand-in script (the only "virus" is the EICAR test string, put together at run time);
+  the commands' JSON keys and exit codes are checked as Yggdrasil uses them; the sandbox is checked in a child process (the home
+  cannot be read, nothing outside OUTDIR written); the watcher refuses a program dressed as a font copied into Documents and a
+  ZIP bomb in Downloads, and follows `folders_guard`.
 
-**Fuzzing.** Six targets (`src/fuzzing.rs`): the guard under every file name, every cleaner (and its output cleaned again),
-the ZIP reader, the PDF scanner, the markup reader, the look-alike check. `cargo +nightly fuzz run privacy_guard
-seeds/privacy_guard` (and `privacy_strip`, `privacy_zip`, `privacy_pdf`, `privacy_markup`, `privacy_lookalike`) in
+**Fuzzing.** Seven targets (`src/fuzzing.rs`): the guard under every file name, every cleaner (and its output cleaned again),
+the ZIP reader, the PDF scanner, the markup reader, the look-alike check, and the extraction's dry run (ZIP, tar, gzip, names;
+never more unpacked than its limit). `cargo +nightly fuzz run privacy_guard seeds/privacy_guard` (and `privacy_strip`,
+`privacy_zip`, `privacy_pdf`, `privacy_markup`, `privacy_lookalike`, `privacy_extract`) in
 `rust/fuzz`. In the ordinary tests (`tests/fuzz_smoke.rs`) the same bodies run on the samples, on every cut-short version, on
 mutated versions and on random bytes, and on every `crash-*` file in `rust/fuzz/seeds/privacy_*` (inputs that once broke
 something). Where nightly is not at hand, the same mutator runs for as long as asked:
@@ -198,7 +339,13 @@ single call about 1 ms.
   is done (or paused): a paused download can be checked half-written (it is checked again when it changes).
 - It reports, it does not block: the person can still open the file. Formats not listed above are not looked into (an `.lnk`
   is reported by name inside archives only; EPUB, RTF, email files and Office 97 binary files are not read yet).
-- Archives other than ZIP are listed, not opened: a document inside a 7z is not checked.
+- The downloads guard lists archives other than ZIP, it does not open them: a document inside a 7z is not checked. `extract` and
+  `scan` open tar and compressed tar too, but never 7z or RAR.
+- `scan` and `extract` look one level into archives: an archive inside is checked by its own dry run when it is unpacked, not
+  before. ClamAV in the background guard needs the clamd daemon (off by default on Labyrinth OS); without it, ClamAV checks
+  new files only where labyrinth-scan-watch looks (Downloads, Desktop, drives) or when `scan` is asked.
+- The watcher's own folders follow the same 4096-watch cap: a Pictures folder with thousands of sub-folders is watched in part
+  (the download folders first).
 - Remove hidden info works on what the format holds as metadata. It does not remove what is in the content: a name typed in a
   document, comments and tracked changes (their authors stay: accept or remove them in the office app), a face or a street sign
   in a photo, Word's rsid attributes inside the text (only the settings' list goes), pictures' own metadata inside a PDF or an

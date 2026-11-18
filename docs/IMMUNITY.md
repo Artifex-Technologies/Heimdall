@@ -231,6 +231,17 @@ that is much longer, and the daemon itself stays as light as it was. A check tak
 `yara-x-bin`). The image's recipe (Sarina `packaging/limbo/decompile`) installs from the official repositories, so it keeps
 `yara` until `yr` is packaged there.
 
+## Files I add, and ClamAV's limits
+
+Immunity is about what Heimdall holds. Files I add myself (a font in Settings, an archive Minos unpacks, a copy from a USB drive)
+are checked before I use them by `heimdall-fileguard scan` and unpacked by `heimdall-fileguard extract`, the same ClamAV
+included, in the privacy package every install has: [PRIVACY_PACK.md](PRIVACY_PACK.md), "Safe file intake". There, too, are
+ClamAV's limits (256 MiB per file, 512 MiB per scan, 12 levels, 10,000 files, 2 minutes, AlertExceedsMax): clamscan gets them on
+its command line, clamd from the clamd.conf Labyrinth OS ships. A "Heuristics.Limits.Exceeded.*" answer means ClamAV stopped
+at a limit, not that it knows the file. `heimdalld immunity` (Go and Rust) does not tell that name apart yet: where clamd runs
+with AlertExceedsMax, a held file over the limits would be listed as known to ClamAV under that name. It is still held either
+way; telling it apart is for after the daemon's switch to Rust.
+
 ## Limits
 
 - A rule is only as good as its strings: one taken from a common library would match harmless programs. The test catches

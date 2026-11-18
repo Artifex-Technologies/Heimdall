@@ -550,3 +550,34 @@ pub fn plain_zip() -> Vec<u8> {
     z.extend_from_slice(comment.as_bytes());
     z
 }
+
+/// A small tar: a folder, a file in it, a link (never made by the extraction).
+pub fn tar() -> Vec<u8> {
+    fn header(name: &[u8], size: usize, ty: u8) -> [u8; 512] {
+        let mut h = [0u8; 512];
+        h[..name.len()].copy_from_slice(name);
+        h[100..107].copy_from_slice(b"0000644");
+        h[124..135].copy_from_slice(format!("{size:011o}").as_bytes());
+        h[156] = ty;
+        h[257..263].copy_from_slice(b"ustar\0");
+        h[148..156].copy_from_slice(b"        ");
+        let sum: u32 = h.iter().map(|&b| b as u32).sum();
+        h[148..155].copy_from_slice(format!("{sum:06o}\0").as_bytes());
+        h
+    }
+    let mut t = vec![];
+    t.extend_from_slice(&header(b"fonts/", 0, b'5'));
+    t.extend_from_slice(&header(b"fonts/a.ttf", 12, b'0'));
+    t.extend_from_slice(b"\x00\x01\x00\x00font");
+    t.resize(t.len().div_ceil(512) * 512, 0);
+    t.extend_from_slice(&header(b"link", 0, b'2'));
+    t.extend_from_slice(&[0u8; 1024]);
+    t
+}
+
+/// The same tar, gzipped.
+pub fn tar_gz() -> Vec<u8> {
+    let mut z = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+    std::io::Write::write_all(&mut z, &tar()).unwrap();
+    z.finish().unwrap()
+}
