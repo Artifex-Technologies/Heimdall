@@ -110,7 +110,7 @@ before the switch (the alert lines are real data: keep them private, do not past
 the causes below that are not the port's. The tool prints how many alerts differ on each side and for which detectors, then
 the first 40 lines of each side: read the counts, not only the lines (the first week's 40 and 40 lines were all
 connection-watch, sorted first, and hid ten differences of other detectors). Put the CPU and memory readings and the
-comparison's summary lines in `progress.md`.
+comparison's summary lines in the progress log (in my private plans: docs/plans/progress.md).
 
 Causes that are not the port's (check each before calling a difference a bug):
 

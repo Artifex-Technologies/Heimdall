@@ -8,6 +8,9 @@ the bottom whenever you do work another project might depend on.
 Push every commit as you make it; don't ask me first. Before pushing, check the
 diff names no host name, network address, SSID or MAC address.
 
+Plans, owner steps, the progress log and other internal notes go in `docs/plans/` (private and git-ignored; ask the
+owner), never in the public docs.
+
 ---
 
 ## 1. What this project is
@@ -366,7 +369,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 - The package still installs the scripts. The change that installs links to `/usr/bin/heimdalld` instead (the scripts
   no longer installed, `curl` and `gzip` out of `depends`) is the branch `shell-tools-rust`, to be merged with stage 1 of
   the switch, after `wifi-helpers-rust`; its `install.sh` refuses to build when `heimdalld` is not the Rust one
-  (`docs/RUST_SWITCH.md`).
+  (`docs/plans/RUST_SWITCH.md`).
 - **Fixed in the installed scripts now:** `heimdall-dns-blocklist` runs its text steps in the C locale with `grep -a` (a
   list with a zero byte, or a byte that is not UTF-8 in a comment, no longer loses names; the block file is sorted by
   bytes, so the next update rewrites it in that order); a block file cut short by a full disk never replaces the good one;
@@ -394,7 +397,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 — Signed: Heimdall / Claude Opus 5.5
 
 ### 2026-11-18 (6) — Disguise my voice, phase 1: light DSP on the private microphone and in files (R18)
-- **What** (my decision 8, Labyrinth_OS `docs/REFERENCE_PLAN_2026-11.md`; DSP first, any later neural phase only to synthetic
+- **What** (my decision 8, Labyrinth_OS `docs/plans/REFERENCE_PLAN_2026-11.md`; DSP first, any later neural phase only to synthetic
   voices that belong to nobody): `rust/scrub/src/disguise.rs`, TD-PSOLA with resampled grains (pitch and formants, independent)
   and a YIN pitch tracker at 12 kHz, written from the published methods (no code adapted, no NOTICE). Presets only: `lower`
   (-3 semitones, formants x0.88) and `higher` (+3, x1.12). Per session (each PipeWire start, each file) an offset from the OS's
@@ -417,7 +420,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   between presets and off; after the live scrub -2.6 / +2.5 semitones. CPU (release, i9-9900K): 0.7 % of one core, about 2 %
   with the scrub; Pi 4 estimate 3.5-5.5 % (10-17 % both). `packaging/privacy/isolated-test.sh` gained 9 disguise checks (control
   0/2/1/0, a recording's voice moves up, down and back), passing as Labyrinth OS and LykanOS. `docs/VOICE_DISGUISE.md`.
-- **For Sarina:** the speaker check and "my voice only" (`docs/VOICE_AND_TRUST_PLAN.md` section 9) must read the signal before
+- **For Sarina:** the speaker check and "my voice only" (Sarina's `docs/plans/VOICE_AND_TRUST_PLAN.md` section 9) must read the signal before
   the disguise: their tap goes between the two filter nodes. Until it exists, on Labyrinth OS Sarina hears the disguised voice
   while it is on (LykanOS with `sarina-raw` on skips the filter).
 - **For Yggdrasil:** Settings > Security > Privacy (and Peripherals > Microphone) has "Disguise my voice" and a Lower/Higher row,
@@ -456,7 +459,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 — Signed: Heimdall / Claude Opus 5.5
 
 ### 2026-11-18 (4) — Identifier privacy extras: wired networks, IPv6 privacy, Bluetooth address privacy (R19)
-- **Wired networks** (my decision 9, Labyrinth_OS `docs/REFERENCE_PLAN_2026-11.md`): `heimdall-wifi-guard up` (Python and its Rust
+- **Wired networks** (my decision 9, Labyrinth_OS `docs/plans/REFERENCE_PLAN_2026-11.md`): `heimdall-wifi-guard up` (Python and its Rust
   port) gives every untrusted wired (`802-3-ethernet`) profile the private settings: `ethernet.cloned-mac-address stable` (an
   address chosen in Settings is kept), no DHCP host name, LLMNR and mDNS off. Nothing else of Wi-Fi's: no lockdown, VPN or quiet
   table, Avahi untouched, `state.json` stays Wi-Fi's. While the real address is in use it notes once a day (`last.json` event
@@ -582,7 +585,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   garbled, "LG"/"ZTE" kept, endings like ", Inc." cut as whole words), a special address shows its name ("VRRP router"), and a
   multicast address is no longer counted as private.
 - The monthly download of the IEEE files is designed, not built (`docs/DEVICES.md`): my decision #3 in Labyrinth_OS
-  `docs/REFERENCE_PLAN_2026-11.md`.
+  `docs/plans/REFERENCE_PLAN_2026-11.md`.
 - **For Yggdrasil:** Settings uses the crate as a git dependency (contract above); no API change for anyone else.
 — Signed: Heimdall / Claude Opus 5.5
 
@@ -704,7 +707,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   check no longer takes GitHub's AS8075 as its own: the certificate of each answer decides.
 - **For Yggdrasil Settings:** the device list's `status` can now be `not_home` (a trusted network that is not home: no scan);
   until Settings knows it, it shows the raw word. The notification (heimdall-wifi-notify) shows `protected` once, low urgency.
-- **For Yggdrasil (`docs/INSTALLER.md:118`) and Labyrinth (`docs/FIRST_BOOT.md:56`, `docs/LAPTOP.md`):** they tell users that
+- **For Yggdrasil (`docs/INSTALLER.md:118`) and Labyrinth (`docs/FIRST_BOOT.md:56`, `docs/plans/LAPTOP.md`):** they tell users that
   `sudo heimdall-wifi-guard trust` keeps the real hardware address. It no longer does: a network that reserves addresses needs
   `trust --home --real-address`, and a home network `trust --home`. Nothing changes on the desktop (wired; any existing entry
   is home). Not changed in those repos from here.
@@ -765,7 +768,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   names), proved against the Python programs on 493 runs in fake roots and 36,988 parser cases against Python itself
   (`docs/RUST_CLI.md`, "Wi-Fi helpers"). The package still installs the Python programs; the change that installs links
   to the Rust binary, Python kept as the fallback, is the branch `wifi-helpers-rust`, to be merged at the Rust switch or
-  later (`docs/RUST_SWITCH.md`).
+  later (`docs/plans/RUST_SWITCH.md`).
 - **For Labyrinth and LykanOS (heimdall-git; nothing to change now):** the Python helpers they ship got three fixes: the
   check no longer reports "not on Wi-Fi" (checking nothing) on a network whose name ends in a backslash; "trusted" in
   the check (current.json, the router watch) now also needs the router remembered with the network, as the guard always
@@ -780,7 +783,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   mesh, trust, origin, intel-check, ipdb-check, kernel-check, wifi-health, maintenance, remote, version, help), each proved
   against the Go binary in fake roots: the same arguments, output, files and exit codes (`docs/RUST_CLI.md`). After the
   switch the Go binary is kept a week only as the quick rollback, then the package stops building it
-  (`docs/RUST_SWITCH.md`, stages 1 and 2). Nothing is installed yet; `run --shadow` is unchanged.
+  (`docs/plans/RUST_SWITCH.md`, stages 1 and 2). Nothing is installed yet; `run --shadow` is unchanged.
 - **For Yggdrasil Settings (nothing to change):** `heimdalld wifi-health --json [--speed]` writes the same report;
   `contain release`, `immunity release ID` and `immunity confirm ID` the same exit codes and messages.
 - **For Labyrinth (nothing to change):** `scan-files` prints the same `INFECTED PATH: SIGNATURE` lines and exit codes 0/1/2;
@@ -810,11 +813,11 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 - Trust (`rust/heimdall/src/trust.rs`): reads `/etc/heimdall/trust` as Go wrote it and judges changes to the behaviour
   files exactly as Go does (the same reasons in the alerts). **For Sarina:** her `go/trust` reads the same files; nothing
   changes. Signing stays with `heimdalld trust` (the Go binary).
-- Every part of the Go daemon in charge is now ported; the switch (`docs/RUST_SWITCH.md`) waits for the shadow week
+- Every part of the Go daemon in charge is now ported; the switch (`docs/plans/RUST_SWITCH.md`) waits for the shadow week
   (around 2026-11-17) and the owner's checks. **For Labyrinth, LykanOS, Limbo, Yggdrasil:** nothing to change.
 — Signed: Heimdall / Claude Opus 5.5
 
-### 2026-11-10 (6) — Rust port: the switch planned (docs/RUST_SWITCH.md); takeHeld ported
+### 2026-11-10 (6) — Rust port: the switch planned (docs/plans/RUST_SWITCH.md); takeHeld ported
 - After the switch `/usr/bin/heimdalld` is the Rust binary and the Go one stays as `/usr/lib/heimdall/heimdalld-go` for the
   one-shot commands; the Rust binary hands them over with the same arguments and exit code. **For Labyrinth, LykanOS,
   Yggdrasil Settings and Sarina:** `heimdalld <command>` keeps working as today; units, hook and config unchanged. The
@@ -831,7 +834,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 - **For Limbo (nothing to change):** the Rust responder uses the same routes on `control.sock` (`POST /v1/quarantine` at
   `restrict`, `POST /v1/quarantine/{id}/advisory`, read-only `GET /v1/guests/{name}` and `GET /v1/quarantine`) with the same
   bodies (compared byte for byte against the Go client on a fake socket), the same source `heimdall:<detector>` and the
-  same triggers. It is not installed; the Go daemon stays in charge until the switch (`docs/RUST_SWITCH.md`).
+  same triggers. It is not installed; the Go daemon stays in charge until the switch (`docs/plans/RUST_SWITCH.md`).
 - **For Sarina:** the advisory on a new hold (`sarina_url`, tool-less session) is not ported yet; the Go daemon keeps
   asking until the switch, and the switch waits for it.
 - **For API clients (Settings, Sarina, Labyrinth's checks):** nothing changes; the bodies are the Go daemon's.
@@ -1001,7 +1004,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   answers 404 and Heimdall records `limbo_quarantine_failed`).
 - **For Sarina / Settings readers:** new detector IDs `limbo-network`, `limbo-exchange`, each with built-in explain text;
   `limbo-exchange` fields: `guest`, `guest_path` (guest-chosen, untrusted), `sha256`, `size`, `signature` or `reason`.
-- Owner steps: `docs/OWNER_STEPS_2026-11-05.md`, section 6.
+- Owner steps: `docs/plans/OWNER_STEPS_2026-11-05.md`, section 6.
 — Signed: Heimdall / Claude Opus 5.5
 
 ### 2026-11-05 — The pending list closed: packaging ACL, API callers, vault watch, grant gate, incidents, agent baseline, mesh, YARA rules
@@ -1022,7 +1025,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   draft (built: Sarina `d225526`, `draft_yara_rule`; approved 2026-11-05).
 - New alert detectors for readers (Settings, Sarina): `grant-request` (warning), `incident`, `agent-baseline` (info),
   `mesh` (the peer's severity, fields `peer`, `remote_detector`), `rule-draft` (info). Each has built-in explain text.
-- Owner steps: `docs/OWNER_STEPS_2026-11-05.md`. Package r60 (`b055be9`) built, not installed.
+- Owner steps: `docs/plans/OWNER_STEPS_2026-11-05.md`. Package r60 (`b055be9`) built, not installed.
 — Signed: Heimdall / Claude Opus 5.5
 
 ### 2026-10-23 (5) — One home for the network protection; one file list
@@ -1251,7 +1254,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   behavior for a z-score detector on a low-variance signal, but an
   operator on a consistently idle host may want a higher
   `baseline_z_threshold` than the 3.0 default. Full numbers in
-  `docs/ARCHITECTURE.md`'s Phase 5 section and `progress.md`.
+  `docs/ARCHITECTURE.md`'s Phase 5 section and `docs/plans/progress.md`.
 - 7 new tests (`stats_test.go`, `baseline_test.go`), all offline,
   deterministic (no randomness — a small cycling sequence gives a known,
   nonzero baseline spread). Full suite green on both Windows and WSL2
@@ -1260,7 +1263,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   `wait` deadlocked against the long-running `heimdalld` daemon it had also
   backgrounded in the same shell (`wait` with no arguments waits for
   *every* job, including one that never exits on its own). Killed
-  manually; noted in `progress.md` so a future verification script
+  manually; noted in `docs/plans/progress.md` so a future verification script
   doesn't repeat it.
 - Nothing here touches Sarina or its contract. No `docs/ECOSYSTEM.md`
   change needed.
@@ -1299,7 +1302,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
   real-socket-not-mock convention, not `unittest.mock`. Full Sarina suite
   re-run after: 970 passed, 15 failed — the same pre-existing
   POSIX-specific failures (dotenv-guard, bash banner, MCP stdio, process
-  kill) this repo's own `CLAUDE.md`/`progress.md` already document, none
+  kill) this repo's own `CLAUDE.md`/`docs/plans/progress.md` already document, none
   touching memory/sentry code; confirmed by name, not just count.
 - **Verified end-to-end for real, not just unit-tested per repo:** built
   and ran the actual `heimdalld` binary with `api_addr` set, then from a
@@ -1362,7 +1365,7 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 - **Not exercised:** the known cross-user FIM read-permission gap
   (`README.md`) -- WSL testing ran as `root`, so the permission boundary
   that gap is about never came up. Still open.
-- Added `progress.md`, a terse cross-session "done vs. still open" index
+- Added `progress.md` (since 2026-11-18 `docs/plans/progress.md`, private), a terse cross-session "done vs. still open" index
   (distinct from this log and from `docs/ARCHITECTURE.md`), per the user's
   ask, matching the convention Sarina's own `progress.md` already
   established for this ecosystem.

@@ -1,7 +1,7 @@
 # The one-shot commands in Rust
 
 The daemon (`heimdalld run`) is ported (`docs/RUST_PORT.md`). This is the rest of the Go heimdalld, so that the Go binary
-can go at the switch (`docs/RUST_SWITCH.md`): every subcommand of `cmd/heimdalld`, and the helpers the package ships that are
+can go at the switch (planned in my private plans: docs/plans/RUST_SWITCH.md): every subcommand of `cmd/heimdalld`, and the helpers the package ships that are
 Go, Python or shell today.
 
 Until a command is ported, the Rust `heimdalld` hands it to the Go one kept beside it (`/usr/lib/heimdall/heimdalld-go`) with

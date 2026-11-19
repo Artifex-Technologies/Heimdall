@@ -6,7 +6,7 @@ The Rust port of Heimdall: the daemon (`heimdalld run`), every one-shot command,
 which become links to the same binary. One binary,
 `heimdalld-rs` until the switch, then `heimdalld`. How it was made to behave exactly like the Go and Python programs:
 [docs/RUST_PORT.md](../docs/RUST_PORT.md) (the daemon), [docs/RUST_CLI.md](../docs/RUST_CLI.md) (the commands and the
-helpers); the switch: [docs/RUST_SWITCH.md](../docs/RUST_SWITCH.md), the shadow week: [docs/RUST_SHADOW.md](../docs/RUST_SHADOW.md).
+helpers); the switch: my switch plan (in my private plans: docs/plans/RUST_SWITCH.md), the shadow week: [docs/RUST_SHADOW.md](../docs/RUST_SHADOW.md).
 
 ```bash
 cd rust

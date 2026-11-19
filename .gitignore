@@ -31,3 +31,6 @@ __pycache__/
 /rust/fuzz/target/
 /rust/fuzz/corpus/
 /rust/fuzz/artifacts/
+
+# My private plans (a link to a private checkout on my computers)
+docs/plans/

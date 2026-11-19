@@ -27,7 +27,7 @@ happened.
    change too — most rows are a one-time technique borrow, not a live
    dependency, so most upstream changes need no action here at all.
 3. Update the **Checked** date and add a one-line note in the row (or in
-   `progress.md`, if it drove an actual code change) rather than silently
+   the progress log in my private plans, if it drove an actual code change) rather than silently
    moving on — the point of this file is that "checked, no action needed"
    is itself worth recording.
 
@@ -44,7 +44,7 @@ happened.
 
 | Repo | Category | Status | Where | Checked |
 | --- | --- | --- | --- | --- |
-| [crowdsecurity/crowdsec](https://github.com/crowdsecurity/crowdsec) | Detection engine | Adapted | `internal/detect` (Source→Detector→Sink shape), `internal/detect/burst.go` (leaky bucket). Unused, planned: scenarios as data, expiring decisions, own-mesh signal sharing (R10, R7, R12 in Labyrinth_OS docs/REFERENCE_PLAN_2026-11.md) | 2026-11-17 |
+| [crowdsecurity/crowdsec](https://github.com/crowdsecurity/crowdsec) | Detection engine | Adapted | `internal/detect` (Source→Detector→Sink shape), `internal/detect/burst.go` (leaky bucket). Unused, planned: scenarios as data, expiring decisions, own-mesh signal sharing (R10, R7, R12 in my reference plan (in my private plans: Labyrinth_OS docs/plans/REFERENCE_PLAN_2026-11.md)) | 2026-11-17 |
 | [zeek/zeek](https://github.com/zeek/zeek) | Network monitoring | Adapted (framing) | `internal/sources/netsource` (connection state, not packet capture). Unused, planned: names beside addresses, intel match at sight (R11) | 2026-11-17 |
 | [wazuh/wazuh](https://github.com/wazuh/wazuh) | Host FIM/XDR | Adapted | `internal/sources/hostsource/fim.go` (mtime+size precheck before hashing). Unused, planned: checks as data (SCA), cross-view check (R13) | 2026-11-17 |
 | [netdata/netdata](https://github.com/netdata/netdata) | Host telemetry | Adapted (design) | `internal/sources/hostsource/telemetry.go` (`/proc`-only, no fork/exec). Unused, planned: alarm hysteresis (R14) | 2026-11-17 |
@@ -97,7 +97,7 @@ run this sequence of steps," which is a plausible future extension of
 Phase 4's governance layer: today `/v1/review` only answers yes/no; a
 playbook layer could take an action (notify, quarantine a file, restart a
 watcher) in response to a specific finding. A design was written on
-2026-11-17 (R7 in Labyrinth_OS's `docs/REFERENCE_PLAN_2026-11.md`); still a candidate until built.
+2026-11-17 (R7 in my reference plan (in my private plans: Labyrinth_OS docs/plans/REFERENCE_PLAN_2026-11.md)); still a candidate until built.
 
 **letta-ai/letta's persistent, self-editing agent memory, for Phase 5.**
 The transferable idea is tiered memory (a small, always-in-context working
@@ -143,7 +143,7 @@ the offline half: IPinfo (and DB-IP) publish free databases in the MaxMind DB fo
 `internal/ipintel` reads directly. `grepip`-style extraction became `fwsource`'s journal parsing.
 
 **The 2026-11-17 review.** I went through 26 starred projects; the R numbers in the rows above are the work items in
-Labyrinth_OS's `docs/REFERENCE_PLAN_2026-11.md`, which says per item what exists, the phases and the open decisions. All are
+my reference plan (in my private plans: Labyrinth_OS docs/plans/REFERENCE_PLAN_2026-11.md), which says per item what exists, the phases and the open decisions. All are
 references: nothing is installed or copied, each idea is rewritten in Rust. Rows for projects that only concern Sarina or
 the desktop are kept in those repositories, not here.
 

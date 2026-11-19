@@ -2,6 +2,8 @@
 
 # Heimdall
 
+[![rust](https://github.com/Artifex-Technologies/Heimdall/actions/workflows/rust.yml/badge.svg)](https://github.com/Artifex-Technologies/Heimdall/actions/workflows/rust.yml)
+
 The security agent of the **Artifex Ecosystem**. It runs on Labyrinth OS and on LykanOS (formerly Chymaera OS). It
 watches [Sarina](https://github.com/Artifex-Technologies/Sarina), the local AI agent, from outside Sarina's process. It also watches
 the computer itself: its connections, Wi-Fi, packages and kernels, settings, and the files that arrive. When something is wrong
@@ -12,6 +14,13 @@ lists it checks against (threat lists, the security trackers, IP databases), and
 
 See Sarina's [`docs/ECOSYSTEM.md`](https://github.com/Artifex-Technologies/Sarina/blob/main/docs/ECOSYSTEM.md) for how the
 repositories fit together, and [`CLAUDE.md`](CLAUDE.md) for Heimdall's coordination board.
+
+**How it is tested.** Every change to the code runs the `rust` workflow: formatting, clippy and the tests, with the
+commands run in throwaway fake roots; the Go daemon's recorded fixtures checked against the Rust port; a differential run
+that feeds both detection engines the same 50,000 events; a rogue router in a network namespace; and the shell programs
+beside their Rust ports on Arch's own tools. How the port was proven is in [docs/RUST_PORT.md](docs/RUST_PORT.md) and
+[docs/RUST_CLI.md](docs/RUST_CLI.md); running the two daemons side by side on my PC is
+[docs/RUST_SHADOW.md](docs/RUST_SHADOW.md).
 
 ## Why a separate process, and why Go
 

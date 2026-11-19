@@ -8,7 +8,7 @@ reason CrowdSec and Tailscale are Go and not Python — a single static
 binary, no interpreter or GC-heavy runtime sitting between the monitor and
 the host, low idle CPU/RAM for something meant to run forever in the
 background. Sarina's core moved to Rust on 2026-11-18 (and Heimdall has its own
-Rust port, `docs/RUST_SWITCH.md`); that only strengthens the case for Heimdall
+Rust port, `docs/RUST_PORT.md`); that only strengthens the case for Heimdall
 staying a separate binary talking to it across a process boundary rather than
 an in-process library.
 
@@ -249,7 +249,7 @@ reads the table itself: it needs the socket of the request being answered.
 
 **Unlike FIM, this state is not persisted to disk, and that's deliberate,
 not an oversight** — verified by testing both side by side on real Arch
-Linux (see `progress.md`). File integrity is inherently a *diff against
+Linux (the log is in my private plans: docs/plans/progress.md). File integrity is inherently a *diff against
 history*: without a saved baseline, "did this file change" has no answer
 at all across two separate `heimdalld scan` processes. A bind or connection
 violation needs no history — "is this port listening on a non-loopback
@@ -347,8 +347,8 @@ real `heimdalld run` process with `api_addr` set, and real Python code in a
 Sarina checkout calling `consult_sentry`/`scan_memory_text` against it
 over loopback HTTP — an injection phrase sent from Python came back denied
 with Heimdall's own detector's exact reason string, and appeared in
-`/v1/alerts` with the session id threaded through correctly. See
-`progress.md` for the full verification log.
+`/v1/alerts` with the session id threaded through correctly. The full
+verification log is in my private plans (docs/plans/progress.md).
 
 ## Phase 5 — ML / pattern recognition (built: baselines and incidents)
 
@@ -394,8 +394,8 @@ every reboot's warm-up period and every legitimate long-term usage change
 real, sustained shift.
 
 **A real calibration finding from live testing, not a hypothetical:**
-verified on real Arch Linux (WSL2) with a genuine CPU load spike (see
-`progress.md`), the detector correctly fired on both `load_per_cpu`
+verified on real Arch Linux (WSL2) with a genuine CPU load spike (log in my
+private plans: docs/plans/progress.md), the detector correctly fired on both `load_per_cpu`
 (baseline mean 0.00, stddev 0.01 on a near-idle host — a bump to just
 0.02 was already 3.6 standard deviations out) and `mem_percent` (baseline
 mean 18.14%, stddev 0.02 — a shift to 18.28% was 5.9 standard deviations
@@ -505,7 +505,7 @@ switches its signature updates on, since 2026-11-05); without it the command say
   afternoon on AC power, idle priority; caches, game libraries, toolchains, build output and disk images left out; it reports,
   and moves nothing outside the arrival places).
 - **Not yet:** scanning a package's files after install (pacman hook),
-  sending suspicious unknowns to a Limbo guest, and the exclusions list in Settings. See Labyrinth_OS docs/SECURITY_ROADMAP.md.
+  sending suspicious unknowns to a Limbo guest, and the exclusions list in Settings.
 
 ## Limbo guests: lifecycle, network, exchange
 

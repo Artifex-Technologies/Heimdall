@@ -10,7 +10,7 @@ that it was used can partly undo it, by shifting the pitch and formants back by 
 sounds most natural. It does not change what I say, my words, accent, rhythm, laugh or breathing, and a speaker-recognition
 model may still match me, especially one trained on shifted voices. It is not a voice conversion. Off by default.
 
-Approved by me on 2026-11-18 (R18 of Labyrinth_OS's docs/REFERENCE_PLAN_2026-11.md), DSP first. A later phase may add
+Approved by me on 2026-11-18 (R18 of my reference plan (in my private plans: Labyrinth_OS docs/plans/REFERENCE_PLAN_2026-11.md)), DSP first. A later phase may add
 conversion to one of a few synthetic voices that belong to nobody (desktop GPU); never a voice taken from a real person.
 
 ## Using it
@@ -56,8 +56,8 @@ Both are LADSPA plugins in the one PipeWire filter-chain (`packaging/privacy/pip
 and `heimdall_disguise`, the second linked after the first. The scrub always runs; the disguise passes the voice through
 sample for sample, with no delay, while it is off.
 
-**Sarina and the voiceprint.** Sarina's planned speaker check and "my voice only" (Sarina's docs/VOICE_AND_TRUST_PLAN.md,
-section 9) must hear my real voice, so they read the signal **before** the disguise: their tap goes between the two nodes
+**Sarina and the voiceprint.** Sarina's planned speaker check and "my voice only" (Sarina's voice and trust plan,
+section 9, in my private plans) must hear my real voice, so they read the signal **before** the disguise: their tap goes between the two nodes
 of the filter graph, never after it. Neither exists yet. Until then, on Labyrinth OS Sarina records the private microphone
 like every app, so while the disguise is on she hears the disguised voice (speech recognition copes with a three-semitone
 shift; a speaker check would not). On LykanOS, with Sarina's real-microphone setting on, her voice input skips the whole

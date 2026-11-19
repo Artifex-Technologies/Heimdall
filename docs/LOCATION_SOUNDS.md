@@ -132,7 +132,7 @@ Trade-offs I accepted:
   Raspberry Pi).
 - **"My voice only":** keeps only my voice, steered by the same voiceprint Sarina enrols for its speaker check, so one
   enrolment serves every program. Off until I turn it on; the voiceprint stays in Sarina's encrypted store. Design: Sarina's
-  docs/VOICE_AND_TRUST_PLAN.md, section 9.
+  voice and trust plan, section 9 (in my private plans: Sarina docs/plans/VOICE_AND_TRUST_PLAN.md).
 - **The real microphone out of my account's reach:** a small system service with its own account owns the device, so
   programs that open the sound card directly, or hostile programs running as me, only ever see the private microphone.
 
