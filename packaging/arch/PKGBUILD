@@ -16,6 +16,8 @@ makedepends=('go' 'git' 'rust')
 provides=('heimdall')
 conflicts=('heimdall')
 backup=('etc/heimdall/dns-allow.txt' 'etc/NetworkManager/dnsmasq.d/heimdall-blocklist.conf')
+# !lto: makepkg's -flto C flags turn ring's C code (the Rust daemon's TLS) into objects the linker cannot read
+options=('!lto')
 source=("git+https://github.com/Artifex-Technologies/Heimdall.git")
 sha256sums=('SKIP')
 
