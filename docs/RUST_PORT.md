@@ -5,8 +5,9 @@ heimdalld is the always-on part of Heimdall, so it goes first. Phase 0 (`docs/AR
 the Go daemon to about 0.05 % of a core and 22 MB on my PC and set the design; the Rust target is about 6-10 MB with the same
 or less CPU.
 
-The Go daemon stays installed and in charge until the switch. The Rust daemon (`heimdalld-rs`, in `rust/`) first runs
-beside it in **shadow mode**: the real sources, its own alert log, no responses (`docs/RUST_SHADOW.md`). The one-shot
+**Switched on 2026-11-19:** `/usr/bin/heimdalld` is the Rust daemon and runs every command; the Go binary is kept for a week
+at `/usr/lib/heimdall/heimdalld-go` as the quick rollback, then dropped (stage 2). Before that the Rust daemon (`heimdalld-rs`,
+in `rust/`) ran beside the Go one in **shadow mode**: the real sources, its own alert log, no responses (`docs/RUST_SHADOW.md`). The one-shot
 commands (lan scan, inventory, intel-check, requests, contain, immunity, grant, ...) are ported as well (2026-11-11), each
 proved against the Go binary in fake roots: `docs/RUST_CLI.md`.
 
@@ -19,7 +20,7 @@ proved against the Go binary in fake roots: `docs/RUST_CLI.md`.
 | 3 | the API, the Limbo responder, correlate, governance, grants | done: the correlator (`src/correlate.rs`, in the shadow daemon), governance (`src/governance.rs`), the API (`src/api.rs`: its own thread, plain HTTP/1.1 on loopback, callers from /proc/net/tcp; /healthz, /v1/alerts, /v1/review, /v1/incidents, /v1/requests, /v1/audit, /v1/lan/devices, /v1/quarantine, /v1/rules/drafts), grants (`src/grants.rs`: requests filed, decisions read), the restrict-only rules (`src/quarantine.rs`). the API served by `run` without `--shadow` (its alerts reach the loop as `Msg::Alert`; shadow mode serves none). the Limbo responder (`src/response.rs`, in charge only). the request to copy files Limbo held (`immunity::TakeHeld`); one-shot commands handed to the Go binary when it is installed beside (`main.rs`). The Sarina advisory on a new hold and the backlog note (`src/advisor.rs`, in charge only, 2026-11-10). Containment requests (`src/contain.rs`, in charge only, 2026-11-10) |
 | 4 | mesh and trust | **done** (2026-11-10): the mesh (`src/mesh.rs`, in charge only); trust (`src/trust.rs`: the signed list read and checked, the judge, the behaviour files in the file watch; watching, so in both modes) |
 | 5 | the one-shot commands (`src/cli`): every subcommand of cmd/heimdalld | **done** (2026-11-11): `docs/RUST_CLI.md`; the Python Wi-Fi helpers ported the same day, the shell programs (`heimdall-intel-update`, `heimdall-dns-blocklist`, `heimdall-enable-defaults`, `91-heimdall-netid`) on 2026-11-18 |
-| switch | the Rust binary as `heimdalld` for everything; the Go one kept a week as the quick rollback, then dropped | plan: in my private plans (docs/plans/RUST_SWITCH.md) |
+| switch | the Rust binary as `heimdalld` for everything; the Go one kept a week as the quick rollback, then dropped | **stage 1 done** (2026-11-19, heimdall-git 1.0.0-58 on my PC): Rust in charge, the Wi-Fi helpers and the former shell programs links to it; stage 2 (Go out of the package) about 2026-11-26 |
 
 ## Layout
 

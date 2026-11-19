@@ -124,6 +124,17 @@ Causes that are not the port's (check each before calling a difference a bug):
   already listening when it starts, which it records without an alert, as the Go daemon does on its own start
   (`journalctl -u heimdall-shadow` shows when it started).
 
+### The result (2026-11-19)
+
+One clean day on my PC (2026-11-18 15:55 UTC to a reboot at 06:11 UTC the next day), compared without
+`--conn-state-not-copied`: Go 11 alerts, Rust 9, two timing-dependent on each side. Every difference came from the installed
+Go package being older than the shadow binary (the ATT&CK tags of c6b2b60 and lan-watch's own wording of 6356758 were in
+the Rust build only); with those two fields set aside the alerts matched, and the one connection-log alert only Go had is
+the "one poll only" kind the tool classes as expected. Over the ten hours since the reboot the Go daemon used 40 s of CPU
+and 43 MB resident (733 MB in its cgroup with the page cache), the Rust one 19 s and 14 MB. Limbo's contract tests passed
+with the Rust binary (integration-quarantine 71 of 71, integration-chain 33 of 33 with the Sarina advisory checks), and the
+switch went ahead the same morning.
+
 ## Reading the connection log
 
 The connection watch (`connection-watch` and, for a remote-access tool, `remote-access` alerts on `new_connection`) reads

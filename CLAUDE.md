@@ -315,6 +315,26 @@ repo, the same role Sarina's `CLAUDE.md` plays for Sarina.
 
 ### Coordination Log (newest first)
 
+### 2026-11-19 — The switch, stage 1: heimdalld is the Rust daemon
+- **On my PC since 09:26 MST:** heimdall-git 1.0.0-58. `/usr/bin/heimdalld` is the Rust binary (daemon and every command);
+  the Go binary is at `/usr/lib/heimdall/heimdalld-go` for a week as the rollback (nothing calls it). The Wi-Fi helpers
+  (`heimdall-wifi-check`, `-guard`, `-notify`) and the former shell programs (`heimdall-intel-update`,
+  `heimdall-dns-blocklist`, `heimdall-enable-defaults`, the dispatcher `91-heimdall-netid`) are links to it; the Wi-Fi
+  helpers' Python programs stay at `/usr/lib/heimdall/python/` as their fallback. `depends` lost curl and gzip;
+  `makedepends` gained rust; `options=('!lto')` (ring's C code does not link from makepkg's LTO objects).
+- **Why now:** the shadow day came back with no porting difference (docs/RUST_SHADOW.md, "The result"); Limbo's contract
+  tests passed with the Rust binary; both test suites pass at the commit the package was built from.
+- **Checked after the restart:** the start log (Limbo responder with Sarina advisories, every watcher, API), /healthz,
+  /v1/alerts, `lan scan` and the inventory under their units, contain/trust/wifi-health, the DNS block list and the threat
+  lists under their units through the new links, the Wi-Fi check under its unit, `heimdall-wifi-guard status`. Memory 23 MB
+  for the whole unit (the Go one: about 730 MB with page cache), 3 threads.
+- **For the siblings:** nothing to change. Labyrinth's heimdall-git recipe builds both (e385e1d and the `!lto` commit);
+  LykanOS images take the same package. Settings, Sarina and Limbo call the same paths and the same API.
+- **Next:** stage 2 (about 2026-11-26) drops Go from the package; the shadow unit, `/usr/local/bin/heimdalld-rs` and
+  `/var/lib/heimdall-rs` go a day after the switch.
+
+— Signed: Heimdall / Claude Opus 5.5
+
 ### 2026-11-18 (9) — Safe file intake: scan, extract in a sandbox, new files in my folders, ClamAV's limits
 - **Decided by me on 2026-11-18:** files I add (fonts dropped into Settings, archives unpacked in Minos, copies from a USB drive)
   are checked by Heimdall whatever their origin, and a decompression bomb must not hurt the system. All in `rust/privacy`
