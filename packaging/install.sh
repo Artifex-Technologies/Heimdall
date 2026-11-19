@@ -65,7 +65,10 @@ if [ "$part" = yara-check ]; then
 fi
 [ "$part" = heimdall ] || { echo "packaging/install.sh: unknown part $part" >&2; exit 2; }
 
-i 755 heimdalld                                  usr/bin/heimdalld
+# the daemon and every command: the Rust heimdalld (the switch, docs/RUST_PORT.md); the Go one only as the rollback for the
+# first week (nothing calls it; the Rust one hands it a command it does not know while the file is there)
+i 755 rust/target/release/heimdalld-rs           usr/bin/heimdalld
+i 755 heimdalld-go                               usr/lib/heimdall/heimdalld-go
 i 644 LICENSE                                    usr/share/licenses/heimdall/LICENSE
 # MITRE's terms for the ATT&CK table compiled into heimdalld (docs/ATTACK.md)
 i 644 NOTICE-ATTACK                              usr/share/licenses/heimdall/NOTICE-ATTACK

@@ -8,7 +8,9 @@ url="https://github.com/Artifex-Technologies/Heimdall"
 license=('MPL2')
 depends=('glibc' 'curl' 'gzip' 'python' 'iproute2' 'iw' 'networkmanager' 'dnsmasq' 'nftables')
 optdepends=('heimdall-yara-check-git: YARA-X'"'"'s exact compile check and slow-pattern warnings for YARA rule drafts')
-makedepends=('go' 'git')
+# rust: /usr/bin/heimdalld is the Rust daemon since the switch (docs/RUST_PORT.md); go: the Go one, kept for a week at
+# /usr/lib/heimdall/heimdalld-go as the rollback (stage 2 drops it)
+makedepends=('go' 'git' 'rust')
 provides=('heimdall')
 conflicts=('heimdall')
 backup=('etc/heimdall/dns-allow.txt' 'etc/NetworkManager/dnsmasq.d/heimdall-blocklist.conf')
@@ -73,7 +75,9 @@ prepare() {
 build() {
 	cd "$srcdir/Heimdall"
 	export CGO_ENABLED=0
-	go build -trimpath -ldflags "-s -w" -o heimdalld ./cmd/heimdalld
+	go build -trimpath -ldflags "-s -w" -o heimdalld-go ./cmd/heimdalld
+	# offline first, so a build with the crates already fetched never reaches the network
+	(cd rust && { cargo build --release --locked --offline || cargo build --release --locked; })
 }
 
 check() {
