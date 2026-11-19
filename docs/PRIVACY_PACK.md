@@ -9,7 +9,7 @@ parts; all four are on by default, each with its own switch in Settings > Securi
 | Part | Where | Switch (Settings > Security > Privacy) |
 | --- | --- | --- |
 | The downloads guard: a notice when a downloaded file would contact a server when opened | Heimdall: `heimdall-fileguard` (a user service) | Check downloads |
-| Safe file intake: every file I add is checked (`scan`), archives are unpacked safely (`extract`), new files in my own folders and drives are checked | Heimdall: `heimdall-fileguard scan`, `extract`; Settings' fonts page and Minos' Extract call them | Check new files in my folders (`folders_guard`) |
+| Safe file intake: every file I add is checked (`scan`), archives are unpacked safely (`extract`), new files in my own folders and drives are checked | Heimdall: `heimdall-fileguard scan`, `extract` (for any program to call; Settings' fonts page uses them) | Check new files in my folders (`folders_guard`) |
 | Remove hidden info: a clean copy of a photo, video, song or document | Heimdall: `heimdall-strip`; Minos' right-click menu | Remove hidden info in Minos |
 | Viewer apps ask before going online the first time | Labyrinth OS: `labyrinth-appnet` (its docs/PRIVACY_PACK.md) | Viewer apps ask before going online |
 | Look-alike names: a warning on names that imitate others ("Vivаldi" with a Cyrillic а) | the same small module in Heimdall, Labyrinth OS and Yggdrasil | Warn about look-alike names |

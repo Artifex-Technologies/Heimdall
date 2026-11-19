@@ -200,12 +200,14 @@ Sarina's `docs/ECOSYSTEM.md` port registry.
 ## Several connections at once: `heimdall-multilink`
 
 - **What:** `heimdall-multilink status --json` (the service's `/run/heimdall-multilink/status.json` while it runs: `state`
-  active|paused|waiting|off, `reason`, `combined_rate`, `links[]` with `name role up ipv4 ipv6 healthy4 healthy6 weight4
-  weight6 rtt_ms rate peak share_now share_limit data_cap_mb period used_bytes over_cap`; rates in bytes/s). Changes:
+  active|paused|waiting, `reason`, `since`, `new_links`, `combined_rate`, `links[]` with `name role up ipv4 ipv6 healthy4
+  healthy6 weight4 weight6 rtt_ms rate peak share_now share_limit data_cap_mb period used_bytes over_cap`; rates in bytes/s;
+  while the service is off the command prints the same shape with `state` "off" and only `name role up ipv4 ipv6
+  share_limit data_cap_mb period` per link). Changes:
   `pkexec /usr/bin/heimdall-multilink on|off|set LINK use|backup|off [--share N|none] [--cap MB|none] [--per day|month]|new-links
   ROLE`. [MULTILINK.md](MULTILINK.md).
 - **Who:** Yggdrasil Settings > Wi-Fi & Network > Several connections at once.
-- **Where:** `rust/multilink`.
+- **Where:** `rust/multilink` (`src/service.rs`, `status_json`).
 
 ## Safe file intake: `heimdall-fileguard scan|extract --json`
 
@@ -214,7 +216,7 @@ Sarina's `docs/ECOSYSTEM.md` port registry.
   ARCHIVE OUTDIR` prints `{"files":[{"name","path","size","verdict","reasons","clamav"}],"skipped":[{"name","reason"}],
   "refused":null|"..."}`. Exit 0 nothing refused, 1 refused, 2 usage or reading error. OUTDIR must not exist; on a refusal
   nothing is left. [PRIVACY_PACK.md](PRIVACY_PACK.md), section 5.
-- **Who:** Yggdrasil Settings (fonts page) and Minos (Extract).
+- **Who:** Yggdrasil Settings (fonts page; `packages/settings/src/fontlib.rs`).
 - **Where:** `rust/privacy`.
 
 ## The privacy pack's switches and `heimdall-strip`

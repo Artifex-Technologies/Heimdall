@@ -3,7 +3,7 @@
 Heimdall's alerts name, in MITRE ATT&CK's words, what the detector that raised them looks for. An alert from the LAN
 watch about the router's hardware address changing carries `"attack": ["T1557.002"]`, and its explanation says
 "Adversary-in-the-Middle: ARP Cache Poisoning". Item R1 of my reference plan (in my private
-plans: Labyrinth_OS docs/plans/REFERENCE_PLAN_2026-11.md), phases 1 and 2; I approved shipping the table on 2026-11-18.
+plans: Labyrinth_OS docs/plans/PLAN_REFERENCE_2026-11.md), phases 1 and 2; I approved shipping the table on 2026-11-18.
 
 **A tag says what a detector watches. It never says a technique is covered**, that Heimdall would catch every use of it, or
 that an alert proves an attack. That is MITRE's own warning (NOTICE-ATTACK, "Disclaimers") and my rule: a tag goes on only

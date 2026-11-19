@@ -122,7 +122,7 @@ administered address.
 
 ### Downloading the IEEE's files: not built (my decision, 2026-11-18)
 
-I decided to stay with what Arch provides (#3 in my reference plan (in my private plans: Labyrinth_OS docs/plans/REFERENCE_PLAN_2026-11.md)): hwdata's two lists, updated
+I decided to stay with what Arch provides (#3 in my reference plan (in my private plans: Labyrinth_OS docs/plans/PLAN_REFERENCE_2026-11.md)): hwdata's two lists, updated
 with the system. Nothing downloads the IEEE's files. The reader still uses the CSV files in `/var/lib/heimdall-ieee` when they
 are there, so putting them there by hand adds the MA-M and MA-S blocks; nothing creates or refreshes that folder.
 

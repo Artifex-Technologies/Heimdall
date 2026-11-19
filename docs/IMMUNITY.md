@@ -178,7 +178,7 @@ seconds), and after approval ClamAV reported the script as `YARA.Heimdall_demo_d
 
 ### Checking a draft: the lint and YARA-X (built 2026-11-18)
 
-Item R4 of my reference plan (in my private plans: Labyrinth_OS docs/plans/REFERENCE_PLAN_2026-11.md); I decided on 2026-11-18 to use YARA-X for the exact check.
+Item R4 of my reference plan (in my private plans: Labyrinth_OS docs/plans/PLAN_REFERENCE_2026-11.md); I decided on 2026-11-18 to use YARA-X for the exact check.
 
 **The lint** (Go `internal/immunity/rulelint.go`, Rust `rust/heimdall/src/rulelint.rs`, the same answers:
 `testdata/parity/rulelint.json`). ClamAV is still where an approved rule goes, and it loads only part of YARA, so what it

@@ -10,7 +10,7 @@ that it was used can partly undo it, by shifting the pitch and formants back by 
 sounds most natural. It does not change what I say, my words, accent, rhythm, laugh or breathing, and a speaker-recognition
 model may still match me, especially one trained on shifted voices. It is not a voice conversion. Off by default.
 
-Approved by me on 2026-11-18 (R18 of my reference plan (in my private plans: Labyrinth_OS docs/plans/REFERENCE_PLAN_2026-11.md)), DSP first. A later phase may add
+Approved by me on 2026-11-18 (R18 of my reference plan (in my private plans: Labyrinth_OS docs/plans/PLAN_REFERENCE_2026-11.md)), DSP first. A later phase may add
 conversion to one of a few synthetic voices that belong to nobody (desktop GPU); never a voice taken from a real person.
 
 ## Using it

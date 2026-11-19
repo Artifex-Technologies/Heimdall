@@ -17,7 +17,7 @@ name = "heimdall-yara-check"
 path = "src/main.rs"
 
 [dependencies]
-# BSD-3-Clause (VirusTotal); my decision 2026-11-18 (my reference plan §5, 1: Labyrinth_OS docs/plans/REFERENCE_PLAN_2026-11.md, private). No modules: a draft
+# BSD-3-Clause (VirusTotal); my decision 2026-11-18 (my reference plan §5, 1: Labyrinth_OS docs/plans/PLAN_REFERENCE_2026-11.md, private). No modules: a draft
 # never imports one (Heimdall refuses `import`), so none is built in.
 yara-x = { version = "=1.23.0", default-features = false, features = ["constant-folding", "exact-atoms"] }
 serde_json = "=1.0.154"
