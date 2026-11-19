@@ -13,7 +13,7 @@ Every check runs on this computer. Heimdall itself never connects off the machin
 lists it checks against (threat lists, the security trackers, IP databases), and nothing about this computer is ever sent.
 
 See Sarina's [`docs/ECOSYSTEM.md`](https://github.com/Artifex-Technologies/Sarina/blob/main/docs/ECOSYSTEM.md) for how the
-repositories fit together, and [`CLAUDE.md`](CLAUDE.md) for Heimdall's coordination board.
+repositories fit together, and [docs/CONTRACTS.md](docs/CONTRACTS.md) for what the other projects rely on from Heimdall.
 
 **How it is tested.** Every change to the code runs the `rust` workflow: formatting, clippy and the tests, with the
 commands run in throwaway fake roots; the Go daemon's recorded fixtures checked against the Rust port; a differential run

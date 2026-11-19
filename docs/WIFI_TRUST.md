@@ -172,7 +172,7 @@ by announcing itself as the IPv6 router. heimdalld watches for both on every net
 | On a trusted or home network that never had IPv6 on 3 connections: an IPv6 router appearing | warning |
 
 Each alert (`lan-watch`, event kind `rogue_router`) is one per connection for the same values and carries what was seen
-before and after, so how often the checks fire can be measured later (see "Protective mode" below): `via` (`dhcp` or `ra`),
+before and after, so how often the checks fire can be counted per network: `via` (`dhcp` or `ra`),
 `signals` (which changed together, comma-separated: `dhcp_server`, `dhcp_router`, `dns4`, `dns6`, `gateway_mac`, `ra_router`,
 `ra_prefix`, `ipv6_new`, `ipv6_late`), `judged` (`info`, `warning` or `critical`, by the table above), `network_kind` (the
 network's kind, below; empty on a network that is not trusted), `before` and `after` (`signal=value;...`; `remembered` where a trusted network keeps only a hash),
@@ -200,19 +200,10 @@ has been seen on 3 connections, so replacing the router gives a critical alert o
 stops. Only Wi-Fi networks have a level (from `heimdall-wifi-check`'s `current.json`); a wired connection is judged within the
 connection only.
 
-## Protective mode (planned, after training)
+## Protective mode
 
-Not built. When Heimdall is confident that someone is in the middle, it should protect the connection rather than only warn,
-while everyone, this computer included, stays on the network. Planned actions, each automatic only on a learned (trusted or
-home) network at `high` confidence, each reversible, each with a notice and an "Undo":
-- pin the known router's hardware address as a permanent neighbour entry (ARP spoofing then changes nothing for this computer);
-- drop DHCP offers and IPv6 router advertisements that do not come from the known router (nftables, the Wi-Fi interface only);
-- keep DNS on the resolvers the network is known to hand out;
-- send everything through the VPN, if one is set up.
-
-Never a full disconnect. The training gate comes first: per network an observe-only period that counts how often each check
-fires on a network known to be clean (the `signals`, `confidence` and `before`/`after` fields above are recorded for this), and
-no action is switched on until I approve a threshold from those numbers.
+Not built: Heimdall warns when someone looks to be in the middle; it does not act on the connection itself (pinning the
+router's address, dropping other routers' offers, keeping DNS, forcing the VPN).
 
 ## What kind of network a trusted one is
 
@@ -237,14 +228,12 @@ are neither compared nor remembered; on a mesh, each address is learned like a n
 of the mesh's addresses is the anchor; the other kinds remember every signal.
 
 On every kind, the router's address changing during a connection, or two addresses answering as the router at once, stays a sign
-of someone in the middle. Heimdall may suggest a kind but never sets it. **In Settings:** "This network is" next to the trust level
+of someone in the middle. Heimdall never sets a kind. **In Settings:** "This network is" next to the trust level
 and the discoverable switch on a saved Wi-Fi network's page (Yggdrasil 2026-11-17), read with `heimdall-wifi-guard kind --uuid
 UUID` (`NAME: kind KIND`) and set with `pkexec /usr/bin/heimdall-wifi-guard kind KIND --uuid UUID` (polkit's default: the
 administrator's password); on an untrusted network it is shown off, "Trust this network first".
 
-To do: a suggestion. Heimdall does not offer one yet; when it does (a phone hotspot's maker in the router's hardware address, a
-mesh's several access points), the guard should print it (for example a `suggest KIND` line from `kind --uuid UUID`) so Settings
-can show "Looks like a phone hotspot" beside the list, never applying it by itself.
+Heimdall does not suggest a kind; it is always my choice.
 
 ## Discoverable: announcing on a network, whatever its level
 
@@ -368,17 +357,15 @@ name, and checks the certificate:
 An answer that is a local address (private, link-local) must show the genuine certificate too; anything else is "bad". An
 answer that points at this computer itself (127.0.0.0/8, 0.0.0.0/8) is "bad" without asking.
 
-## Later
+## Known limitations
 
-- "Trust this network" buttons on the notification, and a level selector in Settings.
-- Loading the quiet table at boot, then no longer stopping Avahi at all.
-- Devices that look up this computer, and new devices on trusted networks, without sending anything.
-- IPv6 in the listener.
-- More signals in the router's fingerprint: the DHCP option set (NetworkManager's dispatcher does not pass it), the router's
-  admin certificate or SSH key if it already answers on the network (one connection, no login), the RA lifetimes.
-- Heimdall suggesting a kind (a made-up router address that changes between sessions suggests a phone hotspot).
-- A known device on a home network announcing another device's name (the device list now reports a device taking another's
-  address: `docs/DEVICES.md`).
-- Enterprise networks with a pinned certificate authority.
-- Encrypted DNS.
-- The status `not_home` in Settings' device list.
+- The Wi-Fi notification has no "Trust this network" button (Settings has the level selector).
+- The quiet table is loaded when a connection comes up, not at boot, and Avahi is stopped on networks that are not home.
+- Devices that look up this computer, and new devices on trusted networks that are not home, are not reported.
+- The listener logs IPv4 only.
+- The router's fingerprint does not include the DHCP option set (NetworkManager's dispatcher does not pass it), the router's
+  admin certificate or SSH key, or the RA lifetimes.
+- A known device on a home network announcing another device's name is not reported (a device taking another's address is:
+  [DEVICES.md](DEVICES.md)).
+- Enterprise (EAP) networks cannot be trusted.
+- DNS is not encrypted.

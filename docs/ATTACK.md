@@ -113,10 +113,9 @@ above says (a revoked ID makes the map fail to load, and the tests say so), `go 
 the diff, update NOTICE-ATTACK (release, SHA-256, the copyright years from the table's header, the terms if MITRE changed
 them) and the row in `docs/REFERENCES.md`. The bundle itself is never committed (55 MB).
 
-## Not done yet (phase 3 and R2)
+## Known limitations
 
-- Sarina's explanation of an alert names the technique and links MITRE's page (she reads `explain.attack`).
-- Limbo's analysis report tags its triage hints (a sample importing `ptrace`, `CreateRemoteThread`) with candidate IDs,
-  marked "suggested": the Windows rows of the table are for that.
-- R2: `heimdalld attack-layer` writes an ATT&CK Navigator layer of the map, and a generated coverage page from the same
-  two tables above.
+- The tags are on Heimdall's alerts only. Sarina's explanation of an alert and Limbo's analysis report do not name techniques
+  yet.
+- No ATT&CK Navigator layer or coverage page is generated from the map; `internal/attack/tags.tsv` and the table above are the
+  map.

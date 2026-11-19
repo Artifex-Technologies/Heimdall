@@ -1,9 +1,9 @@
 # Rust migration: what was ported and what it measured
 
-The detailed record of the port: [RUST_PORT.md](RUST_PORT.md), and the switch from Go: my switch plan (in my private plans: docs/plans/RUST_SWITCH.md).
+The detailed record of the port: [RUST_PORT.md](RUST_PORT.md), and the switch from Go: my switch plan (in my private plans: docs/plans/PLAN_RUST_SWITCH.md).
 
 The daemon, every command and the Python Wi-Fi helpers are ported to Rust ([`rust/`](../rust/README.md)), one binary that takes
-over at the switch (planned in my private plans: docs/plans/RUST_SWITCH.md). Measured on my desktop, old against new on the same input
+over at the switch (planned in my private plans: docs/plans/PLAN_RUST_SWITCH.md). Measured on my desktop, old against new on the same input
 (2026-11-11; a minus is a gain):
 
 | Program | Was | Measured | Details |

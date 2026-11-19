@@ -45,6 +45,6 @@ other arguments are never read (password crackers take passwords there); only th
 
 ## Switching Heimdall on in LykanOS
 
-Not yet (my decision stands until the rules are tested with the tools): `sudo heimdall-enable-defaults --force && sudo
-systemctl start heimdall`, after checking in a LykanOS VM that scans, brute-force runs and Metasploit sessions produce the
-summarised info lines above and nothing critical.
+Heimdall ships off on LykanOS (my decision): it stays off until the rules have been tested with the tools, in a LykanOS VM,
+showing that scans, brute-force runs and Metasploit sessions give the summarised info lines above and nothing critical. That
+test has not been run. Switching it on: `sudo heimdall-enable-defaults --force && sudo systemctl start heimdall`.

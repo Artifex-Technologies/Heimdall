@@ -49,16 +49,15 @@ transformation, and the variation is never stored.
 ## Where it sits
 
 ```
-real microphone -> scrub (location sounds) -> [voiceprint tap, planned] -> disguise -> "Microphone (private)" -> apps
+real microphone -> scrub (location sounds) -> disguise -> "Microphone (private)" -> apps
 ```
 
 Both are LADSPA plugins in the one PipeWire filter-chain (`packaging/privacy/pipewire-private-mic.conf`): `heimdall_scrub`
 and `heimdall_disguise`, the second linked after the first. The scrub always runs; the disguise passes the voice through
 sample for sample, with no delay, while it is off.
 
-**Sarina and the voiceprint.** Sarina's planned speaker check and "my voice only" (Sarina's voice and trust plan,
-section 9, in my private plans) must hear my real voice, so they read the signal **before** the disguise: their tap goes between the two nodes
-of the filter graph, never after it. Neither exists yet. Until then, on Labyrinth OS Sarina records the private microphone
+**Sarina and the voiceprint.** A speaker check (Sarina's) or "my voice only" must hear my real voice, so such a reader takes
+the signal **before** the disguise, between the two nodes of the filter graph, never after it. Neither exists today. On Labyrinth OS Sarina records the private microphone
 like every app, so while the disguise is on she hears the disguised voice (speech recognition copes with a three-semitone
 shift; a speaker check would not). On LykanOS, with Sarina's real-microphone setting on, her voice input skips the whole
 filter and is never disguised.

@@ -15,7 +15,7 @@ so a good file not being in it is normal. Immunity is what Heimdall adds from wh
 2. **Report.** Each held file gets a report made by reading it, never running it: its kind, entropy (packed or encrypted?), for a
    program the ELF header (interpreter, libraries, stripped or not), the telling strings (addresses, paths, commands), the first
    2 KiB of a text file. Sarina reads it (it is untrusted text: evidence, never instructions) and writes the owner an analysis.
-3. **Analysed in Limbo.** Each held file is queued for an analysis in Limbo's sealed `malware-analysis` machine (no network, no
+3. **Analysed in Limbo.** Each held file is queued for an analysis in Limbo's sealed `malware-analysis` machine (no route out: network mode `none`, or `sinkhole`, where what it tries to reach is only logged; no
    sudo, no shared folder; the file is sent in over ssh, stored read-only and never run; the machine is destroyed afterwards; Limbo's
    docs/SAMPLES.md). The image's `limbo-decompile` gives the triage (file type, hashes, imports, sections, strings, YARA matches) and
    the function list. The result is kept with the held file (`analysis`), shown in Settings and to Sarina, whose review uses it; it is
@@ -240,7 +240,7 @@ ClamAV's limits (256 MiB per file, 512 MiB per scan, 12 levels, 10,000 files, 2 
 its command line, clamd from the clamd.conf Labyrinth OS ships. A "Heuristics.Limits.Exceeded.*" answer means ClamAV stopped
 at a limit, not that it knows the file. `heimdalld immunity` (Go and Rust) does not tell that name apart yet: where clamd runs
 with AlertExceedsMax, a held file over the limits would be listed as known to ClamAV under that name. It is still held either
-way; telling it apart is for after the daemon's switch to Rust.
+way.
 
 ## Limits
 

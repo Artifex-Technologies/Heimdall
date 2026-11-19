@@ -123,18 +123,10 @@ Trade-offs I accepted:
   not location sounds this addresses, and metadata is removed only from files through `heimdall-scrub`.
 - **Not a guarantee.** Tested against the two scorers (brightness and trace-and-fit) on synthetic flyovers; not against
   learned detectors or several flights with a locked clock offset.
-
-## Planned
-
-- **Vehicle and transit sounds:** a wider band and short tonal events (tram bells, door chimes, horns, rail squeal), tested on
-  synthetic tram, rail and bus sounds.
-- **"Voice only":** keeps any voice and removes everything else, stop announcements included (no profile needed; also on a
-  Raspberry Pi).
-- **"My voice only":** keeps only my voice, steered by the same voiceprint Sarina enrols for its speaker check, so one
-  enrolment serves every program. Off until I turn it on; the voiceprint stays in Sarina's encrypted store. Design: Sarina's
-  voice and trust plan, section 9 (in my private plans: Sarina docs/plans/VOICE_AND_TRUST_PLAN.md).
-- **The real microphone out of my account's reach:** a small system service with its own account owns the device, so
-  programs that open the sound card directly, or hostile programs running as me, only ever see the private microphone.
+- **Vehicle and transit sounds** (tram bells, door chimes, horns, rail squeal, stop announcements) are not removed; there is no
+  mode that keeps only a voice, or only my voice.
+- **The real microphone stays reachable from my account:** no system service owns the device, so a program that opens the
+  sound card directly, or a hostile program running as me, can still reach it.
 
 ## Measured (2026-11-15, synthetic audio only)
 

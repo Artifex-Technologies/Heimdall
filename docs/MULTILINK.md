@@ -128,7 +128,7 @@ My desktop has one Wi-Fi card, so it cannot be on my Wi-Fi and a phone's Wi-Fi h
 a second interface instead.
 
 - **iPhone over USB**: the kernel's `ipheth` driver, plus `usbmuxd`, which pairs with the phone. `libimobiledevice`
-  (`idevicepair`) is installed; `usbmuxd` is not yet (`sudo pacman -S usbmuxd`). Steps: unlock the phone, plug it in, tap
+  (`idevicepair`) and `usbmuxd` must be installed (`sudo pacman -S --needed libimobiledevice usbmuxd`). Steps: unlock the phone, plug it in, tap
   **Trust** and enter the passcode, then turn on Settings > Personal Hotspot ("Allow Others to Join"). `idevicepair validate`
   says whether pairing worked. NetworkManager then brings up a new wired connection on an interface named like `enp0s20f0u1c4i2`.
   The phone answers at 172.20.10.1 by default.

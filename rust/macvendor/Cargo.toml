@@ -2,7 +2,7 @@
 name = "heimdall-macvendor"
 version = "0.1.0"
 description = "Who made a hardware (MAC) address, from the IEEE registries on disk (MA-L, MA-M, MA-S, IAB); private, multicast and special addresses"
-# Written out instead of inherited from the workspace, so Yggdrasil and LykanOS-Tools can use the crate as a git dependency
+# Written out instead of inherited from the workspace, so Yggdrasil and LykanOS's tools can use the crate as a git dependency
 edition = "2021"
 license = "MPL-2.0"
 rust-version = "1.82"

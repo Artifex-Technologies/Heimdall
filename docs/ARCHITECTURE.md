@@ -1,4 +1,4 @@
-# Heimdall — architecture & roadmap
+# Heimdall — architecture
 
 Heimdall is a security agent for [Sarina](https://github.com/Artifex-Technologies/Sarina),
 built as a separate process on purpose: a security monitor that shares a
@@ -19,9 +19,8 @@ every reference used anywhere in this repo, kept up to date independently
 of this file. All five phases are built as of 2026-11-05: Phase 3's mesh
 (`MESH.md`), Phase 4's grant gate for escalations and access tiers
 (`GRANTS.md`), and Phase 5's incidents and agent baseline were the last
-pieces. What each deliberately leaves out is recorded in its section — see
-[`CLAUDE.md`](../CLAUDE.md) before starting any of them, in case the plan
-has since moved in the Coordination Log.
+pieces. What each deliberately leaves out is recorded in its section; the
+contracts with the other projects are in [CONTRACTS.md](CONTRACTS.md).
 
 ## Engine shape
 
@@ -249,7 +248,7 @@ reads the table itself: it needs the socket of the request being answered.
 
 **Unlike FIM, this state is not persisted to disk, and that's deliberate,
 not an oversight** — verified by testing both side by side on real Arch
-Linux (the log is in my private plans: docs/plans/progress.md). File integrity is inherently a *diff against
+Linux (the log is in my private plans: docs/plans/records/progress.md). File integrity is inherently a *diff against
 history*: without a saved baseline, "did this file change" has no answer
 at all across two separate `heimdalld scan` processes. A bind or connection
 violation needs no history — "is this port listening on a non-loopback
@@ -348,7 +347,7 @@ Sarina checkout calling `consult_sentry`/`scan_memory_text` against it
 over loopback HTTP — an injection phrase sent from Python came back denied
 with Heimdall's own detector's exact reason string, and appeared in
 `/v1/alerts` with the session id threaded through correctly. The full
-verification log is in my private plans (docs/plans/progress.md).
+verification log is in my private plans (docs/plans/records/progress.md).
 
 ## Phase 5 — ML / pattern recognition (built: baselines and incidents)
 
@@ -395,7 +394,7 @@ real, sustained shift.
 
 **A real calibration finding from live testing, not a hypothetical:**
 verified on real Arch Linux (WSL2) with a genuine CPU load spike (log in my
-private plans: docs/plans/progress.md), the detector correctly fired on both `load_per_cpu`
+private plans: docs/plans/records/progress.md), the detector correctly fired on both `load_per_cpu`
 (baseline mean 0.00, stddev 0.01 on a near-idle host — a bump to just
 0.02 was already 3.6 standard deviations out) and `mem_percent` (baseline
 mean 18.14%, stddev 0.02 — a shift to 18.28% was 5.9 standard deviations
@@ -504,7 +503,7 @@ switches its signature updates on, since 2026-11-05); without it the command say
   on arrival) and, since 2026-11-07, the weekly scan of the whole home folder (`--full`, `labyrinth-scan-full.timer`, Sunday
   afternoon on AC power, idle priority; caches, game libraries, toolchains, build output and disk images left out; it reports,
   and moves nothing outside the arrival places).
-- **Not yet:** scanning a package's files after install (pacman hook),
+- **Not built:** scanning a package's files after install (pacman hook),
   sending suspicious unknowns to a Limbo guest, and the exclusions list in Settings.
 
 ## Limbo guests: lifecycle, network, exchange

@@ -66,12 +66,11 @@ sudo heimdalld remote approve tailscale
 - **Headscale** (self-hosted coordination server) with the official clients: the Tailscale experience without the hosted
   service, but the same client and its flaws, so the profile above still applies.
 
-## Next phases
+## Known limitations
 
-1. Footholds: new services, timers, autostart entries, cron jobs, `.pth` files and `ld.so.preload` entries that point at a
-   tool or at a hidden or temporary program.
-2. Kernel: a module loaded that was never loaded before (`ksmbd`, `nvmet*`, `rds`, ...), raw-packet and BPF listeners
-   (backdoors with no open port), shells whose input is a network socket.
-3. Tailscale posture, once installed: SSH, Funnel and Serve state, version against advisories, new peers.
-4. Holds, behind an owner switch: stop and disable the tool's service, cut its connections, quarantine its binary, all
-   reversible with `heimdalld respond release`.
+- Footholds are not watched: new services, timers, autostart entries, cron jobs, `.pth` files and `ld.so.preload` entries that
+  point at a tool or at a hidden or temporary program.
+- The kernel side is not watched: a module loaded for the first time (`ksmbd`, `nvmet*`, `rds`, ...), raw-packet and BPF
+  listeners (backdoors with no open port), shells whose input is a network socket.
+- Tailscale's own state (SSH, Funnel and Serve, its version against advisories, new peers) is not read.
+- Heimdall reports a remote-access tool; it does not stop its service, cut its connections or quarantine its binary.
