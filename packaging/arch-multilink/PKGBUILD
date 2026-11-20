@@ -9,10 +9,11 @@ pkgdesc="Several internet connections at once: new connections spread over Wi-Fi
 arch=('x86_64' 'aarch64')
 url="https://github.com/Artifex-Technologies/Heimdall"
 license=('MPL2')
-depends=('glibc' 'gcc-libs' 'iproute2' 'polkit')
-optdepends=('networkmanager: each link'"'"'s DNS servers, and pausing while a NetworkManager VPN is on'
-            'usbmuxd: tethering from an iPhone over USB (with the ipheth driver)'
-            'libimobiledevice: pairing an iPhone (idevicepair) for USB tethering')
+# usbmuxd: an iPhone's USB tethering works on every install (docs/MULTILINK.md): its udev rule starts it when an iPhone is
+# plugged in, it pairs with the phone (Trust), and the kernel's ipheth driver gives the interface NetworkManager brings up.
+# It brings libimobiledevice (idevicepair) with it.
+depends=('glibc' 'gcc-libs' 'iproute2' 'polkit' 'usbmuxd')
+optdepends=('networkmanager: each link'"'"'s DNS servers, and pausing while a NetworkManager VPN is on')
 makedepends=('rust' 'git')
 provides=('heimdall-multilink')
 conflicts=('heimdall-multilink')

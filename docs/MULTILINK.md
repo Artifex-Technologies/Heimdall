@@ -127,10 +127,11 @@ read-only to it except its own two folders and the three sysctls it sets, and it
 My desktop has one Wi-Fi card, so it cannot be on my Wi-Fi and a phone's Wi-Fi hotspot at the same time. USB tethering gives
 a second interface instead.
 
-- **iPhone over USB**: the kernel's `ipheth` driver, plus `usbmuxd`, which pairs with the phone. `libimobiledevice`
-  (`idevicepair`) and `usbmuxd` must be installed (`sudo pacman -S --needed libimobiledevice usbmuxd`). Steps: unlock the phone, plug it in, tap
-  **Trust** and enter the passcode, then turn on Settings > Personal Hotspot ("Allow Others to Join"). `idevicepair validate`
-  says whether pairing worked. NetworkManager then brings up a new wired connection on an interface named like `enp0s20f0u1c4i2`.
+- **iPhone over USB**: the kernel's `ipheth` driver, plus `usbmuxd`, which pairs with the phone. The package depends on
+  `usbmuxd` (which brings `libimobiledevice` and its `idevicepair`), so nothing is installed by hand: usbmuxd's own udev
+  rule starts it when an iPhone is plugged in, and it exits when the last one is unplugged. Steps: unlock the phone, plug
+  it in, tap **Trust** and enter the passcode, then turn on Settings > Personal Hotspot ("Allow Others to Join").
+  `idevicepair validate` says whether pairing worked. NetworkManager then brings up a new wired connection on an interface named like `enp0s20f0u1c4i2`.
   The phone answers at 172.20.10.1 by default.
 - **Android over USB**: Settings > Network > Hotspot & tethering > USB tethering. The kernel's `rndis_host` or `cdc_ncm`
   driver does the rest; nothing more is needed.
