@@ -651,6 +651,28 @@ class Guard(unittest.TestCase):
         self.wifi = "eth0:ethernet:connected:Wired connection 1\nwlan0:wifi:disconnected:--\n"
         os.remove(self.m.CONF)
 
+    def test_an_iphones_usb_link_keeps_its_address_but_not_its_name(self):
+        # the ipheth driver cannot take an address of its own (NetworkManager's made-up one made the connection fail): the rest
+        # of the private profile still applies, and no "used its real address" notice, as the address is the phone's
+        self.wired()
+        self.m.phone_link = lambda iface: iface == "eth0"
+        self.m.pre_up("eth0", "wired-uuid")
+        self.m.up("eth0", "wired-uuid")
+        modify = [c for c in self.calls if c.startswith("nmcli connection modify wired-uuid")]
+        self.assertEqual(len(modify), 2, self.calls)
+        self.assertIn("ipv4.dhcp-send-hostname no ipv6.dhcp-send-hostname no ipv4.dhcp-client-id mac ipv6.dhcp-duid ll", modify[0])
+        self.assertNotIn("cloned-mac-address", modify[0])
+        self.assertIn("ipv6.ip6-privacy 2", modify[1])
+        last = os.path.join(self.m.RUN, "last.json")
+        self.assertFalse(os.path.exists(last) and "real hardware address" in open(last).read())
+        # NetworkManager's own defaults exempt the same driver, and only from the made-up address
+        conf = open(os.path.join(os.path.dirname(__file__), "..", "net", "heimdall-wifi-privacy.conf")).read()
+        self.assertIn("match-device=type:ethernet,except:driver:ipheth", conf)
+        phone = conf.split("[connection-heimdall-phone-link-privacy]")[1].split("\n[")[0]
+        self.assertIn("match-device=driver:ipheth", phone)
+        self.assertIn("ipv4.dhcp-send-hostname=false", phone)
+        self.assertNotIn("cloned-mac-address", phone)
+
     def test_an_untrusted_wired_network_gets_the_private_profile_and_nothing_else(self):
         self.wired()
         self.m.pre_up("eth0", "wired-uuid")

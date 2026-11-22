@@ -624,6 +624,18 @@ impl Guard {
         }
     }
 
+    /// Whether `iface` is a phone's USB link that cannot take an address of its own: an iPhone's (the ipheth driver), whose address
+    /// comes from the phone. NetworkManager's made-up address made that connection fail (2026-11-22). Nothing on that link but
+    /// the phone sees the address, and the phone puts everything behind its own, so it keeps it; the rest of the private profile
+    /// stays.
+    fn phone_link(&self, iface: &str) -> bool {
+        !iface.is_empty()
+            && std::fs::read_link(format!("/sys/class/net/{iface}/device/driver"))
+                .ok()
+                .and_then(|p| p.file_name().map(|n| n == "ipheth"))
+                .unwrap_or(false)
+    }
+
     fn is_wifi(&self, iface: &str) -> bool {
         Path::new(&format!("/sys/class/net/{iface}/wireless")).is_dir()
     }
@@ -702,7 +714,7 @@ impl Guard {
     /// real hardware address (one of its own for this network: locally administered, the mask that could keep a maker's prefix
     /// cleared); an address chosen in Settings is kept. Then IPv6 privacy addresses in a call of their own (a profile
     /// NetworkManager refuses them for keeps the rest). `wired`: an Ethernet profile.
-    fn private_profile(&self, uuid: &str, wired: bool) -> PyResult<()> {
+    fn private_profile(&self, uuid: &str, wired: bool, iface: Option<&str>) -> PyResult<()> {
         let dev = if wired { WIRED } else { WIFI };
         let (cloned, mask) = (format!("{dev}.cloned-mac-address"), format!("{dev}.generate-mac-address-mask"));
         let mut args = vec![
@@ -723,7 +735,13 @@ impl Guard {
             "connection.mdns",
             "no",
         ];
-        if mac_is_real(&self.out(&["nmcli", "-g", &cloned, "connection", "show", uuid])?) {
+        let iface = match iface {
+            Some(i) => i.to_string(),
+            None if wired => self.out(&["nmcli", "-g", "connection.interface-name", "connection", "show", uuid])?.trim().to_string(),
+            None => String::new(),
+        };
+        // an iPhone's USB link keeps the address the phone gave it (`phone_link`)
+        if !(wired && self.phone_link(&iface)) && mac_is_real(&self.out(&["nmcli", "-g", &cloned, "connection", "show", uuid])?) {
             args.extend([cloned.as_str(), "stable", mask.as_str(), ""]);
         }
         self.sh(&args)?;
@@ -861,7 +879,7 @@ impl Guard {
             self.sh(&["systemctl", "start", "avahi-daemon.socket", "avahi-daemon.service"])?;
         }
         if on {
-            self.private_profile(uuid, false)?;
+            self.private_profile(uuid, false, None)?;
         }
         let kw: Vec<(&str, Val)> = state.0.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
         self.set_state(&kw)?;
@@ -927,8 +945,8 @@ impl Guard {
             if mac.is_empty() || level_of(entry.as_ref(), None, None, Some(&mac)) == "home" {
                 return Ok(()); // home, or its router did not answer: left as it is
             }
-            let real = !self.own_address(iface)?;
-            self.private_profile(uuid, true)?;
+            let real = !self.phone_link(iface) && !self.own_address(iface)?;
+            self.private_profile(uuid, true, Some(iface))?;
             if real {
                 self.note(
                     "wired",
@@ -938,8 +956,8 @@ impl Guard {
             }
             return Ok(());
         }
-        let real = !self.own_address(iface)?;
-        self.private_profile(uuid, true)?;
+        let real = !self.phone_link(iface) && !self.own_address(iface)?;
+        self.private_profile(uuid, true, Some(iface))?;
         if real {
             self.note_daily(
                 "wired",
@@ -1366,7 +1384,7 @@ impl Guard {
         }
         for u in &gone {
             // undoes --real-address (and trust before the levels): a private address, no name
-            self.private_profile(u, wired.contains(u))?;
+            self.private_profile(u, wired.contains(u), None)?;
         }
         let (iface, now, ssid) = self.active_wifi()?.unwrap_or_default();
         let st = self.load(&self.state_path())?;

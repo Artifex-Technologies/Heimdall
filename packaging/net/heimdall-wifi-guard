@@ -320,7 +320,19 @@ def mac_is_real(value):
     return value.strip() in ("", "permanent", "preserve", "--")
 
 
-def private_profile(uuid, wired=False):
+def phone_link(iface):
+    """Whether iface is a phone's USB link that cannot take an address of its own: an iPhone's (the ipheth driver), whose address
+    comes from the phone. NetworkManager's made-up address made that connection fail (2026-11-22). Nothing on that link but the
+    phone sees the address, and the phone puts everything behind its own, so it keeps it; the rest of the private profile stays."""
+    if not iface:
+        return False
+    try:
+        return os.path.basename(os.readlink("/sys/class/net/%s/device/driver" % iface)) == "ipheth"
+    except OSError:
+        return False
+
+
+def private_profile(uuid, wired=False, iface=None):
     """From the next connection on: no computer name in address requests, DHCP identifiers made from the hardware address in use
     (the client ID, and DHCPv6's DUID, which NetworkManager otherwise derives from this computer's machine-id: the same on every
     network), no name questions answered by the resolver (LLMNR, mDNS; they matter only if systemd-resolved is ever turned on),
@@ -331,7 +343,11 @@ def private_profile(uuid, wired=False):
     dev = WIRED if wired else WIFI
     args = ["ipv4.dhcp-send-hostname", "no", "ipv6.dhcp-send-hostname", "no", "ipv4.dhcp-client-id", "mac", "ipv6.dhcp-duid", "ll",
             "connection.llmnr", "no", "connection.mdns", "no"]
-    if mac_is_real(sh(["nmcli", "-g", dev + ".cloned-mac-address", "connection", "show", uuid]).stdout):
+    if wired and iface is None:
+        iface = sh(["nmcli", "-g", "connection.interface-name", "connection", "show", uuid]).stdout.strip()
+    if wired and phone_link(iface):
+        pass  # an iPhone's USB link keeps the address the phone gave it (phone_link)
+    elif mac_is_real(sh(["nmcli", "-g", dev + ".cloned-mac-address", "connection", "show", uuid]).stdout):
         args += [dev + ".cloned-mac-address", "stable", dev + ".generate-mac-address-mask", ""]
     sh(["nmcli", "connection", "modify", uuid] + args)
     sh(["nmcli", "connection", "modify", uuid] + PRIVATE_IPV6)
@@ -636,15 +652,15 @@ def wired_up(iface, uuid):
         mac = router_mac(iface)
         if not mac or level_of(entry, None, None, mac) == "home":
             return  # home, or its router did not answer: left as it is
-        real = not own_address(iface)
-        private_profile(uuid, True)
+        real = not phone_link(iface) and not own_address(iface)
+        private_profile(uuid, True, iface)
         if real:
             note("wired", name, "This is your home network's wired profile, but the router is a different one: this computer used its "
                  "real hardware address and name here. From the next connection on it uses one of its own; back home: "
                  "sudo heimdall-wifi-guard trust --home --real-address")
         return
-    real = not own_address(iface)
-    private_profile(uuid, True)
+    real = not phone_link(iface) and not own_address(iface)
+    private_profile(uuid, True, iface)
     if real:
         note_daily("wired", uuid, name, "Untrusted wired network: from the next connection on, this computer uses a hardware address of "
                    "its own here and sends no name. Your home network, where the router keeps an address for this computer? "
