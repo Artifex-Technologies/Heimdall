@@ -12,9 +12,9 @@ const TABLE: &str = "heimdall_wifi_guard";
 /// Heimdall's quiet table on Wi-Fi (`quiet_ruleset`).
 pub const QUIET: &str = "heimdall_wifi_quiet";
 /// In the quiet table's comment: a table of an older Heimdall is replaced, not kept.
-pub const QUIET_MARK: &str = "heimdall quiet 3";
+pub const QUIET_MARK: &str = "heimdall quiet 4";
 /// The same table with its discovery traffic let out (a network the owner made discoverable).
-pub const QUIET_MARK_OPEN: &str = "heimdall quiet 3 discoverable";
+pub const QUIET_MARK_OPEN: &str = "heimdall quiet 4 discoverable";
 const VPN_NAME: &str = "Heimdall VPN";
 const UFW_DEFAULT: &str = "/etc/default/ufw";
 const UFW_CONF: &str = "/etc/ufw/ufw.conf";
@@ -22,9 +22,9 @@ const UFW_CONF: &str = "/etc/ufw/ufw.conf";
 const UFW_RULES: [&str; 2] = ["/etc/ufw/user.rules", "/etc/ufw/user6.rules"];
 const HEIMDALL_CONFIG: &str = "/etc/heimdall/config.json";
 /// The discovery traffic the quiet table keeps in on Wi-Fi: NetBIOS (137, 138), KDE Connect (1714-1764), SSDP (1900),
-/// WS-Discovery (3702), mDNS (5353), LLMNR (5355), Dropbox LAN sync (17500), Syncthing (21027), Steam (27036); LLMNR and KDE
-/// Connect over TCP too.
-pub const DISCOVERY_UDP: &str = "137, 138, 1714-1764, 1900, 3702, 5353, 5355, 17500, 21027, 27036";
+/// WS-Discovery (3702), mDNS (5353), LLMNR (5355), Dropbox LAN sync (17500), Syncthing (21027), Steam (27036), Spotify Connect
+/// (57621; it also answers on 5353 and 1900, HEI-70); LLMNR and KDE Connect over TCP too.
+pub const DISCOVERY_UDP: &str = "137, 138, 1714-1764, 1900, 3702, 5353, 5355, 17500, 21027, 27036, 57621";
 pub const DISCOVERY_TCP: &str = "1714-1764, 5355";
 /// The local network: discovery traffic is held back only on its way there (multicast, broadcast, private and link-local
 /// addresses), never on its way to the internet (PPTP 1723 and H.323 1719/1720 share the KDE Connect ports).

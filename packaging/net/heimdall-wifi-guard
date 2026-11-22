@@ -57,8 +57,8 @@ KEYS = os.environ.get("HEIMDALL_WIFI_KEYS", "/etc/heimdall/wifi-trusted-keys.jso
 RUN = "/run/heimdall-wifi-guard"
 TABLE = "heimdall_wifi_guard"
 QUIET = "heimdall_wifi_quiet"
-QUIET_MARK = "heimdall quiet 3"  # in the table's comment: a table of an older Heimdall is replaced, not kept
-QUIET_MARK_OPEN = "heimdall quiet 3 discoverable"  # the same table, its discovery traffic let out (a network made discoverable)
+QUIET_MARK = "heimdall quiet 4"  # in the table's comment: a table of an older Heimdall is replaced, not kept
+QUIET_MARK_OPEN = "heimdall quiet 4 discoverable"  # the same table, its discovery traffic let out (a network made discoverable)
 VPN_NAME = "Heimdall VPN"
 ENV = {"PATH": "/usr/bin:/bin", "LANG": "C"}
 UFW_DEFAULT = "/etc/default/ufw"
@@ -66,8 +66,9 @@ UFW_CONF = "/etc/ufw/ufw.conf"
 UFW_RULES = ("/etc/ufw/user.rules", "/etc/ufw/user6.rules")  # the rules `ufw allow` and `ufw limit` add
 HEIMDALL_CONFIG = "/etc/heimdall/config.json"
 # the discovery traffic the quiet table keeps in on Wi-Fi: NetBIOS (137, 138), KDE Connect (1714-1764), SSDP (1900), WS-Discovery
-# (3702), mDNS (5353), LLMNR (5355), Dropbox LAN sync (17500), Syncthing (21027), Steam (27036); LLMNR and KDE Connect over TCP too
-DISCOVERY_UDP = "137, 138, 1714-1764, 1900, 3702, 5353, 5355, 17500, 21027, 27036"
+# (3702), mDNS (5353), LLMNR (5355), Dropbox LAN sync (17500), Syncthing (21027), Steam (27036), Spotify Connect (57621);
+# LLMNR and KDE Connect over TCP too
+DISCOVERY_UDP = "137, 138, 1714-1764, 1900, 3702, 5353, 5355, 17500, 21027, 27036, 57621"
 DISCOVERY_TCP = "1714-1764, 5355"
 # the local network: discovery traffic is held back only on its way there (multicast, broadcast, private and link-local
 # addresses), never on its way to the internet (PPTP 1723 and H.323 1719/1720 share the KDE Connect ports)

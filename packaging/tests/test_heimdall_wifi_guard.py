@@ -306,8 +306,8 @@ class Guard(unittest.TestCase):
         rs = self.m.quiet_ruleset()
         self.assertIn('oifname != "wl*" accept', rs)
         self.assertIn('iifname != "wl*" accept', rs)
-        # NetBIOS, KDE Connect, SSDP, WS-Discovery, mDNS, LLMNR, Dropbox, Syncthing, Steam
-        self.assertIn("udp dport { 137, 138, 1714-1764, 1900, 3702, 5353, 5355, 17500, 21027, 27036 } counter drop", rs)
+        # NetBIOS, KDE Connect, SSDP, WS-Discovery, mDNS, LLMNR, Dropbox, Syncthing, Steam, Spotify Connect
+        self.assertIn("udp dport { 137, 138, 1714-1764, 1900, 3702, 5353, 5355, 17500, 21027, 27036, 57621 } counter drop", rs)
         self.assertIn("tcp dport { 1714-1764, 5355 } counter drop", rs)
         self.assertIn('log prefix "heimdall-wifi-in: "', rs)
         # only what a device on the network itself starts: never a packet of a known flow, a stray one or one from the internet
@@ -488,7 +488,7 @@ class Guard(unittest.TestCase):
         self.assertIn('ip saddr @router4 limit rate 30/minute log prefix "heimdall-wifi-in-router: " level info add @seen4 { ip saddr timeout 7d } accept', rs)
         opened = self.m.quiet_ruleset(True)
         self.assertNotIn("counter drop", opened, "a discoverable network: discovery is let out")
-        self.assertIn('comment "heimdall quiet 3 discoverable"', opened)
+        self.assertIn('comment "heimdall quiet 4 discoverable"', opened)
         self.assertEqual(rs.split("chain in {")[1].split("chain out")[0], opened.split("chain in {")[1].split("chain out")[0], "the same inbound log")
 
     def test_the_router_is_told_once_per_connection(self):

@@ -403,7 +403,7 @@ esac
         r#"case "$*" in
   "list table inet heimdall_wifi_guard") [ -e /srv/table ] ;;
   "delete table inet heimdall_wifi_guard") if [ -e /srv/table ]; then rm /srv/table; else echo 'Error: No such file or directory' >&2; exit 1; fi ;;
-  "list table inet heimdall_wifi_quiet") [ -e /srv/quiet ] || exit 1; cat /srv/quiet-listing 2>/dev/null || { grep -o 'comment "[^"]*"' /srv/quiet-rules 2>/dev/null || echo 'comment "heimdall quiet 3"'; printf '\t\tudp dport { 137, 138 } counter packets 12 bytes 900 drop\n\t\tudp sport { 137, 138 } counter packets 3 bytes 200 drop\n'; } ;;
+  "list table inet heimdall_wifi_quiet") [ -e /srv/quiet ] || exit 1; cat /srv/quiet-listing 2>/dev/null || { grep -o 'comment "[^"]*"' /srv/quiet-rules 2>/dev/null || echo 'comment "heimdall quiet 4"'; printf '\t\tudp dport { 137, 138 } counter packets 12 bytes 900 drop\n\t\tudp sport { 137, 138 } counter packets 3 bytes 200 drop\n'; } ;;
   "delete table inet heimdall_wifi_quiet") if [ -e /srv/quiet ]; then rm /srv/quiet; else echo 'Error: No such file or directory' >&2; exit 1; fi ;;
   "-f -") cat > /srv/nft-in
     if [ -e /srv/nft-fails ]; then echo 'Error: syntax error, unexpected junk' >&2; exit 1; fi
@@ -861,7 +861,7 @@ fn guard_commands_as_python() {
         );
         r.write(
             "/srv/quiet-listing",
-            "comment \"heimdall quiet 3\" counter packets 99999999999999999999 bytes 1 counter packets \u{663}2 counter packets 7\n",
+            "comment \"heimdall quiet 4\" counter packets 99999999999999999999 bytes 1 counter packets \u{663}2 counter packets 7\n",
         );
     });
     t.step(&["status"], &o);
@@ -1152,7 +1152,7 @@ fn guard_trust_level_fixes_as_python() {
     t.step(&["discoverable"], &Opts::user());
     t.step(&["discoverable", "on"], &Opts::user()); // root only
     t.step(&["discoverable", "on"], &o);
-    assert!(t.rs.read_str("/srv/quiet-rules").contains("heimdall quiet 3 discoverable") && t.rs.read("/srv/avahi-on").is_some());
+    assert!(t.rs.read_str("/srv/quiet-rules").contains("heimdall quiet 4 discoverable") && t.rs.read("/srv/avahi-on").is_some());
     t.step(&["up", "wlan0", "cafe-uuid"], &o);
     let (py, _) = t.step(&["status"], &o);
     assert!(py.stdout.contains("Cafe: untrusted, discoverable") && py.stdout.contains("discoverable here: yes"), "{}", py.stdout);

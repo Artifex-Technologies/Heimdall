@@ -246,7 +246,7 @@ sudo heimdall-wifi-guard discoverable on|off [--uuid UUID]   the network connect
 ```
 
 On a discoverable network this computer announces itself: Avahi runs as it did, and the quiet table is loaded with its outgoing
-discovery drops left out (its comment then reads `heimdall quiet 3 discoverable`). Every other protection stays: the inbound
+discovery drops left out (its comment then reads `heimdall quiet 4 discoverable`). Every other protection stays: the inbound
 log and alerts, ufw, the VPN and its lockdown, the router watch, its own hardware address there and no computer name in its
 address requests. On the network connected now it applies at once. Home is always discoverable.
 
@@ -283,7 +283,8 @@ interfaces only (`wl*`), so a wired network, and the desktop, are never affected
 
 - **Output:** it drops this computer's discovery traffic on its way to the local network (multicast, broadcast, private and
   link-local addresses): NetBIOS (UDP 137, 138), KDE Connect (UDP and TCP 1714-1764), SSDP (UDP 1900), WS-Discovery (UDP
-  3702), mDNS (UDP 5353), LLMNR (UDP and TCP 5355), Dropbox LAN sync (UDP 17500), Syncthing (UDP 21027) and Steam (UDP 27036).
+  3702), mDNS (UDP 5353), LLMNR (UDP and TCP 5355), Dropbox LAN sync (UDP 17500), Syncthing (UDP 21027), Steam (UDP 27036) and Spotify Connect (UDP 57621; Spotify also answers
+  on mDNS and SSDP, held back above).
   Traffic to an internet address on these ports is not touched (PPTP 1723 and H.323 1719/1720 share the KDE Connect range).
   The computer does not announce itself with these, whatever program tries and however quickly it does so after joining. A
   program announcing itself some other way is not covered. The cost is that on these networks this computer cannot discover
