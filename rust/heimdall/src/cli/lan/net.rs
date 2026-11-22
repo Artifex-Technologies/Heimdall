@@ -173,6 +173,35 @@ impl Udp {
     }
 }
 
+/// A UDP socket that only hears (`lan look`, HEI-74): it has no way to send, so a look made with it says nothing to the
+/// network. Bound beside whoever already holds the port (SO_REUSEADDR and SO_REUSEPORT) on every address, it joins no group:
+/// IP_MULTICAST_ALL, on by default, hands it the datagrams of the groups this computer already belongs to, and joining one
+/// itself would send a membership report.
+pub struct Ear {
+    udp: Udp,
+}
+
+impl Ear {
+    pub fn bind(port: u16) -> std::io::Result<Ear> {
+        // SAFETY: plain socket(2); the descriptor is owned from here on
+        let fd = unsafe { libc::socket(libc::AF_INET, libc::SOCK_DGRAM | libc::SOCK_CLOEXEC, 0) };
+        if fd < 0 {
+            return Err(last());
+        }
+        let udp = Udp { fd: unsafe { OwnedFd::from_raw_fd(fd) } };
+        udp.opt(libc::SOL_SOCKET, libc::SO_REUSEADDR, &1i32)?;
+        udp.opt(libc::SOL_SOCKET, libc::SO_REUSEPORT, &1i32)?;
+        udp.opt(libc::IPPROTO_IP, libc::IP_MULTICAST_ALL, &1i32)?;
+        udp.bind_to(Ipv4Addr::UNSPECIFIED, port)?;
+        Ok(Ear { udp })
+    }
+
+    /// One datagram and its sender, waiting at most `timeout`.
+    pub fn recv_from(&self, buf: &mut [u8], timeout: Duration) -> std::io::Result<(usize, Ipv4Addr)> {
+        self.udp.recv_from(buf, timeout)
+    }
+}
+
 /// What the scan needs to know about one interface: its index, its first IPv4 address with the prefix length, its
 /// hardware address as Go writes it (lowercase, colons; empty when it has none).
 #[derive(Clone, Debug, Default, PartialEq)]

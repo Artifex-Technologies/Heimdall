@@ -79,6 +79,9 @@ list (`/etc/heimdall/wifi-trusted.json`), which keeps its form.
 `strings.EqualFold`, `ToLower` and `ToUpper` on any bytes (`text.rs`; the case-folding orbits generated from Go by
 `rust/gotools/foldtable`).
 
+`lan look` (`look.rs`, HEI-74) has no Go twin: it is newer than the port. Its tests are its own (unit tests in `look.rs`,
+`lan_look_listens_and_sends_nothing` in network namespaces).
+
 - **Fixture** (`testdata/parity/cli-lan.json`, written by `go test ./internal/lan -update`, `internal/lan/parity_test.go`, a
   fixed seed): 703 DNS messages and 200 names read (records and errors), the queries, 300 runs of answers absorbed, 300
   instance names, 400 names cleaned and judged (made up from the address, machine ids), 200 NetBIOS answers, 600 kinds, 120

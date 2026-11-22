@@ -134,6 +134,10 @@ Only in the Rust heimdalld:
   heimdalld replay --config PATH [--approvals PATH] < events.jsonl > alerts.jsonl
                                     Run event lines through the detectors (the parity and differential tests use it).
   heimdalld rules check [FILE]     Check a text rule file (default: the built-in rules); every problem is printed.
+  heimdalld lan look [--wait SECONDS] [UUID]
+                                    Listen to a network for a few seconds (default 8) and print who was heard, as JSON: the
+                                    neighbour table and multicast DNS this computer already receives. Sends nothing, keeps
+                                    nothing; any account may run it (Settings does, when a network's page opens).
 "#;
 
 #[cfg(test)]

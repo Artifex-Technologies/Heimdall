@@ -14,6 +14,26 @@ It only looks when all three of these hold:
 
 Otherwise it records only why it did not look (`status` in the file: `not_trusted`, `not_home`, `router_changed`, `offline`). Looking around somebody else's network is not ours to do.
 
+### On a network that is not home: a look when I open its page
+
+On any other network (a café's Wi-Fi, a network I only trusted, a phone's hotspot) nothing looks on a timer. When I open that
+network's page in Settings, Settings runs `heimdalld lan look` once, as me, and shows what it heard (my decision,
+2026-11-22). The look only listens; it never asks:
+
+- the neighbour table the kernel already keeps (the devices this computer has talked with, the router among them);
+- for 8 seconds, the multicast DNS announcements and answers other devices send to the whole network anyway, and only while
+  this computer already belongs to the multicast DNS group on that interface (a browser or the printer dialog joins it).
+  The look never joins the group itself: joining sends a membership report, and that would announce it. Its socket has no
+  way to send (`net::Ear`), and the quiet table is left as it is.
+
+Nothing of a look is written down: it prints JSON and is gone, and Settings keeps it only while the page is open. No router
+is asked for names, no NetBIOS questions go out and nothing is swept, so a device that keeps quiet, or a network that keeps
+its devices apart (most public Wi-Fi does), shows only the router. A device heard over multicast DNS that never talked with
+this computer is listed by its address alone (the kernel learns hardware addresses only from devices it talks with).
+`tests/cli_lan.rs` (`lan_look_listens_and_sends_nothing`) runs it as an ordinary account on a made-up network in network
+namespaces: it lists the router and a TV that announces itself, and the bridge's transmit counter is the same before and
+after the look.
+
 The first scan of a network learns what is already there without alerting. After that, every new hardware address is recorded in `events.jsonl` and becomes a `lan-watch` warning (event kind `new_lan_device`).
 
 **A device taking another's address.** When an address that a known device had in the last scan now answers with another

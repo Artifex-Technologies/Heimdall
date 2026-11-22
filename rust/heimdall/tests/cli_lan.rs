@@ -481,6 +481,16 @@ fn lan_scan_without_a_scan_as_go() {
 /// NetBIOS) and a thermostat (.40, ARP only), each with a locally administered hardware address;
 /// rust/parity/harness/lan-responder.py answers and logs every question.
 fn made_up_network(log: &str) -> String {
+    bridge(
+        log,
+        "dev 02:00:00:00:00:01 1 router\ndev 02:00:00:00:00:20 20 tv\ndev 02:00:00:00:00:30 30 pc\ndev 02:00:00:00:00:40 40 ''\n",
+        3,
+    )
+}
+
+/// The bridge and `devs` ("dev MAC LAST-OCTET ROLE" lines, ROLE '' for a device that runs nothing), then a wait for `ready`
+/// responders and the default route through 192.0.2.1.
+fn bridge(log: &str, devs: &str, ready: usize) -> String {
     let resp = repo().join("rust/parity/harness/lan-responder.py");
     format!(
         "ip link add br0 address 02:00:00:00:00:10 type bridge
@@ -502,12 +512,8 @@ dev() {{
   $N ip route add 224.0.0.0/4 dev eth0
   if [ -n \"$3\" ]; then $N python3 -I '{resp}' '{log}' $3 192.0.2.$2 & fi
 }}
-dev 02:00:00:00:00:01 1 router
-dev 02:00:00:00:00:20 20 tv
-dev 02:00:00:00:00:30 30 pc
-dev 02:00:00:00:00:40 40 ''
-ip route add default via 192.0.2.1 dev br0
-for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do [ \"$(grep -c ready '{log}' 2>/dev/null)\" = 3 ] && break; sleep 0.2; done
+{devs}ip route add default via 192.0.2.1 dev br0
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do [ \"$(grep -c ready '{log}' 2>/dev/null)\" = {ready} ] && break; sleep 0.2; done
 sleep 1
 ",
         resp = resp.display()
@@ -560,4 +566,56 @@ fn lan_scan_on_a_made_up_network_as_go() {
     assert_eq!(asked(&rg), asked(&rr), "the packets sent");
     assert!(asked(&rg).iter().any(|l| l.starts_with("mdns")) && asked(&rg).iter().any(|l| l.starts_with("netbios")));
     eprintln!("lan scan on a made-up network: {} questions compared", asked(&rg).len());
+}
+
+/// `lan look` (HEI-74) on a network that is not home: it lists the router (from the neighbour table) and a TV that announces
+/// itself over multicast DNS, and sends nothing: br0's transmit counter is the same before and after, and the TV hears no
+/// question. Without this computer in the multicast DNS group it does not join one, and lists only the neighbour table. Run
+/// as the owner (no root), the way Settings runs it.
+#[test]
+fn lan_look_listens_and_sends_nothing() {
+    let resp = repo().join("rust/parity/harness/lan-responder.py");
+    for joined in [true, false] {
+        let r = Root::new(if joined { "lan-look" } else { "lan-look-alone" });
+        r.tool("nmcli", "printf 'u1:br0:Cafe\\n'\n");
+        let log = r.host("/packets.log").display().to_string();
+        let member = if joined { format!("python3 -I '{}' '{log}' member 192.0.2.10 &\n", resp.display()) } else { String::new() };
+        let devs = format!("dev 02:00:00:00:00:01 1 ''\ndev 02:00:00:00:00:20 20 announcer\n{member}");
+        let tx = "awk '$1 == \"br0:\" {print $11}' \"$R/proc/net/dev\"";
+        let setup = format!(
+            "sysctl -qw net.ipv6.conf.all.disable_ipv6=1 net.ipv6.conf.default.disable_ipv6=1\n{}\
+             ip neigh replace 192.0.2.1 lladdr 02:00:00:00:00:01 dev br0 nud permanent\n\
+             sleep 2\n{tx} > \"$R/tx-before\"\n\
+             (while :; do {tx} > \"$R/tx.tmp\" && mv \"$R/tx.tmp\" \"$R/tx-after\"; sleep 0.1; done) &\n",
+            bridge(&log, &devs, if joined { 2 } else { 1 })
+        );
+        let o = Opts { net: true, pid: true, setup, ..Opts::user() };
+        let out = r.run(&rust_bin(), &["lan", "look", "--wait", "2", "u1"], &o);
+        assert_eq!(out.code, 0, "{out:?}");
+        let j: Value = serde_json::from_str(out.stdout.trim()).unwrap_or_else(|e| panic!("{e}: {out:?}"));
+        let ips: Vec<&str> = j["devices"].as_array().unwrap().iter().map(|d| d["ip"].as_str().unwrap()).collect();
+        assert_eq!((j["status"].as_str(), j["interface"].as_str(), j["name"].as_str()), (Some("looked"), Some("br0"), Some("Cafe")));
+        assert_eq!(j["devices"][0]["kind"], "router");
+        assert_eq!(j["devices"][1]["kind"], "this");
+        if joined {
+            assert_eq!(j["mdns"], "listened", "{j}");
+            assert_eq!(ips, ["192.0.2.1", "192.0.2.10", "192.0.2.20"]);
+            let tv = &j["devices"][2];
+            assert_eq!((tv["name"].as_str(), tv["kind"].as_str(), tv["mac"].as_str()), (Some("Living TV"), Some("tv"), Some("")), "{tv}");
+        } else {
+            assert_eq!(j["mdns"], "not_member", "{j}");
+            assert_eq!(ips, ["192.0.2.1", "192.0.2.10"]);
+        }
+        let (before, after) = (r.read_str("/tx-before"), r.read_str("/tx-after"));
+        assert!(!before.trim().is_empty() && !after.trim().is_empty(), "the counter was read: {before:?} {after:?}");
+        assert_eq!(before, after, "br0 sent nothing during the look");
+        let heard = std::fs::read_to_string(&log).unwrap_or_default();
+        assert!(!heard.lines().any(|l| l.starts_with("mdns")), "the TV was asked nothing: {heard}");
+        eprintln!(
+            "lan look ({}): {} devices, br0 sent {} packets before and none during",
+            if joined { "in the group" } else { "alone" },
+            ips.len(),
+            before.trim()
+        );
+    }
 }

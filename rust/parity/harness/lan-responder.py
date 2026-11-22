@@ -5,6 +5,9 @@ namespace of its own that is joined to the scanning one by a veth pair and a bri
   lan-responder.py LOG router IP   answers reverse lookups (PTR) on UDP 53
   lan-responder.py LOG tv IP       answers multicast DNS (services, a friendly name, a model)
   lan-responder.py LOG pc IP       answers NetBIOS node status on UDP 137
+  lan-responder.py LOG announcer IP  sends the TV's multicast DNS records to the group every 0.3 s, unasked (`lan look`)
+  lan-responder.py LOG member IP   joins the multicast DNS group on IP and does nothing else: the scanning computer's own
+                                   membership, which a browser or a printer dialog holds on a real one (`lan look`)
 
 Every question received is logged (the role, from which address, the bytes; a DNS id is dropped, being random), one per
 line, to LOG.
@@ -70,7 +73,13 @@ def ptr_answer(q):
     return q[:2] + b"\x81\x80" + q[4:6] + b"\0\x01\0\0\0\0" + q[12:off + 4] + b"\xc0\x0c" + struct.pack(">HHIH", 12, 1, 60, len(name(host))) + name(host)
 
 
-if ROLE == "tv":
+if ROLE == "member":
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, socket.inet_aton(GROUP) + socket.inet_aton(IP))
+    print("ready", ROLE, file=LOG)
+    select.select([], [], [], 60)
+    sys.exit(0)
+if ROLE in ("tv", "announcer"):
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind(("", 5353))
@@ -86,14 +95,19 @@ else:
 print("ready", ROLE, file=LOG)
 asked = 0
 while True:
-    ready, _, _ = select.select([s], [], [], 30)
+    ready, _, _ = select.select([s], [], [], 0.3 if ROLE == "announcer" else 30)
+    if not ready and ROLE == "announcer":
+        s.sendto(mdns_answer(False), (GROUP, 5353))
+        continue
     if not ready:
         break
     m, src = s.recvfrom(9000)
-    if ROLE == "tv":
+    if ROLE in ("tv", "announcer"):
         if src[0] == IP:
             continue
         LOG.write("mdns %s %s\n" % (src[0], m.hex()))
+        if ROLE == "announcer":
+            continue
         asked += 1
         s.sendto(mdns_answer(asked > 1), (GROUP, 5353))
     elif ROLE == "router":

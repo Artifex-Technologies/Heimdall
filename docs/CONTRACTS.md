@@ -171,7 +171,12 @@ Sarina's `docs/ECOSYSTEM.md` port registry.
   `owner_kind` (omitted when unset) is what I said a device is: `pkexec /usr/bin/heimdalld lan kind MAC KIND|guess`.
   `status` can be `not_trusted`, `not_home`, `router_changed`, `offline`. "Scan now": `systemctl start --no-block
   heimdall-lan-scan.service` (polkit rule `50-heimdall-lan-scan.rules`: wheel, active local session).
-- **Who:** Yggdrasil Settings (device page; the integration file's `devices_scan` and `devices_kind`).
+- **A look at a network that is not home:** `heimdalld lan look [--wait SECONDS] [UUID]` (any account, no password; Rust
+  only) listens for SECONDS (default 8, held to 1-60) on active connection UUID (none: the default route's) and prints one
+  line of JSON: `{status: looked|offline, uuid, name, interface, mdns: listened|not_member|busy, listened, devices: [{mac, ip,
+  name, names, vendor, model, kind, services, private_mac}]}`. `mac` is empty for a device heard but not in the neighbour
+  table. It sends nothing and writes nothing.
+- **Who:** Yggdrasil Settings (device page; the integration file's `devices_scan`, `devices_kind` and `devices_look`).
 - **Where:** `rust/heimdall/src/cli/lan/`, `api.rs`. [DEVICES.md](DEVICES.md).
 
 ## Wi-Fi checks: `heimdalld wifi-health --json`
