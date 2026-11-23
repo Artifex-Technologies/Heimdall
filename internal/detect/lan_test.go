@@ -12,9 +12,9 @@ func inboundEvent(src, proto, port, icmpType string, at time.Time) Event {
 		"src": src, "src_mac": "0E:00:00:00:00:05", "proto": proto, "dst_port": port, "icmp_type": icmpType, "iface": "wlan0", "inbound": "wifi"}}
 }
 
-// A device on Wi-Fi reaching for this computer is a warning on every network (made-up addresses): once per device an hour,
-// named by what it asked for.
-func TestWifiInboundIsReportedOncePerDeviceAndHour(t *testing.T) {
+// A device on Wi-Fi reaching for this computer is listed (info, no notification) on every network (made-up addresses): once
+// per device an hour, named by what it asked for.
+func TestWifiInboundIsListedOncePerDeviceAndHour(t *testing.T) {
 	d := NewLANDetector()
 	t0 := time.Date(2026, 11, 16, 10, 0, 0, 0, time.UTC)
 	for i, c := range []struct {
@@ -37,22 +37,39 @@ func TestWifiInboundIsReportedOncePerDeviceAndHour(t *testing.T) {
 			}
 			continue
 		}
-		if len(got) != 1 || got[0].Severity != SeverityWarning || !strings.Contains(got[0].Summary, c.want) || !strings.Contains(got[0].Summary, c.src) {
-			t.Errorf("%d: want a warning with %q, got %+v", i, c.want, got)
+		if len(got) != 1 || got[0].Severity != SeverityInfo || !strings.Contains(got[0].Summary, c.want) || !strings.Contains(got[0].Summary, c.src) {
+			t.Errorf("%d: want info with %q, got %+v", i, c.want, got)
 		}
 	}
-	// a sweep from many addresses: at most inboundPerHour devices an hour, then one summary for the rest of it
+	// a sweep from many addresses: each listed, the sixth within 10 minutes a warning (once an hour), at most
+	// inboundListedPerHour listed in an hour
 	d = NewLANDetector()
 	var all []Finding
-	for i := 0; i < 3*inboundPerHour; i++ {
+	for i := 0; i < 40; i++ {
 		all = append(all, d.Inspect(inboundEvent(fmt.Sprintf("192.0.2.%d", 30+i), "TCP", "22", "", t0.Add(time.Duration(i)*time.Second)))...)
 	}
-	if len(all) != inboundPerHour+1 || !strings.Contains(all[inboundPerHour].Summary, "more than 5 devices on Wi-Fi") ||
-		!strings.Contains(all[inboundPerHour].Summary, "192.0.2.35") {
-		t.Errorf("a sweep gave %d alerts, want %d and a summary: %+v", len(all), inboundPerHour, all)
+	warnings := 0
+	for i, f := range all {
+		if f.Severity == SeverityWarning {
+			warnings++
+			if i != sweepDevices-1 || !strings.Contains(f.Summary, "6 devices on Wi-Fi tried to reach this computer within 10 minutes") || !strings.Contains(f.Summary, "192.0.2.35") {
+				t.Errorf("the sweep warning: %d %+v", i, f)
+			}
+		}
 	}
-	if got := d.Inspect(inboundEvent("192.0.2.99", "TCP", "22", "", t0.Add(time.Hour+time.Minute))); len(got) != 1 {
+	if len(all) != inboundListedPerHour || warnings != 1 {
+		t.Errorf("a sweep gave %d alerts (%d warnings), want %d and one warning: %+v", len(all), warnings, inboundListedPerHour, all)
+	}
+	if got := d.Inspect(inboundEvent("192.0.2.99", "TCP", "22", "", t0.Add(time.Hour+time.Minute))); len(got) != 1 || got[0].Severity != SeverityInfo {
 		t.Errorf("the next hour: %+v", got)
+	}
+	// six devices spread over 15 minutes: never six within 10, so listed only
+	d = NewLANDetector()
+	for i := 0; i < sweepDevices; i++ {
+		got := d.Inspect(inboundEvent(fmt.Sprintf("192.0.2.%d", 80+i), "TCP", "22", "", t0.Add(time.Duration(3*i)*time.Minute)))
+		if len(got) != 1 || got[0].Severity != SeverityInfo {
+			t.Errorf("spread out, device %d: %+v", i, got)
+		}
 	}
 	// lines handed over out of order: the hour lies on either side of the event, so an earlier line does not report again
 	d = NewLANDetector()
@@ -75,12 +92,11 @@ func TestWifiInboundFromTheRouterIsInfo(t *testing.T) {
 	if len(got) != 1 || got[0].Severity != SeverityInfo || !strings.Contains(got[0].Summary, "the router of this Wi-Fi network (192.168.0.1)") {
 		t.Fatalf("%+v", got)
 	}
-	n := 0
-	for i := 0; i < inboundPerHour; i++ {
-		n += len(d.Inspect(inboundEvent(fmt.Sprintf("192.168.0.%d", 30+i), "TCP", "22", "", t0.Add(time.Minute))))
-	}
-	if n != inboundPerHour {
-		t.Errorf("the router took a place among the devices: %d", n)
+	// five more devices at once: with the router that would be six, but the router does not count toward a sweep
+	for i := 0; i < sweepDevices-1; i++ {
+		if got := d.Inspect(inboundEvent(fmt.Sprintf("192.168.0.%d", 30+i), "TCP", "22", "", t0.Add(time.Minute))); len(got) != 1 || got[0].Severity != SeverityInfo {
+			t.Errorf("the router took a place among the devices: %d %+v", i, got)
+		}
 	}
 }
 

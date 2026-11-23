@@ -346,19 +346,25 @@ impl Detector for WifiDetector {
     }
 }
 
-/// How many devices reaching for this computer over Wi-Fi are reported in an hour (Go: inboundPerHour).
-pub const INBOUND_PER_HOUR: usize = 5;
+/// Devices reaching for this computer over Wi-Fi are listed (info: Security's list, no notification; the owner's decision,
+/// 2026-11-22: devices ask about others all the time), at most `INBOUND_LISTED_PER_HOUR` an hour; `SWEEP_DEVICES` different
+/// ones within `SWEEP_WINDOW` look like a sweep (one device with made-up addresses, or someone scanning the network): a
+/// warning, once an hour. One device trying many ports is the inbound detector's port scan (Go: inboundListedPerHour,
+/// sweepDevices, sweepWindow).
+pub const INBOUND_LISTED_PER_HOUR: usize = 30;
+pub const SWEEP_DEVICES: usize = 6;
+const SWEEP_WINDOW: i64 = 10 * 60_000_000_000;
 const HOUR: i64 = 3_600_000_000_000;
 
 /// The local-network watches: router impersonation, new listeners, new devices on a trusted network, and devices on Wi-Fi
-/// reaching for this computer on every network but home (once per device an hour, at most `INBOUND_PER_HOUR` devices an hour,
-/// then one summary for the rest of the hour; the hours are kept in memory).
+/// reaching for this computer on every network but home (info, once per device an hour; a warning for a sweep; the hours are
+/// kept in memory).
 #[derive(Default)]
 pub struct LanDetector {
     inbound_seen: std::collections::BTreeMap<String, crate::gotime::Time>,
     inbound_times: Vec<crate::gotime::Time>,
-    /// when the summary for devices past the cap was given
-    inbound_capped: Option<crate::gotime::Time>,
+    /// when the sweep warning was given
+    inbound_swept: Option<crate::gotime::Time>,
 }
 
 impl LanDetector {
@@ -394,22 +400,31 @@ impl LanDetector {
         if !e.f("src_mac").is_empty() {
             who += &format!(", hardware address {}", e.f("src_mac"));
         }
-        if self.inbound_times.len() >= INBOUND_PER_HOUR {
-            if self.inbound_capped.as_ref().is_some_and(within) {
-                return Vec::new();
-            }
-            self.inbound_capped = Some(e.time);
-            return one(self.id(), Severity::Warning, format!(
-                "more than {INBOUND_PER_HOUR} devices on Wi-Fi tried to reach this computer within an hour (the latest: {who}): the others this hour are not reported one by one. Many at once can be one device sweeping the network with made-up addresses; on a network you do not control, disconnect or use a VPN"), e);
-        }
         self.inbound_times.push(e.time);
+        let near = self
+            .inbound_times
+            .iter()
+            .filter(|t| {
+                let a = e.time.sub(t);
+                a > -SWEEP_WINDOW && a < SWEEP_WINDOW
+            })
+            .count();
+        if near >= SWEEP_DEVICES && !self.inbound_swept.as_ref().is_some_and(within) {
+            self.inbound_swept = Some(e.time);
+            return one(self.id(), Severity::Warning, format!(
+                "{near} devices on Wi-Fi tried to reach this computer within {} minutes (the latest: {who}): many at once can be one device sweeping the network with made-up addresses, or someone scanning it. They are listed on the network's page in Settings (Devices on this network); on a network you do not control, disconnect or use a VPN",
+                SWEEP_WINDOW / 60_000_000_000), e);
+        }
+        if self.inbound_times.len() > INBOUND_LISTED_PER_HOUR {
+            return Vec::new();
+        }
         let what = inbound_what(e.f("proto"), e.f("dst_port"), e.f("icmp_type"));
         let gate = if what == "a ping" {
             "This computer answers pings (ufw does by default), and nothing else gets in that way"
         } else {
             "The firewall drops it unless a rule allows it"
         };
-        one(self.id(), Severity::Warning, format!(
+        one(self.id(), Severity::Info, format!(
             "a device on Wi-Fi ({who}) tried to reach this computer: {what}. {gate}; if you do not know the device, see Settings > Wi-Fi & Network"), e)
     }
 }
@@ -620,5 +635,47 @@ impl Detector for LimboExchangeDetector {
             format!("guest {g}: a file could not be scanned, so it stayed in the guest's outbox ({path}: {})", clip(e.f("reason"), 120)),
             &ev,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn knock(src: &str, at_secs: i64) -> Event {
+        let mut fields = crate::event::Fields::new();
+        for (k, v) in [("src", src), ("proto", "TCP"), ("dst_port", "22"), ("iface", "wlan0"), ("inbound", "wifi")] {
+            fields.insert(k.to_string(), v.to_string());
+        }
+        Event {
+            source: "host-wifi".into(),
+            time: crate::gotime::Time::from_unix(1_800_000_000 + at_secs, 0),
+            kind: "wifi_inbound".into(),
+            fields,
+            ..Event::default()
+        }
+    }
+
+    /// Go: TestWifiInboundIsListedOncePerDeviceAndHour, the sweep parts: every device listed (info), the sixth within ten
+    /// minutes the hour's one warning, at most INBOUND_LISTED_PER_HOUR listed; six spread over fifteen minutes only listed.
+    #[test]
+    fn devices_reaching_in_are_listed_and_a_sweep_warns() {
+        let mut d = LanDetector::default();
+        let all: Vec<Finding> = (0..40).flat_map(|i| d.inspect(&knock(&format!("192.0.2.{}", 30 + i), i))).collect();
+        assert_eq!(all.len(), INBOUND_LISTED_PER_HOUR);
+        let warnings: Vec<(usize, &Finding)> = all.iter().enumerate().filter(|(_, f)| f.severity == Severity::Warning).collect();
+        assert_eq!(warnings.len(), 1, "{all:?}");
+        assert_eq!(warnings[0].0, SWEEP_DEVICES - 1);
+        assert!(
+            warnings[0].1.summary.contains("6 devices on Wi-Fi tried to reach this computer within 10 minutes")
+                && warnings[0].1.summary.contains("192.0.2.35")
+        );
+        let next = d.inspect(&knock("192.0.2.99", 3660));
+        assert!(next.len() == 1 && next[0].severity == Severity::Info, "the next hour: {next:?}");
+        let mut d = LanDetector::default();
+        for i in 0..SWEEP_DEVICES as i64 {
+            let got = d.inspect(&knock(&format!("192.0.2.{}", 80 + i), 180 * i));
+            assert!(got.len() == 1 && got[0].severity == Severity::Info, "spread out, device {i}: {got:?}");
+        }
     }
 }

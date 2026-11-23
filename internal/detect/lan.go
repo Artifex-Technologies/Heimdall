@@ -6,22 +6,28 @@ import (
 	"time"
 )
 
-// inboundPerHour is how many devices reaching for this computer over Wi-Fi are reported in an hour: a sweep of the network
-// knocks from many addresses, and a few alerts say it as well as a hundred.
-const inboundPerHour = 5
+// Devices reaching for this computer over Wi-Fi are listed (info: Security's list, no notification; the owner's decision,
+// 2026-11-22: devices ask about others all the time), at most inboundListedPerHour an hour. sweepDevices different ones
+// within sweepWindow look like a sweep of the network (one device with made-up addresses, or someone scanning it): that is
+// a warning, once an hour. One device trying many ports is the inbound detector's port scan (ufw's blocks).
+const (
+	inboundListedPerHour = 30
+	sweepDevices         = 6
+	sweepWindow          = 10 * time.Minute
+)
 
 // LANDetector reads the local-network watches: the router of an untrusted Wi-Fi network changing or being imitated (critical:
 // ARP spoofing puts someone between this computer and the internet), and a program starting to listen for connections from the
 // network (warning: the firewall blocks it unless a rule allows it, but it should be known), a device new to a trusted home
 // network (warning: the owner wants to know who joins, internal/lan), and a device on a Wi-Fi network trying to reach this
-// computer (warning, on every network but home, trusted ones too: heimdall-wifi-guard's quiet table, which logs it, is not
-// loaded at home; once per device an hour, at most inboundPerHour devices an hour, then one summary for the rest of the hour).
-// The hours are kept in memory, so they start again when heimdalld restarts.
+// computer (on every network but home, trusted ones too: heimdall-wifi-guard's quiet table, which logs it, is not loaded at
+// home; info, once per device an hour, at most inboundListedPerHour devices an hour; a warning when sweepDevices of them come
+// within sweepWindow). The hours are kept in memory, so they start again when heimdalld restarts.
 type LANDetector struct {
-	inboundSeen   map[string]time.Time // per device: when it was last reported
-	inboundTimes  []time.Time          // the reports of the last hour
-	inboundCapped bool                 // the summary for devices past the cap was given, at inboundCapAt
-	inboundCapAt  time.Time
+	inboundSeen    map[string]time.Time // per device: when it was last reported
+	inboundTimes   []time.Time          // the devices of the last hour
+	inboundSwept   bool                 // the sweep warning was given, at inboundSweptAt
+	inboundSweptAt time.Time
 }
 
 func NewLANDetector() *LANDetector { return &LANDetector{} }
@@ -97,8 +103,8 @@ func (d *LANDetector) Inspect(e Event) []Finding {
 
 // inbound reports a device that started something aimed at this computer over Wi-Fi (heimdall-wifi-guard's quiet table logs
 // it, once per device an hour; ufw decides whether it gets in). The event's time decides the hour, on either side of it (the
-// journal can hand lines over out of order), so a replay gives the same alerts. Past inboundPerHour devices in an hour one
-// summary says so, so a few made-up senders first cannot hide what comes after them.
+// journal can hand lines over out of order), so a replay gives the same alerts. The sweep warning counts every device, the
+// listed ones and those past the cap alike, so a few made-up senders first cannot hide what comes after them.
 func (d *LANDetector) inbound(e Event) []Finding {
 	f := e.Fields
 	src := f["src"]
@@ -142,22 +148,28 @@ func (d *LANDetector) inbound(e Event) []Finding {
 	if f["src_mac"] != "" {
 		who += ", hardware address " + f["src_mac"]
 	}
-	if len(recent) >= inboundPerHour {
-		if d.inboundCapped && within(d.inboundCapAt) {
-			return nil
-		}
-		d.inboundCapped, d.inboundCapAt = true, e.Time
-		return []Finding{{DetectorID: d.ID(), Severity: SeverityWarning, Event: e, Summary: fmt.Sprintf(
-			"more than %d devices on Wi-Fi tried to reach this computer within an hour (the latest: %s): the others this hour are not reported one by one. Many at once can be one device sweeping the network with made-up addresses; on a network you do not control, disconnect or use a VPN",
-			inboundPerHour, who)}}
-	}
 	d.inboundTimes = append(d.inboundTimes, e.Time)
+	near := 0
+	for _, t := range d.inboundTimes {
+		if a := e.Time.Sub(t); a > -sweepWindow && a < sweepWindow {
+			near++
+		}
+	}
+	if near >= sweepDevices && !(d.inboundSwept && within(d.inboundSweptAt)) {
+		d.inboundSwept, d.inboundSweptAt = true, e.Time
+		return []Finding{{DetectorID: d.ID(), Severity: SeverityWarning, Event: e, Summary: fmt.Sprintf(
+			"%d devices on Wi-Fi tried to reach this computer within %d minutes (the latest: %s): many at once can be one device sweeping the network with made-up addresses, or someone scanning it. They are listed on the network's page in Settings (Devices on this network); on a network you do not control, disconnect or use a VPN",
+			near, int(sweepWindow/time.Minute), who)}}
+	}
+	if len(d.inboundTimes) > inboundListedPerHour {
+		return nil
+	}
 	what := inboundWhat(f["proto"], f["dst_port"], f["icmp_type"])
 	gate := "The firewall drops it unless a rule allows it"
 	if what == "a ping" {
 		gate = "This computer answers pings (ufw does by default), and nothing else gets in that way"
 	}
-	return []Finding{{DetectorID: d.ID(), Severity: SeverityWarning, Event: e, Summary: fmt.Sprintf(
+	return []Finding{{DetectorID: d.ID(), Severity: SeverityInfo, Event: e, Summary: fmt.Sprintf(
 		"a device on Wi-Fi (%s) tried to reach this computer: %s. %s; if you do not know the device, see Settings > Wi-Fi & Network",
 		who, what, gate)}}
 }

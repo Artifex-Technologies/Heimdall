@@ -141,13 +141,16 @@ check count it.
   certificate this computer does not trust, intercepted HTTPS, changed web pages, and a look-alike network with different
   security nearby.
 - **A network with the name of one you trust but not its lock** (critical), for example an open copy of your hotspot.
-- **A device tried to reach this computer** (`lan-watch` warning), on every network but home. This covers a device on the
+- **A device tried to reach this computer** (`lan-watch` info: listed, not notified), on every network but home. This covers a device on the
   network itself (a private or link-local address) starting a connection to this computer (a TCP SYN), sending it a new UDP
   packet (a direct question such as NetBIOS's "what is your name", unicast mDNS, LLMNR or SNMP) or pinging it. Packets of
-  connections this computer made, late or stray packets, and anything from an internet address are never reported. Each device
-  is reported once an hour, and at most 5 devices an hour; past that, one more warning says that more devices tried within the
-  hour (many at once can be one device sweeping the network with made-up addresses). The hour is kept in memory, so it starts
-  again when heimdalld restarts.
+  connections this computer made, late or stray packets, and anything from an internet address are never reported. Devices
+  ask about others all the time, so each one is listed (an info alert: Settings shows it on the network's page under "Asked
+  about this computer" and in Security under Everything) without a notification (my decision, 2026-11-22), once per device an
+  hour and at most 30 devices an hour. A **warning** (a notification) comes only for what looks like a sweep: 6 different
+  devices within 10 minutes (one device sweeping the network with made-up addresses, or someone scanning it), once an hour;
+  one device trying many ports is the `inbound` check's port scan (10 ports in 10 minutes, from ufw's blocks). The hours are
+  kept in memory, so they start again when heimdalld restarts.
 - It needs heimdalld's firewall watch: `"firewall"` not turned off in `/etc/heimdall/config.json`, and the `systemd-journal`
   group (`packaging/arch/heimdall-firewall.conf.example`). `status` says whether these alerts are reported.
 - The alert names the device's address and hardware address. Both go into the kernel journal and `alerts.jsonl`, and to your
@@ -279,8 +282,8 @@ What being discoverable means beyond "this computer announces itself":
 - On a network nobody needs a password for (open, or a discoverable untrusted network generally), this computer also announces
   itself to any copy of the network with the same name, since nothing tells the two apart.
 - Devices answering what it announces (or what it asks, such as mDNS questions) send packets to this computer that the quiet
-  table counts as starting something; on a busy network these can raise the hourly "a device tried to reach this computer"
-  warning for those devices.
+  table counts as starting something; on a busy network these are listed as "a device tried to reach this computer" for
+  those devices.
 
 ## The quiet table
 
