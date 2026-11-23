@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,6 +32,7 @@ type RogueRouterWatcher struct {
 	TrustedPath string // /etc/heimdall/wifi-trusted.json: the kind of network the owner set (heimdall-wifi-guard kind)
 	StatePath   string
 	procRoot    string
+	sysRoot     string
 	now         func() time.Time
 	started     time.Time
 	off         int64
@@ -51,7 +53,7 @@ const rogueLateIPv6 = 2 * time.Minute
 // learns of trusted networks in state.
 func NewRogueRouterWatcher(netID, current, state string) *RogueRouterWatcher {
 	return &RogueRouterWatcher{NetIDPath: netID, CurrentPath: current, StatePath: state, TrustedPath: "/etc/heimdall/wifi-trusted.json",
-		procRoot: "/proc", now: time.Now}
+		procRoot: "/proc", sysRoot: "/sys", now: time.Now}
 }
 
 type rogueState struct {
@@ -442,6 +444,11 @@ func (w *RogueRouterWatcher) routes(iface string, c *rogueConn, table []byte, ar
 			c.prefixes[p] = true
 			// prefixes announced in the first minute belong to the router's first announcements
 			if now.Sub(c.raFirst) > time.Minute {
+				if phoneUSB(w.sysRoot, iface) {
+					// the owner's decision, 2026-11-22: noted, not an alert
+					log.Printf("rogue-router: %s is a phone's USB link: its new IPv6 network %s is noted, not reported (only the phone is on the cable)", iface, p)
+					continue
+				}
 				sigs = append(sigs, rogueSignal{"ra_prefix", "", p, false, true})
 			}
 		}
@@ -603,4 +610,19 @@ func (w *RogueRouterWatcher) save() {
 	if os.WriteFile(tmp, append(b, '\n'), 0o600) == nil {
 		os.Rename(tmp, w.StatePath)
 	}
+}
+
+// phoneUSB says whether iface is a phone's own USB link (an iPhone's ipheth, an Android phone's RNDIS): only the phone is on
+// that cable, so a new IPv6 network there is the phone's own (carriers change the prefixes they hand out), not a second
+// router.
+func phoneUSB(sysRoot, iface string) bool {
+	d, err := filepath.EvalSymlinks(filepath.Join(sysRoot, "class/net", iface, "device/driver"))
+	if err != nil {
+		return false
+	}
+	switch filepath.Base(d) {
+	case "ipheth", "rndis_host":
+		return true
+	}
+	return false
 }

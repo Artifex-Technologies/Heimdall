@@ -115,6 +115,8 @@ pub struct RogueSource {
     pub trusted: String,
     state_path: String,
     proc_root: String,
+    /// where `phone_usb` reads an interface's driver (tests point it at a fake tree)
+    pub sys_root: String,
     started: Option<i64>,
     off: u64,
     conns: BTreeMap<String, Conn>,
@@ -131,6 +133,7 @@ impl RogueSource {
             trusted: "/etc/heimdall/wifi-trusted.json".into(),
             state_path: state.into(),
             proc_root: proc_root.into(),
+            sys_root: "/sys".into(),
             started: None,
             off: 0,
             conns: BTreeMap::new(),
@@ -325,6 +328,7 @@ impl RogueSource {
         let key = self.known_key(&uuid, cur);
         let kind = self.kind_if_known(&uuid, cur);
         let hotspot = kind == "phone-hotspot";
+        let usb = phone_usb(&self.sys_root, iface);
         let c = self.conns.get_mut(iface).unwrap();
         let mut changed = false;
         let mut sigs = Vec::new();
@@ -395,6 +399,11 @@ impl RogueSource {
         if !c.ra.is_empty() {
             for p in &prefixes {
                 if c.prefixes.insert(p.clone()) && now - c.ra_first > 60 {
+                    if usb {
+                        // the owner's decision, 2026-11-22: noted, not an alert
+                        eprintln!("rogue-router: {iface} is a phone's USB link: its new IPv6 network {p} is noted, not reported (only the phone is on the cable)");
+                        continue;
+                    }
                     sigs.push(sig("ra_prefix", "", p, false, true));
                 }
             }
@@ -453,6 +462,16 @@ impl RogueSource {
             let _ = std::fs::rename(&tmp, &self.state_path);
         }
     }
+}
+
+/// Go: phoneUSB. Whether `iface` is a phone's own USB link (an iPhone's ipheth, an Android phone's RNDIS): only the phone is on
+/// that cable, so a new IPv6 network there is the phone's own (carriers change the prefixes they hand out), not a second
+/// router.
+pub fn phone_usb(sys_root: &str, iface: &str) -> bool {
+    std::fs::canonicalize(format!("{sys_root}/class/net/{iface}/device/driver"))
+        .ok()
+        .and_then(|d| d.file_name().map(|n| n.to_string_lossy().into_owned()))
+        .is_some_and(|n| n == "ipheth" || n == "rndis_host")
 }
 
 /// Go: ipv6Routes. The routers of iface's default routes (link-local next hops) and its on-link prefixes.

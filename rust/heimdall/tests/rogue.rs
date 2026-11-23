@@ -17,7 +17,18 @@ fn rogue_router_scenarios_match_go() {
         let p = |s: &str| dir.join(s).to_string_lossy().into_owned();
         let mut w = RogueSource::new(&p("netid.jsonl"), &p("current.json"), &p("routers.json"), &p("proc"));
         w.trusted = p("wifi-trusted.json");
+        w.sys_root = p("sys");
         for (i, st) in sc["steps"].as_array().unwrap().iter().enumerate() {
+            // a phone's USB link: its driver ipheth, as Go's runRogue lays it out
+            for iface in st["phone_usb"].as_array().into_iter().flatten() {
+                let iface = iface.as_str().unwrap();
+                std::fs::create_dir_all(dir.join("sys/bus/usb/drivers/ipheth")).unwrap();
+                std::fs::create_dir_all(dir.join(format!("sys/class/net/{iface}/device"))).unwrap();
+                let _ = std::os::unix::fs::symlink(
+                    dir.join("sys/bus/usb/drivers/ipheth"),
+                    dir.join(format!("sys/class/net/{iface}/device/driver")),
+                );
+            }
             if let Some(lines) = st["netid"].as_array() {
                 let mut f = std::fs::OpenOptions::new().append(true).create(true).open(p("netid.jsonl")).unwrap();
                 for l in lines {

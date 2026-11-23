@@ -24,6 +24,8 @@ type rogueStep struct {
 	ARP     string              `json:"arp,omitempty"`
 	Trusted string              `json:"trusted,omitempty"`
 	Want    []map[string]string `json:"want"`
+	// interfaces that are a phone's USB link from this step on (their driver ipheth, in sys/)
+	PhoneUSB []string `json:"phone_usb,omitempty"`
 }
 
 type rogueScenario struct {
@@ -113,6 +115,12 @@ func rogueScenarios() []rogueScenario {
 			{Now: 1200, Routes: ra1 + "\n" + r6(zero32, 0, ll66) + "\n" + r6(pfx66, 64, zero32)},
 			{Now: 1210, NetID: []string{nl(1210, "down", uCafe, "", "", "", "")}, Routes: ra1},
 		}},
+		{"a phone's USB link: a new prefix during a connection is noted, not reported", []rogueStep{
+			{Now: 1000, PhoneUSB: []string{"wlan0"}, NetID: []string{nl(1000, "up", uCafe, "192.0.2.1", "192.0.2.1", "192.0.2.1", "2001:db8:1::1")}},
+			{Now: 1005, Routes: ra1},
+			{Now: 1200, Routes: ra1 + "\n" + r6(pfx66, 64, zero32)},
+			{Now: 1300, Routes: ra1 + "\n" + r6(zero32, 0, ll66)},
+		}},
 		{"an IPv6 router appears late on a network that had none (untrusted)", []rogueStep{
 			{Now: 1000, NetID: []string{nl(1000, "up", uCafe, "192.0.2.1", "192.0.2.1", "192.0.2.1", "")}},
 			{Now: 1300, Routes: ra1},
@@ -131,9 +139,15 @@ func runRogue(t *testing.T, sc rogueScenario) [][]map[string]string {
 	os.MkdirAll(filepath.Join(dir, "proc/net"), 0o755)
 	w := NewRogueRouterWatcher(filepath.Join(dir, "netid.jsonl"), filepath.Join(dir, "current.json"), filepath.Join(dir, "routers.json"))
 	w.procRoot = filepath.Join(dir, "proc")
+	w.sysRoot = filepath.Join(dir, "sys")
 	w.TrustedPath = filepath.Join(dir, "wifi-trusted.json")
 	var out [][]map[string]string
 	for _, st := range sc.Steps {
+		for _, i := range st.PhoneUSB {
+			os.MkdirAll(filepath.Join(dir, "sys/bus/usb/drivers/ipheth"), 0o755)
+			os.MkdirAll(filepath.Join(dir, "sys/class/net", i, "device"), 0o755)
+			os.Symlink(filepath.Join(dir, "sys/bus/usb/drivers/ipheth"), filepath.Join(dir, "sys/class/net", i, "device/driver"))
+		}
 		if len(st.NetID) > 0 {
 			f, _ := os.OpenFile(w.NetIDPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 			f.WriteString(strings.Join(st.NetID, "\n") + "\n")

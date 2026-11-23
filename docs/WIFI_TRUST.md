@@ -163,13 +163,19 @@ by announcing itself as the IPv6 router. heimdalld watches for both on every net
 |---|---|
 | A DHCP server, router or DNS servers different from those of the first lease of this connection | warning |
 | A device other than the first IPv6 router of this connection announcing itself as a router | warning |
-| A new IPv6 prefix announced more than a minute after the router's first announcement | warning |
+| A new IPv6 prefix announced more than a minute after the router's first announcement | warning; none on a phone's USB link (below) |
 | An IPv6 router appearing more than 2 minutes after joining a network that had none | warning |
 | On a trusted or home network, at the start of a connection: **one** of its DHCP server, router, DNS servers, the router's hardware address or IPv6 router differs from what it remembers | info ("changed, maybe a firmware update") |
 | ... **two or more** of them at once | critical ("a different device may be posing as your router") |
 | On a trusted or home network: a DHCP server or IPv6 router it does not know appearing in the middle of a connection | critical |
 | On a home network: the router's hardware address changing in the middle of a connection, whatever its kind (on every other network the router watch reports it) | critical |
 | On a trusted or home network that never had IPv6 on 3 connections: an IPv6 router appearing | warning |
+
+**A phone's USB link** (an iPhone's `ipheth`, an Android phone's `rndis_host`, read from the interface's driver in `/sys`):
+only the phone is on that cable, and carriers change the IPv6 prefixes they hand out, so a new prefix there is noted in
+heimdalld's log (`rogue-router: ... is a phone's USB link`) and is not an alert (my decision, 2026-11-22, after 19 warnings in
+four minutes on an iPhone's link). Every other signal is watched there as everywhere, and a phone's Wi-Fi hotspot is watched
+like any Wi-Fi network.
 
 Each alert (`lan-watch`, event kind `rogue_router`) is one per connection for the same values and carries what was seen
 before and after, so how often the checks fire can be counted per network: `via` (`dhcp` or `ra`),
