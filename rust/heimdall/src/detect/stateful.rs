@@ -684,12 +684,14 @@ impl Detector for LimboGuestDetector {
                 }
             }
             "image.rejected" => {
-                return vec![Finding::new(
-                    id,
-                    Severity::Critical,
-                    format!("guest {q} base image failed checksum verification: {}", e.f("reason")),
-                    e,
-                )]
+                // Limbo's own check of its images (the weekly one): no guest, the image's path and when it was checked
+                let summary = if g.is_empty() {
+                    let during = if e.f("during").is_empty() { "check" } else { e.f("during") };
+                    format!("base image {} failed checksum verification in Limbo's {during}: {}", quote(e.f("path")), e.f("reason"))
+                } else {
+                    format!("guest {q} base image failed checksum verification: {}", e.f("reason"))
+                };
+                return vec![Finding::new(id, Severity::Critical, summary, e)];
             }
             "gate.blocked" => {
                 return vec![Finding::new(

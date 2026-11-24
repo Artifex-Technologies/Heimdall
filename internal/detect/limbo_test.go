@@ -1,6 +1,9 @@
 package detect
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func limboEv(kind, guest string, extra map[string]string) Event {
 	f := map[string]string{"guest": guest}
@@ -66,6 +69,11 @@ func TestLimboGuestDetectorSequences(t *testing.T) {
 			wantSev: []Severity{SeverityCritical},
 		},
 		{
+			name:    "image rejected by the weekly check",
+			events:  []Event{limboEv("image.rejected", "", map[string]string{"reason": "mismatch", "path": "/var/lib/limbo/images/arch.qcow2", "during": "weekly check"})},
+			wantSev: []Severity{SeverityCritical},
+		},
+		{
 			name:    "license gate",
 			events:  []Event{limboEv("gate.blocked", "lab", nil)},
 			wantSev: []Severity{SeverityWarning},
@@ -93,5 +101,13 @@ func TestLimboGuestDetectorSequences(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestTheWeeklyImageCheckNamesTheImage(t *testing.T) {
+	d := NewLimboGuestDetector()
+	fs := d.Inspect(limboEv("image.rejected", "", map[string]string{"reason": "mismatch", "path": "/var/lib/limbo/images/arch.qcow2", "during": "weekly check"}))
+	if len(fs) != 1 || !strings.Contains(fs[0].Summary, `"/var/lib/limbo/images/arch.qcow2"`) || !strings.Contains(fs[0].Summary, "weekly check") || strings.Contains(fs[0].Summary, `guest ""`) {
+		t.Fatalf("got %+v", fs)
 	}
 }

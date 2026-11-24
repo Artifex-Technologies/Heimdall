@@ -2772,6 +2772,13 @@
   "golden": [
    ["{\"time\":\"0001-01-01T00:00:00Z\",\"detector_id\":\"limbo-guest\",\"severity\":\"critical\",\"summary\":\"guest \\\"lab\\\" base image failed checksum verification: mismatch\",\"source\":\"limbo\",\"event_kind\":\"image.rejected\",\"event_text\":\"\",\"fields\":{\"guest\":\"lab\",\"reason\":\"mismatch\"},\"explain\":{\"what\":\"A program running in a Limbo sandbox broke the sandbox's safety rules: “lab”.\",\"serious\":\"Serious: look at it now.\",\"done\":\"Heimdall asked Limbo to cut the sandbox off (quarantine). Limbo never lets Heimdall release it; only you can.\",\"do\":\"Look at the quarantine in Settings \\u003e Security before releasing anything; if unsure, delete the sandbox.\"}}"]
   ]},
+{"name":"TestLimboGuestDetectorSequences/image rejected by the weekly check","deps":{},
+  "steps": [
+   {"event":{"source":"limbo","session_id":"","time":"","kind":"image.rejected","text":"","fields":{"during":"weekly check","guest":"","path":"/var/lib/limbo/images/arch.qcow2","reason":"mismatch"}},"expect":[{"detector":"limbo-guest","severities":["critical"]}]}
+  ],
+  "golden": [
+   ["{\"time\":\"0001-01-01T00:00:00Z\",\"detector_id\":\"limbo-guest\",\"severity\":\"critical\",\"summary\":\"base image \\\"/var/lib/limbo/images/arch.qcow2\\\" failed checksum verification in Limbo's weekly check: mismatch\",\"source\":\"limbo\",\"event_kind\":\"image.rejected\",\"event_text\":\"\",\"fields\":{\"during\":\"weekly check\",\"guest\":\"\",\"path\":\"/var/lib/limbo/images/arch.qcow2\",\"reason\":\"mismatch\"},\"explain\":{\"what\":\"A program running in a Limbo sandbox broke the sandbox's safety rules.\",\"serious\":\"Serious: look at it now.\",\"done\":\"Heimdall asked Limbo to cut the sandbox off (quarantine). Limbo never lets Heimdall release it; only you can.\",\"do\":\"Look at the quarantine in Settings \\u003e Security before releasing anything; if unsure, delete the sandbox.\"}}"]
+  ]},
 {"name":"TestLimboGuestDetectorSequences/license gate","deps":{},
   "steps": [
    {"event":{"source":"limbo","session_id":"","time":"","kind":"gate.blocked","text":"","fields":{"guest":"lab"}},"expect":[{"detector":"limbo-guest","severities":["warning"]}]}

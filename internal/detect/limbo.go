@@ -56,9 +56,21 @@ func (d *LimboGuestDetector) Inspect(e Event) []Finding {
 			return finding(SeverityCritical, "firewall policy for guest %q removed while it was still running", g)
 		}
 	case "image.rejected":
+		if g == "" {
+			// Limbo's own check of its images (the weekly one): no guest, the image's path and when it was checked
+			return finding(SeverityCritical, "base image %q failed checksum verification in Limbo's %s: %s", e.Fields["path"], orDefault(e.Fields["during"], "check"), e.Fields["reason"])
+		}
 		return finding(SeverityCritical, "guest %q base image failed checksum verification: %s", g, e.Fields["reason"])
 	case "gate.blocked":
 		return finding(SeverityWarning, "guest %q blocked by the Windows license gate: %s", g, e.Fields["reason"])
 	}
 	return nil
+}
+
+// orDefault is v, or def when v is empty.
+func orDefault(v, def string) string {
+	if v == "" {
+		return def
+	}
+	return v
 }

@@ -318,6 +318,7 @@ func statefulScenarios() []Scenario {
 		{"guests are tracked independently", []*EventJSON{limbo("policy.apply", "a", nil), limbo("guest.start", "b", nil)}, []detect.Severity{C}},
 		{"restart after stop needs policy again", []*EventJSON{limbo("policy.apply", "lab", nil), limbo("guest.start", "lab", nil), limbo("guest.stop", "lab", nil), limbo("policy.remove", "lab", nil), limbo("guest.start", "lab", nil)}, []detect.Severity{C}},
 		{"image rejected", []*EventJSON{limbo("image.rejected", "lab", map[string]string{"reason": "mismatch"})}, []detect.Severity{C}},
+		{"image rejected by the weekly check", []*EventJSON{limbo("image.rejected", "", map[string]string{"reason": "mismatch", "path": "/var/lib/limbo/images/arch.qcow2", "during": "weekly check"})}, []detect.Severity{C}},
 		{"license gate", []*EventJSON{limbo("gate.blocked", "lab", nil)}, []detect.Severity{W}},
 		{"other sources ignored", []*EventJSON{ev("agent-session", "guest.start", "", map[string]string{"guest": "lab"})}, nil},
 	} {
