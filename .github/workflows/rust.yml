@@ -13,12 +13,15 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: rust
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0, pinned by commit
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0, pinned by commit
         with:
           go-version: "1.27"
       - name: every Go file is gofmt-formatted
@@ -53,6 +56,7 @@ jobs:
   # through /etc/alternatives). Privileged: the fake roots are user, mount, pid and network namespaces.
   shtools-arch:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     container:
       image: archlinux:latest
       options: --privileged
@@ -66,18 +70,23 @@ jobs:
           pacman -Syu --noconfirm --needed git rust gcc python openssl curl gzip gawk grep sed coreutils findutils util-linux iproute2 shadow
           echo root:100000:65536 >> /etc/subuid
           echo root:100000:65536 >> /etc/subgid
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0, pinned by commit
+        with:
+          persist-credentials: false
       - run: cargo test --locked -p heimdall --test cli_shtools -- --nocapture
   # heimdall-yara-check (rust/yara-check): YARA-X's compile check of rule drafts, a workspace of its own (yara-x brings
   # wasmtime); then the Go daemon's drafts against the real checker
   yara-check:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: rust/yara-check
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0, pinned by commit
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0, pinned by commit
         with:
           go-version: "1.27"
       - run: rustup toolchain install stable --profile minimal --component clippy,rustfmt
@@ -90,8 +99,11 @@ jobs:
         run: HEIMDALL_TEST_YARA_X="$PWD/rust/yara-check/target/release/heimdall-yara-check" go test ./internal/immunity -run RealYARAX -v
   audit:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0, pinned by commit
+        with:
+          persist-credentials: false
       - run: cargo install --locked cargo-audit
       - run: cargo audit --file rust/Cargo.lock --deny warnings
       # RUSTSEC-2025-0141: bincode is unmaintained (no vulnerability); yara-x uses it only to save and load compiled rules,
