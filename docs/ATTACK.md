@@ -117,5 +117,7 @@ them) and the row in `docs/REFERENCES.md`. The bundle itself is never committed 
 
 - The tags are on Heimdall's alerts only. Sarina's explanation of an alert and Limbo's analysis report do not name techniques
   yet.
-- No ATT&CK Navigator layer or coverage page is generated from the map; `internal/attack/tags.tsv` and the table above are the
-  map.
+- The map is also an ATT&CK Navigator layer, `heimdalld attack-layer` (layer format 4.5; Navigator's "Open Existing
+  Layer"), and a coverage page by tactic, [ATTACK_COVERAGE.md](ATTACK_COVERAGE.md), which a test writes from the same two
+  tables and which fails when it is stale. Both carry the warning above; neither has been opened in Navigator itself here
+  (the test checks the layer format's fields and that every ID is in the table).

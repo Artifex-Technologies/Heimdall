@@ -8,6 +8,7 @@ pub mod goflag;
 pub mod golog;
 pub mod tabwriter;
 
+pub mod attacklayer;
 pub mod contain;
 pub mod grant;
 pub mod immunity;
@@ -44,6 +45,7 @@ pub fn dispatch(cmd: &str, args: &[String]) -> Option<i32> {
         "wifi-health" => wifihealth::main(args),
         "lan" => lan::main(args),
         "remote" => remote::main(args),
+        "attack-layer" => attacklayer::main(args),
         crate::safefs::CHILD_COMMAND => Some(match crate::safefs::child(args) {
             Ok(()) => 0,
             Err(e) => {

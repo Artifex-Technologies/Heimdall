@@ -70,6 +70,7 @@ list (`/etc/heimdall/wifi-trusted.json`), which keeps its form.
 | shell programs | `heimdall-intel-update`, `heimdall-dns-blocklist`, `heimdall-enable-defaults`, `91-heimdall-netid` (shell) | **done** (2026-11-18); installed as links on branch `shell-tools-rust`, not merged | `tests/cli_shtools.rs`: 97 runs of the script and the port in fake roots, the downloads from HTTPS servers on loopback (below) |
 | trust, mesh, scan | `trust ...`, `scan`, `mesh ...` | **done** | `tests/cli_trust.rs`: 155 fixture cases (trust 96, mesh 59), 67 steps; `tests/cli_scan.rs`: 21 steps; `tests/cli_mesh.rs`: 44 steps; all against Go |
 | basics | `version`, `help`, unknown commands, `__write-as-owner` | **done** | `tests/cli.rs` against Go |
+| ATT&CK | `attack-layer` (2026-11-24, Rust only: the Go daemon never had it) | **done** | `src/cli/attacklayer.rs`: the Navigator layer's fields, every tag in it, docs/ATTACK_COVERAGE.md current |
 
 ## lan
 
