@@ -161,8 +161,20 @@ pub fn clamav(path: &str) -> Result<String, String> {
     }
     match c.scan_file(path.as_bytes()) {
         (_, Some(e)) => Err(e),
-        (r, None) => Ok(if r.infected { r.signature } else { String::new() }),
+        (r, None) => reference_answer(&r),
     }
+}
+
+/// ClamAV's answer read (Go: referenceAnswer): its signature, "" for a file it does not know, and an error for one it stopped
+/// at a limit with (`Heuristics.Limits.Exceeded.*`): that file was not fully scanned, and ClamAV does not know it either way.
+pub(crate) fn reference_answer(r: &super::scan::ScanResult) -> Result<String, String> {
+    if !r.infected {
+        return Ok(String::new());
+    }
+    if r.signature.starts_with("Heuristics.Limits.Exceeded") {
+        return Err(format!("not fully scanned: ClamAV stopped at a limit ({})", r.signature));
+    }
+    Ok(r.signature.clone())
 }
 
 /// Go's `os.MkdirTemp("", "heimdall-immunity-")`.

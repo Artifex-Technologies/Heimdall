@@ -3,6 +3,7 @@ package immunity
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Artifex-Technologies/Heimdall/internal/scan"
@@ -20,8 +21,17 @@ func ClamAV(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if r.Infected {
-		return r.Signature, nil
+	return referenceAnswer(r)
+}
+
+// referenceAnswer reads ClamAV's answer: a signature, "" for a file it does not know, and an error for one it stopped
+// at a limit with (Heuristics.Limits.Exceeded.*): that file was not fully scanned, and ClamAV does not know it either way.
+func referenceAnswer(r scan.Result) (string, error) {
+	if !r.Infected {
+		return "", nil
 	}
-	return "", nil
+	if strings.HasPrefix(r.Signature, "Heuristics.Limits.Exceeded") {
+		return "", fmt.Errorf("not fully scanned: ClamAV stopped at a limit (%s)", r.Signature)
+	}
+	return r.Signature, nil
 }

@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Artifex-Technologies/Heimdall/internal/scan"
 )
 
 func store(t *testing.T) Store {
@@ -89,5 +91,18 @@ func TestKinds(t *testing.T) {
 		if Kind([]byte(head)) != want {
 			t.Error(head, Kind([]byte(head)))
 		}
+	}
+}
+
+func TestALimitAnswerIsNotFullyScannedNotASignature(t *testing.T) {
+	sig, err := referenceAnswer(scan.Result{Infected: true, Signature: "Heuristics.Limits.Exceeded.MaxFileSize"})
+	if sig != "" || err == nil || !strings.Contains(err.Error(), "not fully scanned") {
+		t.Fatalf("got %q, %v", sig, err)
+	}
+	if sig, err := referenceAnswer(scan.Result{Infected: true, Signature: "Win.Test.EICAR_HDB-1"}); sig != "Win.Test.EICAR_HDB-1" || err != nil {
+		t.Fatalf("a signature: got %q, %v", sig, err)
+	}
+	if sig, err := referenceAnswer(scan.Result{}); sig != "" || err != nil {
+		t.Fatalf("clean: got %q, %v", sig, err)
 	}
 }

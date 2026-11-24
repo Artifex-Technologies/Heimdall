@@ -238,9 +238,8 @@ are checked before I use them by `heimdall-fileguard scan` and unpacked by `heim
 included, in the privacy package every install has: [PRIVACY_PACK.md](PRIVACY_PACK.md), "Safe file intake". There, too, are
 ClamAV's limits (256 MiB per file, 512 MiB per scan, 12 levels, 10,000 files, 2 minutes, AlertExceedsMax): clamscan gets them on
 its command line, clamd from the clamd.conf Labyrinth OS ships. A "Heuristics.Limits.Exceeded.*" answer means ClamAV stopped
-at a limit, not that it knows the file. `heimdalld immunity` (Go and Rust) does not tell that name apart yet: where clamd runs
-with AlertExceedsMax, a held file over the limits would be listed as known to ClamAV under that name. It is still held either
-way.
+at a limit, not that it knows the file: `heimdalld immunity` (Go and Rust) reports such a held file as not fully scanned and
+does not confirm it either way, so it stays held, never listed as known to ClamAV under that name.
 
 ## Limits
 

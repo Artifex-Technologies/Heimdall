@@ -470,3 +470,20 @@ pub fn run(c: &ClamAv, files: &[Vec<u8>], st: &mut State) -> Vec<ScanResult> {
     }
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_limit_answer_is_not_fully_scanned_and_no_signature() {
+        let mut r = ScanResult::default();
+        parse_output(&mut r, b"/tmp/x/sample: Heuristics.Limits.Exceeded.MaxFileSize FOUND\n");
+        let e = super::super::store::reference_answer(&r).unwrap_err();
+        assert!(e.contains("not fully scanned") && e.contains("MaxFileSize"), "{e}");
+        let mut r = ScanResult::default();
+        parse_output(&mut r, b"/tmp/x/sample: Win.Test.EICAR_HDB-1 FOUND\n");
+        assert_eq!(super::super::store::reference_answer(&r).unwrap(), "Win.Test.EICAR_HDB-1");
+        assert_eq!(super::super::store::reference_answer(&ScanResult::default()).unwrap(), "");
+    }
+}
