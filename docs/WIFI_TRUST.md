@@ -306,6 +306,9 @@ interfaces only (`wl*`), so a wired network, and the desktop, are never affected
   look at each one regularly. A router on IPv6 only counts as a device. heimdalld reads only the kernel's lines with that prefix, for
   a Wi-Fi interface and a private or link-local sender. ufw's own chains still decide, and they drop anything not allowed: a
   packet has to pass every base chain.
+  IPv4 and IPv6 alike: `rust/heimdall/tests/quiet_netns.rs` loads the guard's own ruleset in a throwaway network namespace
+  and writes TCP SYNs onto a veth named like Wi-Fi; one from a link-local IPv6 sender is logged once (the second is
+  remembered and passes), one from a global address not at all.
 
 The table is loaded in the synchronous `pre-up`, before the connection carries traffic. It stays in place when the network goes,
 ready for the next one, and is removed only when a home network comes up. `sudo heimdall-wifi-guard quiet-check` prints the
@@ -372,7 +375,6 @@ answer that points at this computer itself (127.0.0.0/8, 0.0.0.0/8) is "bad" wit
 - The Wi-Fi notification has no "Trust this network" button (Settings has the level selector).
 - The quiet table is loaded when a connection comes up, not at boot, and Avahi is stopped on networks that are not home.
 - Devices that look up this computer, and new devices on trusted networks that are not home, are not reported.
-- The listener logs IPv4 only.
 - The router's fingerprint does not include the DHCP option set (NetworkManager's dispatcher does not pass it), the router's
   admin certificate or SSH key, or the RA lifetimes.
 - A known device on a home network announcing another device's name is not reported (a device taking another's address is:
