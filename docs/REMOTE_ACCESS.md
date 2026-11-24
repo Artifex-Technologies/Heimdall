@@ -1,7 +1,7 @@
 # Remote access watch
 
 Malware that wants to stay on a computer usually brings its own way back in: a tunnel (ngrok, cloudflared, frp, chisel), a
-mesh VPN (Tailscale, ZeroTier, Netbird), a remote desktop (AnyDesk, RustDesk, a VNC server) or a command-and-control implant
+mesh VPN (Tailscale, ZeroTier, Netbird), a remote desktop (AnyDesk, RustDesk, Sunshine, a VNC server) or a command-and-control implant
 (Sliver, Merlin). Heimdall watches for all of these whether or not the owner ever installed one, and says which tool it is.
 
 ## What is watched (phase 1)

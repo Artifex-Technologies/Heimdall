@@ -226,6 +226,9 @@ mod tests {
         assert!(c.providers.len() >= 20);
         assert_eq!(c.match_exe("/usr/bin/tailscaled", "").map(|p| p.id.as_str()), Some("tailscale"));
         assert_eq!(c.match_iface("tailscale0").map(|p| p.id.as_str()), Some("tailscale"));
+        // Sunshine, the game-streaming server Moonlight connects to (a remote desktop: it sends the screen and takes input)
+        assert_eq!(c.match_exe("/usr/bin/sunshine", "sunshine").map(|p| p.id.as_str()), Some("sunshine"));
+        assert_eq!(c.match_package("sunshine").map(|p| p.kind.as_str()), Some("remote-desktop"));
         assert!(c.match_iface("eth0").is_none());
         assert!(glob(b"zt*", b"ztabc") && !glob(b"zt*", b"xzt"));
     }

@@ -15,6 +15,7 @@
   {"id": "anydesk", "name": "AnyDesk", "kind": "remote-desktop", "packages": ["anydesk", "anydesk-bin"], "exes": ["anydesk"], "units": ["anydesk.service"], "ports": [6568]},
   {"id": "teamviewer", "name": "TeamViewer", "kind": "remote-desktop", "packages": ["teamviewer"], "exes": ["teamviewer", "teamviewerd", "TeamViewer"], "units": ["teamviewerd.service"], "ports": [5938]},
   {"id": "rustdesk", "name": "RustDesk", "kind": "remote-desktop", "packages": ["rustdesk", "rustdesk-bin"], "exes": ["rustdesk"], "units": ["rustdesk.service"], "ports": [21115, 21116, 21117, 21118, 21119]},
+  {"id": "sunshine", "name": "Sunshine (game streaming, Moonlight's server)", "kind": "remote-desktop", "packages": ["sunshine", "sunshine-bin", "sunshine-git"], "exes": ["sunshine"], "units": ["sunshine.service", "app-dev.lizardbyte.app.Sunshine.service"], "ports": [47984, 47989, 47990, 47998, 47999, 48000, 48010]},
   {"id": "meshcentral", "name": "MeshCentral agent", "kind": "rmm", "packages": ["meshagent"], "exes": ["meshagent", "MeshAgent"], "units": ["meshagent.service"]},
   {"id": "vnc-server", "name": "VNC server", "kind": "remote-desktop", "packages": ["x11vnc", "tigervnc", "wayvnc"], "exes": ["x11vnc", "x0vncserver", "Xvnc", "wayvnc"], "ports": [5900, 5901]},
   {"id": "xrdp", "name": "xrdp", "kind": "remote-desktop", "packages": ["xrdp"], "exes": ["xrdp", "xrdp-sesman"], "units": ["xrdp.service"], "ports": [3389]},
