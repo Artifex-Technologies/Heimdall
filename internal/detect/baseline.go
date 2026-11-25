@@ -69,6 +69,10 @@ func NewBaselineDriftDetector(minSamples int, zThreshold float64) *BaselineDrift
 
 func (d *BaselineDriftDetector) ID() string { return "baseline-drift" }
 
+// baselineClearFactor: a flagged field clears when its distance from the mean falls under this share of the threshold
+// (HEI-53's hysteresis).
+const baselineClearFactor = 0.75
+
 func (d *BaselineDriftDetector) Inspect(e Event) []Finding {
 	if e.Kind != "host_telemetry" {
 		return nil
@@ -112,7 +116,12 @@ func (d *BaselineDriftDetector) Inspect(e Event) []Finding {
 					Event: e,
 				})
 			}
-			d.flagged[key] = over
+			// cleared only once well inside the usual range (HEI-53): a value hovering at the threshold flags once
+			hold := z >= d.zThreshold*baselineClearFactor || z <= -d.zThreshold*baselineClearFactor
+			if d.floors != nil {
+				hold = hold && z > 0 && val >= d.floors[key]
+			}
+			d.flagged[key] = over || (d.flagged[key] && hold)
 		}
 
 		stats.Add(val)

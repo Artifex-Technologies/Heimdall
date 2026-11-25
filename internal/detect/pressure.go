@@ -12,6 +12,13 @@ import (
 // sustained condition should alert once when it starts and stay quiet
 // until it clears, not flood the alert log once per poll interval for as
 // long as the host stays busy.
+// Hysteresis (HEI-53, Netdata's alarms): an alarm raised at its threshold clears only well under it, so a value hovering
+// at the threshold gives one alert, not one at every crossing.
+const (
+	memClearMargin  = 5.0 // percentage points under the memory threshold
+	loadClearFactor = 0.8 // of the load threshold
+)
+
 type ResourcePressureDetector struct {
 	memThresholdPercent float64
 	loadThresholdPerCPU float64
@@ -48,7 +55,7 @@ func (d *ResourcePressureDetector) Inspect(e Event) []Finding {
 				Event: e,
 			})
 		}
-		d.overMem = over
+		d.overMem = over || (d.overMem && memPercent >= d.memThresholdPercent-memClearMargin)
 	}
 
 	if loadPerCPU, err := strconv.ParseFloat(e.Fields["load_per_cpu"], 64); err == nil {
@@ -64,7 +71,7 @@ func (d *ResourcePressureDetector) Inspect(e Event) []Finding {
 				Event: e,
 			})
 		}
-		d.overLoad = over
+		d.overLoad = over || (d.overLoad && loadPerCPU >= d.loadThresholdPerCPU*loadClearFactor)
 	}
 
 	return findings

@@ -80,7 +80,15 @@ impl Detector for BurstDetector {
     }
 }
 
-/// Memory or load at or above a threshold: one alert when it starts, quiet until it clears.
+/// Go's hysteresis (HEI-53, Netdata's alarms): an alarm raised at its threshold clears only well under it, so a value
+/// hovering at the threshold gives one alert, not one at every crossing. Percentage points under the memory threshold...
+const MEM_CLEAR_MARGIN: f64 = 5.0;
+/// ...and the share of the load threshold.
+const LOAD_CLEAR_FACTOR: f64 = 0.8;
+/// A flagged baseline field clears when its distance from the mean falls under this share of the threshold.
+const BASELINE_CLEAR_FACTOR: f64 = 0.75;
+
+/// Memory or load at or above a threshold: one alert when it starts, quiet until it clears (well under it).
 pub struct ResourcePressureDetector {
     mem: f64,
     load: f64,
@@ -115,7 +123,7 @@ impl Detector for ResourcePressureDetector {
                     e,
                 ));
             }
-            self.over_mem = over;
+            self.over_mem = over || (self.over_mem && m >= self.mem - MEM_CLEAR_MARGIN);
         }
         if let Some(l) = gotext::parse_float(e.f("load_per_cpu")) {
             let over = l >= self.load;
@@ -127,7 +135,7 @@ impl Detector for ResourcePressureDetector {
                     e,
                 ));
             }
-            self.over_load = over;
+            self.over_load = over || (self.over_load && l >= self.load * LOAD_CLEAR_FACTOR);
         }
         out
     }
@@ -248,7 +256,13 @@ impl Detector for BaselineDriftDetector {
                         "{key} is {}, {} standard deviations from this host's own learned baseline (mean {}, stddev {}) -- statistically unusual for this machine, not just over a fixed threshold",
                         fixed(val, 2), fixed(z, 1), fixed(stats.mean(), 2), fixed(stats.std_dev(), 2)), e));
                 }
-                self.flagged.insert(key, over);
+                // cleared only once well inside the usual range (HEI-53): a value hovering at the threshold flags once
+                let mut hold = z >= self.z * BASELINE_CLEAR_FACTOR || z <= -self.z * BASELINE_CLEAR_FACTOR;
+                if let Some(fl) = &self.floors {
+                    hold = hold && z > 0.0 && val >= fl.get(key).copied().unwrap_or(0.0);
+                }
+                let was = self.flagged.get(key).copied().unwrap_or(false);
+                self.flagged.insert(key, over || (was && hold));
             }
             stats.add(val);
         }

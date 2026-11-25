@@ -195,6 +195,15 @@ func statefulScenarios() []Scenario {
 		step(tel("95.00", "0.50"), want("resource-pressure", W)),
 		step(tel("10.00", "2.25"), want("resource-pressure", W)),
 		step(tel("not a number", "1e400"), want("resource-pressure")),
+		// HEI-53: hovering at the threshold, one alert; cleared only under 85 % (and 1.2 per core), then raised again
+		step(tel("40.00", "0.50"), want("resource-pressure")),
+		step(tel("90.10", "1.50"), want("resource-pressure", W, W)),
+		step(tel("89.90", "1.49"), want("resource-pressure")),
+		step(tel("90.20", "1.51"), want("resource-pressure")),
+		step(tel("86.00", "1.21"), want("resource-pressure")),
+		step(tel("90.00", "1.55"), want("resource-pressure")),
+		step(tel("84.90", "1.19"), want("resource-pressure")),
+		step(tel("90.50", "1.60"), want("resource-pressure", W, W)),
 	}}
 	// baseline drift: the daemon runs it with floors (the Go tests without floors use the plain constructor)
 	drift := Scenario{Name: "TestBaselineDriftWithFloorsIgnoresSmallAndDownwardOutliers", Config: map[string]any{"baseline_min_samples": 20, "baseline_z_threshold": 3.0,

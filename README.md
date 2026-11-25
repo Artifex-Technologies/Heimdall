@@ -117,8 +117,8 @@ order. `sudo heimdalld kernel-check` lists the holes per kernel.
 | Detector | Catches |
 | --- | --- |
 | `file-integrity` | A watched file (`fim_paths`, and the agents' files when trust is on) changed, created or deleted |
-| `resource-pressure` | Memory or load crossed a threshold |
-| `baseline-drift` | A telemetry value that is an outlier against this computer's own learned normal range (streaming statistics, not a model) |
+| `resource-pressure` | Memory or load crossed a threshold; cleared only 5 points (memory) or a fifth (load) under it, so a value hovering at the threshold alerts once |
+| `baseline-drift` | A telemetry value that is an outlier against this computer's own learned normal range (streaming statistics, not a model); cleared only under three quarters of the threshold |
 | `network-exposure` | An ecosystem port (8765, 8899, 44700, 8930) bound or reached from somewhere other than loopback |
 | `connection-watch` | Each program's first connection to a new destination, and any connection to an address on a threat list (Spamhaus DROP, FireHOL Level 1, Emerging Threats): critical, with the `ufw` command to cut it off |
 | `inbound` | Failed SSH logins from one address, port scans, an address the firewall keeps blocking |

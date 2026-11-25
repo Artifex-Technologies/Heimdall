@@ -125,3 +125,28 @@ func TestBaselineDriftWithFloorsIgnoresSmallAndDownwardOutliers(t *testing.T) {
 		t.Fatalf("a load of 1.8 per CPU is worth an alert: %+v", got)
 	}
 }
+
+// TestBaselineDriftHoveringAtTheThresholdFlagsOnce (HEI-53): a value going back and forth just over and just under the
+// threshold flags once; it clears only well inside the usual range, and a later crossing flags again.
+func TestBaselineDriftHoveringAtTheThresholdFlagsOnce(t *testing.T) {
+	d := NewBaselineDriftDetector(20, 3.0)
+	warmBaseline(d, 20, 50.0)
+	at := func(z float64) []Finding {
+		s := d.stats["mem_percent"]
+		v := s.Mean() + z*s.StdDev()
+		return d.Inspect(Event{Kind: "host_telemetry", Fields: map[string]string{"mem_percent": fmt.Sprint(v)}})
+	}
+	n := 0
+	for i := 0; i < 10; i++ {
+		n += len(at([]float64{3.2, 2.6}[i%2]))
+	}
+	if n != 1 {
+		t.Fatalf("hovering gave %d findings, want 1", n)
+	}
+	if got := at(0); len(got) != 0 {
+		t.Fatalf("clearing: %+v", got)
+	}
+	if got := at(4); len(got) != 1 {
+		t.Fatalf("a fresh crossing after clearing: %+v", got)
+	}
+}
