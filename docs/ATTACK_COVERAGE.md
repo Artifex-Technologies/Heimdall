@@ -29,7 +29,7 @@ an ATT&CK Navigator layer: `heimdalld attack-layer > heimdall-layer.json`, then 
 | Technique | Watched by |
 | --- | --- |
 | T1053.003 Scheduled Task/Job: Cron | `remote-access (remote_access, place=cron)` |
-| T1205.002 Traffic Signaling: Socket Filters | `remote-access (remote_access, signal=raw-listener)` |
+| T1205.002 Traffic Signaling: Socket Filters | `remote-access (remote_access, signal=raw-listener)`, `remote-access (remote_access, signal=bpf-attach)` |
 | T1543.002 Create or Modify System Process: Systemd Service | `remote-access (remote_access, place=service)` |
 | T1546.018 Event Triggered Execution: Python Startup Hooks | `remote-access (remote_access, place=pth)` |
 | T1547.013 Boot or Logon Autostart Execution: XDG Autostart Entries | `remote-access (remote_access, place=autostart)` |
@@ -49,7 +49,7 @@ an ATT&CK Navigator layer: `heimdalld attack-layer > heimdall-layer.json`, then 
 | Technique | Watched by |
 | --- | --- |
 | T1014 Rootkit | `crossview (crossview)` |
-| T1205.002 Traffic Signaling: Socket Filters | `remote-access (remote_access, signal=raw-listener)` |
+| T1205.002 Traffic Signaling: Socket Filters | `remote-access (remote_access, signal=raw-listener)`, `remote-access (remote_access, signal=bpf-attach)` |
 | T1574.006 Hijack Execution Flow: Dynamic Linker Hijacking | `remote-access (remote_access, place=preload)` |
 
 ## Defense Impairment
@@ -91,7 +91,7 @@ an ATT&CK Navigator layer: `heimdalld attack-layer > heimdall-layer.json`, then 
 | Technique | Watched by |
 | --- | --- |
 | T1090.003 Proxy: Multi-hop Proxy | `remote-access (ra_kind=anonymizer)` |
-| T1205.002 Traffic Signaling: Socket Filters | `remote-access (remote_access, signal=raw-listener)` |
+| T1205.002 Traffic Signaling: Socket Filters | `remote-access (remote_access, signal=raw-listener)`, `remote-access (remote_access, signal=bpf-attach)` |
 | T1219 Remote Access Tools | `remote-access (ra_kind=rmm)` |
 | T1219.002 Remote Access Tools: Remote Desktop Software | `remote-access (ra_kind=remote-desktop)` |
 | T1572 Protocol Tunneling | `remote-access (ra_kind=tunnel)`, `remote-access (remote_access, signal=tunnel)` |

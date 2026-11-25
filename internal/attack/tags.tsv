@@ -25,6 +25,7 @@ crossview	crossview	*	T1014
 remote-access	remote_access	signal=tunnel	T1572
 remote-access	remote_access	signal=socket-shell	T1059.004
 remote-access	remote_access	signal=raw-listener	T1205.002
+remote-access	remote_access	signal=bpf-attach	T1205.002
 remote-access	remote_access	place=service	T1543.002
 remote-access	remote_access	place=autostart	T1547.013
 remote-access	remote_access	place=cron	T1053.003

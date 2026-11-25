@@ -62,6 +62,10 @@ func (d *RemoteAccessDetector) Inspect(e Event) []Finding {
 	case "raw-listener":
 		return []Finding{{DetectorID: d.ID(), Severity: SeverityWarning, Event: e, Summary: e.Text +
 			": a program reading raw packets can wait for a secret packet with no open port, as backdoors such as BPFDoor do; a packet capture or network tool you started does this too"}}
+	case "bpf-attach":
+		// HEI-78: an eBPF program on an interface (XDP, tc)
+		return []Finding{{DetectorID: d.ID(), Severity: SeverityWarning, Event: e, Summary: e.Text +
+			": a program attached to a network interface sees every packet before the firewall and can wait for a secret one with no open port, as some backdoors do; a firewall, traffic or monitoring tool you installed (XDP or tc) does this too"}}
 	case "foothold":
 		// HEI-11: what starts by itself. A catalog tool goes through the approvals below.
 		switch e.Fields["why"] {

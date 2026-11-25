@@ -5436,6 +5436,47 @@
     "detector": "remote-access",
     "kind": "remote_access",
     "fields": {
+     "signal": "bpf-attach"
+    },
+    "ids": [
+     "T1205.002"
+    ],
+    "names": [
+     {
+      "id": "T1205.002",
+      "name": "Traffic Signaling: Socket Filters"
+     }
+    ]
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "signal": "bpf-attach_not"
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "signal": ""
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
      "place": "service"
     },
     "ids": [

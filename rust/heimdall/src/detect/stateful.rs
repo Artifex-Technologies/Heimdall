@@ -913,6 +913,15 @@ impl Detector for RemoteAccessDetector {
                     e,
                 )]
             }
+            // HEI-78: an eBPF program on an interface (XDP, tc)
+            "bpf-attach" => {
+                return vec![Finding::new(
+                    id,
+                    Severity::Warning,
+                    format!("{}: a program attached to a network interface sees every packet before the firewall and can wait for a secret one with no open port, as some backdoors do; a firewall, traffic or monitoring tool you installed (XDP or tc) does this too", e.text),
+                    e,
+                )]
+            }
             // HEI-11: what starts by itself; a catalog tool goes through the approvals below
             "foothold" => match e.f("why") {
                 "temporary" => {

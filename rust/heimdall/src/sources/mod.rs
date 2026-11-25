@@ -3,6 +3,7 @@
 //! pipe), and the loop sleeps in one poll(2) until the first of them. Nothing runs while nothing happens.
 
 pub mod agent;
+pub mod bpfnet;
 pub mod crossview;
 pub mod files;
 pub mod fim;

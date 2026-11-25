@@ -594,6 +594,9 @@ func translatorScenarios() []Scenario {
 		step(raw("kworkerd", "21"), want("remote-access", W)),
 		step(shell("bash", "30", "tcp 10.0.0.10:40000 -> 10.0.0.5:4444"), want("remote-access", C).has("reverse shell")),
 		step(shell("sh", "31", "udp [2001:db8::1]:5353 -> [2001:db8::2]:53"), want("remote-access", C)),
+		// HEI-78: an eBPF program on an interface (the Rust source's bpf-attach)
+		step(kev("an eBPF program (id 42) is attached to wlan0's XDP hook", map[string]string{"provider": "bpf:wlan0", "ra_kind": "kernel", "signal": "bpf-attach", "iface": "wlan0", "hook": "xdp", "program_id": "42"}), want("remote-access", W).has("secret one")),
+		step(kev("an eBPF program \"cls_main\" (id 7) is attached to eth0 (tc ingress)", map[string]string{"provider": "bpf:eth0", "ra_kind": "kernel", "signal": "bpf-attach", "iface": "eth0", "hook": "tc ingress", "program_id": "7", "program": "cls_main"}), want("remote-access", W)),
 	}}
 	// HEI-11: footholds (rasource's footholds.go)
 	foot := func(place, file, target, why string, extra map[string]string) *EventJSON {

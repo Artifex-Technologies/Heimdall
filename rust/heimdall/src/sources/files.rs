@@ -504,6 +504,10 @@ pub struct RaSource {
     mod_seen: BTreeSet<String>,
     raw_seen: BTreeSet<String>,
     shell_seen: BTreeSet<String>,
+    /// HEI-78: the eBPF programs on interfaces seen at the last look ("iface|hook|id"), and where they are read from (the
+    /// kernel over netlink; a stand-in in tests).
+    bpf_seen: BTreeSet<String>,
+    pub bpf_list: fn() -> std::io::Result<Vec<super::bpfnet::Attached>>,
     /// What makes a program start by itself (HEI-11, footholds.rs).
     pub footholds: super::footholds::FootholdWatch,
 }
@@ -558,6 +562,8 @@ impl RaSource {
             next: Instant::now(),
             mod_seen: BTreeSet::new(),
             raw_seen: BTreeSet::new(),
+            bpf_seen: BTreeSet::new(),
+            bpf_list: super::bpfnet::attached,
             shell_seen: BTreeSet::new(),
             footholds: Default::default(),
         }
@@ -665,6 +671,36 @@ impl RaSource {
             }
         }
         self.raw_seen = now;
+        out
+    }
+
+    /// HEI-78 (no Go twin: the source is Rust's): an eBPF program attached to an interface (XDP, or a tc `bpf` filter),
+    /// reported once while it stays attached. When netlink cannot be read nothing is said, and what was seen is kept.
+    fn bpf_attached(&mut self) -> Vec<Event> {
+        let Ok(now) = (self.bpf_list)() else { return Vec::new() };
+        let key = |a: &super::bpfnet::Attached| format!("{}|{}|{}", a.iface, a.hook, a.id);
+        let mut out = Vec::new();
+        for a in now.iter().filter(|a| !self.bpf_seen.contains(&key(a))) {
+            let named = if a.name.is_empty() { String::new() } else { format!(" {}", crate::gotext::quote(&a.name)) };
+            let text = if a.hook == "xdp" {
+                format!("an eBPF program{named} (id {}) is attached to {}'s XDP hook", a.id, a.iface)
+            } else {
+                format!("an eBPF program{named} (id {}) is attached to {} ({})", a.id, a.iface, a.hook)
+            };
+            out.push(ra_event(
+                text,
+                Fields::from([
+                    ("provider".to_string(), format!("bpf:{}", a.iface)),
+                    ("ra_kind".to_string(), "kernel".to_string()),
+                    ("signal".to_string(), "bpf-attach".to_string()),
+                    ("iface".to_string(), a.iface.clone()),
+                    ("hook".to_string(), a.hook.clone()),
+                    ("program_id".to_string(), a.id.to_string()),
+                    ("program".to_string(), a.name.clone()),
+                ]),
+            ));
+        }
+        self.bpf_seen = now.iter().map(key).collect();
         out
     }
 
@@ -952,6 +988,7 @@ impl RaSource {
         ev.extend(self.interfaces());
         ev.extend(self.modules());
         ev.extend(self.raw_listeners());
+        ev.extend(self.bpf_attached());
         ev.extend(self.socket_shells());
         ev.extend(self.footholds.poll(&self.catalog));
         self.started = true;
@@ -1065,6 +1102,7 @@ mod tests {
         let mut w = RaSource::new(Catalog::builtin(), &none, &none);
         w.proc_dir = root.to_string_lossy().into_owned();
         w.footholds.root = none.clone(); // never this computer's /etc
+        w.bpf_list = || Ok(Vec::new()); // never this computer's interfaces
         let got: Vec<String> = w
             .poll()
             .iter()
@@ -1082,6 +1120,35 @@ mod tests {
         );
         assert!(w.poll().is_empty(), "each once");
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// HEI-78: an eBPF program on an interface is one event while it stays attached, again when another comes; a netlink
+    /// that cannot be read says nothing. The listing is a stand-in (the kernel's answers are bpfnet's own test).
+    #[test]
+    fn programs_on_interfaces() {
+        use super::super::bpfnet::Attached;
+        let none = std::env::temp_dir().join("heimdall-bpf-none").to_string_lossy().into_owned();
+        let mut w = RaSource::new(Catalog::builtin(), &none, &none);
+        w.proc_dir = none.clone();
+        w.footholds.root = none.clone();
+        fn one() -> std::io::Result<Vec<Attached>> {
+            Ok(vec![Attached { iface: "wlan0".into(), hook: "xdp".into(), id: 42, name: String::new() }])
+        }
+        fn two() -> std::io::Result<Vec<Attached>> {
+            let mut v = one()?;
+            v.push(Attached { iface: "wlan0".into(), hook: "tc ingress".into(), id: 7, name: "cls_main".into() });
+            Ok(v)
+        }
+        let texts = |ev: Vec<Event>| ev.iter().map(|e| format!("{} {} | {}", e.f("signal"), e.f("provider"), e.text)).collect::<Vec<_>>();
+        w.bpf_list = one;
+        assert_eq!(texts(w.poll()), ["bpf-attach bpf:wlan0 | an eBPF program (id 42) is attached to wlan0's XDP hook"]);
+        assert!(w.poll().is_empty(), "once while attached");
+        w.bpf_list = two;
+        assert_eq!(texts(w.poll()), ["bpf-attach bpf:wlan0 | an eBPF program \"cls_main\" (id 7) is attached to wlan0 (tc ingress)"]);
+        w.bpf_list = || Err(std::io::Error::other("no netlink"));
+        assert!(w.poll().is_empty());
+        w.bpf_list = two;
+        assert!(w.poll().is_empty(), "what was seen is kept over a failed look");
     }
 
     /// HEI-21: the line Go's lan.NameMoves writes (internal/sources/lansource, TestANameMoveIsListedOrWarned) is the same event.
