@@ -1992,6 +1992,7 @@
   "injection-phrase",
   "credential-shape",
   "invisible-unicode",
+  "agent-watermark",
   "permission-escalation",
   "session-burst",
   "file-integrity",

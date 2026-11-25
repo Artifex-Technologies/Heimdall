@@ -46,6 +46,7 @@ most commands take 0.6-1.0 ms instead of 1.8-2.3. Every program, its numbers and
 | `injection-phrase` | Text that reads as an instruction override ("ignore all previous instructions", "you are now...") |
 | `credential-shape` | Private keys, cloud and API tokens, password-looking assignments |
 | `invisible-unicode` | Zero-width, bidi-override and tag characters that hide instructions from a human reader |
+| `agent-watermark` | Hidden marks in a file an AI agent wrote: invisible characters, variation selectors, look-alike letters from another alphabet, trailing whitespace that spells something |
 | `permission-escalation` | A session reporting permission denials (critical from 3) |
 | `session-burst` | An abnormally high rate of new sessions (leaky bucket, CrowdSec-style) |
 

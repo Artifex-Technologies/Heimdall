@@ -264,6 +264,156 @@ impl Detector for UnicodeDetector {
     }
 }
 
+/// What an AI agent wrote into a file, looked through for marks a reader does not see (HEI-9; Go: AgentWatermarkDetector):
+/// invisible characters, variation selectors that are not emoji styling, letters from another alphabet inside Latin words,
+/// and trailing spaces and tabs that read as text. The text comes from the agent source's `agent_write` events (the tool
+/// call itself); the alert names the file and the marks, never carries what was written.
+#[derive(Default)]
+pub struct AgentWatermarkDetector;
+
+/// Go's isHiddenRune: a format character, a joiner or filler that shows nothing, or a tag character.
+fn is_hidden_rune(c: char) -> bool {
+    gotext::is_cf(c) || matches!(c as u32, 0x034F | 0x115F | 0x1160 | 0x3164 | 0xFFA0 | 0xE0000..=0xE007F)
+}
+
+/// A variation selector's byte value: VS1-16 are 0-15, VS17-256 16-255.
+fn variation_byte(c: char) -> Option<u8> {
+    match c as u32 {
+        v @ 0xFE00..=0xFE0F => Some((v - 0xFE00) as u8),
+        v @ 0xE0100..=0xE01EF => Some((v - 0xE0100 + 16) as u8),
+        _ => None,
+    }
+}
+
+/// VS15 or VS16 right after a symbol or an emoji: a variation selector used as meant.
+fn emoji_styled(prev: char, c: char) -> bool {
+    use gotext::{is_in, Table};
+    matches!(c as u32, 0xFE0E | 0xFE0F)
+        && (is_in(Table::So, prev) || is_in(Table::Sm, prev) || prev as u32 >= 0x1F000 || (0x2190..=0x2BFF).contains(&(prev as u32)))
+}
+
+/// Go's asciiText: the bytes as text when there are two or more and each is printable ASCII, a line break or a tab.
+fn ascii_text(b: &[u8]) -> Option<String> {
+    (b.len() >= 2 && b.iter().all(|c| (0x20..=0x7e).contains(c) || *c == b'\n' || *c == b'\t'))
+        .then(|| String::from_utf8_lossy(b).into_owned())
+}
+
+fn clip_ascii(s: &str) -> String {
+    if s.len() > 80 {
+        format!("{}...", &s[..80])
+    } else {
+        s.to_owned()
+    }
+}
+
+/// Go's watermarkMarks: each kind of mark in words, and its short name.
+fn watermark_marks(s: &str) -> (Vec<String>, Vec<&'static str>) {
+    use gotext::{is_in, quote, Table};
+    let (mut invisible, mut selectors) = (0usize, 0usize);
+    let (mut tags, mut sel) = (Vec::new(), Vec::new());
+    let mut prev = '\0';
+    for c in s.chars() {
+        if is_hidden_rune(c) {
+            invisible += 1;
+            if (0xE0020..=0xE007E).contains(&(c as u32)) {
+                tags.push((c as u32 - 0xE0000) as u8);
+            }
+        }
+        if let Some(v) = variation_byte(c).filter(|_| !emoji_styled(prev, c)) {
+            selectors += 1;
+            sel.push(v);
+        }
+        prev = c;
+    }
+    let (mut words, mut first_word, mut first_line) = (0usize, String::new(), 0usize);
+    let mut bits = String::new();
+    for (i, line) in s.split('\n').enumerate() {
+        let line = line.trim_end_matches('\r');
+        for c in line[line.trim_end_matches([' ', '\t']).len()..].chars() {
+            bits.push(if c == ' ' { '0' } else { '1' });
+        }
+        for w in line.split(|c: char| !gotext::is_letter(c) && !gotext::is_digit(c) && c != '_').filter(|w| !w.is_empty()) {
+            let (mut latin, mut foreign) = (false, false);
+            for c in w.chars() {
+                if is_in(Table::Latin, c) {
+                    latin = true;
+                } else if is_in(Table::Cyrillic, c)
+                    || is_in(Table::Greek, c)
+                    || is_in(Table::Armenian, c)
+                    || (0xFF01..=0xFF5E).contains(&(c as u32))
+                {
+                    foreign = true;
+                }
+            }
+            if latin && foreign {
+                if words == 0 {
+                    first_word = w.to_owned();
+                    first_line = i + 1;
+                }
+                words += 1;
+            }
+        }
+    }
+    let (mut marks, mut kinds) = (Vec::new(), Vec::new());
+    if invisible > 0 {
+        let mut m = format!("{invisible} invisible characters (zero-width, tag, direction or other format characters)");
+        if let Some(t) = ascii_text(&tags) {
+            m += &format!(", the tag characters reading {}", quote(&clip_ascii(&t)));
+        }
+        marks.push(m);
+        kinds.push("invisible");
+    }
+    if selectors > 0 {
+        let mut m = format!("{selectors} variation selectors that are not emoji styling (each can carry a byte)");
+        if let Some(t) = ascii_text(&sel) {
+            m += &format!(", reading {}", quote(&clip_ascii(&t)));
+        }
+        marks.push(m);
+        kinds.push("variation-selectors");
+    }
+    if words > 0 {
+        marks.push(format!(
+            "letters from another alphabet inside {words} Latin words (the first {}, line {first_line})",
+            quote(&first_word)
+        ));
+        kinds.push("look-alike-letters");
+    }
+    if bits.len() >= 16 {
+        let raw: Vec<u8> = bits.as_bytes().chunks_exact(8).map(|g| g.iter().fold(0u8, |c, x| (c << 1) | (x - b'0'))).collect();
+        if let Some(t) = ascii_text(&raw) {
+            marks.push(format!("trailing spaces and tabs that read as {}", quote(&clip_ascii(&t))));
+            kinds.push("trailing-bits");
+        }
+    }
+    (marks, kinds)
+}
+
+impl Detector for AgentWatermarkDetector {
+    fn id(&self) -> &'static str {
+        "agent-watermark"
+    }
+
+    fn inspect(&mut self, e: &Event) -> Vec<Finding> {
+        if e.source != "agent-session" || e.kind != "agent_write" {
+            return Vec::new();
+        }
+        let (marks, kinds) = watermark_marks(e.f("content"));
+        if marks.is_empty() {
+            return Vec::new();
+        }
+        let mut ev = e.clone();
+        ev.fields.remove("content");
+        ev.fields.insert("marks".into(), kinds.join(","));
+        let summary = format!(
+            "an AI agent wrote {} ({}) with marks a reader does not see: {}",
+            gotext::quote(e.f("path")),
+            e.f("tool"),
+            marks.join("; ")
+        );
+        vec![Finding::new("agent-watermark", Severity::Warning, summary, &ev)]
+    }
+}
+
 /// Flags the "Permission denials: N" line a session reports: a warning for one or two, critical from three.
 #[derive(Default)]
 pub struct EscalationDetector;

@@ -240,6 +240,11 @@ pub fn for_alert(detector: &str, kind: &str, severity: &str, fields: &Fields) ->
             t.what = format!("Text contained invisible or look-alike characters, a known way to hide instructions from people while an AI still reads them. {AI_AGENT_NOTE}");
             t.r#do = "Treat the text as suspicious; do not copy it into commands.".into();
         }
+        "agent-watermark" => {
+            t.what = format!("An AI agent wrote a file{}, with marks a reader does not see: invisible characters, letters from another alphabet that look like ours, or spaces and tabs that spell something. They can carry instructions for another AI, mark a file so it can be traced, or make a name look like another. {AI_AGENT_NOTE}", or_empty(q("path"), ", "));
+            t.done = "Heimdall noted it; the file was not changed.".into();
+            t.r#do = "Before using the file, let Sarina's stego_inspect show and clean the marks (it writes a cleaned copy beside it), or delete it. If you did not expect the agent to write it, look at the session that did.".into();
+        }
         "permission-escalation" => {
             t.what = format!("An AI agent repeatedly asked for things its current permissions do not allow (running commands, writing files). It was refused each time. {AI_AGENT_NOTE}");
             t.done = "The requests were refused by the agent's own permission rules; Heimdall recorded them.".into();

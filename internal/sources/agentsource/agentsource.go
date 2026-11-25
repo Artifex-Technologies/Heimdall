@@ -75,6 +75,47 @@ type messageObject struct {
 	} `json:"tool_calls"`
 }
 
+// agentWrite is one file an agent's tool call wrote: the tool, the path it named, and the text it wrote, from the call's
+// arguments as the model sent them (HEI-9).
+type agentWrite struct{ tool, path, text string }
+
+// writeTools are Sarina's tools that write a file's text, and the argument that holds it (Sarina's tools/defs.json).
+var writeTools = map[string]string{"write_file": "content", "vault_write": "content", "edit_file": "new_text"}
+
+// agentWrites are the files an assistant message's tool calls wrote: write_file, vault_write and edit_file one each,
+// forge_write each of its files (under the tool's name). A call whose arguments do not decode, or that names no path, writes
+// nothing here.
+func agentWrites(raw json.RawMessage) []agentWrite {
+	var m messageObject
+	if json.Unmarshal(raw, &m) != nil || m.Role != "assistant" {
+		return nil
+	}
+	var out []agentWrite
+	for _, tc := range m.ToolCalls {
+		var args map[string]any
+		if json.Unmarshal([]byte(tc.Function.Arguments), &args) != nil {
+			continue
+		}
+		str := func(o map[string]any, k string) string { s, _ := o[k].(string); return s }
+		if field, ok := writeTools[tc.Function.Name]; ok {
+			if p := str(args, "path"); p != "" {
+				out = append(out, agentWrite{tc.Function.Name, p, str(args, field)})
+			}
+			continue
+		}
+		if tc.Function.Name == "forge_write" {
+			files, _ := args["files"].([]any)
+			for _, f := range files {
+				o, _ := f.(map[string]any)
+				if p := str(o, "path"); p != "" {
+					out = append(out, agentWrite{"forge_write", str(args, "name") + "/" + p, str(o, "content")})
+				}
+			}
+		}
+	}
+	return out
+}
+
 // decodeMessage returns the role (empty for the old string shape) and the
 // text worth scanning. System messages and empty entries yield ok=false: the
 // system prompt is the agent's own instruction text, not content to watch, and
@@ -406,6 +447,18 @@ func (w *Watcher) checkFile(path string) []detect.Event {
 			Text:      text,
 			Fields:    fields,
 		})
+		// each file the message's tool calls wrote, for the watermark scan (HEI-9): no text, so the text detectors that
+		// already read the call in the message above do not read it twice
+		for _, w := range agentWrites(sf.Messages[i]) {
+			events = append(events, detect.Event{
+				Source:    "agent-session",
+				SessionID: sessionID,
+				Time:      info.ModTime(),
+				Kind:      "agent_write",
+				Fields: practiceField(map[string]string{"file": name, "role": "assistant", "tool": w.tool, "path": w.path,
+					"content": w.text}, isPractice),
+			})
+		}
 	}
 
 	w.seen[key] = fileState{modTime: info.ModTime(), messageCount: len(sf.Messages)}

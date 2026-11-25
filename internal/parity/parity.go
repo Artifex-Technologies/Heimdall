@@ -159,6 +159,7 @@ func Detectors(cfg config.Config, d Deps) []detect.Detector {
 		detect.NewInjectionDetector(),
 		detect.NewCredentialDetector(),
 		detect.NewUnicodeDetector(),
+		detect.NewAgentWatermarkDetector(),
 		detect.NewEscalationDetector(),
 		detect.NewBurstDetector(cfg.BurstWindow(), cfg.BurstThreshold, cfg.BurstCooldown()),
 		fim,

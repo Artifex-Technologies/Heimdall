@@ -64,7 +64,7 @@ Detectors with no tag, and why:
 
 | Detector | Why no tag |
 | --- | --- |
-| `injection-phrase`, `invisible-unicode` | Attacks on an AI agent (prompt injection, hidden instructions). ATT&CK Enterprise has no technique for them; MITRE ATLAS does (AML.T0051 LLM Prompt Injection), and ATLAS is a different data set I have not taken in. |
+| `injection-phrase`, `invisible-unicode`, `agent-watermark` | Attacks on an AI agent (prompt injection, hidden instructions). ATT&CK Enterprise has no technique for them; MITRE ATLAS does (AML.T0051 LLM Prompt Injection), and ATLAS is a different data set I have not taken in. |
 | `permission-escalation`, `session-burst`, `agent-baseline` | The agent's behaviour against its own permissions and habits. Not ATT&CK privilege escalation (T1068 and others are about the operating system), and not any other technique. |
 | `connection-watch` | A connection to an address on a threat list, an app whose network I switched off, an ecosystem program leaving the machine, a new destination. It sees addresses, not how a channel works, so it cannot say which Command and Control technique (T1071, T1573, ...) is in use. |
 | `remote-access` with `ra_kind=c2` | Sliver and Merlin code in a program. ATT&CK lists them as Software (Sliver is S0633), not as techniques; my table carries techniques only. |

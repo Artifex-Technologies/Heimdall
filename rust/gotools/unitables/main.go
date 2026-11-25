@@ -1,6 +1,7 @@
 // Command unitables writes the Unicode tables the Rust port needs to behave exactly as the Go daemon does: which characters
 // Go's strconv.Quote prints as they are (unicode.IsPrint), which are format characters (unicode.Cf, the invisible-unicode
-// detector) and which are spaces (unicode.IsSpace, strings.Fields). Rust's own tables follow the Unicode version of its
+// detector) and which are spaces (unicode.IsSpace, strings.Fields); and for the watermark scan of what an agent writes
+// (agent-watermark): letters, digits, four scripts and the symbol categories. Rust's own tables follow the Unicode version of its
 // standard library; these follow the Go that built heimdalld, so a character added in a newer Unicode is judged alike.
 //
 //	go run ./rust/gotools/unitables > rust/heimdall/src/gotext/tables.rs
@@ -40,4 +41,16 @@ func main() {
 	ranges("CF", func(r rune) bool { return unicode.Is(unicode.Cf, r) }, 0)
 	fmt.Println("/// Go's unicode.IsSpace (strings.Fields and strings.TrimSpace split and trim on these).")
 	ranges("SPACE", unicode.IsSpace, 0)
+	fmt.Println("/// Go's unicode.IsLetter.")
+	ranges("LETTER", unicode.IsLetter, 0)
+	fmt.Println("/// Go's unicode.IsDigit.")
+	ranges("DIGIT", unicode.IsDigit, 0)
+	for _, s := range []struct {
+		name  string
+		table *unicode.RangeTable
+	}{{"LATIN", unicode.Latin}, {"CYRILLIC", unicode.Cyrillic}, {"GREEK", unicode.Greek}, {"ARMENIAN", unicode.Armenian}, {"SO", unicode.So}, {"SM", unicode.Sm}} {
+		t := s.table
+		fmt.Printf("/// Go's unicode.%s.\n", map[string]string{"LATIN": "Latin", "CYRILLIC": "Cyrillic", "GREEK": "Greek", "ARMENIAN": "Armenian", "SO": "So", "SM": "Sm"}[s.name])
+		ranges(s.name, func(r rune) bool { return unicode.Is(t, r) }, 0)
+	}
 }

@@ -171,6 +171,7 @@ func newDetectors(cfg config.Config) []detect.Detector {
 		detect.NewInjectionDetector(),
 		detect.NewCredentialDetector(),
 		detect.NewUnicodeDetector(),
+		detect.NewAgentWatermarkDetector(),
 		detect.NewEscalationDetector(),
 		detect.NewBurstDetector(cfg.BurstWindow(), cfg.BurstThreshold, cfg.BurstCooldown()),
 		detect.NewPackageAwareFileIntegrityDetector(pkgverify.New(cfg.PacmanDB)).WithTrust(trust.Judge{Store: trust.Store{Dir: trust.DefaultDir}}),

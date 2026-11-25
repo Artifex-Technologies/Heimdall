@@ -38,6 +38,7 @@ pub fn daemon_detectors(cfg: &Config, deps: Deps) -> Vec<Box<dyn Detector>> {
         Box::new(InjectionDetector::new()),
         Box::new(CredentialDetector::new()),
         Box::new(UnicodeDetector::new()),
+        Box::new(AgentWatermarkDetector),
         Box::new(EscalationDetector::new()),
         Box::new(BurstDetector::new(cfg.burst_window(), cfg.burst_threshold, cfg.burst_cooldown())),
         Box::new(FileIntegrityDetector { verify: deps.verifier, trust: deps.trust }),

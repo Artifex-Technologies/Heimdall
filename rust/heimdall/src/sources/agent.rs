@@ -73,6 +73,67 @@ struct MessageObject {
 }
 crate::go_struct!(MessageObject { role: "role", content: "content", name: "name", tool_calls: "tool_calls" });
 
+/// One file an agent's tool call wrote (HEI-9; Go: agentWrite): the tool, the path it named, the text it wrote.
+pub struct AgentWrite {
+    pub tool: String,
+    pub path: String,
+    pub text: String,
+}
+
+/// Go's agentWrites: the files an assistant message's tool calls wrote (write_file, vault_write and edit_file one each,
+/// forge_write each of its files, under the tool's name); a call whose arguments do not decode, or that names no path,
+/// writes nothing here.
+pub fn agent_writes(raw: &Value) -> Vec<AgentWrite> {
+    let mut m = MessageObject::default();
+    if !matches!(raw, Value::Object(_)) || m.read_into(raw, "").is_err() || m.role != "assistant" {
+        return Vec::new();
+    }
+    // a map's member as Go's map[string]any keeps it: the last of duplicate keys, a string or nothing
+    fn get<'a>(o: &'a Value, k: &str) -> Option<&'a Value> {
+        match o {
+            Value::Object(ms) => ms.iter().rev().find(|(n, _)| n == k).map(|(_, v)| v),
+            _ => None,
+        }
+    }
+    fn s(o: &Value, k: &str) -> String {
+        match get(o, k) {
+            Some(Value::String(v)) => v.clone(),
+            _ => String::new(),
+        }
+    }
+    let mut out = Vec::new();
+    for tc in &m.tool_calls {
+        let Ok(args) = gojson::parse(tc.function.arguments.as_bytes()) else { continue };
+        if !matches!(args, Value::Object(_) | Value::Null) {
+            continue;
+        }
+        let name = tc.function.name.as_str();
+        let field = match name {
+            "write_file" | "vault_write" => Some("content"),
+            "edit_file" => Some("new_text"),
+            _ => None,
+        };
+        if let Some(field) = field {
+            let path = s(&args, "path");
+            if !path.is_empty() {
+                out.push(AgentWrite { tool: name.into(), path, text: s(&args, field) });
+            }
+            continue;
+        }
+        if name == "forge_write" {
+            if let Some(Value::Array(files)) = get(&args, "files") {
+                for f in files {
+                    let path = s(f, "path");
+                    if !path.is_empty() {
+                        out.push(AgentWrite { tool: name.into(), path: format!("{}/{path}", s(&args, "name")), text: s(f, "content") });
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
 /// One message as read: role, text, tool names.
 pub type Decoded = (String, String, Vec<String>);
 
@@ -401,6 +462,24 @@ impl Watcher {
                 text,
                 fields: mark(f),
             });
+            // each file the message's tool calls wrote, for the watermark scan (HEI-9): no text, so the text detectors that
+            // already read the call in the message above do not read it twice
+            for w in agent_writes(m) {
+                events.push(Event {
+                    source: "agent-session".into(),
+                    session_id: session_id.clone(),
+                    time: mod_time,
+                    kind: "agent_write".into(),
+                    text: String::new(),
+                    fields: mark(Fields::from([
+                        ("file".to_string(), name.clone()),
+                        ("role".to_string(), "assistant".to_string()),
+                        ("tool".to_string(), w.tool),
+                        ("path".to_string(), w.path),
+                        ("content".to_string(), w.text),
+                    ])),
+                });
+            }
         }
         self.seen.insert(path.to_owned(), Position { mod_time, messages: sf.messages.len() as i64 });
         self.dirty = true;

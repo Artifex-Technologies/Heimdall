@@ -136,3 +136,52 @@ fn vault_and_fim_state() {
     let m: BTreeMap<String, serde_json::Value> = serde_json::from_value(v).unwrap();
     assert!(m[&file]["hash"].as_str().unwrap().len() == 64);
 }
+
+/// HEI-9, Go's TestAnAgentsWritesAreEvents on the same session text: each file an assistant's tool call wrote is an
+/// agent_write event after its message, with no text; a user's call, a read, no path or arguments that do not decode are
+/// none, and of two "path" keys the last counts. The watermark detector then names the file and the mark.
+#[test]
+fn an_agents_writes_are_events() {
+    let d = tmp("writes");
+    std::fs::write(format!("{d}/w1.json"), WRITES_SESSION).unwrap();
+    let evs = agent::Watcher::new(&d).poll().unwrap();
+    let got: Vec<String> = evs
+        .iter()
+        .filter(|e| e.kind == "agent_write")
+        .map(|e| {
+            assert!(e.text.is_empty() && e.f("role") == "assistant" && e.f("file") == "w1.json" && e.session_id == "w1", "{e:?}");
+            format!("{} {} {}", e.f("tool"), e.f("path"), heimdall::gotext::quote(e.f("content")))
+        })
+        .collect();
+    let want = [
+        r#"write_file notes/a.md "line one\n""#,
+        r#"edit_file src/main.rs "b\u200b""#,
+        r#"vault_write Inbox/Idea "idea""#,
+        r#"forge_write tool/main.py "print(1)""#,
+        r#"write_file last.txt "dup""#,
+    ];
+    assert_eq!(got, want);
+    assert_eq!(evs.len(), 3 + want.len());
+    assert_eq!((evs[2].kind.as_str(), evs[3].kind.as_str()), ("message", "agent_write"));
+    // the edit left a zero-width space: the watermark detector names the file and the kind, without what was written
+    let mut det = heimdall::detect::AgentWatermarkDetector;
+    let found: Vec<_> = evs.iter().flat_map(|e| heimdall::event::Detector::inspect(&mut det, e)).collect();
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert!(found[0].summary.starts_with(r#"an AI agent wrote "src/main.rs" (edit_file) with marks"#), "{}", found[0].summary);
+    assert_eq!((found[0].event.f("marks"), found[0].event.f("content")), ("invisible", ""));
+}
+
+const WRITES_SESSION: &str = r#"{"session_id":"w1","messages":[
+{"role":"user","content":"write it","tool_calls":[{"function":{"name":"write_file","arguments":"{\"path\":\"u.txt\",\"content\":\"x\"}"}}]},
+{"role":"assistant","content":"","tool_calls":[
+ {"function":{"name":"write_file","arguments":"{\"path\":\"notes/a.md\",\"content\":\"line one\\n\"}"}},
+ {"function":{"name":"read_file","arguments":"{\"path\":\"b.md\"}"}},
+ {"function":{"name":"edit_file","arguments":"{\"path\":\"src/main.rs\",\"old_text\":\"a\",\"new_text\":\"b\\u200b\"}"}},
+ {"function":{"name":"vault_write","arguments":"{\"path\":\"Inbox/Idea\",\"content\":\"idea\",\"mode\":\"create\"}"}},
+ {"function":{"name":"forge_write","arguments":"{\"name\":\"tool\",\"files\":[{\"path\":\"main.py\",\"content\":\"print(1)\"},{\"content\":\"no path\"},7]}"}},
+ {"function":{"name":"write_file","arguments":"{\"path\":\"first\",\"path\":\"last.txt\",\"content\":\"dup\"}"}},
+ {"function":{"name":"write_file","arguments":"{\"path\":3,\"content\":\"n\"}"}},
+ {"function":{"name":"write_file","arguments":"{\"content\":\"no path\"}"}},
+ {"function":{"name":"write_file","arguments":"not json"}},
+ {"function":{"name":"write_file","arguments":"null"}}
+]}]}"#;

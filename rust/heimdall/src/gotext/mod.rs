@@ -43,6 +43,44 @@ pub fn is_space(c: char) -> bool {
     in_table(tables::SPACE, c)
 }
 
+/// Go's `unicode.IsLetter`.
+pub fn is_letter(c: char) -> bool {
+    in_table(tables::LETTER, c)
+}
+
+/// Go's `unicode.IsDigit`.
+pub fn is_digit(c: char) -> bool {
+    in_table(tables::DIGIT, c)
+}
+
+/// A script or category of Go's `unicode` package, for `is_in`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Table {
+    Latin,
+    Cyrillic,
+    Greek,
+    Armenian,
+    /// Symbols, other (So).
+    So,
+    /// Symbols, math (Sm).
+    Sm,
+}
+
+/// Go's `unicode.Is(unicode.<table>, c)`.
+pub fn is_in(t: Table, c: char) -> bool {
+    in_table(
+        match t {
+            Table::Latin => tables::LATIN,
+            Table::Cyrillic => tables::CYRILLIC,
+            Table::Greek => tables::GREEK,
+            Table::Armenian => tables::ARMENIAN,
+            Table::So => tables::SO,
+            Table::Sm => tables::SM,
+        },
+        c,
+    )
+}
+
 /// Go's `strings.Fields`: the text split around runs of spaces.
 pub fn fields(s: &str) -> impl Iterator<Item = &str> {
     s.split(is_space).filter(|w| !w.is_empty())

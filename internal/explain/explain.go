@@ -81,6 +81,10 @@ func For(detector, kind, severity string, fields map[string]string) Text {
 	case "invisible-unicode":
 		t.What = "Text contained invisible or look-alike characters, a known way to hide instructions from people while an AI still reads them. " + aiAgentNote
 		t.Do = "Treat the text as suspicious; do not copy it into commands."
+	case "agent-watermark":
+		t.What = "An AI agent wrote a file" + orEmpty(quoted(fields, "path"), ", ") + ", with marks a reader does not see: invisible characters, letters from another alphabet that look like ours, or spaces and tabs that spell something. They can carry instructions for another AI, mark a file so it can be traced, or make a name look like another. " + aiAgentNote
+		t.Done = "Heimdall noted it; the file was not changed."
+		t.Do = "Before using the file, let Sarina's stego_inspect show and clean the marks (it writes a cleaned copy beside it), or delete it. If you did not expect the agent to write it, look at the session that did."
 	case "permission-escalation":
 		t.What = "An AI agent repeatedly asked for things its current permissions do not allow (running commands, writing files). It was refused each time. " + aiAgentNote
 		t.Done = "The requests were refused by the agent's own permission rules; Heimdall recorded them."

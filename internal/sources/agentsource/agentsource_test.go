@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -248,5 +249,59 @@ func TestAnEvalSessionsEventsAreMarkedPractice(t *testing.T) {
 	}
 	if len(marked) != 3 || !marked["eval"] || marked["real"] || marked["near"] {
 		t.Fatalf("only the session working in the eval folder is practice: %v", marked)
+	}
+}
+
+// writesSession is a session in which an agent writes files every way Sarina's tools can, and a few ways that write nothing
+// here. The Rust port reads the same text (rust/heimdall/tests/sources.rs, an_agents_writes_are_events).
+const writesSession = `{"session_id":"w1","messages":[
+{"role":"user","content":"write it","tool_calls":[{"function":{"name":"write_file","arguments":"{\"path\":\"u.txt\",\"content\":\"x\"}"}}]},
+{"role":"assistant","content":"","tool_calls":[
+ {"function":{"name":"write_file","arguments":"{\"path\":\"notes/a.md\",\"content\":\"line one\\n\"}"}},
+ {"function":{"name":"read_file","arguments":"{\"path\":\"b.md\"}"}},
+ {"function":{"name":"edit_file","arguments":"{\"path\":\"src/main.rs\",\"old_text\":\"a\",\"new_text\":\"b\\u200b\"}"}},
+ {"function":{"name":"vault_write","arguments":"{\"path\":\"Inbox/Idea\",\"content\":\"idea\",\"mode\":\"create\"}"}},
+ {"function":{"name":"forge_write","arguments":"{\"name\":\"tool\",\"files\":[{\"path\":\"main.py\",\"content\":\"print(1)\"},{\"content\":\"no path\"},7]}"}},
+ {"function":{"name":"write_file","arguments":"{\"path\":\"first\",\"path\":\"last.txt\",\"content\":\"dup\"}"}},
+ {"function":{"name":"write_file","arguments":"{\"path\":3,\"content\":\"n\"}"}},
+ {"function":{"name":"write_file","arguments":"{\"content\":\"no path\"}"}},
+ {"function":{"name":"write_file","arguments":"not json"}},
+ {"function":{"name":"write_file","arguments":"null"}}
+]}]}`
+
+// TestAnAgentsWritesAreEvents (HEI-9): each file an assistant's tool call wrote is an agent_write event with the tool, the
+// path and the text, after the message itself and without text of its own; a user's call, a read, a call with no path or
+// arguments that do not decode are none, and of two "path" keys the last counts.
+func TestAnAgentsWritesAreEvents(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "w1.json"), []byte(writesSession), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	events, err := NewWatcher(dir).Poll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, e := range events {
+		if e.Kind != "agent_write" {
+			continue
+		}
+		if e.Text != "" || e.Fields["role"] != "assistant" || e.Fields["file"] != "w1.json" || e.SessionID != "w1" {
+			t.Errorf("%+v", e)
+		}
+		got = append(got, e.Fields["tool"]+" "+e.Fields["path"]+" "+strconv.Quote(e.Fields["content"]))
+	}
+	want := []string{
+		`write_file notes/a.md "line one\n"`,
+		`edit_file src/main.rs "b\u200b"`,
+		`vault_write Inbox/Idea "idea"`,
+		`forge_write tool/main.py "print(1)"`,
+		`write_file last.txt "dup"`,
+	}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Errorf("got\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	if n := len(events); n != 1+2+len(want) || events[2].Kind != "message" || events[3].Kind != "agent_write" {
+		t.Errorf("session_created, the two messages, then the writes after the assistant's: %d events", n)
 	}
 }

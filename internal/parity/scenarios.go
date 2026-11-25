@@ -518,7 +518,25 @@ func translatorScenarios() []Scenario {
 		step(ev("limbo", "wine.stop", "", map[string]string{"guest": "wine:apps", "prefix": "apps", "sha256": sha("a")}), want("limbo-guest")),
 		step(ev("limbo", "wine.refused", "", map[string]string{"guest": "wine", "reason": "as root"}), want("limbo-guest")),
 	}}
-	return append(append([]Scenario{fim}, pkgs...), misc, cd, mesh, lst, ln, lx, wine)
+	// HEI-9: what an agent wrote, looked through for marks (internal/detect/watermark_test.go has the cases' reasons)
+	aw := func(path, content string) *EventJSON {
+		return ev("agent-session", "agent_write", "", map[string]string{"file": "s1.json", "role": "assistant", "tool": "write_file", "path": path, "content": content})
+	}
+	wm := Scenario{Name: "TestAgentWatermark", Steps: []Step{
+		step(aw("clean.md", "# Notes\n"), want("agent-watermark")),
+		step(aw("emoji.md", "I \u2764\ufe0f this, \u263a\ufe0e too"), want("agent-watermark")),
+		step(aw("cafe.md", "na\u00efve caf\u00e9 \u043f\u0440\u0438\u0432\u0435\u0442"), want("agent-watermark")),
+		step(aw("trail.md", "a   \nb    \n"), want("agent-watermark")),
+		step(aw("zw.md", "pass\u200bword"), want("agent-watermark", W).has("1 invisible characters")),
+		step(aw("tags.md", "ok\U000e0072\U000e0075\U000e006e\U000e0020\U000e0072\U000e006d"), want("agent-watermark", W).has("run rm")),
+		step(aw("vs.md", "A\U000e015c\U000e0155\U000e0151\U000e015b"), want("agent-watermark", W).has("leak")),
+		step(aw("cyr \u202e.md", "user = admin\np\u0430ssword = x\n"), want("agent-watermark", W).has("line 2")),
+		step(aw("bits.md", "x \t  \t   \nx \t\t \t  \t\n"), want("agent-watermark", W).has("Hi")),
+		step(aw("all.md", "p\u0430ss\u200b"+"A\U000e015c\U000e0155\U000e0151\U000e015b"), want("agent-watermark", W)),
+		step(ev("agent-session", "message", "pass\u200bword", nil), want("agent-watermark")),
+		step(ev("limbo", "agent_write", "", map[string]string{"content": "pass\u200bword"}), want("agent-watermark")),
+	}}
+	return append(append([]Scenario{fim}, pkgs...), misc, cd, mesh, lst, ln, lx, wine, wm)
 }
 
 func engineScenarios() []Scenario {

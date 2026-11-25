@@ -87,6 +87,7 @@ same shape) and raises an alert on:
 | `injection-phrase` | Text that reads as an instruction override ("ignore all previous instructions", "you are now...") | Sarina's `sarina/memory_security.py` phrase list |
 | `credential-shape` | Private keys, cloud/API tokens, password-looking assignments | Same file's credential patterns |
 | `invisible-unicode` | Zero-width, bidi-override, isolate, or Unicode "tag" characters used to hide instructions from a human skim | Same file's invisible-character scan |
+| `agent-watermark` | Marks a reader does not see in a file an agent wrote (the `write_file`, `edit_file`, `vault_write` and `forge_write` calls in its session): invisible characters, variation selectors carrying bytes, letters from another alphabet inside Latin words, trailing spaces and tabs that read as text (HEI-9) | Sarina's `stego_inspect` watermark scan (the kinds; written again here) |
 | `permission-escalation` | A session reporting one or more permission denials (the agent asked for a tool its tier disallows) | Sarina's own slash-command dispatch output |
 | `session-burst` | An abnormal rate of new sessions in a sliding window | New to this repo — no fleet to compare against, so this looks at rate instead |
 

@@ -46,7 +46,10 @@ Sarina's `docs/ECOSYSTEM.md` port registry.
   has the same shape; the older flat `messages: []string` shape under `.port_sessions/` is still accepted. Sarina writes
   each file atomically (temp file and rename) and keeps the shape stable (`sarina doctor`'s `session_contract` check).
   Heimdall never writes there and never imports Sarina's code. Access: an ACL for Heimdall's account (read and enter, never
-  write), kept by `heimdall-sarina-access.path`.
+  write), kept by `heimdall-sarina-access.path`. Since HEI-9 Heimdall also reads the arguments of an assistant message's
+  file-writing tool calls by name: `write_file` and `vault_write` (`path`, `content`), `edit_file` (`path`, `new_text`),
+  `forge_write` (`name`, `files[].path`, `files[].content`); each becomes an `agent_write` event for the `agent-watermark`
+  detector. A renamed tool or argument is not seen (no error): renaming one is a contract change on both sides.
 - **Who:** provided by Sarina (`docs/ECOSYSTEM.md` §4a); read by Heimdall.
 - **Where:** `rust/heimdall/src/sources/agent.rs`; Go `internal/sources/agentsource`.
 
