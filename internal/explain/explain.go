@@ -206,6 +206,9 @@ func For(detector, kind, severity string, fields map[string]string) Text {
 	case "remote-access":
 		tool := orUnknown(clean(fields["provider_name"], 60), "a tool")
 		switch {
+		case fields["signal"] == "foothold" && fields["why"] != "tool":
+			t.What = orUnknown(clean(fields["file"], 120), "A system file") + " makes something start by itself, and it points at " + orUnknown(clean(fields["target"], 120), "a program") + ", " + map[string]string{"temporary": "in a temporary folder", "hidden": "in a hidden folder", "preload": "a library every program would load first"}[fields["why"]] + ". Malware keeps its way back in like this; what a package installs does not live there."
+			t.Do = "Look at the file and what it starts. If you did not put it there, remove the entry (as root), delete what it points at, and look at what else changed at the same time."
 		case fields["signal"] == "socket-shell":
 			t.What = "A shell (" + orUnknown(clean(fields["program"], 20), "a shell") + ") takes its commands from a network connection (" + orUnknown(clean(fields["connection"], 120), "a connection") + "). That is a reverse shell: someone elsewhere typing commands on this computer. Programs do not do this in normal use."
 			t.Do = "Disconnect the computer from the network, then look at what started the shell (process " + orUnknown(clean(fields["pid"], 10), "?") + ") and how it got here; ask for help before using the computer for anything private."

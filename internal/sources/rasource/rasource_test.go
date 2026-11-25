@@ -28,6 +28,7 @@ func TestInstalledToolsAndNewTunnelsAreReported(t *testing.T) {
 	d := t.TempDir()
 	w := New(remoteaccess.Builtin())
 	w.PacmanDir, w.NetDir = filepath.Join(d, "local"), filepath.Join(d, "net")
+	w.ProcDir, w.Footholds.Root = filepath.Join(d, "proc"), filepath.Join(d, "root") // never this computer's
 	os.MkdirAll(filepath.Join(w.PacmanDir, "bash-5.2-1"), 0o755)
 	os.MkdirAll(filepath.Join(w.PacmanDir, "tailscale-1.104.2-1"), 0o755)
 	touch(t, filepath.Join(w.NetDir, "lo", "uevent"))
@@ -61,6 +62,7 @@ func TestALimboSandboxCableIsNotATunnel(t *testing.T) {
 	d := t.TempDir()
 	w := New(remoteaccess.Builtin())
 	w.PacmanDir, w.NetDir = filepath.Join(d, "local"), filepath.Join(d, "net")
+	w.ProcDir, w.Footholds.Root = filepath.Join(d, "proc"), filepath.Join(d, "root") // never this computer's
 	os.MkdirAll(w.PacmanDir, 0o755)
 	touch(t, filepath.Join(w.NetDir, "lo", "uevent"))
 	w.Poll()
@@ -153,6 +155,7 @@ func fakeProc(t *testing.T) string {
 func TestTheKernelsSide(t *testing.T) {
 	w := New(remoteaccess.Builtin())
 	w.PacmanDir, w.NetDir, w.ProcDir = filepath.Join(t.TempDir(), "none"), filepath.Join(t.TempDir(), "none"), fakeProc(t)
+	w.Footholds.Root = filepath.Join(t.TempDir(), "none")
 	var got []string
 	for _, e := range w.Poll() {
 		got = append(got, e.Fields["signal"]+" "+e.Fields["provider"]+" "+e.Fields["pid"]+" "+e.Fields["module"]+e.Fields["connection"]+" | "+e.Text)

@@ -776,7 +776,7 @@ impl Detector for RemoteAccessDetector {
             }
             _ => return Vec::new(),
         };
-        let key = format!("{provider}|{signal}|{}|{}", e.f("iface"), e.f("pid"));
+        let key = format!("{provider}|{signal}|{}|{}|{}|{}", e.f("iface"), e.f("pid"), e.f("file"), e.f("target"));
         let now = Time::now();
         if let Some(t) = self.last.get(&key) {
             if now.sub(t) < self.cooldown {
@@ -802,6 +802,34 @@ impl Detector for RemoteAccessDetector {
                     e,
                 )]
             }
+            // HEI-11: what starts by itself; a catalog tool goes through the approvals below
+            "foothold" => match e.f("why") {
+                "temporary" => {
+                    return vec![Finding::new(
+                        id,
+                        Severity::Critical,
+                        format!("{}: something set to start by itself from a temporary folder is how malware stays on a computer; nothing a package installs lives there", e.text),
+                        e,
+                    )]
+                }
+                "hidden" => {
+                    return vec![Finding::new(
+                        id,
+                        Severity::Warning,
+                        format!("{}: something set to start by itself from a hidden folder is unusual; malware hides there", e.text),
+                        e,
+                    )]
+                }
+                "preload" => {
+                    return vec![Finding::new(
+                        id,
+                        Severity::Warning,
+                        format!("{}: every program then runs this library's code first; few computers need that", e.text),
+                        e,
+                    )]
+                }
+                _ => {}
+            },
             _ => {}
         }
         if provider.is_empty() {

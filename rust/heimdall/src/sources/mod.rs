@@ -5,6 +5,7 @@
 pub mod agent;
 pub mod files;
 pub mod fim;
+pub mod footholds;
 pub mod inotify;
 pub mod journal;
 pub mod limbo;

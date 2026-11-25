@@ -44,7 +44,7 @@ func (d *RemoteAccessDetector) Inspect(e Event) []Finding {
 	default:
 		return nil
 	}
-	key := provider + "|" + signal + "|" + e.Fields["iface"] + "|" + e.Fields["pid"]
+	key := provider + "|" + signal + "|" + e.Fields["iface"] + "|" + e.Fields["pid"] + "|" + e.Fields["file"] + "|" + e.Fields["target"]
 	d.mu.Lock()
 	if d.last == nil {
 		d.last = map[string]time.Time{}
@@ -62,6 +62,19 @@ func (d *RemoteAccessDetector) Inspect(e Event) []Finding {
 	case "raw-listener":
 		return []Finding{{DetectorID: d.ID(), Severity: SeverityWarning, Event: e, Summary: e.Text +
 			": a program reading raw packets can wait for a secret packet with no open port, as backdoors such as BPFDoor do; a packet capture or network tool you started does this too"}}
+	case "foothold":
+		// HEI-11: what starts by itself. A catalog tool goes through the approvals below.
+		switch e.Fields["why"] {
+		case "temporary":
+			return []Finding{{DetectorID: d.ID(), Severity: SeverityCritical, Event: e, Summary: e.Text +
+				": something set to start by itself from a temporary folder is how malware stays on a computer; nothing a package installs lives there"}}
+		case "hidden":
+			return []Finding{{DetectorID: d.ID(), Severity: SeverityWarning, Event: e, Summary: e.Text +
+				": something set to start by itself from a hidden folder is unusual; malware hides there"}}
+		case "preload":
+			return []Finding{{DetectorID: d.ID(), Severity: SeverityWarning, Event: e, Summary: e.Text +
+				": every program then runs this library's code first; few computers need that"}}
+		}
 	}
 	if provider == "" {
 		return []Finding{{DetectorID: d.ID(), Severity: SeverityWarning, Summary: e.Text + ": a tunnel no known tool explains", Event: e}}

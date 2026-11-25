@@ -41,6 +41,7 @@ type Watcher struct {
 	modSeen   map[string]bool // modules loaded at the last look
 	rawSeen   map[string]bool // packet sockets (inodes) looked at
 	shellSeen map[string]bool // "pid|inode" of shells reading a socket
+	Footholds footholdWatch   // what makes a program start by itself (HEI-11, footholds.go)
 }
 
 func New(c remoteaccess.Catalog) *Watcher {
@@ -351,6 +352,7 @@ func (w *Watcher) Poll() []detect.Event {
 	out = append(out, w.modules()...)
 	out = append(out, w.rawListeners()...)
 	out = append(out, w.socketShells()...)
+	out = append(out, w.Footholds.poll(w.Catalog)...)
 	w.started = true
 	return out
 }

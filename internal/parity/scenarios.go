@@ -558,7 +558,26 @@ func translatorScenarios() []Scenario {
 		step(shell("bash", "30", "tcp 10.0.0.10:40000 -> 10.0.0.5:4444"), want("remote-access", C).has("reverse shell")),
 		step(shell("sh", "31", "udp [2001:db8::1]:5353 -> [2001:db8::2]:53"), want("remote-access", C)),
 	}}
-	return append(append([]Scenario{fim}, pkgs...), misc, cd, mesh, lst, ln, lx, wine, wm, kern)
+	// HEI-11: footholds (rasource's footholds.go)
+	foot := func(place, file, target, why string, extra map[string]string) *EventJSON {
+		f := map[string]string{"signal": "foothold", "place": place, "file": file, "target": target, "why": why, "ra_kind": "foothold"}
+		for k, v := range extra {
+			f[k] = v
+		}
+		return kev(file+" points at "+target, f)
+	}
+	ngrok := map[string]string{"provider": "ngrok", "provider_name": "ngrok", "ra_kind": "tunnel"}
+	ts := map[string]string{"provider": "tailscale", "provider_name": "Tailscale", "ra_kind": "mesh-vpn"}
+	holds := Scenario{Name: "TestFootholds", Deps: Deps{Approved: []string{"tailscale"}}, Steps: []Step{
+		step(foot("service", "/etc/systemd/system/u.service", "/tmp/.x/upd", "temporary", nil), want("remote-access", C).has("temporary folder")),
+		step(foot("service", "/etc/systemd/system/u.service", "/tmp/.x/upd", "temporary", nil), want("remote-access")),
+		step(foot("cron", "/etc/cron.d/clean", "/var/tmp/clean.sh", "temporary", nil), want("remote-access", C)),
+		step(foot("service", "/etc/systemd/user/sync.service", "/home/u/.cache/sync/agent", "hidden", nil), want("remote-access", W).has("hidden folder")),
+		step(foot("preload", "/etc/ld.so.preload", "/usr/lib/libcheck.so", "preload", nil), want("remote-access", W).has("library")),
+		step(foot("service", "/etc/systemd/system/getty@.service.d/override.conf", "/usr/bin/ngrok", "tool", ngrok), want("remote-access", C).has("not approved")),
+		step(foot("autostart", "/etc/xdg/autostart/ts.desktop", "/usr/bin/tailscale", "tool", ts), want("remote-access", I)),
+	}}
+	return append(append([]Scenario{fim}, pkgs...), misc, cd, mesh, lst, ln, lx, wine, wm, kern, holds)
 }
 
 func engineScenarios() []Scenario {

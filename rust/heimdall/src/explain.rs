@@ -413,7 +413,16 @@ pub fn for_alert(detector: &str, kind: &str, severity: &str, fields: &Fields) ->
         }
         "remote-access" => {
             let tool = or_unknown(c("provider_name", 60), "a tool");
-            if get(fields, "signal") == "socket-shell" {
+            if get(fields, "signal") == "foothold" && get(fields, "why") != "tool" {
+                let where_ = match get(fields, "why") {
+                    "temporary" => "in a temporary folder",
+                    "hidden" => "in a hidden folder",
+                    "preload" => "a library every program would load first",
+                    _ => "",
+                };
+                t.what = format!("{} makes something start by itself, and it points at {}, {where_}. Malware keeps its way back in like this; what a package installs does not live there.", or_unknown(c("file", 120), "A system file"), or_unknown(c("target", 120), "a program"));
+                t.r#do = "Look at the file and what it starts. If you did not put it there, remove the entry (as root), delete what it points at, and look at what else changed at the same time.".into();
+            } else if get(fields, "signal") == "socket-shell" {
                 t.what = format!("A shell ({}) takes its commands from a network connection ({}). That is a reverse shell: someone elsewhere typing commands on this computer. Programs do not do this in normal use.", or_unknown(c("program", 20), "a shell"), or_unknown(c("connection", 120), "a connection"));
                 t.r#do = format!("Disconnect the computer from the network, then look at what started the shell (process {}) and how it got here; ask for help before using the computer for anything private.", or_unknown(c("pid", 10), "?"));
             } else if get(fields, "signal") == "raw-listener" {

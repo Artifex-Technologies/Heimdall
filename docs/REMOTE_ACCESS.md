@@ -31,6 +31,24 @@ Other users' processes (a root service's packet socket, a shell started by a web
 watcher's rights (`CAP_SYS_PTRACE` and `CAP_DAC_READ_SEARCH`, `packaging/arch/heimdall-connwatch.conf.example`); without
 them a socket whose owner cannot be seen is passed over, never guessed.
 
+## Footholds (HEI-11)
+
+What makes a program start again by itself, in the system-wide places the daemon can read (`rasource`, `footholds.go`): systemd
+services and their drop-ins in `/etc/systemd/system` and `/etc/systemd/user` (every `Exec...=` line), autostart entries in
+`/etc/xdg/autostart` (`Exec=`, `TryExec=`), `/etc/crontab` and `/etc/cron.d` (the command after the time and the user),
+`/etc/ld.so.preload`, and Python's `.pth` files (`import` lines run at every Python start). Each path in those lines is
+checked; a file is read again only when its size or time changes (a `stat` per file every 15 seconds otherwise).
+
+| What a path is | Alert |
+|---|---|
+| In a temporary place (`/tmp`, `/var/tmp`, `/dev/shm`, `/run/user`) | **critical** |
+| A remote-access tool of the catalog (`/usr/bin/ngrok` in a unit of mine) | **critical** unless approved, then info |
+| Under a hidden folder (`/home/u/.cache/x`) | **warning** |
+| Any `ld.so.preload` entry (every program loads it first) | **warning** (critical when temporary) |
+
+Packages' own units (`/usr/lib/systemd`) are not looked at: what a package brings is the package's (`pacman -Qkk`, and
+Heimdall's package audit).
+
 ## Alerts
 
 - A tool that is not approved: **critical**, with what was seen and where.
@@ -82,8 +100,9 @@ sudo heimdalld remote approve tailscale
 
 ## Known limitations
 
-- Footholds are not watched: new services, timers, autostart entries, cron jobs, `.pth` files and `ld.so.preload` entries that
-  point at a tool or at a hidden or temporary program.
+- Footholds in a person's own places (`~/.config/autostart`, `~/.config/systemd/user`, their crontab, their Python's `.pth`
+  files) are not watched: the daemon cannot read home folders. Timers are covered through the service each one starts. A
+  command that downloads and runs (`curl ... | sh`) is not recognised unless a path in it is temporary or hidden.
 - Of the kernel's side, eBPF programs attached to an interface (XDP, tc) are not seen: listing them needs `CAP_BPF` or root,
   which Heimdall's daemon does not have. A raw packet socket with a filter (the classic BPF that BPFDoor uses) is seen.
 - A reverse shell that is not a shell (a Python or Perl one-liner reading a socket) is not recognised as one.

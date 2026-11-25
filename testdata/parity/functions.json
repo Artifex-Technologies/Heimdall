@@ -5378,6 +5378,211 @@
     "names": null
    },
    {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "place": "service"
+    },
+    "ids": [
+     "T1543.002"
+    ],
+    "names": [
+     {
+      "id": "T1543.002",
+      "name": "Create or Modify System Process: Systemd Service"
+     }
+    ]
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "place": "service_not"
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "place": ""
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "place": "autostart"
+    },
+    "ids": [
+     "T1547.013"
+    ],
+    "names": [
+     {
+      "id": "T1547.013",
+      "name": "Boot or Logon Autostart Execution: XDG Autostart Entries"
+     }
+    ]
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "place": "autostart_not"
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "place": ""
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "place": "cron"
+    },
+    "ids": [
+     "T1053.003"
+    ],
+    "names": [
+     {
+      "id": "T1053.003",
+      "name": "Scheduled Task/Job: Cron"
+     }
+    ]
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "place": "cron_not"
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "place": ""
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "place": "preload"
+    },
+    "ids": [
+     "T1574.006"
+    ],
+    "names": [
+     {
+      "id": "T1574.006",
+      "name": "Hijack Execution Flow: Dynamic Linker Hijacking"
+     }
+    ]
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "place": "preload_not"
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "place": ""
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "place": "pth"
+    },
+    "ids": [
+     "T1546.018"
+    ],
+    "names": [
+     {
+      "id": "T1546.018",
+      "name": "Event Triggered Execution: Python Startup Hooks"
+     }
+    ]
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "place": "pth_not"
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "place": ""
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
     "detector": "limbo-guest",
     "kind": "guest.start",
     "fields": null,

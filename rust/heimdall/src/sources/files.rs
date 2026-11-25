@@ -504,6 +504,8 @@ pub struct RaSource {
     mod_seen: BTreeSet<String>,
     raw_seen: BTreeSet<String>,
     shell_seen: BTreeSet<String>,
+    /// What makes a program start by itself (HEI-11, footholds.rs).
+    pub footholds: super::footholds::FootholdWatch,
 }
 
 /// Go's rawAllowed: the programs that hold raw packet sockets for their work (by process name).
@@ -554,6 +556,7 @@ impl RaSource {
             mod_seen: BTreeSet::new(),
             raw_seen: BTreeSet::new(),
             shell_seen: BTreeSet::new(),
+            footholds: Default::default(),
         }
     }
 
@@ -844,6 +847,7 @@ impl RaSource {
         ev.extend(self.modules());
         ev.extend(self.raw_listeners());
         ev.extend(self.socket_shells());
+        ev.extend(self.footholds.poll(&self.catalog));
         self.started = true;
         ev
     }
@@ -934,6 +938,7 @@ mod tests {
         let none = root.join("none").to_string_lossy().into_owned();
         let mut w = RaSource::new(Catalog::builtin(), &none, &none);
         w.proc_dir = root.to_string_lossy().into_owned();
+        w.footholds.root = none.clone(); // never this computer's /etc
         let got: Vec<String> = w
             .poll()
             .iter()

@@ -7,7 +7,7 @@ and the gap list are in [ATTACK.md](ATTACK.md).
 
 **A tag says what a Heimdall detector looks for, never that the technique is covered: it does not mean Heimdall would catch every use of it (docs/ATTACK.md).**
 
-ATT&CK Enterprise 20.1: 16 of its 511 Linux and Windows techniques and sub-techniques are named by a detector. The same map as
+ATT&CK Enterprise 20.1: 21 of its 511 Linux and Windows techniques and sub-techniques are named by a detector. The same map as
 an ATT&CK Navigator layer: `heimdalld attack-layer > heimdall-layer.json`, then Navigator's "Open Existing Layer".
 
 ## Initial Access
@@ -20,20 +20,36 @@ an ATT&CK Navigator layer: `heimdalld attack-layer > heimdall-layer.json`, then 
 
 | Technique | Watched by |
 | --- | --- |
+| T1053.003 Scheduled Task/Job: Cron | `remote-access (remote_access, place=cron)` |
 | T1059.004 Command and Scripting Interpreter: Unix Shell | `remote-access (remote_access, signal=socket-shell)` |
+| T1574.006 Hijack Execution Flow: Dynamic Linker Hijacking | `remote-access (remote_access, place=preload)` |
 
 ## Persistence
 
 | Technique | Watched by |
 | --- | --- |
+| T1053.003 Scheduled Task/Job: Cron | `remote-access (remote_access, place=cron)` |
 | T1205.002 Traffic Signaling: Socket Filters | `remote-access (remote_access, signal=raw-listener)` |
+| T1543.002 Create or Modify System Process: Systemd Service | `remote-access (remote_access, place=service)` |
+| T1546.018 Event Triggered Execution: Python Startup Hooks | `remote-access (remote_access, place=pth)` |
+| T1547.013 Boot or Logon Autostart Execution: XDG Autostart Entries | `remote-access (remote_access, place=autostart)` |
 | T1554 Compromise Host Software Binary | `tool-rules` |
+
+## Privilege Escalation
+
+| Technique | Watched by |
+| --- | --- |
+| T1053.003 Scheduled Task/Job: Cron | `remote-access (remote_access, place=cron)` |
+| T1543.002 Create or Modify System Process: Systemd Service | `remote-access (remote_access, place=service)` |
+| T1546.018 Event Triggered Execution: Python Startup Hooks | `remote-access (remote_access, place=pth)` |
+| T1547.013 Boot or Logon Autostart Execution: XDG Autostart Entries | `remote-access (remote_access, place=autostart)` |
 
 ## Stealth
 
 | Technique | Watched by |
 | --- | --- |
 | T1205.002 Traffic Signaling: Socket Filters | `remote-access (remote_access, signal=raw-listener)` |
+| T1574.006 Hijack Execution Flow: Dynamic Linker Hijacking | `remote-access (remote_access, place=preload)` |
 
 ## Defense Impairment
 
@@ -87,4 +103,4 @@ an ATT&CK Navigator layer: `heimdalld attack-layer > heimdall-layer.json`, then 
 
 ## Tactics no detector is tagged with
 
-Privilege Escalation, Exfiltration.
+Exfiltration.
