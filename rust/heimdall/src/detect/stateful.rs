@@ -745,7 +745,9 @@ impl Detector for LimboGuestDetector {
 }
 
 /// Remote-access tools and tunnels (rasource's remote_access events, and connections tagged with ra_provider). One alert per
-/// provider, signal and interface per cooldown (wall clock, as in Go).
+/// provider, signal, interface and process per cooldown (wall clock, as in Go). The kernel's side (HEI-12): a shell reading a
+/// network socket is critical and never approvable, a raw packet listener outside the usual programs a warning, a kernel
+/// module that serves the network critical unless approved.
 pub struct RemoteAccessDetector {
     pub approved: Option<crate::event::ApprovedFn>,
     /// Nanoseconds.
@@ -774,7 +776,7 @@ impl Detector for RemoteAccessDetector {
             }
             _ => return Vec::new(),
         };
-        let key = format!("{provider}|{signal}|{}", e.f("iface"));
+        let key = format!("{provider}|{signal}|{}|{}", e.f("iface"), e.f("pid"));
         let now = Time::now();
         if let Some(t) = self.last.get(&key) {
             if now.sub(t) < self.cooldown {
@@ -783,6 +785,25 @@ impl Detector for RemoteAccessDetector {
         }
         self.last.insert(key, now);
         let id = self.id();
+        match signal.as_str() {
+            "socket-shell" => {
+                return vec![Finding::new(
+                    id,
+                    Severity::Critical,
+                    format!("{}: a shell that reads its commands from a network connection is a reverse shell, someone typing on this computer from elsewhere", e.text),
+                    e,
+                )]
+            }
+            "raw-listener" => {
+                return vec![Finding::new(
+                    id,
+                    Severity::Warning,
+                    format!("{}: a program reading raw packets can wait for a secret packet with no open port, as backdoors such as BPFDoor do; a packet capture or network tool you started does this too", e.text),
+                    e,
+                )]
+            }
+            _ => {}
+        }
         if provider.is_empty() {
             return vec![Finding::new(id, Severity::Warning, format!("{}: a tunnel no known tool explains", e.text), e)];
         }
@@ -792,6 +813,14 @@ impl Detector for RemoteAccessDetector {
         }
         if kind == "c2" {
             return vec![Finding::new(id, Severity::Critical, format!("{}: {name} is a command-and-control implant", e.text), e)];
+        }
+        if kind == "kernel" {
+            return vec![Finding::new(
+                id,
+                Severity::Critical,
+                format!("{}: the kernel itself now serves the network this way; if you did not set it up, find what loaded it (sudo heimdalld remote approve {provider} if you did)", e.text),
+                e,
+            )];
         }
         if signal.ends_with("gomod-dep") {
             return vec![Finding::new(

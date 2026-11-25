@@ -3,6 +3,7 @@ package rasource
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -96,5 +97,76 @@ func TestALimboSandboxCableIsNotATunnel(t *testing.T) {
 	}
 	if n != 1 {
 		t.Fatalf("vl-ghost reported %d times", n)
+	}
+}
+
+// fakeProc writes a /proc for TestTheKernelsSide: two catalog modules and an ordinary one; raw packet sockets held by
+// NetworkManager (usual), by a program calling itself kworkerd (not), and by no process Heimdall can see; and three shells,
+// one reading a TCP connection, one a Unix socket (not in the TCP and UDP tables), one a terminal. The Rust port reads the
+// same tree (rust/heimdall/src/sources/files.rs, the_kernels_side).
+func fakeProc(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	write := func(rel, text string) {
+		p := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(text), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	link := func(rel, target string) {
+		p := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(target, p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("modules", "ksmbd 344064 0 - Live 0x0000000000000000\next4 1101824 2 - Live 0x0000000000000000\nnvmet_tcp 45056 0 - Live 0x0000000000000000\n")
+	write("net/packet", "sk       RefCnt Type Proto  Iface R Rmem   User   Inode\n"+
+		"0000000000000000 3      3    0003   2     1 0      0      100\n"+
+		"0000000000000000 3      3    0800   0     1 0      0      200\n"+
+		"0000000000000000 3      2    0003   3     1 0      0      300\n"+
+		"0000000000000000 3      3    0003   0     1 0      0      0\n")
+	write("net/tcp", "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n"+
+		"   0: 0A00000A:9C40 0500000A:115C 01 00000000:00000000 00:00000000 00000000  1000        0 500 1\n")
+	write("10/comm", "NetworkManager\n")
+	link("10/fd/5", "socket:[100]")
+	write("20/comm", "kworkerd\n")
+	link("20/fd/0", "/dev/null")
+	link("20/fd/3", "socket:[200]")
+	write("30/comm", "bash\n")
+	link("30/fd/0", "socket:[500]")
+	write("31/comm", "bash\n")
+	link("31/fd/0", "socket:[600]")
+	write("32/comm", "bash\n")
+	link("32/fd/0", "/dev/pts/1")
+	return root
+}
+
+// TestTheKernelsSide (HEI-12): the catalog's kernel modules, a raw packet listener outside the usual programs and a shell
+// reading a TCP connection are each one remote_access event, once; the usual raw listener, one whose owner cannot be seen,
+// the ordinary module and the shells on a Unix socket or a terminal are none.
+func TestTheKernelsSide(t *testing.T) {
+	w := New(remoteaccess.Builtin())
+	w.PacmanDir, w.NetDir, w.ProcDir = filepath.Join(t.TempDir(), "none"), filepath.Join(t.TempDir(), "none"), fakeProc(t)
+	var got []string
+	for _, e := range w.Poll() {
+		got = append(got, e.Fields["signal"]+" "+e.Fields["provider"]+" "+e.Fields["pid"]+" "+e.Fields["module"]+e.Fields["connection"]+" | "+e.Text)
+	}
+	want := []string{
+		"module ksmbd  ksmbd | the kernel module ksmbd (ksmbd, the kernel's SMB file server) was loaded",
+		"module nvmet  nvmet_tcp | the kernel module nvmet_tcp (the kernel's NVMe over Fabrics target) was loaded",
+		"raw-listener kworkerd 20  | kworkerd (pid 20) reads raw network packets",
+		"socket-shell bash 30 tcp 10.0.0.10:40000 -> 10.0.0.5:4444 | the shell bash (pid 30) takes its input from a network connection (tcp 10.0.0.10:40000 -> 10.0.0.5:4444)",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("got\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	if again := w.Poll(); len(again) != 0 {
+		t.Errorf("each once: %+v", again)
 	}
 }

@@ -5296,6 +5296,88 @@
     "names": null
    },
    {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "signal": "socket-shell"
+    },
+    "ids": [
+     "T1059.004"
+    ],
+    "names": [
+     {
+      "id": "T1059.004",
+      "name": "Command and Scripting Interpreter: Unix Shell"
+     }
+    ]
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "signal": "socket-shell_not"
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "signal": ""
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "signal": "raw-listener"
+    },
+    "ids": [
+     "T1205.002"
+    ],
+    "names": [
+     {
+      "id": "T1205.002",
+      "name": "Traffic Signaling: Socket Filters"
+     }
+    ]
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "signal": "raw-listener_not"
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": {
+     "signal": ""
+    },
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "remote-access",
+    "kind": "remote_access",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
     "detector": "limbo-guest",
     "kind": "guest.start",
     "fields": null,

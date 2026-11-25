@@ -536,7 +536,29 @@ func translatorScenarios() []Scenario {
 		step(ev("agent-session", "message", "pass\u200bword", nil), want("agent-watermark")),
 		step(ev("limbo", "agent_write", "", map[string]string{"content": "pass\u200bword"}), want("agent-watermark")),
 	}}
-	return append(append([]Scenario{fim}, pkgs...), misc, cd, mesh, lst, ln, lx, wine, wm)
+	// HEI-12: the kernel's side of the remote-access watch (rasource's module, raw-listener and socket-shell events)
+	kev := func(text string, f map[string]string) *EventJSON {
+		return ev("remote-access", "remote_access", text, f)
+	}
+	kmod := func(id, name, module string) *EventJSON {
+		return kev("the kernel module "+module+" ("+name+") was loaded", map[string]string{"provider": id, "provider_name": name, "ra_kind": "kernel", "signal": "module", "module": module})
+	}
+	raw := func(prog, pid string) *EventJSON {
+		return kev(prog+" (pid "+pid+") reads raw network packets", map[string]string{"provider": prog, "ra_kind": "kernel", "signal": "raw-listener", "program": prog, "pid": pid, "proto": "0003"})
+	}
+	shell := func(prog, pid, conn string) *EventJSON {
+		return kev("the shell "+prog+" (pid "+pid+") takes its input from a network connection ("+conn+")", map[string]string{"provider": prog, "ra_kind": "kernel", "signal": "socket-shell", "program": prog, "pid": pid, "connection": conn})
+	}
+	kern := Scenario{Name: "TestTheKernelsSideOfRemoteAccess", Deps: Deps{Approved: []string{"nfsd", "bash"}}, Steps: []Step{
+		step(kmod("ksmbd", "ksmbd, the kernel's SMB file server", "ksmbd"), want("remote-access", C).has("the kernel itself")),
+		step(kmod("nfsd", "nfsd, the kernel's NFS server", "nfsd"), want("remote-access", I).has("approved by the owner")),
+		step(raw("kworkerd", "20"), want("remote-access", W).has("BPFDoor")),
+		step(raw("kworkerd", "20"), want("remote-access")),
+		step(raw("kworkerd", "21"), want("remote-access", W)),
+		step(shell("bash", "30", "tcp 10.0.0.10:40000 -> 10.0.0.5:4444"), want("remote-access", C).has("reverse shell")),
+		step(shell("sh", "31", "udp [2001:db8::1]:5353 -> [2001:db8::2]:53"), want("remote-access", C)),
+	}}
+	return append(append([]Scenario{fim}, pkgs...), misc, cd, mesh, lst, ln, lx, wine, wm, kern)
 }
 
 func engineScenarios() []Scenario {

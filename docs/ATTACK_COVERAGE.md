@@ -7,7 +7,7 @@ and the gap list are in [ATTACK.md](ATTACK.md).
 
 **A tag says what a Heimdall detector looks for, never that the technique is covered: it does not mean Heimdall would catch every use of it (docs/ATTACK.md).**
 
-ATT&CK Enterprise 20.1: 14 of its 511 Linux and Windows techniques and sub-techniques are named by a detector. The same map as
+ATT&CK Enterprise 20.1: 16 of its 511 Linux and Windows techniques and sub-techniques are named by a detector. The same map as
 an ATT&CK Navigator layer: `heimdalld attack-layer > heimdall-layer.json`, then Navigator's "Open Existing Layer".
 
 ## Initial Access
@@ -16,11 +16,24 @@ an ATT&CK Navigator layer: `heimdalld attack-layer > heimdall-layer.json`, then 
 | --- | --- |
 | T1200 Hardware Additions | `lan-watch (new_lan_device)` |
 
+## Execution
+
+| Technique | Watched by |
+| --- | --- |
+| T1059.004 Command and Scripting Interpreter: Unix Shell | `remote-access (remote_access, signal=socket-shell)` |
+
 ## Persistence
 
 | Technique | Watched by |
 | --- | --- |
+| T1205.002 Traffic Signaling: Socket Filters | `remote-access (remote_access, signal=raw-listener)` |
 | T1554 Compromise Host Software Binary | `tool-rules` |
+
+## Stealth
+
+| Technique | Watched by |
+| --- | --- |
+| T1205.002 Traffic Signaling: Socket Filters | `remote-access (remote_access, signal=raw-listener)` |
 
 ## Defense Impairment
 
@@ -61,6 +74,7 @@ an ATT&CK Navigator layer: `heimdalld attack-layer > heimdall-layer.json`, then 
 | Technique | Watched by |
 | --- | --- |
 | T1090.003 Proxy: Multi-hop Proxy | `remote-access (ra_kind=anonymizer)` |
+| T1205.002 Traffic Signaling: Socket Filters | `remote-access (remote_access, signal=raw-listener)` |
 | T1219 Remote Access Tools | `remote-access (ra_kind=rmm)` |
 | T1219.002 Remote Access Tools: Remote Desktop Software | `remote-access (ra_kind=remote-desktop)` |
 | T1572 Protocol Tunneling | `remote-access (ra_kind=tunnel)`, `remote-access (remote_access, signal=tunnel)` |
@@ -73,4 +87,4 @@ an ATT&CK Navigator layer: `heimdalld attack-layer > heimdall-layer.json`, then 
 
 ## Tactics no detector is tagged with
 
-Execution, Privilege Escalation, Stealth, Exfiltration.
+Privilege Escalation, Exfiltration.

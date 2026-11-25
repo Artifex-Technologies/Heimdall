@@ -413,7 +413,16 @@ pub fn for_alert(detector: &str, kind: &str, severity: &str, fields: &Fields) ->
         }
         "remote-access" => {
             let tool = or_unknown(c("provider_name", 60), "a tool");
-            if get(fields, "signal") == "tunnel" {
+            if get(fields, "signal") == "socket-shell" {
+                t.what = format!("A shell ({}) takes its commands from a network connection ({}). That is a reverse shell: someone elsewhere typing commands on this computer. Programs do not do this in normal use.", or_unknown(c("program", 20), "a shell"), or_unknown(c("connection", 120), "a connection"));
+                t.r#do = format!("Disconnect the computer from the network, then look at what started the shell (process {}) and how it got here; ask for help before using the computer for anything private.", or_unknown(c("pid", 10), "?"));
+            } else if get(fields, "signal") == "raw-listener" {
+                t.what = format!("{} reads raw network packets. Network tools (a packet capture, a DHCP client) do this; so does a backdoor that waits for a secret packet without an open port.", or_unknown(c("program", 20), "A program"));
+                t.r#do = format!("If you started a capture or network tool, nothing to do. Otherwise look at the program (ls -l /proc/{}/exe) and at what installed it.", or_unknown(c("pid", 10), "PID"));
+            } else if get(fields, "ra_kind") == "kernel" && severity != "info" {
+                t.what = format!("{tool} was loaded: the kernel itself now serves the network this way (files, disks or USB devices to other computers). It belongs on a server you set up, not on a desktop by surprise.");
+                t.r#do = format!("If you set it up, approve it: sudo heimdalld remote approve {}. If not, unload it (sudo modprobe -r {}) and look at what loaded it.", or_unknown(c("provider", 30), "ID"), or_unknown(c("module", 30), "MODULE"));
+            } else if get(fields, "signal") == "tunnel" {
                 t.what = format!("A new tunnel network interface appeared ({}). A VPN you start does this; so does a program that wants a hidden way in or out.", or_unknown(c("iface", 30), "unnamed"));
                 t.r#do = "If you just connected a VPN, nothing to do. Otherwise look at what created it (ip link, and the programs you installed recently).".into();
             } else if get(fields, "ra_kind") == "c2" {

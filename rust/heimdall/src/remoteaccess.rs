@@ -19,6 +19,8 @@ pub struct Provider {
     pub units: Vec<String>,
     pub ifaces: Vec<String>,
     pub ports: Vec<i64>,
+    /// Kernel modules that make the kernel serve the network (HEI-12), shell patterns.
+    pub modules: Vec<String>,
 }
 crate::go_struct!(Provider {
     id: "id",
@@ -30,6 +32,7 @@ crate::go_struct!(Provider {
     units: "units",
     ifaces: "ifaces",
     ports: "ports",
+    modules: "modules",
 });
 
 #[derive(Default)]
@@ -71,6 +74,11 @@ impl Catalog {
 
     pub fn match_iface(&self, name: &str) -> Option<&Provider> {
         self.find(|p| p.ifaces.iter().any(|pat| glob(pat.as_bytes(), name.as_bytes())))
+    }
+
+    /// Go's MatchModule: a loaded kernel module's name against the providers' patterns.
+    pub fn match_module(&self, name: &str) -> Option<&Provider> {
+        self.find(|p| p.modules.iter().any(|pat| glob(pat.as_bytes(), name.as_bytes())))
     }
 
     pub fn match_exe(&self, exe: &str, comm: &str) -> Option<&Provider> {

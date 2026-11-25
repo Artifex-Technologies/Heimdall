@@ -23,13 +23,15 @@ var builtin []byte
 type Provider struct {
 	ID        string   `json:"id"`
 	Name      string   `json:"name"`
-	Kind      string   `json:"kind"` // mesh-vpn | tunnel | remote-desktop | rmm | anonymizer | c2
+	Kind      string   `json:"kind"` // mesh-vpn | tunnel | remote-desktop | rmm | anonymizer | c2 | kernel
 	Packages  []string `json:"packages"`
 	Exes      []string `json:"exes"`
 	GoModules []string `json:"go_modules"`
 	Units     []string `json:"units"`
 	Ifaces    []string `json:"ifaces"` // shell patterns (zt*)
 	Ports     []int    `json:"ports"`
+	// Modules: kernel modules that make the kernel itself serve the network (ksmbd, nvmet_*), shell patterns (HEI-12)
+	Modules []string `json:"modules"`
 }
 
 // Approvable: a command-and-control implant never is.
@@ -59,7 +61,7 @@ func Parse(data []byte) (Catalog, error) {
 		if p.ID == "" || p.Kind == "" || seen[p.ID] {
 			return c, fmt.Errorf("entry %d: needs a unique id and a kind", i+1)
 		}
-		if len(p.Packages)+len(p.Exes)+len(p.GoModules)+len(p.Units)+len(p.Ifaces) == 0 {
+		if len(p.Packages)+len(p.Exes)+len(p.GoModules)+len(p.Units)+len(p.Ifaces)+len(p.Modules) == 0 {
 			return c, fmt.Errorf("%s: nothing to recognise it by", p.ID)
 		}
 		seen[p.ID] = true
@@ -97,6 +99,18 @@ func (c Catalog) MatchUnit(name string) *Provider {
 func (c Catalog) MatchIface(name string) *Provider {
 	return c.find(func(p Provider) bool {
 		for _, pat := range p.Ifaces {
+			if ok, _ := filepath.Match(pat, name); ok {
+				return true
+			}
+		}
+		return false
+	})
+}
+
+// MatchModule matches a loaded kernel module's name against the providers' patterns (nvmet_*).
+func (c Catalog) MatchModule(name string) *Provider {
+	return c.find(func(p Provider) bool {
+		for _, pat := range p.Modules {
 			if ok, _ := filepath.Match(pat, name); ok {
 				return true
 			}

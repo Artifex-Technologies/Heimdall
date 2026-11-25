@@ -21,6 +21,12 @@
   {"id": "xrdp", "name": "xrdp", "kind": "remote-desktop", "packages": ["xrdp"], "exes": ["xrdp", "xrdp-sesman"], "units": ["xrdp.service"], "ports": [3389]},
   {"id": "tor", "name": "Tor", "kind": "anonymizer", "packages": ["tor"], "exes": ["tor"], "units": ["tor.service"]},
   {"id": "sliver", "name": "Sliver implant", "kind": "c2", "go_modules": ["github.com/bishopfox/sliver"]},
-  {"id": "merlin", "name": "Merlin agent", "kind": "c2", "go_modules": ["github.com/Ne0nd0g/merlin"]}
+  {"id": "merlin", "name": "Merlin agent", "kind": "c2", "go_modules": ["github.com/Ne0nd0g/merlin"]},
+  {"id": "ksmbd", "name": "ksmbd, the kernel's SMB file server", "kind": "kernel", "modules": ["ksmbd"]},
+  {"id": "nfsd", "name": "nfsd, the kernel's NFS server", "kind": "kernel", "modules": ["nfsd"]},
+  {"id": "nvmet", "name": "the kernel's NVMe over Fabrics target", "kind": "kernel", "modules": ["nvmet", "nvmet_*", "nvme_loop"]},
+  {"id": "iscsi-target", "name": "the kernel's iSCSI target", "kind": "kernel", "modules": ["iscsi_target_mod"]},
+  {"id": "usbip", "name": "USB/IP, USB devices shared over the network", "kind": "kernel", "modules": ["usbip_host"]},
+  {"id": "rds", "name": "RDS, Reliable Datagram Sockets", "kind": "kernel", "modules": ["rds", "rds_*"]}
  ]
 }

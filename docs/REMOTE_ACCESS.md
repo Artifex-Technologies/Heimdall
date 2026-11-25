@@ -17,6 +17,20 @@ mesh VPN (Tailscale, ZeroTier, Netbird), a remote desktop (AnyDesk, RustDesk, Su
 The catalog is `internal/remoteaccess/remote-access.json`, built into heimdalld. Each entry gives package names, program
 names, interface patterns, Go module paths and a kind (`mesh-vpn`, `tunnel`, `remote-desktop`, `anonymizer`, `c2`).
 
+## The kernel's side (phase 2, HEI-12)
+
+A way in does not need a program with an open port. `rasource` also looks, every 15 seconds, at:
+
+| Signal | How | Alert |
+|---|---|---|
+| A kernel module that makes the kernel itself serve the network is loaded: ksmbd (SMB), nfsd (NFS), an NVMe over Fabrics or iSCSI target, USB/IP (`usbip_host`), RDS | one read of `/proc/modules`, matched against the catalog's `modules` (kind `kernel`); one loaded before Heimdall started counts too | **critical** unless approved (`heimdalld remote approve ksmbd`), then info |
+| A program holds a raw packet socket: it sees every packet and can wait for a secret one with no open port, as BPFDoor does | `/proc/net/packet`; the owner is looked up (a walk of `/proc/*/fd`) only for a socket not seen before | **warning**, except the usual holders: DHCP clients and servers, Wi-Fi supplicants, packet captures (`tcpdump`, `dumpcap`, ...), `nmap`, `arp-scan`, `lldpd` |
+| A shell (`sh`, `bash`, `dash`, `zsh`, ...) whose input is a TCP or UDP socket: a reverse shell | each process's name, then the shell's `fd/0`, looked up in `/proc/net/{tcp,udp}{,6}` | **critical**, never approvable |
+
+Other users' processes (a root service's packet socket, a shell started by a web server) are seen only with the connection
+watcher's rights (`CAP_SYS_PTRACE` and `CAP_DAC_READ_SEARCH`, `packaging/arch/heimdall-connwatch.conf.example`); without
+them a socket whose owner cannot be seen is passed over, never guessed.
+
 ## Alerts
 
 - A tool that is not approved: **critical**, with what was seen and where.
@@ -70,7 +84,8 @@ sudo heimdalld remote approve tailscale
 
 - Footholds are not watched: new services, timers, autostart entries, cron jobs, `.pth` files and `ld.so.preload` entries that
   point at a tool or at a hidden or temporary program.
-- The kernel side is not watched: a module loaded for the first time (`ksmbd`, `nvmet*`, `rds`, ...), raw-packet and BPF
-  listeners (backdoors with no open port), shells whose input is a network socket.
+- Of the kernel's side, eBPF programs attached to an interface (XDP, tc) are not seen: listing them needs `CAP_BPF` or root,
+  which Heimdall's daemon does not have. A raw packet socket with a filter (the classic BPF that BPFDoor uses) is seen.
+- A reverse shell that is not a shell (a Python or Perl one-liner reading a socket) is not recognised as one.
 - Tailscale's own state (SSH, Funnel and Serve, its version against advisories, new peers) is not read.
 - Heimdall reports a remote-access tool; it does not stop its service, cut its connections or quarantine its binary.

@@ -487,18 +487,52 @@ pub fn package_name(entry: &str) -> String {
     parts[..parts.len() - 2].join("-")
 }
 
-/// Remote-access tools by installed package and network interface (Go: rasource).
+/// Remote-access tools by installed package and network interface (Go: rasource), and the kernel's side (HEI-12): a catalog
+/// kernel module loaded, a raw packet socket held by a program outside the usual ones, a shell reading a network socket.
 pub struct RaSource {
     catalog: Catalog,
     pacman: String,
     net_dir: String,
+    /// /proc (a test's own root in tests).
+    pub proc_dir: String,
     pkg_seen: BTreeSet<String>,
     pkg_mtime: i128,
     iface_seen: BTreeSet<String>,
     waited: BTreeMap<String, u32>,
     started: bool,
     next: Instant,
+    mod_seen: BTreeSet<String>,
+    raw_seen: BTreeSet<String>,
+    shell_seen: BTreeSet<String>,
 }
+
+/// Go's rawAllowed: the programs that hold raw packet sockets for their work (by process name).
+const RAW_ALLOWED: &[&str] = &[
+    "NetworkManager",
+    "dhcpcd",
+    "dhclient",
+    "udhcpc",
+    "systemd-network",
+    "connmand",
+    "wpa_supplicant",
+    "iwd",
+    "hostapd",
+    "dnsmasq",
+    "dhcpd",
+    "kea-dhcp4",
+    "pppd",
+    "tcpdump",
+    "dumpcap",
+    "tshark",
+    "wireshark",
+    "arp-scan",
+    "nmap",
+    "lldpd",
+    "avahi-autoipd",
+];
+
+/// Go's shells: the command interpreters a reverse shell runs.
+const SHELLS: &[&str] = &["sh", "bash", "dash", "zsh", "ksh", "mksh", "ash", "fish", "tcsh", "csh", "busybox", "pwsh"];
 
 fn ra_event(text: String, f: Fields) -> Event {
     Event { source: "remote-access".into(), session_id: String::new(), time: Time::now(), kind: "remote_access".into(), text, fields: f }
@@ -510,13 +544,186 @@ impl RaSource {
             catalog,
             pacman: pacman.into(),
             net_dir: net_dir.into(),
+            proc_dir: "/proc".into(),
             pkg_seen: BTreeSet::new(),
             pkg_mtime: 0,
             iface_seen: BTreeSet::new(),
             waited: BTreeMap::new(),
             started: false,
             next: Instant::now(),
+            mod_seen: BTreeSet::new(),
+            raw_seen: BTreeSet::new(),
+            shell_seen: BTreeSet::new(),
         }
+    }
+
+    /// Go's modules: a catalog kernel module loaded (one read of /proc/modules), those loaded before the start included.
+    fn modules(&mut self) -> Vec<Event> {
+        let Ok(text) = std::fs::read_to_string(format!("{}/modules", self.proc_dir)) else { return Vec::new() };
+        let mut now = BTreeSet::new();
+        let mut out = Vec::new();
+        for line in text.lines() {
+            let Some(name) = line.split_ascii_whitespace().next() else { continue };
+            now.insert(name.to_string());
+            if self.mod_seen.contains(name) {
+                continue;
+            }
+            if let Some(p) = self.catalog.match_module(name) {
+                out.push(ra_event(
+                    format!("the kernel module {name} ({}) was loaded", p.name),
+                    Fields::from([
+                        ("provider".to_string(), p.id.clone()),
+                        ("provider_name".to_string(), p.name.clone()),
+                        ("ra_kind".to_string(), p.kind.clone()),
+                        ("signal".to_string(), "module".to_string()),
+                        ("module".to_string(), name.to_string()),
+                    ]),
+                ));
+            }
+        }
+        self.mod_seen = now;
+        out
+    }
+
+    fn proc_name(&self, pid: &str) -> String {
+        std::fs::read_to_string(format!("{}/{pid}/comm", self.proc_dir)).map(|s| s.trim().to_string()).unwrap_or_default()
+    }
+
+    fn pids(&self) -> Vec<String> {
+        Self::sorted_names(&self.proc_dir).into_iter().filter(|n| !n.is_empty() && n.bytes().all(|c| c.is_ascii_digit())).collect()
+    }
+
+    /// The inode a "socket:[N]" link names.
+    fn socket_inode(link: &std::path::Path) -> Option<String> {
+        let s = link.to_str()?;
+        Some(s.strip_prefix("socket:[")?.strip_suffix(']')?.to_string())
+    }
+
+    /// Go's socketOwners: the process (pid, name) holding each wanted socket inode.
+    fn socket_owners(&self, want: &BTreeSet<String>) -> BTreeMap<String, (String, String)> {
+        let mut out = BTreeMap::new();
+        for pid in self.pids() {
+            let dir = format!("{}/{pid}/fd", self.proc_dir);
+            let Ok(rd) = std::fs::read_dir(&dir) else { continue };
+            let mut fds: Vec<String> = rd.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+            fds.sort();
+            for fd in fds {
+                let Some(ino) = std::fs::read_link(format!("{dir}/{fd}")).ok().and_then(|l| Self::socket_inode(&l)) else { continue };
+                if want.contains(&ino) && !out.contains_key(&ino) {
+                    out.insert(ino, (pid.clone(), self.proc_name(&pid)));
+                }
+            }
+            if out.len() == want.len() {
+                break;
+            }
+        }
+        out
+    }
+
+    /// Go's rawListeners: a program outside RAW_ALLOWED holding a raw packet socket (owner looked up for new sockets only).
+    fn raw_listeners(&mut self) -> Vec<Event> {
+        let Ok(text) = std::fs::read_to_string(format!("{}/net/packet", self.proc_dir)) else { return Vec::new() };
+        let mut now = BTreeSet::new();
+        let mut want = BTreeSet::new();
+        let mut proto = BTreeMap::new();
+        for (i, line) in text.split('\n').enumerate() {
+            let f: Vec<&str> = line.split_ascii_whitespace().collect();
+            if i == 0 || f.len() < 9 || f[8] == "0" {
+                continue;
+            }
+            now.insert(f[8].to_string());
+            if !self.raw_seen.contains(f[8]) {
+                want.insert(f[8].to_string());
+                proto.insert(f[8].to_string(), f[3].to_string());
+            }
+        }
+        let mut out = Vec::new();
+        if !want.is_empty() {
+            let owners = self.socket_owners(&want);
+            for ino in &want {
+                let Some((pid, comm)) = owners.get(ino) else { continue };
+                if comm.is_empty() || RAW_ALLOWED.contains(&comm.as_str()) {
+                    continue;
+                }
+                out.push(ra_event(
+                    format!("{comm} (pid {pid}) reads raw network packets"),
+                    Fields::from([
+                        ("provider".to_string(), comm.clone()),
+                        ("ra_kind".to_string(), "kernel".to_string()),
+                        ("signal".to_string(), "raw-listener".to_string()),
+                        ("program".to_string(), comm.clone()),
+                        ("pid".to_string(), pid.clone()),
+                        ("proto".to_string(), proto.get(ino).cloned().unwrap_or_default()),
+                    ]),
+                ));
+            }
+        }
+        self.raw_seen = now;
+        out
+    }
+
+    /// Go's inetSockets: the TCP and UDP sockets by inode, each as "tcp LOCAL -> REMOTE".
+    fn inet_sockets(&self) -> BTreeMap<String, String> {
+        let hostport = |ip: &std::net::IpAddr, port: u16| {
+            let t = super::net::ip_text(ip);
+            if t.contains(':') {
+                format!("[{t}]:{port}")
+            } else {
+                format!("{t}:{port}")
+            }
+        };
+        let mut out = BTreeMap::new();
+        for name in ["tcp", "tcp6", "udp", "udp6"] {
+            let Ok(text) = std::fs::read_to_string(format!("{}/net/{name}", self.proc_dir)) else { continue };
+            for s in super::net::parse_proc_net(&text) {
+                out.insert(
+                    s.inode.to_string(),
+                    format!(
+                        "{} {} -> {}",
+                        name.trim_end_matches('6'),
+                        hostport(&s.local, s.local_port),
+                        hostport(&s.remote, s.remote_port)
+                    ),
+                );
+            }
+        }
+        out
+    }
+
+    /// Go's socketShells: a shell whose input (fd 0) is a TCP or UDP socket; a Unix socket is not the network.
+    fn socket_shells(&mut self) -> Vec<Event> {
+        let mut now = BTreeSet::new();
+        let mut inet: Option<BTreeMap<String, String>> = None;
+        let mut out = Vec::new();
+        for pid in self.pids() {
+            let comm = self.proc_name(&pid);
+            if !SHELLS.contains(&comm.as_str()) {
+                continue;
+            }
+            let Some(ino) = std::fs::read_link(format!("{}/{pid}/fd/0", self.proc_dir)).ok().and_then(|l| Self::socket_inode(&l)) else {
+                continue;
+            };
+            let key = format!("{pid}|{ino}");
+            now.insert(key.clone());
+            if self.shell_seen.contains(&key) {
+                continue;
+            }
+            let conns = inet.get_or_insert_with(|| self.inet_sockets());
+            let Some(conn) = conns.get(&ino).cloned() else { continue };
+            out.push(ra_event(
+                format!("the shell {comm} (pid {pid}) takes its input from a network connection ({conn})"),
+                Fields::from([
+                    ("provider".to_string(), comm.clone()),
+                    ("ra_kind".to_string(), "kernel".to_string()),
+                    ("signal".to_string(), "socket-shell".to_string()),
+                    ("program".to_string(), comm.clone()),
+                    ("pid".to_string(), pid.clone()),
+                    ("connection".to_string(), conn),
+                ]),
+            ));
+        }
+        self.shell_seen = now;
+        out
     }
 
     fn sorted_names(dir: &str) -> Vec<String> {
@@ -629,6 +836,19 @@ impl RaSource {
     }
 }
 
+impl RaSource {
+    /// One look: packages, interfaces, then the kernel's side (Go: Poll).
+    pub fn poll(&mut self) -> Vec<Event> {
+        let mut ev = self.packages();
+        ev.extend(self.interfaces());
+        ev.extend(self.modules());
+        ev.extend(self.raw_listeners());
+        ev.extend(self.socket_shells());
+        self.started = true;
+        ev
+    }
+}
+
 impl Source for RaSource {
     fn name(&self) -> &'static str {
         "remote-access"
@@ -638,8 +858,7 @@ impl Source for RaSource {
     }
     fn run(&mut self, now: Instant, out: &mut Vec<Msg>) {
         self.next = now + Duration::from_secs(15);
-        let mut ev = self.packages();
-        ev.extend(self.interfaces());
+        let ev = self.poll();
         self.started = true;
         out.extend(ev.into_iter().map(Msg::Event));
     }
@@ -670,6 +889,67 @@ mod tests {
             .unwrap();
         assert_eq!(std::fs::read(&p).unwrap(), [&line[..], b"\n"].concat());
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// HEI-12, Go's TestTheKernelsSide on the same tree (internal/sources/rasource, fakeProc): the catalog's kernel modules, a
+    /// raw packet listener outside the usual programs and a shell reading a TCP connection are each one event, once.
+    #[test]
+    fn the_kernels_side() {
+        let root = std::env::temp_dir().join(format!("heimdall-kernside-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let write = |rel: &str, text: &str| {
+            let p = root.join(rel);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::fs::write(p, text).unwrap();
+        };
+        let link = |rel: &str, target: &str| {
+            let p = root.join(rel);
+            std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+            std::os::unix::fs::symlink(target, p).unwrap();
+        };
+        write("modules", "ksmbd 344064 0 - Live 0x0000000000000000\next4 1101824 2 - Live 0x0000000000000000\nnvmet_tcp 45056 0 - Live 0x0000000000000000\n");
+        write(
+            "net/packet",
+            "sk       RefCnt Type Proto  Iface R Rmem   User   Inode\n\
+             0000000000000000 3      3    0003   2     1 0      0      100\n\
+             0000000000000000 3      3    0800   0     1 0      0      200\n\
+             0000000000000000 3      2    0003   3     1 0      0      300\n\
+             0000000000000000 3      3    0003   0     1 0      0      0\n",
+        );
+        write(
+            "net/tcp",
+            "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n   0: 0A00000A:9C40 0500000A:115C 01 00000000:00000000 00:00000000 00000000  1000        0 500 1\n",
+        );
+        write("10/comm", "NetworkManager\n");
+        link("10/fd/5", "socket:[100]");
+        write("20/comm", "kworkerd\n");
+        link("20/fd/0", "/dev/null");
+        link("20/fd/3", "socket:[200]");
+        write("30/comm", "bash\n");
+        link("30/fd/0", "socket:[500]");
+        write("31/comm", "bash\n");
+        link("31/fd/0", "socket:[600]");
+        write("32/comm", "bash\n");
+        link("32/fd/0", "/dev/pts/1");
+        let none = root.join("none").to_string_lossy().into_owned();
+        let mut w = RaSource::new(Catalog::builtin(), &none, &none);
+        w.proc_dir = root.to_string_lossy().into_owned();
+        let got: Vec<String> = w
+            .poll()
+            .iter()
+            .map(|e| format!("{} {} {} {}{} | {}", e.f("signal"), e.f("provider"), e.f("pid"), e.f("module"), e.f("connection"), e.text))
+            .collect();
+        assert_eq!(
+            got,
+            [
+                "module ksmbd  ksmbd | the kernel module ksmbd (ksmbd, the kernel's SMB file server) was loaded",
+                "module nvmet  nvmet_tcp | the kernel module nvmet_tcp (the kernel's NVMe over Fabrics target) was loaded",
+                "raw-listener kworkerd 20  | kworkerd (pid 20) reads raw network packets",
+                "socket-shell bash 30 tcp 10.0.0.10:40000 -> 10.0.0.5:4444 | the shell bash (pid 30) takes its input from a network connection (tcp 10.0.0.10:40000 -> 10.0.0.5:4444)",
+            ]
+        );
+        assert!(w.poll().is_empty(), "each once");
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     /// HEI-21: the line Go's lan.NameMoves writes (internal/sources/lansource, TestANameMoveIsListedOrWarned) is the same event.

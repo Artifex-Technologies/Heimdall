@@ -206,6 +206,15 @@ func For(detector, kind, severity string, fields map[string]string) Text {
 	case "remote-access":
 		tool := orUnknown(clean(fields["provider_name"], 60), "a tool")
 		switch {
+		case fields["signal"] == "socket-shell":
+			t.What = "A shell (" + orUnknown(clean(fields["program"], 20), "a shell") + ") takes its commands from a network connection (" + orUnknown(clean(fields["connection"], 120), "a connection") + "). That is a reverse shell: someone elsewhere typing commands on this computer. Programs do not do this in normal use."
+			t.Do = "Disconnect the computer from the network, then look at what started the shell (process " + orUnknown(clean(fields["pid"], 10), "?") + ") and how it got here; ask for help before using the computer for anything private."
+		case fields["signal"] == "raw-listener":
+			t.What = orUnknown(clean(fields["program"], 20), "A program") + " reads raw network packets. Network tools (a packet capture, a DHCP client) do this; so does a backdoor that waits for a secret packet without an open port."
+			t.Do = "If you started a capture or network tool, nothing to do. Otherwise look at the program (ls -l /proc/" + orUnknown(clean(fields["pid"], 10), "PID") + "/exe) and at what installed it."
+		case fields["ra_kind"] == "kernel" && severity != "info":
+			t.What = tool + " was loaded: the kernel itself now serves the network this way (files, disks or USB devices to other computers). It belongs on a server you set up, not on a desktop by surprise."
+			t.Do = "If you set it up, approve it: sudo heimdalld remote approve " + orUnknown(clean(fields["provider"], 30), "ID") + ". If not, unload it (sudo modprobe -r " + orUnknown(clean(fields["module"], 30), "MODULE") + ") and look at what loaded it."
 		case fields["signal"] == "tunnel":
 			t.What = "A new tunnel network interface appeared (" + orUnknown(clean(fields["iface"], 30), "unnamed") + "). A VPN you start does this; so does a program that wants a hidden way in or out."
 			t.Do = "If you just connected a VPN, nothing to do. Otherwise look at what created it (ip link, and the programs you installed recently)."

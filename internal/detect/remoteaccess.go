@@ -14,7 +14,11 @@ import (
 //	warning   a new tunnel interface that no catalog tool explains (a VPN the owner set up looks the same: approve by name later)
 //	info      an approved tool doing what it does
 //
-// One alert per provider and signal per Cooldown, so a tool talking to many servers is one alert, not dozens.
+// The kernel's side (HEI-12): a shell reading its commands from a network socket is critical and can never be approved (a
+// reverse shell); a program outside the usual ones reading raw packets is a warning (a backdoor can wait for a secret
+// packet with no open port); a kernel module that makes the kernel serve the network is critical unless approved.
+//
+// One alert per provider and signal (and process) per Cooldown, so a tool talking to many servers is one alert, not dozens.
 type RemoteAccessDetector struct {
 	Approved func(id string) bool
 	Cooldown time.Duration
@@ -40,7 +44,7 @@ func (d *RemoteAccessDetector) Inspect(e Event) []Finding {
 	default:
 		return nil
 	}
-	key := provider + "|" + signal + "|" + e.Fields["iface"]
+	key := provider + "|" + signal + "|" + e.Fields["iface"] + "|" + e.Fields["pid"]
 	d.mu.Lock()
 	if d.last == nil {
 		d.last = map[string]time.Time{}
@@ -51,6 +55,14 @@ func (d *RemoteAccessDetector) Inspect(e Event) []Finding {
 	}
 	d.last[key] = time.Now()
 	d.mu.Unlock()
+	switch signal {
+	case "socket-shell":
+		return []Finding{{DetectorID: d.ID(), Severity: SeverityCritical, Event: e, Summary: e.Text +
+			": a shell that reads its commands from a network connection is a reverse shell, someone typing on this computer from elsewhere"}}
+	case "raw-listener":
+		return []Finding{{DetectorID: d.ID(), Severity: SeverityWarning, Event: e, Summary: e.Text +
+			": a program reading raw packets can wait for a secret packet with no open port, as backdoors such as BPFDoor do; a packet capture or network tool you started does this too"}}
+	}
 	if provider == "" {
 		return []Finding{{DetectorID: d.ID(), Severity: SeverityWarning, Summary: e.Text + ": a tunnel no known tool explains", Event: e}}
 	}
@@ -63,6 +75,9 @@ func (d *RemoteAccessDetector) Inspect(e Event) []Finding {
 	}
 	if kind == "c2" {
 		return []Finding{{DetectorID: d.ID(), Severity: SeverityCritical, Summary: e.Text + ": " + name + " is a command-and-control implant", Event: e}}
+	}
+	if kind == "kernel" {
+		return []Finding{{DetectorID: d.ID(), Severity: SeverityCritical, Summary: e.Text + ": the kernel itself now serves the network this way; if you did not set it up, find what loaded it (sudo heimdalld remote approve " + provider + " if you did)", Event: e}}
 	}
 	if strings.HasSuffix(signal, "gomod-dep") {
 		return []Finding{{DetectorID: d.ID(), Severity: SeverityWarning, Summary: e.Text + ": the program contains code of " + name + " (it may open its own " + kind + ")", Event: e}}

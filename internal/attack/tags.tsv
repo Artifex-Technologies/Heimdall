@@ -22,6 +22,8 @@ remote-access	*	ra_kind=rmm	T1219
 remote-access	*	ra_kind=tunnel	T1572
 remote-access	*	ra_kind=anonymizer	T1090.003
 remote-access	remote_access	signal=tunnel	T1572
+remote-access	remote_access	signal=socket-shell	T1059.004
+remote-access	remote_access	signal=raw-listener	T1205.002
 limbo-guest	guest.start	*	T1686
 limbo-guest	policy.remove	*	T1686
 limbo-network	net.anomaly	reason=scan	T1046
