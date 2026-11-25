@@ -24,6 +24,9 @@ const (
 // home; info, once per device an hour, at most inboundListedPerHour devices an hour; a warning when sweepDevices of them come
 // within sweepWindow). The hours are kept in memory, so they start again when heimdalld restarts.
 type LANDetector struct {
+	// sinkholes are the Limbo guests' sinkhole responders running now (HEI-6), by the gateway address each listens on: the
+	// "proto/port" keys it serves (its DNS port over UDP and TCP, its TCP and UDP ports). A listener there is Limbo's own.
+	sinkholes      map[string]map[string]bool
 	inboundSeen    map[string]time.Time // per device: when it was last reported
 	inboundTimes   []time.Time          // the devices of the last hour
 	inboundSwept   bool                 // the sweep warning was given, at inboundSweptAt
@@ -91,7 +94,25 @@ func (d *LANDetector) Inspect(e Event) []Finding {
 		return []Finding{{DetectorID: d.ID(), Severity: SeverityWarning, Event: e, Summary: fmt.Sprintf(
 			"a new device joined %q: %s, %s. If you do not know it, look at it in Settings > Wi-Fi & Network > Devices",
 			f["ssid"], what, strings.Join(about, ", "))}}
+	case "sinkhole.start":
+		// Limbo starts a guest's sinkhole responder (Limbo docs/SINKHOLE.md): its listeners on the gateway are its own
+		if e.Source == "limbo" && f["addr"] != "" {
+			if d.sinkholes == nil {
+				d.sinkholes = map[string]map[string]bool{}
+			}
+			d.sinkholes[f["addr"]] = map[string]bool{"udp/" + f["dns_port"]: true, "tcp/" + f["dns_port"]: true,
+				"tcp/" + f["tcp_port"]: true, "udp/" + f["udp_port"]: true}
+		}
+		return nil
+	case "sinkhole.stop":
+		if e.Source == "limbo" {
+			delete(d.sinkholes, f["addr"])
+		}
+		return nil
 	case "new_listener":
+		if d.sinkholes[f["addr"]][f["proto"]+"/"+f["port"]] {
+			return nil // a Limbo guest's sinkhole responder, during its run
+		}
 		return []Finding{{DetectorID: d.ID(), Severity: SeverityWarning, Event: e, Summary: fmt.Sprintf(
 			"a program started listening for connections from the network on %s/%s. The firewall blocks it unless a rule allows it; to see which program: sudo ss -tulpn | grep ':%s '",
 			f["proto"], f["port"], f["port"])}}

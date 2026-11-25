@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"sort"
@@ -156,11 +157,21 @@ func (w *ListenWatcher) ephemeral() (lo, hi int) {
 }
 
 // listening lists what listens off loopback: TCP from tcp (a read of /proc/net/tcp and tcp6), UDP read here.
-func (w *ListenWatcher) listening(tcp []socketEntry) []string {
+// listening lists the listeners as "proto/port", and the address each one is bound to (the first seen, for a Limbo guest's
+// sinkhole responder on its gateway address, HEI-6).
+func (w *ListenWatcher) listening(tcp []socketEntry) ([]string, map[string]string) {
 	var out []string
+	addrs := map[string]string{}
+	seen := func(k string, ip net.IP) {
+		if _, ok := addrs[k]; !ok {
+			addrs[k] = ip.String()
+		}
+	}
 	for _, e := range tcp {
 		if !e.LocalIP.IsLoopback() && e.State == tcpListen {
-			out = append(out, fmt.Sprintf("tcp/%d", e.LocalPort))
+			k := fmt.Sprintf("tcp/%d", e.LocalPort)
+			out = append(out, k)
+			seen(k, e.LocalIP)
 		}
 	}
 	lo, hi := w.ephemeral()
@@ -178,11 +189,13 @@ func (w *ListenWatcher) listening(tcp []socketEntry) []string {
 			if e.State != 0x07 || !e.RemoteIP.IsUnspecified() || expectedUDP[e.LocalPort] || (e.LocalPort >= lo && e.LocalPort <= hi) {
 				continue // a connected UDP socket is a client, not a listener
 			}
-			out = append(out, fmt.Sprintf("udp/%d", e.LocalPort))
+			k := fmt.Sprintf("udp/%d", e.LocalPort)
+			out = append(out, k)
+			seen(k, e.LocalIP)
 		}
 	}
 	sort.Strings(out)
-	return out
+	return out, addrs
 }
 
 // Poll reads the TCP tables itself; in heimdalld, Tables shares its read (observe).
@@ -192,7 +205,7 @@ func (w *ListenWatcher) Poll() []detect.Event {
 }
 
 func (w *ListenWatcher) observe(tcp []socketEntry) []detect.Event {
-	now := w.listening(tcp)
+	now, addrs := w.listening(tcp)
 	var events []detect.Event
 	for _, k := range now {
 		if w.known[k] {
@@ -205,7 +218,7 @@ func (w *ListenWatcher) observe(tcp []socketEntry) []detect.Event {
 		proto, port, _ := strings.Cut(k, "/")
 		events = append(events, detect.Event{Source: "host-network", Time: time.Now(), Kind: "new_listener",
 			Text:   "a program started listening for connections from the network on " + k,
-			Fields: map[string]string{"proto": proto, "port": port}})
+			Fields: map[string]string{"proto": proto, "port": port, "addr": addrs[k]}})
 	}
 	w.learned = true
 	return events

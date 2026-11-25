@@ -196,9 +196,16 @@ impl ListenWatcher {
         ListenWatcher { proc_root: proc_root.into(), known: BTreeSet::new(), learned: false }
     }
 
-    fn listening(&self, tcp: &[Socket]) -> Vec<String> {
-        let mut out: Vec<String> =
-            tcp.iter().filter(|e| !e.local.is_loopback() && e.state == LISTEN).map(|e| format!("tcp/{}", e.local_port)).collect();
+    /// The listeners as "proto/port", and the address each one is bound to (the first seen: a Limbo guest's sinkhole responder
+    /// on its gateway address, HEI-6).
+    fn listening(&self, tcp: &[Socket]) -> (Vec<String>, std::collections::BTreeMap<String, String>) {
+        let mut addrs = std::collections::BTreeMap::new();
+        let mut out: Vec<String> = Vec::new();
+        for e in tcp.iter().filter(|e| !e.local.is_loopback() && e.state == LISTEN) {
+            let k = format!("tcp/{}", e.local_port);
+            addrs.entry(k.clone()).or_insert_with(|| ip_text(&e.local));
+            out.push(k);
+        }
         let (mut lo, mut hi) = (32768i64, 60999i64);
         if let Ok(s) = std::fs::read_to_string(format!("{}/sys/net/ipv4/ip_local_port_range", self.proc_root)) {
             let mut it = s.split_whitespace();
@@ -221,16 +228,19 @@ impl ListenWatcher {
                 {
                     continue;
                 }
-                out.push(format!("udp/{}", e.local_port));
+                let k = format!("udp/{}", e.local_port);
+                addrs.entry(k.clone()).or_insert_with(|| ip_text(&e.local));
+                out.push(k);
             }
         }
         out.sort();
-        out
+        (out, addrs)
     }
 
     pub fn observe(&mut self, tcp: &[Socket]) -> Vec<Event> {
         let mut events = Vec::new();
-        for k in self.listening(tcp) {
+        let (now, addrs) = self.listening(tcp);
+        for k in now {
             if !self.known.insert(k.clone()) || !self.learned {
                 continue;
             }
@@ -238,7 +248,11 @@ impl ListenWatcher {
             events.push(net_event(
                 "new_listener",
                 format!("a program started listening for connections from the network on {k}"),
-                Fields::from([("proto".to_string(), proto.to_string()), ("port".to_string(), port.to_string())]),
+                Fields::from([
+                    ("proto".to_string(), proto.to_string()),
+                    ("port".to_string(), port.to_string()),
+                    ("addr".to_string(), addrs.get(&k).cloned().unwrap_or_default()),
+                ]),
             ));
         }
         self.learned = true;

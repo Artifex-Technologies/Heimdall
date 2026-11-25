@@ -126,7 +126,9 @@ Sarina's `docs/ECOSYSTEM.md` port registry.
   (`exchange.held`, `exchange.fail`; detail `path` becomes alert field `guest_path`). `net.flow`, `net.blocked` and
   `exchange.file` are deliberately not alerts. Limbo adding kinds or keys is compatible; renaming or removing them is a
   contract change on both sides. Heimdall treats a tap `vl-<guest>` on its bridge `lb-<guest>` as Limbo's own (Limbo pins
-  the names in its `virt` names).
+  the names in its `virt` names). `lan-watch` reads `sinkhole.start` (detail `addr`, `dns_port`, `tcp_port`,
+  `udp_port`) and `sinkhole.stop` (`addr`): between them a listener on that gateway address and those ports (the DNS port
+  over UDP and TCP) is Limbo's sinkhole responder, not a new listener (HEI-6); outside a run it is reported as any other.
 - **Who:** provided by Limbo; read by Heimdall.
 - **Where:** `rust/heimdall/src/sources/limbo.rs`, `detect/stateful.rs`.
 

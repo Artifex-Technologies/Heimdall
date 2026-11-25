@@ -414,6 +414,17 @@ func translatorScenarios() []Scenario {
 		step(ev("", "new_lan_device", "", map[string]string{"ssid": "Home", "name": "TV", "vendor": "Samsung", "ip": "192.168.1.30"}), want("lan-watch", W).has("made by Samsung")),
 		step(ev("", "new_lan_device", "", map[string]string{"ssid": "Home", "private_mac": "true", "ip": "192.168.1.31"}), want("lan-watch", W).has("a device, using a private address")),
 		step(ev("", "new_listener", "", map[string]string{"proto": "tcp", "port": "9091"}), want("lan-watch", W)),
+		// a Limbo guest's sinkhole responder during its run is Limbo's own (HEI-6); the same port elsewhere, a start from
+		// another source, and the responder after its run are listeners like any other
+		step(ev("limbo", "sinkhole.start", "", map[string]string{"guest": "g1", "addr": "10.213.7.1", "dns_port": "7253", "tcp_port": "7280", "udp_port": "7281"}), want("lan-watch")),
+		step(ev("", "new_listener", "", map[string]string{"proto": "tcp", "port": "7280", "addr": "10.213.7.1"}), want("lan-watch")),
+		step(ev("", "new_listener", "", map[string]string{"proto": "udp", "port": "7253", "addr": "10.213.7.1"}), want("lan-watch")),
+		step(ev("", "new_listener", "", map[string]string{"proto": "tcp", "port": "7280", "addr": "192.0.2.10"}), want("lan-watch", W)),
+		step(ev("", "new_listener", "", map[string]string{"proto": "tcp", "port": "7300", "addr": "10.213.7.1"}), want("lan-watch", W)),
+		step(ev("", "sinkhole.start", "", map[string]string{"addr": "10.213.8.1", "dns_port": "7253", "tcp_port": "7280", "udp_port": "7281"}), want("lan-watch")),
+		step(ev("", "new_listener", "", map[string]string{"proto": "tcp", "port": "7280", "addr": "10.213.8.1"}), want("lan-watch", W)),
+		step(ev("limbo", "sinkhole.stop", "", map[string]string{"guest": "g1", "addr": "10.213.7.1"}), want("lan-watch")),
+		step(ev("", "new_listener", "", map[string]string{"proto": "udp", "port": "7281", "addr": "10.213.7.1"}), want("lan-watch", W)),
 		step(ev("host-wifi", "wifi_inbound", "", map[string]string{"src": "192.0.2.23", "src_mac": "0E:00:00:00:00:05", "proto": "TCP", "dst_port": "445", "iface": "wlan0", "inbound": "wifi"}),
 			want("lan-watch", I).has("Windows file sharing")),
 		step(ev("host-wifi", "wifi_inbound", "", map[string]string{"src": "192.0.2.23", "proto": "UDP", "dst_port": "137", "iface": "wlan0", "inbound": "wifi"}), want("lan-watch")),

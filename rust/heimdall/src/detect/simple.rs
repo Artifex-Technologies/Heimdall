@@ -361,6 +361,9 @@ const HOUR: i64 = 3_600_000_000_000;
 /// kept in memory).
 #[derive(Default)]
 pub struct LanDetector {
+    /// The Limbo guests' sinkhole responders running now (HEI-6), by the gateway address each listens on: the "proto/port"
+    /// keys it serves (its DNS port over UDP and TCP, its TCP and UDP ports). A listener there is Limbo's own (Go: sinkholes).
+    sinkholes: std::collections::BTreeMap<String, std::collections::BTreeSet<String>>,
     inbound_seen: std::collections::BTreeMap<String, crate::gotime::Time>,
     inbound_times: Vec<crate::gotime::Time>,
     /// when the sweep warning was given
@@ -498,6 +501,23 @@ impl Detector for LanDetector {
                 one(id, Severity::Warning, format!(
                     "a new device joined {}: {what}, {}. If you do not know it, look at it in Settings > Wi-Fi & Network > Devices",
                     quote(f("ssid")), about.join(", ")), e)
+            }
+            "sinkhole.start" => {
+                // Limbo starts a guest's sinkhole responder (Limbo docs/SINKHOLE.md): its listeners on the gateway are its own
+                if e.source == "limbo" && !f("addr").is_empty() {
+                    let ports = [format!("udp/{}", f("dns_port")), format!("tcp/{}", f("dns_port")), format!("tcp/{}", f("tcp_port")), format!("udp/{}", f("udp_port"))];
+                    self.sinkholes.insert(f("addr").to_string(), ports.into_iter().collect());
+                }
+                Vec::new()
+            }
+            "sinkhole.stop" => {
+                if e.source == "limbo" {
+                    self.sinkholes.remove(f("addr"));
+                }
+                Vec::new()
+            }
+            "new_listener" if self.sinkholes.get(f("addr")).is_some_and(|p| p.contains(&format!("{}/{}", f("proto"), f("port")))) => {
+                Vec::new() // a Limbo guest's sinkhole responder, during its run
             }
             "new_listener" => one(id, Severity::Warning, format!(
                 "a program started listening for connections from the network on {}/{}. The firewall blocks it unless a rule allows it; to see which program: sudo ss -tulpn | grep ':{} '",
