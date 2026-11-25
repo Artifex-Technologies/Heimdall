@@ -241,9 +241,17 @@ fn a_go_node_and_a_rust_node_exchange_alerts() {
         let b = go_post(&bin, &d("rs"), &fp_go, &addr_go, &["--path", path, "--method", method], &["{}".into()], &tmp);
         assert_eq!((a.clone(), b), (vec!["404".to_string()], vec!["404".to_string()]), "{method} {path}");
     }
-    wait_for("the same number of lines", 10, || {
-        got.lock().unwrap().len() == go.lines.lock().unwrap().len() && !got.lock().unwrap().is_empty()
-    });
+    // each node writes a line as its sink takes an alert, after it answered: on a loaded CI machine that once took longer than
+    // 10 s (HEI-75), so the wait is long; it ends as soon as both have the same, and a failure says how many each has
+    let until = Instant::now() + Duration::from_secs(60);
+    loop {
+        let (r, g) = (got.lock().unwrap().len(), go.lines.lock().unwrap().len());
+        if r == g && r > 0 {
+            break;
+        }
+        assert!(Instant::now() < until, "timed out waiting for the same number of lines: Rust {r}, Go {g}");
+        std::thread::sleep(Duration::from_millis(50));
+    }
     let rust_got: Vec<String> = got.lock().unwrap().iter().map(|l| timeless(l)).collect();
     let go_got: Vec<String> = go.lines.lock().unwrap().iter().map(|l| timeless(l)).collect();
     assert_eq!(rust_got, go_got);
