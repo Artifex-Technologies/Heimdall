@@ -117,8 +117,9 @@ them) and the row in `docs/REFERENCES.md`. The bundle itself is never committed 
 
 ## Known limitations
 
-- The tags are on Heimdall's alerts only. Sarina's explanation of an alert and Limbo's analysis report do not name techniques
-  yet.
+- The tags are on Heimdall's alerts only. Sarina's explanation of an alert does not name techniques yet. Limbo's sample runs
+  suggest some from names in their output (imports such as `CreateRemoteThread`; Limbo's docs/SAMPLES.md), marked as
+  suggestions and not verified; Heimdall does not take them into its alerts.
 - The map is also an ATT&CK Navigator layer, `heimdalld attack-layer` (layer format 4.5; Navigator's "Open Existing
   Layer"), and a coverage page by tactic, [ATTACK_COVERAGE.md](ATTACK_COVERAGE.md), which a test writes from the same two
   tables and which fails when it is stale. Both carry the warning above; neither has been opened in Navigator itself here
