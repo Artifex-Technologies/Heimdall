@@ -101,8 +101,13 @@ disk, a restart forgets it), it is taken down if it was up, and a notice says wh
 the cable is out (the guard runs on every connection's up and down), its autoconnect goes back to what it was. Any other Wi-Fi
 network is never touched: a café's Wi-Fi stays connected the whole time. The held profiles are listed in
 `/run/heimdall-wifi-guard/held-hotspots.json`. Only the Rust guard does this (it is newer than the port; the Python reference in
-`packaging/net` does not). A phone that tells neither (an Android phone whose cable and hotspot are separate networks) is not
-recognized.
+`packaging/net` does not).
+
+A phone that tells neither (an Android phone whose cable and hotspot are separate networks, with a hotspot name of its own)
+is paired by hand once, while it is on the cable: `sudo heimdall-wifi-guard pair-phone "Hotspot name"` keeps the phone's USB
+serial and its hotspot's name in `/etc/heimdall/wifi-phones.json` and applies it at once; from then on that phone is handled
+as an iPhone is. `sudo heimdall-wifi-guard pair-phone --undo` (the phone on the cable) forgets it; `pair-phone --help` says
+both.
 
 ## IPv6 privacy and DHCP identifiers
 

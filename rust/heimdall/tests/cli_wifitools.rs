@@ -2067,12 +2067,17 @@ const TETHER: &str = "7a1b2c3d-4444-4555-8666-777788889999";
 const HOTSPOT: &str = "1b2c3d4e-5555-4666-8777-888899990000";
 const CAFE: &str = "2c3d4e5f-6666-4777-8888-999900001111";
 
-/// A phone on the cable (usb0, ipheth, its USB serial `udid`): the interface, its driver, the USB device's serial, its
-/// route and router (`mac`) at 172.20.10.1; idevicename answers `name` for that serial (none: not paired).
+/// An iPhone on the cable (usb0, ipheth, its USB serial `udid`): see `phone_with`.
 fn phone_on_cable(r: &Root, udid: &str, name: Option<&str>, mac: &str) {
+    phone_with(r, "ipheth", udid, name, mac);
+}
+
+/// A phone on the cable (usb0 with `driver`, its USB serial `udid`): the interface, its driver, the USB device's serial, its
+/// route and router (`mac`) at 172.20.10.1; idevicename answers `name` for that serial (none: not paired).
+fn phone_with(r: &Root, driver: &str, udid: &str, name: Option<&str>, mac: &str) {
     r.mkdir("/sys/devices/usb1/1-3/1-3:1.2", 0o755);
-    r.mkdir("/sys/bus/usb/drivers/ipheth", 0o755);
-    r.symlink("/sys/bus/usb/drivers/ipheth", "/sys/devices/usb1/1-3/1-3:1.2/driver");
+    r.mkdir(&format!("/sys/bus/usb/drivers/{driver}"), 0o755);
+    r.symlink(&format!("/sys/bus/usb/drivers/{driver}"), "/sys/devices/usb1/1-3/1-3:1.2/driver");
     r.write("/sys/devices/usb1/1-3/serial", format!("{udid}\n"));
     r.mkdir("/sys/class/net/usb0", 0o755);
     r.symlink("/sys/devices/usb1/1-3/1-3:1.2", "/sys/class/net/usb0/device");
@@ -2177,4 +2182,45 @@ fn guard_leaves_the_hotspot_of_the_phone_on_the_cable_alone() {
     let log = r.read_str("/.fake-argv");
     assert!(!log.contains("--temporary") && !log.contains("[down]"), "{log}");
     assert!(r.read("/run/heimdall-wifi-guard/state.json").is_some(), "the cafe's Wi-Fi gets the guard's usual work");
+}
+
+/// HEI-76: a phone neither check tells (an Android phone: RNDIS, its own name for its hotspot, its own network there) is
+/// paired by hand while on the cable, and from then on its hotspot is left alone as an iPhone's is; --undo forgets it.
+#[test]
+fn guard_pairs_a_phone_with_its_hotspot_by_hand() {
+    let o = root_opts();
+    let run = |r: &Root, args: &[&str]| r.run_as("/usr/bin/heimdall-wifi-guard", &rust_bin(), args, &o);
+    let r = new_root("guard-pair-phone");
+    guard_root(&r);
+    r.write("/srv/ctype", "802-3-ethernet\n");
+    r.write(&format!("/srv/ssid-{HOTSPOT}"), "Pixel Hotspot\n");
+    r.write(&format!("/srv/ssid-{CAFE}"), "Cafe\n");
+    r.write("/srv/profiles", format!("{HOTSPOT}:802-11-wireless\n{CAFE}:802-11-wireless\n{TETHER}:802-3-ethernet\n"));
+    phone_with(&r, "rndis_host", "0A1B2C3D4E5F6789", None, "02:00:00:00:00:52");
+    devices(&r, true, None);
+    // on the cable, not paired: nothing is held (it tells no name, and its hotspot is another network)
+    assert_eq!(run(&r, &["up", "usb0", TETHER]).code, 0);
+    assert!(!r.read_str("/.fake-argv").contains("--temporary"));
+    // help, and a name that is not one
+    let help = run(&r, &["pair-phone", "--help"]);
+    assert!(help.code == 0 && help.stdout.contains("pair-phone --undo"), "{help:?}");
+    assert_ne!(run(&r, &["pair-phone", ""]).code, 0);
+    assert!(r.read("/etc/heimdall/wifi-phones.json").is_none(), "nothing kept for a refused name");
+    // paired: kept by the USB serial, and its hotspot held at once
+    let out = run(&r, &["pair-phone", "Pixel Hotspot"]);
+    assert_eq!(out.code, 0, "{out:?}");
+    assert!(r.read_str("/etc/heimdall/wifi-phones.json").contains("\"0A1B2C3D4E5F6789\": \"Pixel Hotspot\""));
+    let log = r.read_str("/.fake-argv");
+    assert!(log.contains(&format!("[--temporary] [{HOTSPOT}] [connection.autoconnect] [no]")), "{log}");
+    assert!(!log.contains(&format!("[{CAFE}] [connection.autoconnect]")));
+    let note = r.read_str("/run/heimdall-wifi-guard/last.json");
+    assert!(note.contains("Your phone is connected by cable"), "{note}");
+    // forgotten: the next cable up holds nothing new
+    let out = run(&r, &["pair-phone", "--undo"]);
+    assert!(out.code == 0 && out.stdout.contains("no longer paired"), "{out:?}");
+    assert!(!r.read_str("/etc/heimdall/wifi-phones.json").contains("0A1B2C3D4E5F6789"));
+    // no phone on the cable: refused, said why
+    devices(&r, false, None);
+    let out = run(&r, &["pair-phone", "Pixel Hotspot"]);
+    assert!(out.code != 0 && out.stderr.contains("no phone is connected by cable"), "{out:?}");
 }

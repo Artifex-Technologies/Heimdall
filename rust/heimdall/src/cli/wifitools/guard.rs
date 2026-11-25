@@ -92,6 +92,12 @@ whatever network its cable is plugged into; one whose router keeps an address fo
 NetworkManager's dispatcher calls the rest (pre-up, up, down, vpn-down).
 "#;
 
+/// `pair-phone`'s help (only in the Rust guard: the main help stays the Python reference's).
+const PAIR_DOC: &str = "heimdall-wifi-guard pair-phone HOTSPOT   pair the phone on the cable now with its Wi-Fi hotspot's network name:
+                                        while it is on the cable, this computer leaves that hotspot alone (root)
+heimdall-wifi-guard pair-phone --undo    forget the pairing of the phone on the cable (root)
+iPhones need no pairing: they tell their name over USB, and name their hotspot after it.";
+
 /// `sys.exit(message)`: the message on standard error, exit 1.
 fn exit(msg: impl Into<String>) -> PyErr {
     PyErr::new("SystemExit", msg)
@@ -472,6 +478,8 @@ struct Guard {
     trusted: PathBuf,
     /// root's only (0600): a fingerprint of each trusted profile's saved password
     keys: PathBuf,
+    /// phones paired by hand with their hotspot (HEI-76): {USB serial: hotspot's network name}
+    phones: PathBuf,
     run: PathBuf,
     argv: Vec<String>,
 }
@@ -656,19 +664,45 @@ impl Guard {
                 .unwrap_or(false)
     }
 
-    /// The name of the iPhone on `iface`, asked over its USB pairing; None for another phone or when it does not tell (not
-    /// paired with this computer, locked before its first unlock).
+    /// The USB serial of the phone on `iface` (the USB device, the interface's parent, carries it; an iPhone's is its UDID).
+    fn usb_serial(&self, iface: &str) -> Option<String> {
+        let serial = std::fs::read_to_string(format!("/sys/class/net/{iface}/device/../serial")).ok()?;
+        let serial = serial.trim();
+        (!serial.is_empty() && serial.len() <= 64 && serial.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-'))
+            .then(|| serial.to_string())
+    }
+
+    /// What a notice calls the phone on `iface`: an iPhone by its own name, any other (one paired by hand is known only by its
+    /// hotspot's name) as "Your phone".
+    fn phone_label(&self, iface: &str, name: Option<&str>) -> String {
+        match name {
+            Some(n) if self.phone_link(iface) && !self.paired(iface) => n.to_string(),
+            _ => "Your phone".into(),
+        }
+    }
+
+    /// Whether the phone on `iface` was paired with a hotspot by hand.
+    fn paired(&self, iface: &str) -> bool {
+        self.usb_serial(iface).is_some_and(|s| self.load(&self.phones).is_ok_and(|p| p.contains_key(&s)))
+    }
+
+    /// The hotspot name of the phone on `iface`: the one paired with it by hand (`pair-phone`, HEI-76), else an iPhone's own
+    /// name asked over its USB pairing (iPhones name their hotspot after themselves); None for another phone or when it
+    /// does not tell (not paired with this computer, locked before its first unlock).
     fn phone_name(&self, iface: &str) -> Option<String> {
+        let serial = self.usb_serial(iface)?;
+        if let Ok(pairs) = self.load(&self.phones) {
+            if let Some(v) = pairs.get(&serial) {
+                let name = py::str_of(v);
+                if !name.is_empty() {
+                    return Some(name);
+                }
+            }
+        }
         if !self.phone_link(iface) {
             return None;
         }
-        // the USB device (the interface's parent) carries the serial, which is the iPhone's UDID
-        let serial = std::fs::read_to_string(format!("/sys/class/net/{iface}/device/../serial")).ok()?;
-        let serial = serial.trim();
-        if serial.is_empty() || serial.len() > 64 || !serial.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
-            return None;
-        }
-        let p = self.sh_t(&py::argv(&["idevicename", "-u", serial]), 10, false).ok()?;
+        let p = self.sh_t(&py::argv(&["idevicename", "-u", &serial]), 10, false).ok()?;
         let name = py::strip(&p.stdout).to_string();
         (p.code == 0 && !name.is_empty() && !name.contains('\n')).then_some(name)
     }
@@ -752,7 +786,7 @@ impl Guard {
     /// router is the phone itself (the same hardware address on both links).
     fn phone_cable_up(&self, iface: &str) -> PyResult<()> {
         let name = self.phone_name(iface);
-        let phone = name.clone().unwrap_or_else(|| "Your phone".into());
+        let phone = self.phone_label(iface, name.as_deref());
         if let Some(n) = &name {
             let out = self.out(&["nmcli", "-t", "-f", "UUID,TYPE", "connection", "show"])?;
             for line in py::splitlines(&out) {
@@ -780,11 +814,46 @@ impl Guard {
                 !mac.is_empty() && mac == self.router_mac(iface)?
             };
             if same {
-                self.hold(uuid, ssid, &usb, name.as_deref().unwrap_or("Your phone"))?;
+                self.hold(uuid, ssid, &usb, &self.phone_label(&usb, name.as_deref()))?;
                 return Ok(true);
             }
         }
         Ok(false)
+    }
+
+    /// `pair-phone HOTSPOT` (root): the phone on the cable now and its hotspot's network name, for a phone neither check tells
+    /// (HEI-76: an Android phone whose cable and hotspot are separate networks); `pair-phone --undo` forgets the phone on the
+    /// cable. Kept by the phone's USB serial in `phones`; applied at once.
+    fn pair_phone(&self, args: &[String]) -> PyResult<()> {
+        if args.first().is_some_and(|a| a == "--help" || a == "-h") || args.is_empty() || args.len() > 1 {
+            println!("{PAIR_DOC}");
+            return if args.len() == 1 { Ok(()) } else { Err(exit("pair-phone: name the hotspot, or --undo")) };
+        }
+        self.root()?;
+        let Some((iface, _)) = self.cabled_phones()?.into_iter().next() else {
+            return Err(exit("pair-phone: no phone is connected by cable: plug it in and switch on its USB sharing first"));
+        };
+        let Some(serial) = self.usb_serial(&iface) else {
+            return Err(exit("pair-phone: the phone on the cable has no serial number to remember it by: nothing changed"));
+        };
+        let mut pairs = self.load(&self.phones)?;
+        if args[0] == "--undo" {
+            if pairs.pop(&serial).is_some() {
+                self.save(&self.phones, &pairs, 0o644)?;
+                println!("The phone on the cable is no longer paired with a hotspot.");
+            } else {
+                println!("The phone on the cable was not paired with a hotspot.");
+            }
+            return Ok(());
+        }
+        let ssid = args[0].clone();
+        if ssid.is_empty() || ssid.len() > 32 || ssid.chars().any(char::is_control) {
+            return Err(exit("pair-phone: a Wi-Fi network's name is 1 to 32 bytes, no control characters: nothing changed"));
+        }
+        pairs.set(&serial, py::s(&ssid));
+        self.save(&self.phones, &pairs, 0o644)?;
+        println!("Paired: while this phone is on the cable, this computer leaves the Wi-Fi network {ssid} alone.");
+        self.phone_cable_up(&iface)
     }
 
     /// HEI-73's part of an event: never what stops the rest of the guard.
@@ -2043,6 +2112,7 @@ fn dispatch(g: &Guard, a: &[String]) -> PyResult<i32> {
         "vpn-import" if a.len() > 1 => g.vpn_import(&a[1])?,
         "vpn-remove" => g.vpn_remove()?,
         "sign-in" => g.sign_in()?,
+        "pair-phone" => g.pair_phone(&a[1..])?,
         "ruleset-check" => return g.ruleset_check(a.get(1).map(String::as_str)),
         "quiet-check" => return g.quiet_check(),
         _ => {
@@ -2059,6 +2129,7 @@ pub fn main(args: &[String]) -> i32 {
         conf: env_or("HEIMDALL_WIFI_GUARD_CONF", "/etc/heimdall/wifi-guard.json"),
         trusted: env_or("HEIMDALL_WIFI_TRUSTED", "/etc/heimdall/wifi-trusted.json"),
         keys: env_or("HEIMDALL_WIFI_KEYS", "/etc/heimdall/wifi-trusted-keys.json"),
+        phones: env_or("HEIMDALL_WIFI_PHONES", "/etc/heimdall/wifi-phones.json"),
         run: PathBuf::from("/run/heimdall-wifi-guard"),
         argv: args.to_vec(),
     };
