@@ -439,10 +439,11 @@ mod tests {
                 }
             }
             assert_eq!(lat, 1536.0);
-            // the period is now 48000 / (150 x 2^(3/12)) = 252 samples, give or take the session's variation
+            // the period is now 48000 / (150 x 2^(3/12)) = 269 samples, give or take the session's variation: its offset
+            // (0.4 semitone either way) and the jitter (clamped at 0.625) put it between 254 and 286; unshifted it is 320
             let corr = |tau: usize| -> f32 { (0..out.len() - 400).map(|i| out[i] * out[i + tau]).sum() };
             let best = (200..360).max_by(|&a, &b| corr(a).total_cmp(&corr(b))).unwrap();
-            assert!((230..=275).contains(&best), "period {best}");
+            assert!((250..=290).contains(&best), "period {best}");
             // not a number or out of range: off
             *preset = f32::NAN;
             for block in 60..70 {
