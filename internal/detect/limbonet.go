@@ -25,7 +25,40 @@ const (
 )
 
 // LimboNetworkDetector turns net.anomaly and net.capped into findings.
-type LimboNetworkDetector struct{}
+type LimboNetworkDetector struct {
+	// callsHome holds, per guest, what it reached for through Limbo's sinkhole and was reported (HEI-5): each target once,
+	// at most limboCallsHome a guest, until its sinkhole stops.
+	callsHome map[string]map[string]bool
+}
+
+// limboCallsHome is how many sinkhole targets of one guest are reported; the rest are in Limbo's run result and log.
+const limboCallsHome = 8
+
+// sinkholeTarget says what a guest reached for through the sinkhole, from Limbo's fields (guest data: quoted, each cut to
+// 120 characters), and a key that is the same for the same target.
+func sinkholeTarget(kind string, f map[string]string) (string, string) {
+	cut := func(s string) string {
+		r := []rune(s)
+		if len(r) > 120 {
+			r = r[:120]
+		}
+		return string(r)
+	}
+	if kind == "sinkhole.dns" {
+		name := cut(f["name"])
+		return fmt.Sprintf("the name %q (%s)", name, limboOrDash(cut(f["type"]))), "dns " + name
+	}
+	what := fmt.Sprintf("%s port %s", limboOrDash(cut(f["proto"])), limboOrDash(cut(f["dport"])))
+	if d := cut(f["dst"]); d != "" {
+		what = fmt.Sprintf("%q, %s", d, what)
+	}
+	if s := cut(f["sni"]); s != "" {
+		what += fmt.Sprintf(", TLS server name %q", s)
+	} else if h := cut(f["host"]); h != "" {
+		what += fmt.Sprintf(", HTTP host %q", h)
+	}
+	return what, "connect " + what
+}
 
 func NewLimboNetworkDetector() *LimboNetworkDetector { return &LimboNetworkDetector{} }
 
@@ -57,6 +90,24 @@ func (d *LimboNetworkDetector) Inspect(e Event) []Finding {
 		}
 	case "net.capped":
 		return finding(SeverityInfo, "guest %q used its budget of %s network events; Limbo records no more new destinations for it (anomalies still are)", g, limboOrDash(e.Fields["limit"]))
+	case "sinkhole.dns", "sinkhole.connect":
+		// a sealed guest (a sample's analysis, or a program vetted) reaching out: it calls home (HEI-5)
+		target, key := sinkholeTarget(e.Kind, e.Fields)
+		if d.callsHome == nil {
+			d.callsHome = map[string]map[string]bool{}
+		}
+		seen := d.callsHome[g]
+		if seen == nil {
+			seen = map[string]bool{}
+			d.callsHome[g] = seen
+		}
+		if seen[key] || len(seen) >= limboCallsHome {
+			return nil
+		}
+		seen[key] = true
+		return finding(SeverityWarning, "guest %q reached for %s through Limbo's sinkhole: the program in it (a sample, or a tool a crafted file took over) calls out. The sinkhole answered; nothing left this computer", g, target)
+	case "sinkhole.stop":
+		delete(d.callsHome, g)
 	}
 	return nil
 }

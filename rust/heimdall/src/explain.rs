@@ -333,6 +333,12 @@ pub fn for_alert(detector: &str, kind: &str, severity: &str, fields: &Fields) ->
             t.done = "Heimdall asked Limbo to cut the sandbox off (quarantine). Limbo never lets Heimdall release it; only you can.".into();
             t.r#do = "Look at the quarantine in Settings > Security before releasing anything; if unsure, delete the sandbox.".into();
         }
+        "limbo-network" if kind == "sinkhole.dns" || kind == "sinkhole.connect" => {
+            let guest = or_unknown(q("guest"), "a sandbox");
+            t.what = format!("A program in the Limbo sandbox {guest} tried to reach the internet. The sandbox has no route out: Limbo's sinkhole answered it and wrote down what it tried. A sample that does this is calling home, as malware does to report in or fetch more.");
+            t.done = "Nothing left this computer. Limbo kept what the program tried (names, addresses, the first bytes) in its log and the run's result.".into();
+            t.r#do = "Treat the file as hostile unless you know why it would reach out (an installer looking for updates does). The held file's analysis lists everything it tried.".into();
+        }
         "limbo-network" => {
             let guest = or_unknown(q("guest"), "a sandbox");
             let reason = get(fields, "reason");

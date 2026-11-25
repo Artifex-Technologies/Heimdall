@@ -1152,6 +1152,8 @@ impl Limbo {
             }
             let ob = out.as_bytes();
             let out = if ob.len() > 60 << 10 { format!("{}\n[cut]", to_valid_utf8(&ob[..60 << 10])) } else { out };
+            // what it tried through Limbo's sinkhole, after the output (HEI-5)
+            let out = out + &sinkhole_section(&v);
             set(at, &mut a, "status", Val::Str(f[0].clone()));
             set(at, &mut a, "output", Val::Str(to_valid_utf8(out.as_bytes())));
             set(at, &mut a, "error", Val::Str(f[3].clone()));
@@ -1159,6 +1161,54 @@ impl Limbo {
         }
         fail(a, "timeout", "the analysis did not finish in time".into())
     }
+}
+
+/// What a sealed run tried through Limbo's sinkhole (HEI-5; only in the Rust heimdalld, newer than the port), for the
+/// analysis kept with a held file: each name and connection on a line (guest data, quoted and cut as the alerts write them),
+/// at most 32, and how many more were counted but not recorded. Empty when the run tried nothing.
+pub fn sinkhole_section(result: &crate::gojson::Value) -> String {
+    use crate::gojson::Value;
+    let member = |v: &Value, k: &str| match v {
+        Value::Object(m) => m.iter().rev().find(|(key, _)| key == k).map(|(_, v)| v.clone()),
+        _ => None,
+    };
+    let Some(sh) = member(result, "sinkhole") else { return String::new() };
+    let Some(Value::Array(recs)) = member(&sh, "records") else { return String::new() };
+    let mut lines = Vec::new();
+    for r in &recs {
+        let Value::Object(m) = r else { continue };
+        let mut fields = crate::event::Fields::new();
+        for (k, v) in m {
+            if let Value::String(s) = v {
+                fields.insert(k.clone(), s.clone());
+            }
+        }
+        let kind = fields.get("kind").cloned().unwrap_or_default();
+        if kind != "sinkhole.dns" && kind != "sinkhole.connect" {
+            continue;
+        }
+        let e = crate::event::Event { fields, ..Default::default() };
+        lines.push(crate::detect::simple::sinkhole_target(&kind, &e).0);
+    }
+    if lines.is_empty() {
+        return String::new();
+    }
+    let more = lines.len().saturating_sub(32);
+    lines.truncate(32);
+    let mut s = String::from("\n== the sinkhole: what the program tried to reach (guest data; nothing left this computer)\n");
+    for l in lines {
+        s.push_str(&l);
+        s.push('\n');
+    }
+    if more > 0 {
+        s.push_str(&format!("... and {more} more\n"));
+    }
+    if let Some(Value::String(n)) = member(&sh, "totals").and_then(|t| member(&t, "unrecorded")) {
+        if n != "0" && !n.is_empty() && n.len() <= 9 && n.bytes().all(|b| b.is_ascii_digit()) {
+            s.push_str(&format!("({n} more were counted but not recorded)\n"));
+        }
+    }
+    s
 }
 
 /// The Analysis type (the `analysis` field of an entry).
@@ -1188,4 +1238,34 @@ pub fn queue_analysis(dir: &str, sha: &str) -> Result<(), String> {
     crate::gojson::write_str(&mut b, sha);
     b.push('}');
     crate::gopath::write_file(&crate::gopath::join(&[dir, &format!("analyze-{}.json", &sha[..16])]), b.as_bytes(), 0o644)
+}
+
+#[cfg(test)]
+mod sinkhole_tests {
+    /// HEI-5: what a sealed run tried through the sinkhole goes into the analysis as guest data, each target quoted (control
+    /// characters escaped) and cut, at most 32 lines, with how many more were not recorded; a run that tried nothing adds nothing.
+    #[test]
+    fn the_analysis_names_what_the_sample_reached_for() {
+        let mut recs = vec![
+            r#"{"kind":"sinkhole.dns","proto":"udp","name":"c2.example.test","type":"A"}"#.to_string(),
+            r#"{"kind":"sinkhole.connect","proto":"tcp","dst":"203.0.113.9","dport":"443","sni":"evil\u0007.test"}"#.to_string(),
+            r#"{"kind":"sinkhole.capped","limit":"256"}"#.to_string(),
+        ];
+        for i in 0..40 {
+            recs.push(format!(r#"{{"kind":"sinkhole.dns","name":"n{i}.test","type":"TXT"}}"#));
+        }
+        let body = format!(
+            r#"{{"status":"done","stdout":"x","sinkhole":{{"totals":{{"dns":"41","unrecorded":"12"}},"records":[{}]}}}}"#,
+            recs.join(",")
+        );
+        let v = crate::gojson::parse_first(body.as_bytes()).unwrap();
+        let s = super::sinkhole_section(&v);
+        assert!(s.starts_with("\n== the sinkhole: what the program tried to reach (guest data"), "{s}");
+        assert!(s.contains("the name \"c2.example.test\" (A)\n"), "{s}");
+        assert!(s.contains("\"203.0.113.9\", tcp port 443, TLS server name \"evil\\a.test\""), "a control character escaped: {s}");
+        assert!(s.contains("... and 10 more\n") && s.contains("(12 more were counted but not recorded)"), "{s}");
+        assert_eq!(s.lines().filter(|l| l.starts_with("the name") || l.starts_with('"')).count(), 32);
+        let none = crate::gojson::parse_first(br#"{"status":"done","stdout":"x"}"#).unwrap();
+        assert_eq!(super::sinkhole_section(&none), "");
+    }
 }

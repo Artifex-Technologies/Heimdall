@@ -547,9 +547,39 @@ fn limbo_target(e: &Event) -> String {
     s
 }
 
-/// Limbo's net.anomaly and net.capped.
+/// Limbo's net.anomaly and net.capped, and what a sealed guest tried through its sinkhole (sinkhole.dns, sinkhole.connect).
 #[derive(Default)]
-pub struct LimboNetworkDetector;
+pub struct LimboNetworkDetector {
+    /// Per guest, what it reached for through Limbo's sinkhole and was reported (HEI-5): each target once, at most
+    /// `LIMBO_CALLS_HOME` a guest, until its sinkhole stops (Go: callsHome).
+    calls_home: std::collections::BTreeMap<String, std::collections::BTreeSet<String>>,
+}
+
+/// How many sinkhole targets of one guest are reported (Go: limboCallsHome).
+pub const LIMBO_CALLS_HOME: usize = 8;
+
+/// What a guest reached for through the sinkhole, from Limbo's fields (guest data: quoted, each cut to 120 characters), and a
+/// key that is the same for the same target (Go: sinkholeTarget).
+pub fn sinkhole_target(kind: &str, e: &Event) -> (String, String) {
+    let cut = |k: &str| e.f(k).chars().take(120).collect::<String>();
+    if kind == "sinkhole.dns" {
+        let name = cut("name");
+        return (format!("the name {} ({})", quote(&name), or_dash(&cut("type"))), format!("dns {name}"));
+    }
+    let mut what = format!("{} port {}", or_dash(&cut("proto")), or_dash(&cut("dport")));
+    let dst = cut("dst");
+    if !dst.is_empty() {
+        what = format!("{}, {what}", quote(&dst));
+    }
+    let (sni, host) = (cut("sni"), cut("host"));
+    if !sni.is_empty() {
+        what += &format!(", TLS server name {}", quote(&sni));
+    } else if !host.is_empty() {
+        what += &format!(", HTTP host {}", quote(&host));
+    }
+    let key = format!("connect {what}");
+    (what, key)
+}
 
 impl Detector for LimboNetworkDetector {
     fn id(&self) -> &'static str {
@@ -603,6 +633,20 @@ impl Detector for LimboNetworkDetector {
                 ),
                 e,
             ),
+            "sinkhole.dns" | "sinkhole.connect" => {
+                // a sealed guest (a sample's analysis, or a program vetted) reaching out: it calls home (HEI-5)
+                let (target, key) = sinkhole_target(&e.kind, e);
+                let seen = self.calls_home.entry(e.f("guest").to_string()).or_default();
+                if seen.contains(&key) || seen.len() >= LIMBO_CALLS_HOME {
+                    return Vec::new();
+                }
+                seen.insert(key);
+                one(id, Severity::Warning, format!("guest {g} reached for {target} through Limbo's sinkhole: the program in it (a sample, or a tool a crafted file took over) calls out. The sinkhole answered; nothing left this computer"), e)
+            }
+            "sinkhole.stop" => {
+                self.calls_home.remove(e.f("guest"));
+                Vec::new()
+            }
             _ => Vec::new(),
         }
     }

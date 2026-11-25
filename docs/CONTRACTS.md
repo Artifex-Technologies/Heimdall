@@ -122,7 +122,8 @@ Sarina's `docs/ECOSYSTEM.md` port registry.
   and a flat string-valued `detail`). The live log `/var/lib/limbo/state/events.jsonl` is `root:limbo-heimdall` 0640;
   heimdalld gets that group from the drop-in `packaging/arch/limbo-integration.conf.example`. Detectors: `limbo-guest`
   (Limbo's safety ordering from outside: a guest started with no firewall policy first, a policy removed under a running
-  guest; `image.rejected`, `gate.blocked`), `limbo-network` (`net.anomaly` by `reason`, `net.capped`), `limbo-exchange`
+  guest; `image.rejected`, `gate.blocked`), `limbo-network` (`net.anomaly` by `reason`, `net.capped`; `sinkhole.dns` and `sinkhole.connect`: a sealed guest calling
+  out, each target once a guest, at most 8, guest data quoted and cut; `sinkhole.stop` starts a guest afresh), `limbo-exchange`
   (`exchange.held`, `exchange.fail`; detail `path` becomes alert field `guest_path`). `net.flow`, `net.blocked` and
   `exchange.file` are deliberately not alerts. Limbo adding kinds or keys is compatible; renaming or removing them is a
   contract change on both sides. Heimdall treats a tap `vl-<guest>` on its bridge `lb-<guest>` as Limbo's own (Limbo pins

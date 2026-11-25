@@ -18,7 +18,9 @@ so a good file not being in it is normal. Immunity is what Heimdall adds from wh
 3. **Analysed in Limbo.** Each held file is queued for an analysis in Limbo's sealed `malware-analysis` machine (no route out: network mode `none`, or `sinkhole`, where what it tries to reach is only logged; no
    sudo, no shared folder; the file is sent in over ssh, stored read-only and never run; the machine is destroyed afterwards; Limbo's
    docs/SAMPLES.md). The image's `limbo-decompile` gives the triage (file type, hashes, imports, sections, strings, YARA matches) and
-   the function list. The result is kept with the held file (`analysis`), shown in Settings and to Sarina, whose review uses it; it is
+   the function list; after it, what the program tried through Limbo's sinkhole (each name asked and connection made, as
+   guest data: quoted and cut, at most 32 lines, from the run's result; the Rust heimdalld only), and each such try is also a
+   `limbo-network` warning that the sample calls out. The result is kept with the held file (`analysis`), shown in Settings and to Sarina, whose review uses it; it is
    untrusted text. `sudo heimdalld immunity analyze SHA256` runs one by hand. Without Limbo the analysis is recorded as unavailable
    and nothing else changes.
 4. **Judged.**

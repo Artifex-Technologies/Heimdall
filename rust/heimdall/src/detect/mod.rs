@@ -52,7 +52,7 @@ pub fn daemon_detectors(cfg: &Config, deps: Deps) -> Vec<Box<dyn Detector>> {
         Box::new(BaselineDriftDetector::with_floors(cfg.baseline_min_samples, cfg.baseline_z_threshold, default_baseline_floors())),
         Box::new(AgentBaselineDetector::new(cfg.baseline_min_samples, cfg.baseline_z_threshold, &cfg.agent_baseline_state_path)),
         Box::new(LimboGuestDetector::default()),
-        Box::new(LimboNetworkDetector),
+        Box::new(LimboNetworkDetector::default()),
         Box::new(LimboExchangeDetector),
         Box::new(RemoteAccessDetector::new(deps.approved)),
     ]

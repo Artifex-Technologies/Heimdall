@@ -147,6 +147,12 @@ func For(detector, kind, severity string, fields map[string]string) Text {
 		t.Do = "Look at the quarantine in Settings > Security before releasing anything; if unsure, delete the sandbox."
 	case "limbo-network":
 		guest := orUnknown(quoted(fields, "guest"), "a sandbox")
+		if kind == "sinkhole.dns" || kind == "sinkhole.connect" {
+			t.What = "A program in the Limbo sandbox " + guest + " tried to reach the internet. The sandbox has no route out: Limbo's sinkhole answered it and wrote down what it tried. A sample that does this is calling home, as malware does to report in or fetch more."
+			t.Done = "Nothing left this computer. Limbo kept what the program tried (names, addresses, the first bytes) in its log and the run's result."
+			t.Do = "Treat the file as hostile unless you know why it would reach out (an installer looking for updates does). The held file's analysis lists everything it tried."
+			break
+		}
 		switch fields["reason"] {
 		case "host_probe":
 			t.What = "A program in the Limbo sandbox " + guest + " tried to reach this computer itself. Its firewall refused it, but a sandboxed program has no reason to knock on its host."
