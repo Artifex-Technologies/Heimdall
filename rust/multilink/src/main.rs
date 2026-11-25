@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 use std::process::Command;
 
-use heimdall_multilink::config::{valid_ifname, Config, Period, Role};
+use heimdall_multilink::config::{probe_list, valid_ifname, Config, Period, Role};
 use heimdall_multilink::service::{self, Paths};
 
 const HELP: &str = "heimdall-multilink: use several internet connections at once
@@ -14,6 +14,9 @@ const HELP: &str = "heimdall-multilink: use several internet connections at once
                                            a link's role, its largest share of new connections, its data cap
   heimdall-multilink new-links use|backup|off
                                            the role of a link seen for the first time (a phone plugged in)
+  heimdall-multilink probes 4|6 ADDRESS:PORT[,ADDRESS:PORT...] | probes 4|6 default
+                                           the servers whose answers tell a link is healthy (1 to 8 a family;
+                                           IPv6 as [ADDRESS]:PORT), or the defaults
   heimdall-multilink run                   the service itself (heimdall-multilink.service)
   heimdall-multilink restore               remove its routing and put the kernel settings back (systemd runs it
                                            after the service stops, also after a crash)
@@ -131,6 +134,24 @@ fn set(paths: &Paths, args: &[String]) -> Result<(), String> {
     cfg.save(&paths.config)
 }
 
+/// `probes 4|6 LIST|default` (YGG-74, for Settings): the health checks' servers of one family, written to the config.
+fn probes(paths: &Paths, args: &[String]) -> Result<(), String> {
+    let [family, list] = args else { return Err(HELP.into()) };
+    let v6 = match family.as_str() {
+        "4" => false,
+        "6" => true,
+        _ => return Err(format!("probes {family}: 4 or 6")),
+    };
+    let wanted = probe_list(v6, list)?;
+    let mut cfg = Config::load(&paths.config)?;
+    if v6 {
+        cfg.probe6 = wanted;
+    } else {
+        cfg.probe4 = wanted;
+    }
+    cfg.save(&paths.config)
+}
+
 fn main() {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
     let r = (|| -> Result<(), String> {
@@ -169,6 +190,10 @@ fn main() {
             "set" => {
                 root()?;
                 set(&paths, &args[1..])
+            }
+            "probes" => {
+                root()?;
+                probes(&paths, &args[1..])
             }
             "new-links" => {
                 root()?;

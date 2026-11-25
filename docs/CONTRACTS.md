@@ -219,9 +219,11 @@ Sarina's `docs/ECOSYSTEM.md` port registry.
   active|paused|waiting, `reason`, `since`, `new_links`, `combined_rate`, `links[]` with `name role up ipv4 ipv6 healthy4
   healthy6 weight4 weight6 rtt_ms rate peak share_now share_limit data_cap_mb period used_bytes over_cap`; rates in bytes/s;
   while the service is off the command prints the same shape with `state` "off" and only `name role up ipv4 ipv6
-  share_limit data_cap_mb period` per link). Changes:
+  share_limit data_cap_mb period` per link); both also give `probe4` and `probe6`, the health checks' servers ("IP:port",
+  IPv6 as "[IP]:port"). Changes:
   `pkexec /usr/bin/heimdall-multilink on|off|set LINK use|backup|off [--share N|none] [--cap MB|none] [--per day|month]|new-links
-  ROLE`. [MULTILINK.md](MULTILINK.md).
+  ROLE|probes 4|6 IP:PORT[,IP:PORT...]|probes 4|6 default` (1 to 8 servers a family, not loopback, unspecified or
+  multicast). [MULTILINK.md](MULTILINK.md).
 - **Who:** Yggdrasil Settings > Wi-Fi & Network > Several connections at once.
 - **Where:** `rust/multilink` (`src/service.rs`, `status_json`).
 

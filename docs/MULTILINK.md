@@ -68,7 +68,8 @@ change on a netlink socket, looks again, and puts back what is missing within ab
 Every 2 seconds each link opens a TCP connection through itself (bound to its device and its address) to `1.1.1.1:443` or
 `9.9.9.9:443` (IPv6: `2606:4700:4700::1111`, `2620:fe::fe`), one after the other, and closes it as soon as it is made.
 Nothing is sent but the handshake. A refused connection also counts as reached. These servers see each link's public address
-then. Other servers can be set in `/etc/heimdall/multilink.json` (`probe4`, `probe6`: "IP:port" lists).
+then. Other servers can be set in Settings, with `sudo heimdall-multilink probes 4|6 IP:PORT[,IP:PORT...]` (or `probes 4|6
+default`), or in `/etc/heimdall/multilink.json` (`probe4`, `probe6`: "IP:port" lists); `status` shows the ones in use.
 
 - After 3 failed checks in a row (about 6 seconds) a link drops out of the multipath route. New connections then avoid it.
   Connections already open on it break, as they would without this feature.

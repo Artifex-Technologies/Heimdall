@@ -89,6 +89,34 @@ pub struct Config {
 pub const DEFAULT_PROBE4: [&str; 2] = ["1.1.1.1:443", "9.9.9.9:443"];
 pub const DEFAULT_PROBE6: [&str; 2] = ["[2606:4700:4700::1111]:443", "[2620:fe::fe]:443"];
 
+/// A probes list as given: "default", or 1 to 8 distinct ADDRESS:PORT of the family, written back in the standard form.
+pub fn probe_list(v6: bool, list: &str) -> Result<Vec<String>, String> {
+    if list == "default" {
+        let d: &[&str] = if v6 { &DEFAULT_PROBE6 } else { &DEFAULT_PROBE4 };
+        return Ok(d.iter().map(|s| s.to_string()).collect());
+    }
+    let mut out: Vec<String> = Vec::new();
+    for t in list.split(',').map(str::trim).filter(|t| !t.is_empty()) {
+        let a: std::net::SocketAddr = t.parse().map_err(|_| {
+            format!("{t}: write ADDRESS:PORT{}", if v6 { " with the address in brackets, [2620:fe::fe]:443" } else { ", 9.9.9.9:443" })
+        })?;
+        if a.is_ipv6() != v6 {
+            return Err(format!("{t}: not an IPv{} address", if v6 { 6 } else { 4 }));
+        }
+        if a.port() == 0 || a.ip().is_unspecified() || a.ip().is_loopback() || a.ip().is_multicast() {
+            return Err(format!("{t}: a server on the internet, with a port"));
+        }
+        let s = a.to_string();
+        if !out.contains(&s) {
+            out.push(s);
+        }
+    }
+    if out.is_empty() || out.len() > 8 {
+        return Err("give 1 to 8 servers".into());
+    }
+    Ok(out)
+}
+
 impl Default for Config {
     fn default() -> Self {
         Config {
@@ -214,6 +242,29 @@ impl Config {
 
 #[cfg(test)]
 mod tests {
+    /// YGG-74: the probes Settings sends are checked and written in the standard form; anything else is refused.
+    #[test]
+    fn probe_lists() {
+        assert_eq!(probe_list(false, "9.9.9.9:443, 1.0.0.1:443,9.9.9.9:443").unwrap(), ["9.9.9.9:443", "1.0.0.1:443"]);
+        assert_eq!(probe_list(true, "[2620:fe::fe]:443").unwrap(), ["[2620:fe::fe]:443"]);
+        assert_eq!(probe_list(false, "default").unwrap(), super::DEFAULT_PROBE4);
+        assert_eq!(probe_list(true, "default").unwrap(), super::DEFAULT_PROBE6);
+        for (v6, bad) in [
+            (false, ""),
+            (false, "9.9.9.9"),
+            (false, "[2620:fe::fe]:443"),
+            (true, "9.9.9.9:443"),
+            (false, "127.0.0.1:443"),
+            (false, "0.0.0.0:443"),
+            (false, "9.9.9.9:0"),
+            (false, "224.0.0.1:443"),
+            (false, "example.org:443"),
+            (false, "1.1.1.1:1,1.1.1.2:1,1.1.1.3:1,1.1.1.4:1,1.1.1.5:1,1.1.1.6:1,1.1.1.7:1,1.1.1.8:1,1.1.1.9:1"),
+        ] {
+            assert!(probe_list(v6, bad).is_err(), "{bad}");
+        }
+    }
+
     use super::*;
 
     #[test]

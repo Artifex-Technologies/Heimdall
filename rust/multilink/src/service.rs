@@ -504,6 +504,8 @@ impl Service {
             "new_links": self.cfg.new_links.id(),
             "combined_rate": round(total),
             "links": links,
+            "probe4": self.cfg.probe4,
+            "probe6": self.cfg.probe6,
         })
     }
 
@@ -583,7 +585,8 @@ pub fn status_when_off(paths: &Paths) -> serde_json::Value {
                    "share_limit": lc.share, "data_cap_mb": lc.data_cap_mb, "period": lc.period.id()})
         })
         .collect();
-    json!({"state": "off", "reason": "", "new_links": cfg.new_links.id(), "combined_rate": 0, "links": links})
+    json!({"state": "off", "reason": "", "new_links": cfg.new_links.id(), "combined_rate": 0, "links": links,
+           "probe4": cfg.probe4, "probe6": cfg.probe6})
 }
 
 /// The status file, if the service is running.
