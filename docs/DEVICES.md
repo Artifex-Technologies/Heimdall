@@ -42,7 +42,16 @@ anywhere, the scan records it (`change: "address_taken"` with `was_mac`, `was_na
 and heimdalld raises a critical `lan-watch` alert (event kind `lan_device_changed`). One device answering for two addresses
 while the owner of one is gone is what ARP spoofing a device looks like. A device that only moved to a new address, a new device
 given a freed address, and private (randomised) addresses that change are not reported this way (a new hardware address is the
-"new device" warning). Nothing is blocked. Names that two devices both claim are not compared (phones often share names).
+"new device" warning). Nothing is blocked.
+
+**A device taking another's name** (HEI-21). When a hardware address that never had a known device's name announces it, the
+scan records it once (`change: "name_moved"` when the device that had the name is not seen in that scan, `"name_shared"` when
+it is, with `was_mac` and `was_name`; the event kind is again `lan_device_changed`). When both hardware addresses are private
+(made up by the device), the `lan-watch` alert is info, listed and not notified: phones, tablets and laptops change their
+private address from time to time and often keep one default name, and posing as one of them gains little. When either is a
+maker's address (a printer, a TV, a speaker, a Raspberry Pi), it is a warning: a replaced device does this, and so does a
+device posing as another so that print jobs, casts or sign-ins meant for it come to it instead. Names are compared without
+regard to case. Each hardware address and name is reported once: afterwards the list keeps the name for it.
 
 ## How it finds devices
 

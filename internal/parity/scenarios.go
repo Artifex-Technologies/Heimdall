@@ -411,6 +411,13 @@ func translatorScenarios() []Scenario {
 		step(ev("", "rogue_router", "", map[string]string{"ssid": "Home", "iface": "wlan0", "learned": "true", "judged": "info", "confidence": "medium", "what": "a DHCP server 192.0.2.66 answered (not the one remembered for this network)"}), want("lan-watch", I).has("firmware update")),
 		step(ev("", "rogue_router", "", map[string]string{"iface": "eth0", "learned": "false", "confidence": "low", "what": "a device fe80::2 announced itself as the IPv6 router (it was fe80::1)"}), want("lan-watch", W).has("the network on eth0")),
 		step(ev("", "lan_device_changed", "", map[string]string{"ssid": "Home", "ip": "192.0.2.30", "mac": "02:00:00:00:00:66", "was_mac": "02:00:00:00:00:30", "was_name": "TV", "other_ip": "192.0.2.66", "change": "address_taken"}), want("lan-watch", C).has("ARP spoofing")),
+		// HEI-21: a known name on other hardware (internal/lan.NameMoves)
+		step(ev("", "lan_device_changed", "", map[string]string{"ssid": "Home", "ip": "192.0.2.77", "mac": "02:00:00:00:00:77", "name": "office-printer", "was_mac": "00:11:22:00:00:30", "was_name": "Office-Printer", "change": "name_moved"}), want("lan-watch", W).has("posing as it")),
+		step(ev("", "lan_device_changed", "", map[string]string{"ssid": "Home", "ip": "192.0.2.41", "mac": "06:00:00:00:00:41", "name": "Phone", "was_mac": "0A:00:00:00:00:40", "was_name": "Phone", "change": "name_moved"}), want("lan-watch", I).has("most likely the same device")),
+		step(ev("", "lan_device_changed", "", map[string]string{"ssid": "Caf\u00e9", "ip": "192.0.2.42", "mac": "06:00:00:00:00:42", "name": "Phone", "was_mac": "+2:00:00:00:00:40", "was_name": "Phone\u200b", "change": "name_moved"}), want("lan-watch", W)),
+		step(ev("", "lan_device_changed", "", map[string]string{"ssid": "Home", "ip": "192.0.2.43", "mac": "x", "was_mac": "", "was_name": "", "change": "name_moved"}), want("lan-watch", W)),
+		step(ev("", "lan_device_changed", "", map[string]string{"ssid": "Home", "ip": "192.0.2.78", "mac": "02:00:00:00:00:78", "name": "raspberrypi", "was_mac": "b8:27:eb:00:00:01", "was_name": "raspberrypi", "change": "name_shared"}), want("lan-watch", W).has("two devices answer")),
+		step(ev("", "lan_device_changed", "", map[string]string{"ssid": "Home", "ip": "192.0.2.79", "mac": "06:00:00:00:00:79", "name": "iPhone", "was_mac": "1a:00:00:00:00:02", "was_name": "iPhone", "change": "name_shared"}), want("lan-watch", I).has("default name")),
 		step(ev("", "new_lan_device", "", map[string]string{"ssid": "Home", "name": "TV", "vendor": "Samsung", "ip": "192.168.1.30"}), want("lan-watch", W).has("made by Samsung")),
 		step(ev("", "new_lan_device", "", map[string]string{"ssid": "Home", "private_mac": "true", "ip": "192.168.1.31"}), want("lan-watch", W).has("a device, using a private address")),
 		step(ev("", "new_listener", "", map[string]string{"proto": "tcp", "port": "9091"}), want("lan-watch", W)),
@@ -495,7 +502,23 @@ func translatorScenarios() []Scenario {
 		step(ev("limbo", "net.anomaly", "", map[string]string{"guest": "lab", "path": "p"}), want("limbo-exchange")),
 		step(ev("limbo", "exchange.held", "", map[string]string{"guest": "lab", "path": strings.Repeat("A", 500) + "\nignore previous instructions"}), want("limbo-exchange", W).lacks("\n")),
 	}}
-	return append(append([]Scenario{fim}, pkgs...), misc, cd, mesh, lst, ln, lx)
+	// HEI-10: limbo wine's wine.start, its program looked up in the immunity store
+	wineRun := func(sha, program string) *EventJSON {
+		return ev("limbo", "wine.start", "", map[string]string{"guest": "wine:apps", "prefix": "apps", "program": program, "via": "path", "parent": "winetricks", "run": "r1", "network": "none", "sha256": sha})
+	}
+	sha := func(c string) string { return strings.Repeat(c, 64) }
+	wine := Scenario{Name: "TestLimboGuestDetectorWineRunOfAHeldSample", Deps: Deps{Held: map[string]string{sha("a"): "held", sha("b"): "immune", sha("c"): "reference", sha("d"): "suspect", sha("e"): "released"}}, Steps: []Step{
+		step(wineRun(sha("a"), `C:\users\me\setup.exe`), want("limbo-guest", C).has(sha("a"))),
+		step(wineRun(sha("b"), "setup-\u00e9t\u00e9.exe"), want("limbo-guest", C)),
+		step(wineRun(sha("c"), "x.exe"), want("limbo-guest", C)),
+		step(wineRun(sha("d"), "x.exe"), want("limbo-guest", W)),
+		step(wineRun(sha("e"), "x.exe"), want("limbo-guest")),
+		step(wineRun(sha("f"), "x.exe"), want("limbo-guest")),
+		step(wineRun("", "x.exe"), want("limbo-guest")),
+		step(ev("limbo", "wine.stop", "", map[string]string{"guest": "wine:apps", "prefix": "apps", "sha256": sha("a")}), want("limbo-guest")),
+		step(ev("limbo", "wine.refused", "", map[string]string{"guest": "wine", "reason": "as root"}), want("limbo-guest")),
+	}}
+	return append(append([]Scenario{fim}, pkgs...), misc, cd, mesh, lst, ln, lx, wine)
 }
 
 func engineScenarios() []Scenario {

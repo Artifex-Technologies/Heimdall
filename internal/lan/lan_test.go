@@ -258,6 +258,63 @@ func TestATrustedNetworkThatIsNotHomeIsNotScanned(t *testing.T) {
 	}
 }
 
+// TestNameMoves (HEI-21): a hardware address that never had a known device's name and now announces it is reported once,
+// as moved when the device that had it is gone and as shared when it is still there; the same device keeping its own name, a
+// device renamed to something new, this computer and the first scan are not. The Rust port runs the same table
+// (rust/heimdall/src/cli/lan/store.rs, name_moves).
+func TestNameMoves(t *testing.T) {
+	t0 := time.Date(2026, 11, 16, 10, 0, 0, 0, time.UTC)
+	t1 := t0.Add(5 * time.Minute)
+	printer := Device{MAC: "00:11:22:00:00:30", IP: "192.0.2.30", Name: "Office-Printer", Names: []string{"Office-Printer"}}
+	phone := Device{MAC: "06:00:00:00:00:40", IP: "192.0.2.40", Name: "Phone", Names: []string{"Phone"}}
+	known := func() *Network {
+		n := &Network{UUID: "u"}
+		n.Merge([]Device{printer, phone}, t0)
+		return n
+	}
+	other := "02:00:00:00:00:77"
+	for _, c := range []struct {
+		name string
+		n    *Network
+		seen []Device
+		want string
+	}{
+		{"another device takes the printer's name while it is away", known(), []Device{{MAC: other, IP: "192.0.2.77", Name: "office-printer"}, phone},
+			"name_moved 02:00:00:00:00:77 00:11:22:00:00:30 Office-Printer"},
+		{"another device answers to the printer's name beside it", known(), []Device{{MAC: other, IP: "192.0.2.77", Name: "Office-Printer"}, printer, phone},
+			"name_shared 02:00:00:00:00:77 00:11:22:00:00:30 Office-Printer"},
+		{"the printer seen without its announcement counts as there", known(), []Device{{MAC: other, IP: "192.0.2.77", Name: "Office-Printer"}, {MAC: printer.MAC, IP: printer.IP}},
+			"name_shared 02:00:00:00:00:77 00:11:22:00:00:30 Office-Printer"},
+		{"the printer renamed meanwhile: the name moved", known(), []Device{{MAC: other, IP: "192.0.2.77", Name: "Office-Printer"}, {MAC: printer.MAC, IP: printer.IP, Name: "Hall-Printer"}},
+			"name_moved 02:00:00:00:00:77 00:11:22:00:00:30 Office-Printer"},
+		{"the phone with a new private address", known(), []Device{{MAC: "06:00:00:00:00:41", IP: "192.0.2.41", Name: "Phone"}},
+			"name_moved 06:00:00:00:00:41 06:00:00:00:00:40 Phone"},
+		{"each device with its own name", known(), []Device{printer, phone}, ""},
+		{"a new name", known(), []Device{{MAC: other, IP: "192.0.2.77", Name: "Laptop"}}, ""},
+		{"no name", known(), []Device{{MAC: other, IP: "192.0.2.77"}}, ""},
+		{"this computer", known(), []Device{{MAC: other, IP: "192.0.2.77", Name: "Phone", Kind: "this"}}, ""},
+		{"the first scan", &Network{UUID: "u", Devices: []Device{printer}}, []Device{{MAC: other, IP: "192.0.2.77", Name: "Office-Printer"}}, ""},
+	} {
+		var got []string
+		for _, x := range NameMoves(c.n, "Home", c.seen, t1) {
+			got = append(got, strings.Join([]string{x.Change, x.Device.MAC, x.WasMAC, x.WasName}, " "))
+		}
+		if strings.Join(got, "|") != c.want {
+			t.Errorf("%s: got %q, want %q", c.name, got, c.want)
+		}
+	}
+	// once: after the merge the new hardware address has the name, and the next scan says nothing
+	n := known()
+	seen := []Device{{MAC: other, IP: "192.0.2.77", Name: "Office-Printer"}, printer}
+	if len(NameMoves(n, "Home", seen, t1)) != 1 {
+		t.Fatal("the first time")
+	}
+	n.Merge(seen, t1)
+	if got := NameMoves(n, "Home", seen, t1.Add(5*time.Minute)); len(got) != 0 {
+		t.Errorf("reported again: %+v", got)
+	}
+}
+
 // TestTakeovers: a known device's address answered by a hardware address that answers for another address at the same time,
 // while the device that had it is gone, is reported; a device that only moved, a new device on a freed address, and the first
 // scan are not. The Rust port runs the same table (rust/heimdall/src/cli/lan/store.rs, takeovers).

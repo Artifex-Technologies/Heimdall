@@ -354,3 +354,59 @@ fn trust_watching_runs_in_both_modes() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// HEI-10: with `limbo_event_log` pointed at a person's Wine log (limbo wine writes its own, in the same line format), a
+/// wine.start whose program the immunity store holds raises the critical limbo-guest alert; one it released raises nothing.
+#[test]
+fn a_wine_run_of_a_held_sample_is_critical() {
+    let dir = std::env::temp_dir().join(format!("heimdall-wine-run-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("sessions")).unwrap();
+    std::fs::create_dir_all(dir.join("immunity")).unwrap();
+    let d = dir.to_string_lossy().into_owned();
+    let (held, released) = ("a".repeat(64), "b".repeat(64));
+    std::fs::write(
+        format!("{d}/immunity/immunity.json"),
+        format!(
+            r#"[{{"sha256":"{held}","size":70,"kind":"Pe","original":"/home/u/Downloads/setup.exe","reason":"owner","source":"owner","added":"2026-11-24T00:00:00Z","status":"held"}},
+{{"sha256":"{released}","size":70,"kind":"Pe","original":"/home/u/tool.exe","reason":"owner","source":"owner","added":"2026-11-24T00:00:00Z","status":"released"}}]"#
+        ),
+    )
+    .unwrap();
+    let mut cfg: serde_json::Value = serde_json::from_str(&config(&d, free_port())).unwrap();
+    cfg["api_addr"] = "".into();
+    cfg["limbo_event_log"] = format!("{d}/events.jsonl").into();
+    cfg["limbo_state_path"] = format!("{d}/limbo-offset").into();
+    cfg["limbo_poll_interval_seconds"] = 1.into();
+    std::fs::write(format!("{d}/config.json"), cfg.to_string()).unwrap();
+    std::fs::write(format!("{d}/events.jsonl"), "").unwrap();
+    let log = format!("{d}/alerts.jsonl");
+    let c = start(&d, true);
+    std::thread::sleep(Duration::from_millis(1500));
+    {
+        let mut f = std::fs::OpenOptions::new().append(true).open(format!("{d}/events.jsonl")).unwrap();
+        for sha in [&released, &held] {
+            writeln!(
+                f,
+                r#"{{"time":"2026-11-24T12:00:00Z","kind":"wine.start","guest":"wine:apps","detail":{{"prefix":"apps","program":"C:\\setup.exe","via":"cli","run":"r1","network":"none","sha256":"{sha}"}}}}"#
+            )
+            .unwrap();
+        }
+    }
+    let wine_alerts = || {
+        std::fs::read_to_string(&log)
+            .unwrap_or_default()
+            .lines()
+            .filter(|l| l.contains(r#""detector_id":"limbo-guest""#) && l.contains(r#""event_kind":"wine.start""#))
+            .map(String::from)
+            .collect::<Vec<_>>()
+    };
+    wait_for("the Wine run's alert", || !wine_alerts().is_empty());
+    std::thread::sleep(Duration::from_secs(2));
+    let (code, err) = stop(c);
+    assert_eq!(code, 0, "{err}");
+    let got = wine_alerts();
+    assert_eq!(got.len(), 1, "only the held sample: {got:?}");
+    assert!(got[0].contains(r#""severity":"critical""#) && got[0].contains(&held), "{}", got[0]);
+    let _ = std::fs::remove_dir_all(&dir);
+}

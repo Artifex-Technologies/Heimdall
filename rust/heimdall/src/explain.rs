@@ -142,6 +142,17 @@ fn lan_watch(t: &mut Text, kind: &str, fields: &Fields) {
             t.done = "Heimdall noted it; nothing was blocked, so everyone on the network can still use it.".into();
             t.r#do = "On a network you do not control, disconnect or use a VPN. At home, if you did not add or replace a router, look for a device you do not know (Settings > Wi-Fi & Network > Devices).".into();
         }
+        "lan_device_changed" if matches!(get(fields, "change"), "name_moved" | "name_shared") => {
+            let name = or_unknown(q("was_name"), "a known device's name");
+            let newer = or_unknown(c("mac", 40), "a different hardware address");
+            t.what = if get(fields, "change") == "name_shared" {
+                format!("On {network}, a device you know answers to {name}, and now another one ({newer}) announces the same name. Two devices left with one default name do this; so does a device posing as another, so that what is meant for it (print jobs, casts, sign-ins) comes to it instead.")
+            } else {
+                format!("On {network}, {name} is now announced by another hardware address ({newer}), and the one that had it is not seen. A phone, tablet or laptop that changed its private address does this (both addresses are then private), and so does a replaced device; a device posing as another while it is away does too.")
+            };
+            t.done = "Heimdall noted it; nothing was blocked.".into();
+            t.r#do = "Look at both devices in Settings > Wi-Fi & Network > Devices. If you did not replace the device and do not know the new one, rename the device you know, restart the router and change the Wi-Fi password.".into();
+        }
         "lan_device_changed" => {
             let was = or_unknown(q("was_name"), &or_unknown(c("was_mac", 40), "a device you know"));
             let other = or_unknown(c("other_ip", 60), "its own address");
@@ -327,6 +338,12 @@ pub fn for_alert(detector: &str, kind: &str, severity: &str, fields: &Fields) ->
             t.what = "The computer behaved unlike its usual self (far more activity of some kind than normal for this time).".into();
             t.r#do =
                 "If you are doing something unusual (a big download, a build), nothing to do. Otherwise look at what is running.".into();
+        }
+        "limbo-guest" if kind == "wine.start" => {
+            t.what = format!("A Windows program started through limbo wine{}. Its content is a file Heimdall's immunity store holds (or you kept as a suspect): the same bytes are on this computer again, and Wine is no security boundary.", or_empty(q("program"), ": "));
+            t.done =
+                "Nothing was stopped: limbo wine runs as you, in its own sandbox, and is not a Limbo guest Heimdall can cut off.".into();
+            t.r#do = "Stop the program (close it, or end the run in Limbo), find where that copy came from and delete it. The held sample's page in Settings > Security says what is known about it.".into();
         }
         "limbo-guest" => {
             t.what = format!("A program running in a Limbo sandbox broke the sandbox's safety rules{}.", or_empty(q("guest"), ": "));

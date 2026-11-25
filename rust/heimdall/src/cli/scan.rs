@@ -54,6 +54,12 @@ fn run(args: &[String]) -> i32 {
         mesh_peer: Some(Box::new(move |ip: &str| detect::mesh_peer_at(&peers, ip))),
         approved: Some(Box::new(move |id: &str| approvals.approved(id))),
         ephemeral: None,
+        held: Some(Box::new(|sha: &str| {
+            crate::immunity::sample_status(
+                &std::env::var("HEIMDALL_IMMUNITY_DIR").unwrap_or_else(|_| crate::immunity::DEFAULT_DIR.into()),
+                sha,
+            )
+        })),
     };
     let sink: Box<dyn Sink> = Box::new(ring.clone());
     let mut eng = Engine::new(sink, detect::daemon_detectors(&cfg, deps));

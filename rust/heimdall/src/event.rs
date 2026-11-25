@@ -78,6 +78,8 @@ impl Finding {
 pub type MeshPeerFn = Box<dyn Fn(&str) -> Option<String> + Send>;
 /// Whether the owner approved a remote-access tool, by its id.
 pub type ApprovedFn = Box<dyn Fn(&str) -> bool + Send>;
+/// The immunity store's status of a sample, by its SHA-256 ("" when it keeps none).
+pub type SampleFn = Box<dyn Fn(&str) -> String + Send>;
 
 /// Inspects one event at a time. The engine calls a detector from one thread, in order, so a stateful detector needs no lock.
 pub trait Detector: Send {

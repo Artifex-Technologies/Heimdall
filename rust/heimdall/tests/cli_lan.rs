@@ -127,6 +127,9 @@ fn the_list_and_its_files_as_go_keeps_them() {
             .map(|x| [x.device.ip.as_str(), &x.device.mac, &x.was_mac, &x.was_name, &x.other_ip].join(" "))
             .collect();
         assert_eq!(tk.join("|"), st(&c["takeovers"]), "{c}");
+        let nm: Vec<String> =
+            store::name_moves(&n, &seen).iter().map(|x| [x.change, &x.device.mac, &x.was_mac, &x.was_name].join(" ")).collect();
+        assert_eq!(nm.join("|"), st(&c["names"]), "{c}");
         let fresh = n.merge(seen, now);
         assert_eq!(n.marshal_indent(), st(&c["after"]), "{c}");
         assert_eq!(store::devices_to_json(&fresh), st(&c["fresh"]), "{c}");
@@ -618,4 +621,76 @@ fn lan_look_listens_and_sends_nothing() {
             before.trim()
         );
     }
+}
+
+/// HEI-21, Go's TestNameMoves table: a hardware address that never had a known device's name and now announces it is reported
+/// once, as moved when the device that had it is gone and as shared when it is still there.
+#[test]
+fn a_known_name_on_other_hardware_is_reported_once() {
+    let t = |m: i64| heimdall::gotime::Time::parse_rfc3339("2026-11-16T10:00:00Z").unwrap().add(m * 60_000_000_000);
+    let dev = |mac: &str, ip: &str, name: &str| store::Device {
+        mac: mac.into(),
+        ip: ip.into(),
+        name: name.into(),
+        names: if name.is_empty() { Vec::new() } else { vec![name.into()] },
+        ..Default::default()
+    };
+    let printer = dev("00:11:22:00:00:30", "192.0.2.30", "Office-Printer");
+    let phone = dev("06:00:00:00:00:40", "192.0.2.40", "Phone");
+    let known = || {
+        let mut n = store::Network { uuid: "u".into(), ..Default::default() };
+        n.merge(vec![printer.clone(), phone.clone()], t(0));
+        n
+    };
+    let other = "02:00:00:00:00:77";
+    let mut me = dev(other, "192.0.2.77", "Phone");
+    me.kind = "this".into();
+    let first = store::Network { uuid: "u".into(), devices: Some(vec![printer.clone()]), ..Default::default() };
+    let cases: Vec<(&str, store::Network, Vec<store::Device>, &str)> = vec![
+        (
+            "another device takes the printer's name while it is away",
+            known(),
+            vec![dev(other, "192.0.2.77", "office-printer"), phone.clone()],
+            "name_moved 02:00:00:00:00:77 00:11:22:00:00:30 Office-Printer",
+        ),
+        (
+            "beside it",
+            known(),
+            vec![dev(other, "192.0.2.77", "Office-Printer"), printer.clone(), phone.clone()],
+            "name_shared 02:00:00:00:00:77 00:11:22:00:00:30 Office-Printer",
+        ),
+        (
+            "the printer seen without its announcement",
+            known(),
+            vec![dev(other, "192.0.2.77", "Office-Printer"), dev(&printer.mac, &printer.ip, "")],
+            "name_shared 02:00:00:00:00:77 00:11:22:00:00:30 Office-Printer",
+        ),
+        (
+            "the printer renamed meanwhile",
+            known(),
+            vec![dev(other, "192.0.2.77", "Office-Printer"), dev(&printer.mac, &printer.ip, "Hall-Printer")],
+            "name_moved 02:00:00:00:00:77 00:11:22:00:00:30 Office-Printer",
+        ),
+        (
+            "the phone with a new private address",
+            known(),
+            vec![dev("06:00:00:00:00:41", "192.0.2.41", "Phone")],
+            "name_moved 06:00:00:00:00:41 06:00:00:00:00:40 Phone",
+        ),
+        ("each device with its own name", known(), vec![printer.clone(), phone.clone()], ""),
+        ("a new name", known(), vec![dev(other, "192.0.2.77", "Laptop")], ""),
+        ("no name", known(), vec![dev(other, "192.0.2.77", "")], ""),
+        ("this computer", known(), vec![me], ""),
+        ("the first scan", first, vec![dev(other, "192.0.2.77", "Office-Printer")], ""),
+    ];
+    for (name, n, seen, want) in cases {
+        let got: Vec<String> =
+            store::name_moves(&n, &seen).iter().map(|x| [x.change, &x.device.mac, &x.was_mac, &x.was_name].join(" ")).collect();
+        assert_eq!(got.join("|"), want, "{name}");
+    }
+    let mut n = known();
+    let seen = vec![dev(other, "192.0.2.77", "Office-Printer"), printer.clone()];
+    assert_eq!(store::name_moves(&n, &seen).len(), 1, "the first time");
+    n.merge(seen.clone(), t(5));
+    assert!(store::name_moves(&n, &seen).is_empty(), "once");
 }

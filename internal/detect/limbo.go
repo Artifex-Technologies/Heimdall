@@ -19,10 +19,35 @@ import "fmt"
 type LimboGuestDetector struct {
 	policyUp map[string]bool
 	running  map[string]bool
+	// sample is the immunity store's status of a SHA-256 ("" when it keeps no such sample): a Wine run of a file whose
+	// content Heimdall holds as malware is a finding (HEI-10). Nil: Wine runs are not looked up.
+	sample func(sha256 string) string
 }
 
 func NewLimboGuestDetector() *LimboGuestDetector {
 	return &LimboGuestDetector{policyUp: map[string]bool{}, running: map[string]bool{}}
+}
+
+// WithSamples looks up the program of each Wine run (limbo wine's wine.start, which names the file's SHA-256) in the
+// immunity store.
+func (d *LimboGuestDetector) WithSamples(status func(sha256 string) string) *LimboGuestDetector {
+	d.sample = status
+	return d
+}
+
+// sampleWords says what the immunity store's status means; "" for a status that is no finding (released: judged good).
+func sampleWords(status string) (Severity, string) {
+	switch status {
+	case "held":
+		return SeverityCritical, "a sample Heimdall holds (waiting for your judgement)"
+	case "immune":
+		return SeverityCritical, "malware Heimdall holds (ClamAV does not know it; Heimdall has its fingerprint)"
+	case "reference":
+		return SeverityCritical, "malware Heimdall holds (ClamAV knows it)"
+	case "suspect":
+		return SeverityWarning, "a file you kept as a suspect"
+	}
+	return "", ""
 }
 
 func (d *LimboGuestDetector) ID() string { return "limbo-guest" }
@@ -63,6 +88,15 @@ func (d *LimboGuestDetector) Inspect(e Event) []Finding {
 		return finding(SeverityCritical, "guest %q base image failed checksum verification: %s", g, e.Fields["reason"])
 	case "gate.blocked":
 		return finding(SeverityWarning, "guest %q blocked by the Windows license gate: %s", g, e.Fields["reason"])
+	case "wine.start":
+		// limbo wine runs as the person, in bubblewrap: Wine is no security boundary, and there is no guest to restrict
+		sha := e.Fields["sha256"]
+		if d.sample == nil || len(sha) != 64 {
+			return nil
+		}
+		if sev, what := sampleWords(d.sample(sha)); sev != "" {
+			return finding(sev, "limbo wine started %q in the prefix %q: its content is %s (SHA-256 %s)", e.Fields["program"], e.Fields["prefix"], what, sha)
+		}
 	}
 	return nil
 }

@@ -54,6 +54,7 @@ type Deps struct {
 	Approved  []string             `json:"approved,omitempty"`   // approved remote-access tools
 	MeshPeers map[string]string    `json:"mesh_peers,omitempty"` // IP address -> peer name
 	Ephemeral *[2]int              `json:"ephemeral,omitempty"`  // the temporary port range (default 32768-60999)
+	Held      map[string]string    `json:"held,omitempty"`       // SHA-256 -> the immunity store's status
 	// For the replay tool (rust/gotools/replay): the real mesh peers file and approvals file instead of the maps above.
 	MeshPeerFunc func(ip string) (string, bool) `json:"-"`
 	ApprovedFunc func(id string) bool           `json:"-"`
@@ -173,7 +174,7 @@ func Detectors(cfg config.Config, d Deps) []detect.Detector {
 		detect.NewLANDetector(),
 		detect.NewBaselineDriftDetectorWithFloors(cfg.BaselineMinSamples, cfg.BaselineZThreshold, detect.DefaultBaselineFloors),
 		detect.NewAgentBaselineDetector(cfg.BaselineMinSamples, cfg.BaselineZThreshold, cfg.AgentBaselineStatePath),
-		detect.NewLimboGuestDetector(),
+		detect.NewLimboGuestDetector().WithSamples(func(sha string) string { return d.Held[sha] }),
 		detect.NewLimboNetworkDetector(),
 		detect.NewLimboExchangeDetector(),
 		detect.NewRemoteAccessDetector(isApproved),

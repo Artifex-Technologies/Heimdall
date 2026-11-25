@@ -2,6 +2,7 @@ package detect
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -71,6 +72,9 @@ func (d *LANDetector) Inspect(e Event) []Finding {
 			"on %s, %s (confidence %s): another device may be posing as the router to see or change your traffic (man in the middle). Nothing was blocked. %s",
 			where, f["what"], f["confidence"], advice)}}
 	case "lan_device_changed":
+		if f["change"] == "name_moved" || f["change"] == "name_shared" {
+			return d.nameChanged(e)
+		}
 		// a known device's address answered by another device that also answers for its own (internal/lan.Takeovers)
 		was := f["was_mac"]
 		if f["was_name"] != "" {
@@ -120,6 +124,42 @@ func (d *LANDetector) Inspect(e Event) []Finding {
 		return d.inbound(e)
 	}
 	return nil
+}
+
+// nameChanged reports a known device's name announced by another hardware address (internal/lan.NameMoves, HEI-21), once per
+// hardware address and name. When both addresses are private it is listed, not notified: phones, tablets and laptops change
+// their private address from time to time and often keep one default name, and posing as one of them gains little. A maker's
+// address (a printer, a TV, a speaker) is where posing as another device pays: a warning.
+func (d *LANDetector) nameChanged(e Event) []Finding {
+	f := e.Fields
+	private := localMAC(f["mac"]) && localMAC(f["was_mac"])
+	if f["change"] == "name_shared" && private {
+		return []Finding{{DetectorID: d.ID(), Severity: SeverityInfo, Event: e, Summary: fmt.Sprintf(
+			"on %q, two devices with private hardware addresses answer to the name %q: %s, known by it, and %s at %s, new to it. Phones, tablets and laptops often keep one default name and change their private address from time to time",
+			f["ssid"], f["was_name"], f["was_mac"], f["mac"], f["ip"])}}
+	}
+	if f["change"] == "name_shared" {
+		return []Finding{{DetectorID: d.ID(), Severity: SeverityWarning, Event: e, Summary: fmt.Sprintf(
+			"on %q, two devices answer to the name %q: %s, known by it, and %s at %s, new to it. Two devices left with the same default name do this; so does a device posing as another to receive what is meant for it. If you do not know %s, look at it in Settings > Wi-Fi & Network > Devices",
+			f["ssid"], f["was_name"], f["was_mac"], f["mac"], f["ip"], f["mac"])}}
+	}
+	if private {
+		return []Finding{{DetectorID: d.ID(), Severity: SeverityInfo, Event: e, Summary: fmt.Sprintf(
+			"on %q, %q now answers from the private hardware address %s at %s (it had %s): phones, tablets and laptops change their private address from time to time, so this is most likely the same device",
+			f["ssid"], f["was_name"], f["mac"], f["ip"], f["was_mac"])}}
+	}
+	return []Finding{{DetectorID: d.ID(), Severity: SeverityWarning, Event: e, Summary: fmt.Sprintf(
+		"on %q, the name %q is now announced by another device, %s at %s, and %s, which had it, is not seen: the device was replaced, or another one is posing as it while it is away. If you did not replace it, look at the devices in Settings > Wi-Fi & Network > Devices",
+		f["ssid"], f["was_name"], f["mac"], f["ip"], f["was_mac"])}}
+}
+
+// localMAC: the hardware address is locally administered (a private address a device made up, not its maker's).
+func localMAC(mac string) bool {
+	if len(mac) < 2 {
+		return false
+	}
+	b, err := strconv.ParseUint(mac[:2], 16, 8)
+	return err == nil && b&2 != 0
 }
 
 // inbound reports a device that started something aimed at this computer over Wi-Fi (heimdall-wifi-guard's quiet table logs

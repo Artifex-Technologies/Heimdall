@@ -94,6 +94,13 @@ fn deps(d: Option<&Value>) -> Deps {
         }
     }
     out.mesh_peer = Some(Box::new(move |ip: &str| peers.get(ip).cloned()));
+    let mut held = BTreeMap::new();
+    if let Some(Value::Object(m)) = obj(d, "held") {
+        for (k, v) in m {
+            held.insert(k.clone(), s(Some(v)));
+        }
+    }
+    out.held = Some(Box::new(move |sha: &str| held.get(sha).cloned().unwrap_or_default()));
     if let Some(Value::Array(e)) = obj(d, "ephemeral") {
         let n = |v: &Value| if let Value::Number(n) = v { n.parse().unwrap() } else { 0 };
         out.ephemeral = Some((n(&e[0]), n(&e[1])));

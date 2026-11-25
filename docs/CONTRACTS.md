@@ -130,6 +130,11 @@ Sarina's `docs/ECOSYSTEM.md` port registry.
   the names in its `virt` names). `lan-watch` reads `sinkhole.start` (detail `addr`, `dns_port`, `tcp_port`,
   `udp_port`) and `sinkhole.stop` (`addr`): between them a listener on that gateway address and those ports (the DNS port
   over UDP and TCP) is Limbo's sinkhole responder, not a new listener (HEI-6); outside a run it is reported as any other.
+  `limbo-guest` also reads `wine.start` from `limbo wine`'s own log (the person's `~/.local/state/limbo/events.jsonl`, same
+  line format, guest `wine:<prefix>`; `limbo_event_log` names one log, so pointing it there is a choice of that log): the
+  detail `sha256` (the program file's) is looked up in the immunity store's index (`immunity.json`); a `held`, `immune` or
+  `reference` sample is critical, a `suspect` a warning, a `released` one or an unknown hash nothing (HEI-10). Such an
+  alert starts no response: a Wine run is no guest `control.sock` can restrict. The other `wine.*` kinds are not alerts.
 - **Who:** provided by Limbo; read by Heimdall.
 - **Where:** `rust/heimdall/src/sources/limbo.rs`, `detect/stateful.rs`.
 

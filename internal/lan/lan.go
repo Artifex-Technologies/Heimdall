@@ -157,7 +157,9 @@ type NewDevice struct {
 	SSID   string    `json:"ssid"`
 	Device Device    `json:"device"`
 	// Change is set on a known device's address taken over (Takeovers): "address_taken", with the hardware address and name
-	// that had the address in the last scan, and the other address the new hardware address answers for at the same time.
+	// that had the address in the last scan, and the other address the new hardware address answers for at the same time;
+	// and on a known device's name announced by another hardware address (NameMoves): "name_moved" or "name_shared", with
+	// the hardware address and name that had it.
 	Change  string `json:"change,omitempty"`
 	WasMAC  string `json:"was_mac,omitempty"`
 	WasName string `json:"was_name,omitempty"`
@@ -201,7 +203,48 @@ func Takeovers(n *Network, ssid string, seen []Device, now time.Time) []NewDevic
 	return out
 }
 
-// appendChanges adds one line per known device's address taken over.
+// NameMoves finds a device answering to the name a known device has (HEI-21): a hardware address that never had that name
+// announces the name of another hardware address in the store. "name_moved" when the device that had it is not seen in this
+// scan (replaced; a phone or computer that changed its private address; or one posing as it while it is away),
+// "name_shared" when it is seen with that name, or with none, now (two devices left with one default name, or one posing as
+// the other). Once per hardware address and name: Merge keeps the name afterwards. The first scan only learns. Call before
+// Merge.
+func NameMoves(n *Network, ssid string, seen []Device, now time.Time) []NewDevice {
+	if n.FirstScan.IsZero() {
+		return nil
+	}
+	had := map[string]Device{}
+	for _, d := range n.Devices {
+		had[d.MAC] = d
+	}
+	nameNow := map[string]string{}
+	for _, d := range seen {
+		nameNow[d.MAC] = d.Name
+	}
+	var out []NewDevice
+	for _, d := range seen {
+		if d.Name == "" || d.Kind == "this" {
+			continue
+		}
+		if old, ok := had[d.MAC]; ok && (strings.EqualFold(old.Name, d.Name) || containsFold(old.Names, d.Name)) {
+			continue
+		}
+		for _, k := range n.Devices {
+			if k.MAC == d.MAC || !strings.EqualFold(k.Name, d.Name) {
+				continue
+			}
+			change := "name_moved"
+			if cur, ok := nameNow[k.MAC]; ok && (cur == "" || strings.EqualFold(cur, d.Name)) {
+				change = "name_shared"
+			}
+			out = append(out, NewDevice{Time: now, SSID: ssid, Device: d, Change: change, WasMAC: k.MAC, WasName: k.Name})
+			break
+		}
+	}
+	return out
+}
+
+// appendChanges adds one line per change to a known device (Takeovers, NameMoves).
 func appendChanges(path string, changes []NewDevice) error {
 	if len(changes) == 0 {
 		return nil

@@ -24,6 +24,8 @@ pub struct Deps {
     pub approved: Option<crate::event::ApprovedFn>,
     /// The kernel's temporary port range; None: read it from /proc.
     pub ephemeral: Option<(i64, i64)>,
+    /// The immunity store's status of a sample (Wine runs are looked up in it); None: they are not.
+    pub held: Option<crate::event::SampleFn>,
 }
 
 /// The detectors in the daemon's order.
@@ -51,7 +53,7 @@ pub fn daemon_detectors(cfg: &Config, deps: Deps) -> Vec<Box<dyn Detector>> {
         Box::new(LanDetector::default()),
         Box::new(BaselineDriftDetector::with_floors(cfg.baseline_min_samples, cfg.baseline_z_threshold, default_baseline_floors())),
         Box::new(AgentBaselineDetector::new(cfg.baseline_min_samples, cfg.baseline_z_threshold, &cfg.agent_baseline_state_path)),
-        Box::new(LimboGuestDetector::default()),
+        Box::new(LimboGuestDetector::with_samples(deps.held)),
         Box::new(LimboNetworkDetector::default()),
         Box::new(LimboExchangeDetector),
         Box::new(RemoteAccessDetector::new(deps.approved)),

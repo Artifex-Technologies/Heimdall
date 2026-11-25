@@ -58,3 +58,31 @@ func TestATakenAddressIsCritical(t *testing.T) {
 		t.Fatalf("%+v", f)
 	}
 }
+
+// TestANameMoveIsListedOrWarned (HEI-21): a line of lan.NameMoves becomes a lan_device_changed event; another device taking a
+// printer's name is a warning, a private address taking a private address's name is info. The Rust port parses the same
+// line (rust/heimdall/src/sources/files.rs, a_name_move_line).
+func TestANameMoveIsListedOrWarned(t *testing.T) {
+	dir := t.TempDir()
+	w := &Watcher{Path: filepath.Join(dir, "events.jsonl"), OffsetPath: filepath.Join(dir, "events.offset")}
+	t0 := time.Date(2026, 11, 16, 10, 0, 0, 0, time.UTC)
+	b, _ := json.Marshal(lan.NewDevice{Time: t0, SSID: "Home", Device: lan.Device{MAC: "02:00:00:00:00:77", IP: "192.0.2.77", Name: "Office-Printer"},
+		Change: "name_moved", WasMAC: "00:11:22:00:00:30", WasName: "Office-Printer"})
+	if want := `{"time":"2026-11-16T10:00:00Z","ssid":"Home","device":{"mac":"02:00:00:00:00:77","ip":"192.0.2.77","name":"Office-Printer","kind":"","first_seen":"0001-01-01T00:00:00Z","last_seen":"0001-01-01T00:00:00Z"},"change":"name_moved","was_mac":"00:11:22:00:00:30","was_name":"Office-Printer"}`; string(b) != want {
+		t.Fatalf("line\n got %s\nwant %s", b, want)
+	}
+	phone, _ := json.Marshal(lan.NewDevice{Time: t0, SSID: "Home", Device: lan.Device{MAC: "06:00:00:00:00:41", IP: "192.0.2.41", Name: "Phone"},
+		Change: "name_moved", WasMAC: "06:00:00:00:00:40", WasName: "Phone"})
+	os.WriteFile(w.Path, append(append(b, '\n'), append(phone, '\n')...), 0o600)
+	ev, _ := w.Poll()
+	if len(ev) != 2 || ev[0].Kind != "lan_device_changed" || ev[0].Fields["change"] != "name_moved" || ev[0].Text != "a known device's name on Home is announced by another device: Office-Printer" {
+		t.Fatalf("%+v", ev)
+	}
+	d := detect.NewLANDetector()
+	if f := d.Inspect(ev[0]); len(f) != 1 || f[0].Severity != detect.SeverityWarning || !strings.Contains(f[0].Summary, "posing as it") {
+		t.Fatalf("the printer's name: %+v", f)
+	}
+	if f := d.Inspect(ev[1]); len(f) != 1 || f[0].Severity != detect.SeverityInfo || !strings.Contains(f[0].Summary, "most likely the same device") {
+		t.Fatalf("the phone's new private address: %+v", f)
+	}
+}

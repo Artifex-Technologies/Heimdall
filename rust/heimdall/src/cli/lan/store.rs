@@ -420,9 +420,11 @@ fn go_char_names(msg: &str) -> String {
     format!("{}{LEAD}{named}{tail}", &msg[..i])
 }
 
-/// A known device's address taken over (Go: a NewDevice with Change "address_taken").
+/// A change to a known device (Go: a NewDevice with Change set): its address taken over ("address_taken", takeovers), or its
+/// name announced by another hardware address ("name_moved", "name_shared", name_moves).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Takeover {
+    pub change: &'static str,
     pub device: Device,
     pub was_mac: String,
     pub was_name: String,
@@ -454,7 +456,48 @@ pub fn takeovers(n: &Network, seen: &[Device]) -> Vec<Takeover> {
             continue;
         }
         let other = ips_of[d.mac.as_str()].iter().find(|ip| **ip != d.ip).map(|s| s.to_string()).unwrap_or_default();
-        out.push(Takeover { device: d.clone(), was_mac: old.mac.clone(), was_name: old.name.clone(), other_ip: other });
+        out.push(Takeover {
+            change: "address_taken",
+            device: d.clone(),
+            was_mac: old.mac.clone(),
+            was_name: old.name.clone(),
+            other_ip: other,
+        });
+    }
+    out
+}
+
+/// Go: NameMoves (HEI-21). A hardware address that never had a known device's name announces it: "name_moved" when the
+/// device that had it is not seen in this scan (replaced; a phone or computer with a new private address; or one posing as
+/// it while it is away), "name_shared" when it is seen with that name or with none (two devices left with one default name,
+/// or one posing as the other). Once per hardware address and name (merge keeps the name). Call before merge.
+pub fn name_moves(n: &Network, seen: &[Device]) -> Vec<Takeover> {
+    use super::text::{contains_fold, equal_fold};
+    if n.first_scan.is_zero() {
+        return Vec::new();
+    }
+    let mut had: std::collections::HashMap<&str, &Device> = std::collections::HashMap::new();
+    for d in n.devices.iter().flatten() {
+        had.insert(&d.mac, d); // Go's map: the last one wins
+    }
+    let mut name_now: std::collections::HashMap<&str, &str> = std::collections::HashMap::new();
+    for d in seen {
+        name_now.insert(&d.mac, &d.name);
+    }
+    let mut out = Vec::new();
+    for d in seen {
+        if d.name.is_empty() || d.kind == "this" {
+            continue;
+        }
+        if had.get(d.mac.as_str()).is_some_and(|old| equal_fold(&old.name, &d.name) || contains_fold(&old.names, &d.name)) {
+            continue;
+        }
+        let Some(k) = n.devices.iter().flatten().find(|k| k.mac != d.mac && equal_fold(&k.name, &d.name)) else { continue };
+        let change = match name_now.get(k.mac.as_str()) {
+            Some(cur) if cur.is_empty() || equal_fold(cur, &d.name) => "name_shared",
+            _ => "name_moved",
+        };
+        out.push(Takeover { change, device: d.clone(), was_mac: k.mac.clone(), was_name: k.name.clone(), other_ip: String::new() });
     }
     out
 }
@@ -473,7 +516,7 @@ pub fn append_changes(path: &str, ssid: &str, changes: &[Takeover], now: Time) -
             Val::Time(now),
             Val::Str(ssid.to_string()),
             c.device.to_val(),
-            Val::Str("address_taken".into()),
+            Val::Str(c.change.into()),
             Val::Str(c.was_mac.clone()),
             Val::Str(c.was_name.clone()),
             Val::Str(c.other_ip.clone()),

@@ -481,6 +481,20 @@ impl Detector for LanDetector {
                     "on {place}, {} (confidence {}): another device may be posing as the router to see or change your traffic (man in the middle). Nothing was blocked. {advice}",
                     f("what"), f("confidence")), e)
             }
+            // HEI-21 (lan::store::name_moves): both addresses private is listed, not notified (phones and laptops change their
+            // private address and keep default names); a maker's address is where posing as another device pays
+            "lan_device_changed" if f("change") == "name_shared" && local_mac(f("mac")) && local_mac(f("was_mac")) => one(id, Severity::Info, format!(
+                "on {}, two devices with private hardware addresses answer to the name {}: {}, known by it, and {} at {}, new to it. Phones, tablets and laptops often keep one default name and change their private address from time to time",
+                quote(f("ssid")), quote(f("was_name")), f("was_mac"), f("mac"), f("ip")), e),
+            "lan_device_changed" if f("change") == "name_shared" => one(id, Severity::Warning, format!(
+                "on {}, two devices answer to the name {}: {}, known by it, and {} at {}, new to it. Two devices left with the same default name do this; so does a device posing as another to receive what is meant for it. If you do not know {}, look at it in Settings > Wi-Fi & Network > Devices",
+                quote(f("ssid")), quote(f("was_name")), f("was_mac"), f("mac"), f("ip"), f("mac")), e),
+            "lan_device_changed" if f("change") == "name_moved" && local_mac(f("mac")) && local_mac(f("was_mac")) => one(id, Severity::Info, format!(
+                "on {}, {} now answers from the private hardware address {} at {} (it had {}): phones, tablets and laptops change their private address from time to time, so this is most likely the same device",
+                quote(f("ssid")), quote(f("was_name")), f("mac"), f("ip"), f("was_mac")), e),
+            "lan_device_changed" if f("change") == "name_moved" => one(id, Severity::Warning, format!(
+                "on {}, the name {} is now announced by another device, {} at {}, and {}, which had it, is not seen: the device was replaced, or another one is posing as it while it is away. If you did not replace it, look at the devices in Settings > Wi-Fi & Network > Devices",
+                quote(f("ssid")), quote(f("was_name")), f("mac"), f("ip"), f("was_mac")), e),
             "lan_device_changed" => {
                 // a known device's address answered by another device that also answers for its own (lan::store::takeovers)
                 let was =
@@ -700,6 +714,15 @@ impl Detector for LimboExchangeDetector {
             &ev,
         )
     }
+}
+
+/// Go's localMAC: the hardware address is locally administered (a private address a device made up, not its maker's).
+fn local_mac(mac: &str) -> bool {
+    // two hex digits, as Go's ParseUint takes them (from_str_radix would take a sign too)
+    mac.get(..2)
+        .filter(|h| h.bytes().all(|c| c.is_ascii_hexdigit()))
+        .and_then(|h| u8::from_str_radix(h, 16).ok())
+        .is_some_and(|b| b & 2 != 0)
 }
 
 #[cfg(test)]

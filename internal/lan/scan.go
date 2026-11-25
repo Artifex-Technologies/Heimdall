@@ -248,7 +248,7 @@ func Scan(o Options) (Result, error) {
 	}
 
 	n := st.network(a.uuid, a.ssid)
-	if err := appendChanges(eventsPath, Takeovers(n, a.ssid, seen, now)); err != nil {
+	if err := appendChanges(eventsPath, append(Takeovers(n, a.ssid, seen, now), NameMoves(n, a.ssid, seen, now)...)); err != nil {
 		o.Log("changed devices could not be recorded: %v", err)
 	}
 	fresh := n.Merge(seen, now)

@@ -147,6 +147,19 @@ pub fn held_hashes(dir: &str) -> Vec<String> {
     }
 }
 
+/// The store's status of the sample with this SHA-256 ("" when it keeps none or cannot be read), for a Wine run's
+/// program (HEI-10; Go: cmd/heimdalld immunitySample).
+pub fn sample_status(dir: &str, sha: &str) -> String {
+    match load_entries(dir) {
+        Ok(Some(Val::Slice(Some(es)))) => es
+            .iter()
+            .find(|e| gostruct::str_field(&ENTRY, e, "sha256") == sha)
+            .map(|e| gostruct::str_field(&ENTRY, e, "status").to_string())
+            .unwrap_or_default(),
+        _ => String::new(),
+    }
+}
+
 /// The drafts file (Go: immunity.Rules).
 pub struct Rules {
     pub path: String,

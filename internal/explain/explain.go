@@ -142,6 +142,12 @@ func For(detector, kind, severity string, fields map[string]string) Text {
 		t.What = "The computer behaved unlike its usual self (far more activity of some kind than normal for this time)."
 		t.Do = "If you are doing something unusual (a big download, a build), nothing to do. Otherwise look at what is running."
 	case "limbo-guest":
+		if kind == "wine.start" {
+			t.What = "A Windows program started through limbo wine" + orEmpty(quoted(fields, "program"), ": ") + ". Its content is a file Heimdall's immunity store holds (or you kept as a suspect): the same bytes are on this computer again, and Wine is no security boundary."
+			t.Done = "Nothing was stopped: limbo wine runs as you, in its own sandbox, and is not a Limbo guest Heimdall can cut off."
+			t.Do = "Stop the program (close it, or end the run in Limbo), find where that copy came from and delete it. The held sample's page in Settings > Security says what is known about it."
+			break
+		}
 		t.What = "A program running in a Limbo sandbox broke the sandbox's safety rules" + orEmpty(quoted(fields, "guest"), ": ") + "."
 		t.Done = "Heimdall asked Limbo to cut the sandbox off (quarantine). Limbo never lets Heimdall release it; only you can."
 		t.Do = "Look at the quarantine in Settings > Security before releasing anything; if unsure, delete the sandbox."
@@ -257,6 +263,18 @@ func lanWatch(t *Text, kind string, fields map[string]string) {
 		t.Done = "Heimdall noted it; nothing was blocked, so everyone on the network can still use it."
 		t.Do = "On a network you do not control, disconnect or use a VPN. At home, if you did not add or replace a router, look for a device you do not know (Settings > Wi-Fi & Network > Devices)."
 	case "lan_device_changed":
+		if change := fields["change"]; change == "name_moved" || change == "name_shared" {
+			name := orUnknown(quoted(fields, "was_name"), "a known device's name")
+			newer := orUnknown(clean(fields["mac"], 40), "a different hardware address")
+			if change == "name_shared" {
+				t.What = "On " + network + ", a device you know answers to " + name + ", and now another one (" + newer + ") announces the same name. Two devices left with one default name do this; so does a device posing as another, so that what is meant for it (print jobs, casts, sign-ins) comes to it instead."
+			} else {
+				t.What = "On " + network + ", " + name + " is now announced by another hardware address (" + newer + "), and the one that had it is not seen. A phone, tablet or laptop that changed its private address does this (both addresses are then private), and so does a replaced device; a device posing as another while it is away does too."
+			}
+			t.Done = "Heimdall noted it; nothing was blocked."
+			t.Do = "Look at both devices in Settings > Wi-Fi & Network > Devices. If you did not replace the device and do not know the new one, rename the device you know, restart the router and change the Wi-Fi password."
+			break
+		}
 		was := orUnknown(quoted(fields, "was_name"), orUnknown(clean(fields["was_mac"], 40), "a device you know"))
 		other := orUnknown(clean(fields["other_ip"], 60), "its own address")
 		t.What = "On " + network + ", the address " + orUnknown(clean(fields["ip"], 60), "of a known device") + " belonged to " + was + "; now another device (" + orUnknown(clean(fields["mac"], 40), "a different hardware address") + ") answers for it, and also for " + other + ". One device answering for another is how someone puts itself between the devices of a network and reads what they send (ARP spoofing)."

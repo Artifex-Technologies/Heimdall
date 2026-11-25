@@ -214,6 +214,12 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
         mesh_peer: Some(Box::new(move |ip: &str| detect::mesh_peer_at(&peers, ip))),
         approved: Some(Box::new(move |id: &str| approvals.approved(id))),
         ephemeral: None,
+        held: Some(Box::new(|sha: &str| {
+            crate::immunity::sample_status(
+                &std::env::var("HEIMDALL_IMMUNITY_DIR").unwrap_or_else(|_| crate::immunity::DEFAULT_DIR.into()),
+                sha,
+            )
+        })),
     };
     // every alert passes the correlator on its way to the outputs: related alerts become one incident alert (Go: correlate)
     let raw_outputs = Arc::new(Mutex::new(MultiSink { sinks }));

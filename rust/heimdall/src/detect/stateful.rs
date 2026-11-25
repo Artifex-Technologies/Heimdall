@@ -639,6 +639,26 @@ impl Detector for InboundDetector {
 pub struct LimboGuestDetector {
     policy_up: HashMap<String, bool>,
     running: HashMap<String, bool>,
+    /// The immunity store's status of a SHA-256: a Wine run of a file whose content Heimdall holds as malware is a finding
+    /// (HEI-10). None: Wine runs are not looked up.
+    sample: Option<crate::event::SampleFn>,
+}
+
+impl LimboGuestDetector {
+    pub fn with_samples(sample: Option<crate::event::SampleFn>) -> Self {
+        LimboGuestDetector { sample, ..Default::default() }
+    }
+}
+
+/// What the immunity store's status means, and how much it matters; None for a status that is no finding (released).
+fn sample_words(status: &str) -> Option<(Severity, &'static str)> {
+    Some(match status {
+        "held" => (Severity::Critical, "a sample Heimdall holds (waiting for your judgement)"),
+        "immune" => (Severity::Critical, "malware Heimdall holds (ClamAV does not know it; Heimdall has its fingerprint)"),
+        "reference" => (Severity::Critical, "malware Heimdall holds (ClamAV knows it)"),
+        "suspect" => (Severity::Warning, "a file you kept as a suspect"),
+        _ => return None,
+    })
 }
 
 impl Detector for LimboGuestDetector {
@@ -699,7 +719,24 @@ impl Detector for LimboGuestDetector {
                     Severity::Warning,
                     format!("guest {q} blocked by the Windows license gate: {}", e.f("reason")),
                     e,
-                )]
+                )];
+            }
+            "wine.start" => {
+                // limbo wine runs as the person, in bubblewrap: Wine is no security boundary, and there is no guest to restrict
+                let sha = e.f("sha256");
+                let Some(look) = self.sample.as_ref().filter(|_| sha.len() == 64) else { return Vec::new() };
+                if let Some((sev, what)) = sample_words(&look(sha)) {
+                    return vec![Finding::new(
+                        id,
+                        sev,
+                        format!(
+                            "limbo wine started {} in the prefix {}: its content is {what} (SHA-256 {sha})",
+                            quote(e.f("program")),
+                            quote(e.f("prefix"))
+                        ),
+                        e,
+                    )];
+                }
             }
             _ => {}
         }

@@ -186,11 +186,23 @@ func newDetectors(cfg config.Config) []detect.Detector {
 		detect.NewLANDetector(),
 		detect.NewBaselineDriftDetectorWithFloors(cfg.BaselineMinSamples, cfg.BaselineZThreshold, detect.DefaultBaselineFloors),
 		detect.NewAgentBaselineDetector(cfg.BaselineMinSamples, cfg.BaselineZThreshold, cfg.AgentBaselineStatePath),
-		detect.NewLimboGuestDetector(),
+		detect.NewLimboGuestDetector().WithSamples(immunitySample),
 		detect.NewLimboNetworkDetector(),
 		detect.NewLimboExchangeDetector(),
 		detect.NewRemoteAccessDetector(remoteApprovals.Approved),
 	}
+}
+
+// immunitySample is the immunity store's status of the sample with this SHA-256, "" when it keeps none (or cannot be
+// read). Read at each lookup: only a Wine run asks, and those are rare.
+func immunitySample(sha string) string {
+	es, _ := immunity.Default().Load()
+	for _, e := range es {
+		if e.SHA256 == sha {
+			return e.Status
+		}
+	}
+	return ""
 }
 
 func cmdRun(args []string) int {

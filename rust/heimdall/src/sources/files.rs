@@ -157,13 +157,18 @@ crate::go_struct!(NewDevice {
 pub fn lan_line(line: &[u8]) -> Option<Event> {
     let nd = gojson::unmarshal(line, NewDevice::default()).ok().filter(|n| !n.device.mac.is_empty())?;
     let d = nd.device;
-    if nd.change == "address_taken" {
+    if !nd.change.is_empty() {
+        let text = if nd.change == "address_taken" {
+            format!("a known device's address on {} is answered by another device: {}", nd.ssid, d.ip)
+        } else {
+            format!("a known device's name on {} is announced by another device: {}", nd.ssid, d.name)
+        };
         return Some(Event {
             source: "host-lan".into(),
             session_id: String::new(),
             time: nd.time,
             kind: "lan_device_changed".into(),
-            text: format!("a known device's address on {} is answered by another device: {}", nd.ssid, d.ip),
+            text,
             fields: Fields::from([
                 ("ssid".to_string(), nd.ssid),
                 ("ip".to_string(), d.ip),
@@ -652,6 +657,7 @@ mod tests {
         assert_eq!(e.kind, "lan_device_changed");
         assert_eq!((e.f("was_name"), e.f("was_mac"), e.f("other_ip"), e.f("ip")), ("TV", "02:00:00:00:00:30", "192.0.2.66", "192.0.2.30"));
         let store = crate::cli::lan::store::Takeover {
+            change: "address_taken",
             device: crate::cli::lan::store::devices_from_json(br#"[{"mac":"02:00:00:00:00:66","ip":"192.0.2.30"}]"#)[0].clone(),
             was_mac: "02:00:00:00:00:30".into(),
             was_name: "TV".into(),
@@ -664,6 +670,18 @@ mod tests {
             .unwrap();
         assert_eq!(std::fs::read(&p).unwrap(), [&line[..], b"\n"].concat());
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// HEI-21: the line Go's lan.NameMoves writes (internal/sources/lansource, TestANameMoveIsListedOrWarned) is the same event.
+    #[test]
+    fn a_name_move_line() {
+        let line = br#"{"time":"2026-11-16T10:00:00Z","ssid":"Home","device":{"mac":"02:00:00:00:00:77","ip":"192.0.2.77","name":"Office-Printer","kind":"","first_seen":"0001-01-01T00:00:00Z","last_seen":"0001-01-01T00:00:00Z"},"change":"name_moved","was_mac":"00:11:22:00:00:30","was_name":"Office-Printer"}"#;
+        let e = lan_line(line).unwrap();
+        assert_eq!(
+            (e.kind.as_str(), e.f("change"), e.f("was_mac"), e.f("name")),
+            ("lan_device_changed", "name_moved", "00:11:22:00:00:30", "Office-Printer")
+        );
+        assert_eq!(e.text, "a known device's name on Home is announced by another device: Office-Printer");
     }
 
     #[test]
