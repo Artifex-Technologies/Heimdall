@@ -60,6 +60,7 @@ fn run(args: &[String]) -> i32 {
                 sha,
             )
         })),
+        minutes: None,
     };
     let sink: Box<dyn Sink> = Box::new(ring.clone());
     let mut eng = Engine::new(sink, detect::daemon_detectors(&cfg, deps));

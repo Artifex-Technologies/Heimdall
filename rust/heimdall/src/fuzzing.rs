@@ -194,6 +194,7 @@ pub fn http_request(data: &[u8]) {
             rule_drafts: Some("/nonexistent/rule-drafts.json".into()),
             yara_check: "/nonexistent/heimdall-yara-check".into(),
         },
+        minutes: None,
     };
     // an account that is neither root nor this process's (nor in the empty lists)
     // SAFETY: getuid has no preconditions.

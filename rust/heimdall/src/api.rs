@@ -169,6 +169,8 @@ pub struct Api {
     pub alerts: Box<dyn Fn(Alert) + Send + Sync>,
     /// The files the read-only endpoints answer from (None: that endpoint is not served).
     pub files: Files,
+    /// The telemetry's last hour, minute by minute (HEI-80): GET /v1/telemetry; None: not served.
+    pub minutes: Option<crate::anomaly::Shared>,
 }
 
 /// Where GET /v1/audit, /v1/lan/devices, /v1/quarantine and /v1/rules/drafts read.
@@ -315,6 +317,10 @@ impl Api {
                 encoded(&immunity::ENTRIES, &v)
             }
             "/v1/rules/drafts" if self.files.rule_drafts.is_some() => self.rule_drafts(r, uid.unwrap_or(0)),
+            "/v1/telemetry" if self.minutes.is_some() => {
+                let m = self.minutes.as_ref().expect("checked").lock().unwrap_or_else(|p| p.into_inner());
+                json(m.to_json(crate::gotime::Time::now().unix()))
+            }
             _ => text(404, "404 page not found"),
         }
     }

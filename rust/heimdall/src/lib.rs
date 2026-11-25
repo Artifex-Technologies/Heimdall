@@ -6,6 +6,7 @@
 
 pub mod advisor;
 pub mod alert;
+pub mod anomaly;
 pub mod api;
 pub mod attack;
 pub mod audit;

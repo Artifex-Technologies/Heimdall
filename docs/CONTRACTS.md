@@ -39,6 +39,18 @@ Sarina's `docs/ECOSYSTEM.md` port registry.
   alerts may carry `cve`, and `GET /v1/audit`'s `hardening` entries too (omitted when empty).
 - **Where:** `rust/heimdall/src/alert.rs`, `explain.rs`, `attack.rs`, `verify.rs`.
 
+## Telemetry's last hour: `GET /v1/telemetry`
+
+- **What:** since 2026-11-25, each host-telemetry field's last hour minute by minute, for a strip beside its graph:
+  `{"minutes":60,"until":"<the last minute, RFC 3339>","fields":{"load_per_cpu":"...","mem_percent":"..."}}`, each field
+  a string of 60 characters, oldest first: `1` a value that minute was out of this host's usual range (the baseline's
+  `baseline_z_threshold` standard deviations or more from its learned mean, either way: a minute can be `1` with no
+  `baseline-drift` alert, which is upward only and above floors), `0` its values were all within, `-` none was scored (no
+  telemetry, or the baseline still learning). A field appears once it has been scored. Kept in memory: after a restart
+  the hour starts empty. Same access as every endpoint (above).
+- **Who:** meant for Yggdrasil Settings > Security (nothing reads it yet).
+- **Where:** `rust/heimdall/src/anomaly.rs` (marked by `detect/stateful.rs`'s `BaselineDriftDetector`), `api.rs`.
+
 ## Sarina's session files (Heimdall reads)
 
 - **What:** `/var/lib/sarina/sessions/*.json`, the shared folder the Sarina service writes (`agent_session_dir`;

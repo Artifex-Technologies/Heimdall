@@ -128,6 +128,7 @@ fn serve_api(
     cfg: &Config,
     ring: Arc<Mutex<Ring>>,
     incidents: Arc<Mutex<crate::correlate::State>>,
+    minutes: crate::anomaly::Shared,
 ) -> std::io::Result<(sources::Inbox, std::net::SocketAddr)> {
     let (inbox, outbox) = sources::Inbox::new("api")?;
     let api = crate::api::Api {
@@ -156,6 +157,7 @@ fn serve_api(
             rule_drafts: Some(cfg.rule_drafts_path.clone()),
             yara_check: String::new(),
         },
+        minutes: Some(minutes),
     };
     let addr = crate::api::serve(&cfg.api_addr, api)?;
     Ok((inbox, addr))
@@ -196,6 +198,8 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
     let mut sinks: Vec<Box<dyn Sink>> = vec![Box::new(WriterSink::new(Stdout))];
     let ring = Arc::new(Mutex::new(Ring::new(cfg.ring_size)));
     sinks.push(Box::new(ring.clone()));
+    // the telemetry's last hour, minute by minute: the baseline detector marks it, GET /v1/telemetry answers it (HEI-80)
+    let minutes: crate::anomaly::Shared = Default::default();
     if !cfg.alert_log_path.is_empty() {
         match std::fs::OpenOptions::new().create(true).append(true).mode(0o600).open(&cfg.alert_log_path) {
             Ok(f) => sinks.push(Box::new(WriterSink::new(f))),
@@ -220,6 +224,7 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
                 sha,
             )
         })),
+        minutes: Some(minutes.clone()),
     };
     // every alert passes the correlator on its way to the outputs: related alerts become one incident alert (Go: correlate)
     let raw_outputs = Arc::new(Mutex::new(MultiSink { sinks }));
@@ -524,7 +529,7 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
     }
     // the API, in charge only (Go: cmdRun's api block): its own thread; the alerts it raises come to this loop as messages
     if !shadow && !cfg.api_addr.is_empty() {
-        match serve_api(&cfg, ring.clone(), incidents.clone()) {
+        match serve_api(&cfg, ring.clone(), incidents.clone(), minutes.clone()) {
             Ok((inbox, addr)) => {
                 srcs.push(Box::new(inbox));
                 log(&format!("status API listening on {addr}"));

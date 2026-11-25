@@ -73,6 +73,55 @@ fn the_correlator_passes_on_and_groups_as_go() {
 
 /// End to end on a real loopback socket (Go: TestRealLoopbackPeerIsIdentified): the test's own account is identified from
 /// the kernel's table and let in; a policy that sees only other tables refuses; a non-loopback address is refused at bind.
+/// HEI-80: the baseline detector marks each scored minute, and GET /v1/telemetry gives each field's hour (60
+/// characters: 1 out of range, 0 within, - none scored); an outlier sets its minute.
+#[test]
+fn the_telemetry_hour_marks_an_outliers_minute() {
+    use heimdall::alert::Ring;
+    use heimdall::api::{serve, Access, Api};
+    use heimdall::event::Detector;
+    use std::io::{Read, Write};
+    let minutes: heimdall::anomaly::Shared = Arc::default();
+    let mut d = heimdall::detect::stateful::BaselineDriftDetector::new(10, 3.0).with_minutes(Some(minutes.clone()));
+    let now = heimdall::gotime::Time::now().unix();
+    let at = |secs_ago: i64, mem: &str| {
+        let mut e = heimdall::event::Event { kind: "host_telemetry".into(), ..Default::default() };
+        e.time = heimdall::gotime::Time::from_unix(now - secs_ago, 0);
+        e.fields.insert("mem_percent".into(), mem.into());
+        e
+    };
+    // learning (10 values, two minutes ago and before) marks nothing; then values within range, then an outlier now
+    for i in 0..10 {
+        d.inspect(&at(600 + i, if i % 2 == 0 { "40" } else { "42" }));
+    }
+    d.inspect(&at(120, "41"));
+    d.inspect(&at(0, "95"));
+    let api = Api {
+        ring: Arc::new(Mutex::new(Ring::new(10))),
+        incidents: Arc::default(),
+        reviewer: None,
+        grants: None,
+        access: Some(Access::new(vec![], vec![])),
+        alerts: Box::new(|_| {}),
+        files: Default::default(),
+        minutes: Some(minutes),
+    };
+    let addr = serve("127.0.0.1:0", api).unwrap();
+    let mut s = std::net::TcpStream::connect(addr).unwrap();
+    s.write_all(b"GET /v1/telemetry HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n").unwrap();
+    let mut out = String::new();
+    s.read_to_string(&mut out).unwrap();
+    assert!(out.starts_with("HTTP/1.1 200 OK\r\n"), "{out}");
+    let body = out.split("\r\n\r\n").nth(1).unwrap();
+    let v: Value = serde_json::from_str(body).unwrap();
+    assert_eq!(v["minutes"], 60);
+    let hour = v["fields"]["mem_percent"].as_str().unwrap();
+    assert_eq!(hour.len(), 60);
+    assert!(hour.ends_with('1'), "the outlier's minute: {hour}");
+    assert_eq!(hour.chars().nth(57), Some('0'), "the value within range two minutes ago: {hour}");
+    assert!(hour[..50].chars().all(|c| c == '-'), "nothing scored while learning: {hour}");
+}
+
 #[test]
 fn a_real_loopback_caller_is_identified_by_the_kernel() {
     use heimdall::alert::Ring;
@@ -93,6 +142,7 @@ fn a_real_loopback_caller_is_identified_by_the_kernel() {
         access: Some(access),
         alerts: Box::new(|_| {}),
         files: Default::default(),
+        minutes: None,
     };
     let addr = serve("127.0.0.1:0", mk(Access::new(vec![], vec![]))).unwrap();
     let r = get(addr, "/v1/alerts");
@@ -202,6 +252,7 @@ fn the_api_answers_as_go() {
             access: Some(access),
             alerts: Box::new(move |a: Alert| r2.lock().unwrap().push(a.detector_id)),
             files,
+            minutes: None,
         };
         let mut raw = format!("{} {} HTTP/1.1\r\nHost: {}\r\n", s("method"), s("path"), s("host"));
         for (k, v) in c.get("headers").and_then(Value::as_object).cloned().unwrap_or_default() {

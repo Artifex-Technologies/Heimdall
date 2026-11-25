@@ -220,11 +220,18 @@ pub struct BaselineDriftDetector {
     stats: BTreeMap<&'static str, OnlineStats>,
     flagged: BTreeMap<&'static str, bool>,
     floors: Option<BTreeMap<String, f64>>,
+    /// Each field's last hour (HEI-80): a minute is marked as each value is scored.
+    minutes: Option<crate::anomaly::Shared>,
 }
 
 impl BaselineDriftDetector {
     pub fn new(min_samples: i64, z: f64) -> Self {
-        BaselineDriftDetector { min_samples, z, stats: BTreeMap::new(), flagged: BTreeMap::new(), floors: None }
+        BaselineDriftDetector { min_samples, z, stats: BTreeMap::new(), flagged: BTreeMap::new(), floors: None, minutes: None }
+    }
+    /// Marks each scored value's minute in `minutes`: out of range when `z` standard deviations or more from the mean,
+    /// either way (the alert's floors and direction do not apply).
+    pub fn with_minutes(self, minutes: Option<crate::anomaly::Shared>) -> Self {
+        BaselineDriftDetector { minutes, ..self }
     }
     /// As the daemon runs it: upward outliers only, and only above the floors.
     pub fn with_floors(min_samples: i64, z: f64, floors: BTreeMap<String, f64>) -> Self {
@@ -248,6 +255,9 @@ impl Detector for BaselineDriftDetector {
             if stats.count() >= self.min_samples {
                 let z = stats.z_score(val);
                 let mut over = z >= self.z || z <= -self.z;
+                if let Some(m) = &self.minutes {
+                    m.lock().unwrap_or_else(|p| p.into_inner()).mark(key, e.time.unix(), over);
+                }
                 if let Some(fl) = &self.floors {
                     over = over && z > 0.0 && val >= fl.get(key).copied().unwrap_or(0.0);
                 }

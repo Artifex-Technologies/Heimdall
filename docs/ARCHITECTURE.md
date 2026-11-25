@@ -374,7 +374,10 @@ baseline for the same `host_telemetry` fields (`mem_percent`,
 consumes, no new source needed. A value more than `baseline_z_threshold`
 standard deviations from the learned mean — not a fixed percentage
 anyone had to pick in advance — fires once per crossing (edge-triggered,
-same convention as `resource-pressure`).
+same convention as `resource-pressure`). Each scored minute is also kept
+for an hour, in memory: whether a value was out of the usual range
+(`rust/heimdall/src/anomaly.rs`, `GET /v1/telemetry`, docs/CONTRACTS.md),
+so a graph can show when, not only that, a field strayed.
 
 **This is genuinely simple streaming statistics, described that way on
 purpose — not an overclaimed "ML" feature.** No model, no training step,

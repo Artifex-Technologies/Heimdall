@@ -59,6 +59,7 @@ pub fn run(cfg: &Config, approvals: &str, input: impl BufRead, out: impl Write +
         approved: Some(Box::new(move |id: &str| appr.approved(id))),
         ephemeral: Some((32768, 60999)),
         held: None,
+        minutes: None,
     };
     let mut eng = Engine::new(Box::new(LineSink(std::io::BufWriter::with_capacity(1 << 16, out))), detect::daemon_detectors(cfg, deps));
     eng.set_maintenance(maintenance::Watcher::new(&cfg.maintenance_path), &cfg.maintenance_soften);
