@@ -84,6 +84,26 @@ What this does not cover:
 - The device list (`heimdalld lan scan`) looks around a home wired network as on Wi-Fi; the router watch, the check and the
   inbound alerts stay Wi-Fi only (a wired connection is judged within the connection, "A second router" below).
 
+## A phone on the cable and the same phone's hotspot
+
+A phone shared over USB and the same phone's Wi-Fi hotspot are one connection twice: the second gains nothing, and which one
+carries the traffic is unclear (I thought I was on my phone and a restaurant's Wi-Fi; it was the phone over both). So, for
+every user and without asking, a phone on the cable makes the guard leave that phone's hotspot alone (my decision,
+2026-11-22). It knows the hotspot is the same phone two ways, neither of which asks anyone or the network:
+
+- **by name**: an iPhone names its hotspot after itself, and over the USB pairing (`idevicename` with the USB serial, which
+  is the iPhone's UDID) it tells that name; a saved Wi-Fi profile with that network name is its hotspot;
+- **by the router**: when the Wi-Fi connected now has the same router hardware address as the cable's link, it is the phone
+  itself on both (any phone that joins its hotspot and its cable into one network).
+
+The hotspot's profile then gets autoconnect off in memory only (`nmcli connection modify --temporary`: nothing written to
+disk, a restart forgets it), it is taken down if it was up, and a notice says why (event `same-phone`, "Wi-Fi: NAME"). When
+the cable is out (the guard runs on every connection's up and down), its autoconnect goes back to what it was. Any other Wi-Fi
+network is never touched: a café's Wi-Fi stays connected the whole time. The held profiles are listed in
+`/run/heimdall-wifi-guard/held-hotspots.json`. Only the Rust guard does this (it is newer than the port; the Python reference in
+`packaging/net` does not). A phone that tells neither (an Android phone whose cable and hotspot are separate networks) is not
+recognized.
+
 ## IPv6 privacy and DHCP identifiers
 
 On every untrusted network, Wi-Fi and wired, the guard also sets `ipv6.ip6-privacy 2` (temporary addresses, RFC 8981, for

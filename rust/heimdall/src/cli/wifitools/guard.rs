@@ -636,6 +636,168 @@ impl Guard {
                 .unwrap_or(false)
     }
 
+    // ---- the phone on the cable and the same phone's hotspot (HEI-73; only in the Rust guard: newer than the port)
+    //
+    // My decision, 2026-11-22, for every user: a phone on the cable makes this computer leave that same phone's Wi-Fi hotspot
+    // alone (both go through the same phone: a second link gains nothing, and which one carries the traffic is unclear). The
+    // same phone is known without asking anyone or the network: an iPhone's name over the USB pairing (idevicename with its
+    // USB serial, its UDID) equals its hotspot's network name, as iPhones name their hotspot after themselves; and any phone
+    // whose hotspot and cable are one network has the same router hardware address on both links. The hotspot's profile gets
+    // autoconnect off in memory only (nmcli --temporary: nothing on disk, a restart forgets it) and is taken down if it is up;
+    // when the cable is out, autoconnect goes back to what it was. Any other Wi-Fi network is never touched.
+
+    /// A phone's own USB link: an iPhone's (ipheth) or an Android phone's (RNDIS). Only that phone is on the cable.
+    fn usb_phone(&self, iface: &str) -> bool {
+        !iface.is_empty()
+            && !iface.contains('/')
+            && std::fs::read_link(format!("/sys/class/net/{iface}/device/driver"))
+                .ok()
+                .and_then(|p| p.file_name().map(|n| n == "ipheth" || n == "rndis_host"))
+                .unwrap_or(false)
+    }
+
+    /// The name of the iPhone on `iface`, asked over its USB pairing; None for another phone or when it does not tell (not
+    /// paired with this computer, locked before its first unlock).
+    fn phone_name(&self, iface: &str) -> Option<String> {
+        if !self.phone_link(iface) {
+            return None;
+        }
+        // the USB device (the interface's parent) carries the serial, which is the iPhone's UDID
+        let serial = std::fs::read_to_string(format!("/sys/class/net/{iface}/device/../serial")).ok()?;
+        let serial = serial.trim();
+        if serial.is_empty() || serial.len() > 64 || !serial.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
+            return None;
+        }
+        let p = self.sh_t(&py::argv(&["idevicename", "-u", serial]), 10, false).ok()?;
+        let name = py::strip(&p.stdout).to_string();
+        (p.code == 0 && !name.is_empty() && !name.contains('\n')).then_some(name)
+    }
+
+    /// The phones on a cable now, connected: (interface, the phone's name when it tells). NetworkManager is asked only when
+    /// a phone's link exists at all, so a computer without one does nothing more on each connection.
+    fn cabled_phones(&self) -> PyResult<Vec<(String, Option<String>)>> {
+        let any = std::fs::read_dir("/sys/class/net")
+            .map(|d| d.flatten().any(|e| self.usb_phone(&e.file_name().to_string_lossy())))
+            .unwrap_or(false);
+        if !any {
+            return Ok(Vec::new());
+        }
+        let out = self.out(&["nmcli", "-t", "-f", "DEVICE,TYPE,STATE,CONNECTION", "device"])?;
+        let mut v = Vec::new();
+        for line in py::splitlines(&out) {
+            let f = split_unescaped_colons(line);
+            if f.len() >= 4 && f[1] == "ethernet" && f[2] == "connected" && self.usb_phone(&f[0]) {
+                v.push((f[0].clone(), self.phone_name(&f[0])));
+            }
+        }
+        Ok(v)
+    }
+
+    fn held_path(&self) -> PathBuf {
+        self.run.join("held-hotspots.json")
+    }
+
+    /// Leaves the hotspot `uuid` of the phone on `usb` alone: autoconnect off in memory (once), down if it is up, and told.
+    fn hold(&self, uuid: &str, ssid: &str, usb: &str, phone: &str) -> PyResult<()> {
+        let mut held = self.load(&self.held_path())?;
+        if !held.contains_key(uuid) {
+            let was = py::strip(&self.out(&["nmcli", "-g", "connection.autoconnect", "connection", "show", uuid])?).to_string();
+            self.sh(&["nmcli", "connection", "modify", "--temporary", uuid, "connection.autoconnect", "no"])?;
+            let mut e = Dict::new();
+            e.set("ssid", py::s(ssid));
+            e.set("usb", py::s(usb));
+            e.set("autoconnect", py::s(if was == "no" { "no" } else { "yes" }));
+            held.set(uuid, Val::Dict(e));
+            py::makedirs(&self.run)?;
+            self.save(&self.held_path(), &held, 0o644)?;
+            self.note(
+                "same-phone",
+                ssid,
+                &format!("{phone} is connected by cable, so this computer leaves its Wi-Fi hotspot ({ssid}) alone: both go through the same phone, and one connection is enough. The hotspot can connect again when the cable is out."),
+            )?;
+        }
+        if self.active_wifi()?.is_some_and(|(_, u, _)| u == uuid) {
+            self.sh(&["nmcli", "connection", "down", uuid])?;
+        }
+        Ok(())
+    }
+
+    /// Gives back the hotspots held for a phone whose cable is out: autoconnect as it was.
+    fn release(&self) -> PyResult<()> {
+        let held = self.load(&self.held_path())?;
+        if held.0.is_empty() {
+            return Ok(());
+        }
+        let cabled: Vec<String> = self.cabled_phones()?.into_iter().map(|(i, _)| i).collect();
+        let mut keep = Dict::new();
+        for (uuid, e) in &held.0 {
+            let field = |k: &str| match e {
+                Val::Dict(d) => d.get(k).map(py::str_of).unwrap_or_default(),
+                _ => String::new(),
+            };
+            if cabled.contains(&field("usb")) {
+                keep.set(uuid, e.clone());
+                continue;
+            }
+            let was = if field("autoconnect") == "no" { "no" } else { "yes" };
+            self.sh(&["nmcli", "connection", "modify", "--temporary", uuid, "connection.autoconnect", was])?;
+        }
+        if keep.0.len() != held.0.len() {
+            self.save(&self.held_path(), &keep, 0o644)?;
+        }
+        Ok(())
+    }
+
+    /// A phone's cable came up: its hotspot saved under the phone's name is held, and so is the Wi-Fi connected now when its
+    /// router is the phone itself (the same hardware address on both links).
+    fn phone_cable_up(&self, iface: &str) -> PyResult<()> {
+        let name = self.phone_name(iface);
+        let phone = name.clone().unwrap_or_else(|| "Your phone".into());
+        if let Some(n) = &name {
+            let out = self.out(&["nmcli", "-t", "-f", "UUID,TYPE", "connection", "show"])?;
+            for line in py::splitlines(&out) {
+                let f = split_unescaped_colons(line);
+                if f.len() >= 2 && f[1] == WIFI && self.ssid_of(&f[0])? == *n {
+                    self.hold(&f[0], n, iface, &phone)?;
+                }
+            }
+        }
+        if let Some((wi, wu, ws)) = self.active_wifi()?.filter(|w| !w.1.is_empty()) {
+            let mac = self.router_mac(iface)?;
+            if !mac.is_empty() && mac == self.router_mac(&wi)? {
+                self.hold(&wu, &ws, iface, &phone)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// A Wi-Fi network came up: whether it is the hotspot of a phone on the cable (then it is held and taken down).
+    fn same_phone_wifi(&self, iface: &str, uuid: &str, ssid: &str) -> PyResult<bool> {
+        for (usb, name) in self.cabled_phones()? {
+            let by_name = name.as_deref() == Some(ssid);
+            let same = by_name || {
+                let mac = self.router_mac(&usb)?;
+                !mac.is_empty() && mac == self.router_mac(iface)?
+            };
+            if same {
+                self.hold(uuid, ssid, &usb, name.as_deref().unwrap_or("Your phone"))?;
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    /// HEI-73's part of an event: never what stops the rest of the guard.
+    fn phones(&self, what: &str, f: impl FnOnce() -> PyResult<bool>) -> bool {
+        match f() {
+            Ok(b) => b,
+            Err(e) => {
+                eprintln!("heimdall-wifi-guard: the phone's hotspot ({what}): {}", e.msg);
+                false
+            }
+        }
+    }
+
     fn is_wifi(&self, iface: &str) -> bool {
         Path::new(&format!("/sys/class/net/{iface}/wireless")).is_dir()
     }
@@ -970,13 +1132,20 @@ impl Guard {
     }
 
     fn up(&self, iface: &str, uuid: &str) -> PyResult<()> {
+        self.phones("release", || self.release().map(|_| false));
         if !self.is_wifi(iface) {
             if self.connection_type(uuid)? == WIRED {
                 self.wired_up(iface, uuid)?;
             }
+            if self.usb_phone(iface) {
+                self.phones("cable up", || self.phone_cable_up(iface).map(|_| false));
+            }
             return Ok(());
         }
         let ssid = self.ssid_of(uuid)?;
+        if self.phones("Wi-Fi up", || self.same_phone_wifi(iface, uuid, &ssid)) {
+            return Ok(()); // the hotspot of the phone on the cable: taken down, nothing else to do for it
+        }
         let key = self.profile_key(uuid)?;
         let mac = self.router_mac(iface)?;
         let entry = self.entry(uuid)?;
@@ -1078,6 +1247,7 @@ impl Guard {
     }
 
     fn down(&self, iface: &str, uuid: &str) -> PyResult<()> {
+        self.phones("release", || self.release().map(|_| false));
         let st = self.load(&self.state_path())?;
         let vpn = self.vpn()?;
         let sget = |k: &str| st.get(k).cloned().unwrap_or(Val::None);

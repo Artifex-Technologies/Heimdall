@@ -379,7 +379,9 @@ fn guard_root(r: &Root) {
         r#"case "$*" in
   "-t -f DEVICE,TYPE,STATE,CONNECTION device") cat /srv/devices 2>/dev/null ;;
   "-g GENERAL.CON-UUID device show "*) if [ -e "/srv/con-uuid-$5" ]; then cat "/srv/con-uuid-$5"; else cat /srv/con-uuid 2>/dev/null; fi ;;
-  "-g 802-11-wireless.ssid connection show "*) if [ -e /srv/ssid ]; then cat /srv/ssid; else echo Cafe; fi ;;
+  "-g 802-11-wireless.ssid connection show "*) if [ -e "/srv/ssid-$5" ]; then cat "/srv/ssid-$5"; elif [ -e /srv/ssid ]; then cat /srv/ssid; else echo Cafe; fi ;;
+  "-t -f UUID,TYPE connection show") cat /srv/profiles 2>/dev/null ;;
+  "-g connection.autoconnect connection show "*) cat "/srv/autoconnect-$5" 2>/dev/null ;;
   "-g 802-11-wireless.cloned-mac-address connection show "*) cat /srv/cloned 2>/dev/null ;;
   "-g 802-3-ethernet.cloned-mac-address connection show "*) cat /srv/cloned 2>/dev/null ;;
   "-g connection.type connection show "*) cat /srv/ctype 2>/dev/null ;;
@@ -417,8 +419,8 @@ esac
         r,
         "ip",
         r#"case "$*" in
-  "-j route show default dev "*) cat /srv/routes 2>/dev/null ;;
-  "-j neigh show "*) cat /srv/neigh 2>/dev/null ;;
+  "-j route show default dev "*) if [ -e "/srv/routes-$6" ]; then cat "/srv/routes-$6"; else cat /srv/routes 2>/dev/null; fi ;;
+  "-j neigh show "*) if [ -e "/srv/neigh-$6" ]; then cat "/srv/neigh-$6"; else cat /srv/neigh 2>/dev/null; fi ;;
   "-j link show dev "*) cat /srv/link 2>/dev/null || exit 1 ;;
   *) exit 1 ;;
 esac
@@ -2059,4 +2061,120 @@ fn check_odd_input_as_python() {
     assert!(py("addr-mine").stdout.contains("no other device heard"), "{:?}", py("addr-mine"));
     assert!(py("addr-info-string").stderr.contains("AttributeError"), "{:?}", py("addr-info-string"));
     report("check_odd_input_as_python", before);
+}
+
+const TETHER: &str = "7a1b2c3d-4444-4555-8666-777788889999";
+const HOTSPOT: &str = "1b2c3d4e-5555-4666-8777-888899990000";
+const CAFE: &str = "2c3d4e5f-6666-4777-8888-999900001111";
+
+/// A phone on the cable (usb0, ipheth, its USB serial `udid`): the interface, its driver, the USB device's serial, its
+/// route and router (`mac`) at 172.20.10.1; idevicename answers `name` for that serial (none: not paired).
+fn phone_on_cable(r: &Root, udid: &str, name: Option<&str>, mac: &str) {
+    r.mkdir("/sys/devices/usb1/1-3/1-3:1.2", 0o755);
+    r.mkdir("/sys/bus/usb/drivers/ipheth", 0o755);
+    r.symlink("/sys/bus/usb/drivers/ipheth", "/sys/devices/usb1/1-3/1-3:1.2/driver");
+    r.write("/sys/devices/usb1/1-3/serial", format!("{udid}\n"));
+    r.mkdir("/sys/class/net/usb0", 0o755);
+    r.symlink("/sys/devices/usb1/1-3/1-3:1.2", "/sys/class/net/usb0/device");
+    r.write("/srv/routes-usb0", r#"[{"dst":"default","gateway":"172.20.10.1","dev":"usb0","protocol":"dhcp","metric":100,"flags":[]}]"#);
+    r.write("/srv/neigh-usb0", format!(r#"[{{"dst":"172.20.10.1","dev":"usb0","lladdr":"{mac}","state":["REACHABLE"]}}]"#));
+    let answer = match name {
+        Some(n) => format!("[ \"$2\" = {udid} ] && echo '{n}' && exit 0\nexit 1\n"),
+        None => "echo 'ERROR: Could not connect to lockdownd' >&2\nexit 1\n".to_string(),
+    };
+    recorder(r, "idevicename", &answer);
+}
+
+/// The devices NetworkManager lists: the cable's link and the Wi-Fi with what each is connected to (None: not connected).
+fn devices(r: &Root, cable: bool, wifi: Option<&str>) {
+    let w = match wifi {
+        Some(n) => format!("wlan0:wifi:connected:{n}"),
+        None => "wlan0:wifi:disconnected:--".into(),
+    };
+    let c = if cable { "usb0:ethernet:connected:Tether" } else { "usb0:ethernet:unavailable:--" };
+    r.write("/srv/devices", format!("{w}\n{c}\nlo:loopback:connected (externally):lo\n"));
+}
+
+/// HEI-73 (only in the Rust guard): a phone on the cable makes the guard leave that phone's hotspot alone, by its name over
+/// the USB pairing or by the same router on both links; the cafe's Wi-Fi is never touched; with the cable out, the hotspot
+/// gets its autoconnect back as it was.
+#[test]
+fn guard_leaves_the_hotspot_of_the_phone_on_the_cable_alone() {
+    let o = root_opts();
+    let guard = |r: &Root, args: &[&str]| {
+        let out = r.run_as("/usr/bin/heimdall-wifi-guard", &rust_bin(), args, &o);
+        assert_eq!(out.code, 0, "{args:?}: {out:?}");
+    };
+    let held = |r: &Root| r.read_str("/run/heimdall-wifi-guard/held-hotspots.json");
+    let mk = |tag: &str| {
+        let r = new_root(tag);
+        guard_root(&r);
+        r.write("/srv/ctype", "802-3-ethernet\n");
+        r.write(&format!("/srv/ssid-{HOTSPOT}"), "Rover\n");
+        r.write(&format!("/srv/ssid-{CAFE}"), "Cafe\n");
+        r.write("/srv/profiles", format!("{HOTSPOT}:802-11-wireless\n{CAFE}:802-11-wireless\n{TETHER}:802-3-ethernet\n"));
+        r
+    };
+
+    // at the cafe, then the iPhone on the cable: its hotspot (saved under its name) is held, the cafe's Wi-Fi is not touched
+    let r = mk("guard-phone-name");
+    phone_on_cable(&r, "00008110-0A1B2C3D4E5F", Some("Rover"), "02:00:00:00:00:51");
+    on_wifi(&r, CAFE, STRANGER);
+    devices(&r, true, Some("Cafe"));
+    r.write("/srv/con-uuid-wlan0", format!("{CAFE}\n"));
+    guard(&r, &["up", "usb0", TETHER]);
+    let log = r.read_str("/.fake-argv");
+    assert!(log.contains(&format!("nmcli [connection] [modify] [--temporary] [{HOTSPOT}] [connection.autoconnect] [no]")), "{log}");
+    assert!(!log.contains(&format!("[{CAFE}] [connection.autoconnect]")) && !log.contains(&format!("[down] [{CAFE}]")), "the cafe: {log}");
+    assert!(held(&r).contains(HOTSPOT) && held(&r).contains("\"autoconnect\": \"yes\""), "{}", held(&r));
+    let note = r.read_str("/run/heimdall-wifi-guard/last.json");
+    assert!(note.contains("\"event\": \"same-phone\"") && note.contains("Rover is connected by cable"), "{note}");
+    // the hotspot comes up anyway (by hand): taken down at once, and nothing of the Wi-Fi's own work is done for it
+    r.write("/.fake-argv", "");
+    devices(&r, true, Some("Rover"));
+    r.write("/srv/con-uuid-wlan0", format!("{HOTSPOT}\n"));
+    guard(&r, &["up", "wlan0", HOTSPOT]);
+    let log = r.read_str("/.fake-argv");
+    assert!(log.contains(&format!("nmcli [connection] [down] [{HOTSPOT}]")), "{log}");
+    assert!(!log.contains("nft") && r.read("/run/heimdall-wifi-guard/state.json").is_none(), "{log}");
+    // the cable out: the hotspot's autoconnect back as it was, the held list empty
+    r.write("/.fake-argv", "");
+    devices(&r, false, Some("Cafe"));
+    r.write("/srv/con-uuid-wlan0", format!("{CAFE}\n"));
+    guard(&r, &["down", "usb0", TETHER]);
+    let log = r.read_str("/.fake-argv");
+    assert!(log.contains(&format!("nmcli [connection] [modify] [--temporary] [{HOTSPOT}] [connection.autoconnect] [yes]")), "{log}");
+    assert_eq!(held(&r).trim(), "{}");
+
+    // a phone that does not tell its name, whose hotspot and cable are one network (the same router on both links): the
+    // Wi-Fi connected to it is held and taken down; a hotspot that had autoconnect off gets it back off
+    let r = mk("guard-phone-router");
+    phone_on_cable(&r, "00008110-0A1B2C3D4E5F", None, ROUTER);
+    on_wifi(&r, HOTSPOT, ROUTER);
+    r.write("/srv/ssid-1b2c3d4e-5555-4666-8777-888899990000", "Phone Hotspot\n");
+    r.write(&format!("/srv/autoconnect-{HOTSPOT}"), "no\n");
+    devices(&r, true, Some("Phone Hotspot"));
+    r.write("/srv/con-uuid-wlan0", format!("{HOTSPOT}\n"));
+    guard(&r, &["up", "usb0", TETHER]);
+    let log = r.read_str("/.fake-argv");
+    assert!(
+        log.contains(&format!("[--temporary] [{HOTSPOT}] [connection.autoconnect] [no]")) && log.contains(&format!("[down] [{HOTSPOT}]")),
+        "{log}"
+    );
+    assert!(r.read_str("/run/heimdall-wifi-guard/last.json").contains("Your phone is connected by cable"));
+    devices(&r, false, None);
+    r.write("/.fake-argv", "");
+    guard(&r, &["down", "usb0", TETHER]);
+    assert!(r.read_str("/.fake-argv").contains(&format!("[--temporary] [{HOTSPOT}] [connection.autoconnect] [no]")), "restored as it was");
+
+    // the cafe's Wi-Fi with a phone on the cable (another router, another name): left alone
+    let r = mk("guard-phone-cafe");
+    phone_on_cable(&r, "00008110-0A1B2C3D4E5F", Some("Rover"), "02:00:00:00:00:51");
+    on_wifi(&r, CAFE, STRANGER);
+    devices(&r, true, Some("Cafe"));
+    r.write("/srv/con-uuid-wlan0", format!("{CAFE}\n"));
+    guard(&r, &["up", "wlan0", CAFE]);
+    let log = r.read_str("/.fake-argv");
+    assert!(!log.contains("--temporary") && !log.contains("[down]"), "{log}");
+    assert!(r.read("/run/heimdall-wifi-guard/state.json").is_some(), "the cafe's Wi-Fi gets the guard's usual work");
 }

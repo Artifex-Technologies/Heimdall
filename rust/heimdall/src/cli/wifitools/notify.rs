@@ -118,6 +118,8 @@ fn guard(seen: &mut Dict) -> PyResult<()> {
         ]))?;
     } else if is("vpn-up") || is("no-vpn") || is("router-changed") {
         notify_send(&py::argv(&["-u", "normal", "-i", "network-vpn", "--", &format!("Wi-Fi: {ssid}"), &msg]))?;
+    } else if is("same-phone") {
+        notify_send(&py::argv(&["-u", "normal", "-i", "phone", "--", &format!("Wi-Fi: {ssid}"), &msg]))?;
     } else if is("wired") {
         notify_send(&py::argv(&["-u", "normal", "-i", "network-wired", "--", &format!("Wired: {ssid}"), &msg]))?;
     }
