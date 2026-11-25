@@ -279,6 +279,10 @@ pub struct AgentBaselineState {
     pub tools: BTreeMap<String, i64>,
     pub calls: i64,
     pub reported: BTreeMap<String, bool>,
+    /// HEI-54: every sequence of three calls seen ("a>b>c") with how often, how many were seen, and those reported.
+    pub grams: BTreeMap<String, i64>,
+    pub gram_calls: i64,
+    pub reported_grams: BTreeMap<String, bool>,
 }
 crate::go_struct!(AgentBaselineState {
     window: "window",
@@ -287,6 +291,9 @@ crate::go_struct!(AgentBaselineState {
     tools: "tools",
     calls: "calls",
     reported: "reported_tools",
+    grams: "grams",
+    gram_calls: "gram_calls",
+    reported_grams: "reported_sequences",
 });
 
 impl AgentBaselineState {
@@ -304,6 +311,18 @@ impl AgentBaselineState {
         w.raw("calls", &self.calls.to_string());
         let o = w.key("reported_tools");
         map_json(o, &self.reported, |o, v| o.push_str(if *v { "true" } else { "false" }));
+        // Go's omitempty
+        if !self.grams.is_empty() {
+            let o = w.key("grams");
+            map_json(o, &self.grams, |o, v| o.push_str(&v.to_string()));
+        }
+        if self.gram_calls != 0 {
+            w.raw("gram_calls", &self.gram_calls.to_string());
+        }
+        if !self.reported_grams.is_empty() {
+            let o = w.key("reported_sequences");
+            map_json(o, &self.reported_grams, |o, v| o.push_str(if *v { "true" } else { "false" }));
+        }
         w.end();
         out
     }
@@ -325,6 +344,15 @@ fn map_json<T>(o: &mut String, m: &BTreeMap<String, T>, mut val: impl FnMut(&mut
 /// How many tool calls must have been seen before a new tool name counts as novel.
 const MIN_TOOL_HISTORY: i64 = 200;
 
+/// Go's sequences (HEI-54): the history before a sequence of three calls is judged, the sessions whose last calls are kept
+/// (all dropped past it), and the uses (this one counted) under which a tool's sequences are not reported.
+const MIN_SEQUENCE_HISTORY: i64 = 300;
+const MAX_RECENT_SESSIONS: usize = 256;
+const YOUNG_TOOL: i64 = 3;
+
+/// Go's reachingTools: Sarina's tools that write files or can reach anything or the network.
+const REACHING_TOOLS: &[&str] = &["write_file", "edit_file", "vault_write", "forge_write", "stego_clean", "bash", "web_fetch"];
+
 /// The AI agent's own learned baseline: sessions and tool calls per 15-minute window, and tools it never used before.
 pub struct AgentBaselineDetector {
     pub min_samples: i64,
@@ -335,6 +363,8 @@ pub struct AgentBaselineDetector {
     loaded: bool,
     st: AgentBaselineState,
     flagged: BTreeSet<&'static str>,
+    /// Each session's last tool calls (up to three), for the sequences.
+    recent: BTreeMap<String, Vec<String>>,
 }
 
 impl AgentBaselineDetector {
@@ -347,12 +377,57 @@ impl AgentBaselineDetector {
             loaded: false,
             st: AgentBaselineState::default(),
             flagged: BTreeSet::new(),
+            recent: BTreeMap::new(),
         }
+    }
+
+    /// Go's sequence: the finding for a sequence of three calls not seen before, once history allows judging.
+    fn sequence(&mut self, e: &Event, g: &str, tail: &[String]) -> Option<Finding> {
+        if self.st.gram_calls < MIN_SEQUENCE_HISTORY
+            || self.st.grams.get(g).copied().unwrap_or(0) > 0
+            || self.st.reported_grams.get(g).copied().unwrap_or(false)
+        {
+            return None;
+        }
+        self.st.reported_grams.insert(g.to_owned(), true);
+        let shown = tail.join(", then ");
+        for k in self.st.grams.keys() {
+            let p: Vec<&str> = k.split('>').collect();
+            if p.len() == 3 && p.iter().zip(tail).filter(|(a, b)| **a != b.as_str()).count() == 1 {
+                return Some(Finding::new(
+                    "agent-baseline",
+                    Severity::Info,
+                    format!(
+                        "the AI agent ran a sequence of tools it had not run before, one step from one it has ({}): {shown}",
+                        p.join(", then ")
+                    ),
+                    e,
+                ));
+            }
+        }
+        if let Some(t) = tail.iter().find(|t| REACHING_TOOLS.contains(&t.as_str())) {
+            return Some(Finding::new(
+                "agent-baseline",
+                Severity::Warning,
+                format!(
+                    "the AI agent ran a sequence of tools unlike any of the {} it has run: {shown}; {t} writes files or reaches the network",
+                    self.st.gram_calls
+                ),
+                e,
+            ));
+        }
+        Some(Finding::new(
+            "agent-baseline",
+            Severity::Info,
+            format!("the AI agent ran a sequence of tools unlike any of the {} it has run: {shown}", self.st.gram_calls),
+            e,
+        ))
     }
 
     fn load(&mut self) {
         self.loaded = true;
         self.flagged.clear();
+        self.recent.clear();
         if !self.state_path.is_empty() {
             if let Ok(b) = std::fs::read(&self.state_path) {
                 // Go ignores a damaged file (keeping what it read before the damage); a file that does not read is a fresh start
@@ -438,6 +513,28 @@ impl Detector for AgentBaselineDetector {
                         }
                         *self.st.tools.entry(n.to_owned()).or_default() += 1;
                         self.st.calls += 1;
+                        // HEI-54: this session's last three calls as one sequence
+                        if self.recent.len() > MAX_RECENT_SESSIONS {
+                            self.recent.clear();
+                        }
+                        let mut tail = self.recent.get(&e.session_id).cloned().unwrap_or_default();
+                        tail.push(n.to_owned());
+                        if tail.len() > 3 {
+                            tail.drain(..tail.len() - 3);
+                        }
+                        self.recent.insert(e.session_id.clone(), tail.clone());
+                        if tail.len() == 3 {
+                            let g = tail.join(">");
+                            // a tool new to the agent has its own finding: the sequences of its first uses add none
+                            let young = tail.iter().any(|t| self.st.tools.get(t).copied().unwrap_or(0) <= YOUNG_TOOL);
+                            if let Some(f) = self.sequence(e, &g, &tail) {
+                                if !young {
+                                    out.push(f);
+                                }
+                            }
+                            *self.st.grams.entry(g).or_default() += 1;
+                            self.st.gram_calls += 1;
+                        }
                     }
                 }
             }

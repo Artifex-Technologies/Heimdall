@@ -259,6 +259,34 @@ func statefulScenarios() []Scenario {
 		step(at(ev("agent-session", "message", "", map[string]string{"role": "assistant", "tools": "web_fetch"}), ta), want("agent-baseline")),
 		step(ev("agent-vault", "vault_note", "x", nil), want("agent-baseline")),
 	)
+	// HEI-54: sequences of three tool calls (internal/detect/agentbaseline_test.go, TestAgentSequences), the state kept over
+	// a restart (it is saved when a window ends: the next window's first event saves it)
+	seqs3 := Scenario{Name: "TestAgentSequences", Config: map[string]any{"baseline_min_samples": 20, "baseline_z_threshold": 3, "agent_baseline_state_path": "$TMP/agent-baseline.json"}}
+	when := ta
+	call := func(session, tools string) *EventJSON {
+		e := at(ev("agent-session", "message", "", map[string]string{"role": "assistant", "tools": tools}), when)
+		e.SessionID = session
+		return e
+	}
+	for i := 0; i < 4; i++ {
+		seqs3.Steps = append(seqs3.Steps, step(call(fmt.Sprintf("s0-%d", i), "list_dir,web_fetch,write_file"), want("agent-baseline")))
+	}
+	for i := 0; i < 120; i++ {
+		seqs3.Steps = append(seqs3.Steps, step(call("s1", "read_file,grep_search,read_file"), want("agent-baseline")))
+	}
+	seqs3.Steps = append(seqs3.Steps,
+		step(call("s2", "read_file,grep_search,list_dir"), want("agent-baseline", I).has("one step from one it has")),
+		step(call("s3", "web_fetch,read_file,write_file"), want("agent-baseline", W).has("reaches the network")),
+	)
+	when = ta.Add(20 * time.Minute)
+	seqs3.Steps = append(seqs3.Steps,
+		step(at(ev("agent-session", "message", "", map[string]string{"role": "user"}), when), want("agent-baseline")),
+		Step{Restart: true},
+		step(call("s4", "web_fetch,read_file,write_file"), want("agent-baseline")),
+		step(call("s5", "grep_search,list_dir,grep_search"), want("agent-baseline", I)),
+		step(call("s6", "read_file,todo_write"), want("agent-baseline", I).has("never used before")),
+		step(call("s6", "todo_write,list_dir"), want("agent-baseline")),
+	)
 	// inbound (internal/detect/inbound_test.go)
 	knock := func(kind, src, port string, t time.Time) *EventJSON {
 		return at(ev("host-firewall", kind, "", map[string]string{"src": src, "dst_port": port, "service": "ssh", "user": "root", "origin": "Netherlands, AS64500 Example", "origin_country_code": "NL"}), t)
@@ -355,7 +383,7 @@ func statefulScenarios() []Scenario {
 		step(ev("", "new_connection", "app (pid 7) connected to 1.2.3.4:443", map[string]string{"ra_provider": "ngrok", "ra_kind": "tunnel", "ra_signal": "gomod-dep"}), want("remote-access", W)),
 		step(ev("", "new_connection", "", map[string]string{"process": "firefox"}), want("remote-access")),
 	}}
-	return append([]Scenario{burst, decay, press, drift, mem, ab, novel, in, tv, rem}, seqs...)
+	return append([]Scenario{burst, decay, press, drift, mem, ab, novel, seqs3, in, tv, rem}, seqs...)
 }
 
 func translatorScenarios() []Scenario {

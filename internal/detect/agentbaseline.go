@@ -28,7 +28,8 @@ type AgentBaselineDetector struct {
 	mu      sync.Mutex
 	loaded  bool
 	st      agentBaselineState
-	flagged map[string]bool // signal -> already reported in this window
+	flagged map[string]bool     // signal -> already reported in this window
+	recent  map[string][]string // session -> its last tool calls (up to three), for the sequences
 }
 
 // agentFloors: below these counts per window an outlier is not worth a line (one extra session on a quiet agent).
@@ -37,6 +38,22 @@ var agentFloors = map[string]float64{"sessions": 10, "tool_calls": 60}
 // minToolHistory is how many tool calls must have been seen before a new tool name counts as novel.
 const minToolHistory = 200
 
+// Sequences (HEI-54, R15, TALON's idea taken from single tools to three calls in a row in one session): once
+// minSequenceHistory sequences have been seen, one never seen is a close variant when it differs from a known one in one
+// step (info), else novel: a warning when one of its tools writes files or reaches the network (reachingTools), info
+// otherwise. Each is reported once. maxRecentSessions bounds the sessions whose last calls are kept in memory (all are
+// dropped past it: a sequence then starts again).
+const (
+	minSequenceHistory = 300
+	maxRecentSessions  = 256
+	youngTool          = 3 // uses (this one counted) under which a tool's sequences are not reported
+)
+
+// reachingTools are Sarina's tools that write files (write_file, edit_file, vault_write, forge_write, stego_clean's
+// cleaned copy) or can reach anything (bash) or the network (web_fetch).
+var reachingTools = map[string]bool{"write_file": true, "edit_file": true, "vault_write": true, "forge_write": true,
+	"stego_clean": true, "bash": true, "web_fetch": true}
+
 type agentBaselineState struct {
 	Window   time.Time               `json:"window"` // start of the current window
 	Counts   map[string]float64      `json:"counts"`
@@ -44,6 +61,10 @@ type agentBaselineState struct {
 	Tools    map[string]int          `json:"tools"` // every tool name seen, with how often
 	Calls    int                     `json:"calls"` // tool calls seen in total
 	Reported map[string]bool         `json:"reported_tools"`
+	// HEI-54: every sequence of three calls seen ("a>b>c"), with how often; how many were seen; those reported
+	Grams         map[string]int  `json:"grams,omitempty"`
+	GramCalls     int             `json:"gram_calls,omitempty"`
+	ReportedGrams map[string]bool `json:"reported_sequences,omitempty"`
 }
 
 func NewAgentBaselineDetector(minSamples int, z float64, statePath string) *AgentBaselineDetector {
@@ -72,6 +93,51 @@ func (d *AgentBaselineDetector) load() {
 	if d.st.Reported == nil {
 		d.st.Reported = map[string]bool{}
 	}
+	if d.st.Grams == nil {
+		d.st.Grams = map[string]int{}
+	}
+	if d.st.ReportedGrams == nil {
+		d.st.ReportedGrams = map[string]bool{}
+	}
+	d.recent = map[string][]string{}
+}
+
+// sequence is the finding for a sequence of three calls not seen before, once history allows judging; ok is false otherwise.
+func (d *AgentBaselineDetector) sequence(e Event, g string, tail []string) (Finding, bool) {
+	if d.st.GramCalls < minSequenceHistory || d.st.Grams[g] > 0 || d.st.ReportedGrams[g] {
+		return Finding{}, false
+	}
+	d.st.ReportedGrams[g] = true
+	shown := strings.Join(tail, ", then ")
+	known := make([]string, 0, len(d.st.Grams))
+	for k := range d.st.Grams {
+		known = append(known, k)
+	}
+	sort.Strings(known)
+	for _, k := range known {
+		p := strings.Split(k, ">")
+		if len(p) != 3 {
+			continue
+		}
+		differ := 0
+		for i := range p {
+			if p[i] != tail[i] {
+				differ++
+			}
+		}
+		if differ == 1 {
+			return Finding{DetectorID: d.ID(), Severity: SeverityInfo, Event: e,
+				Summary: fmt.Sprintf("the AI agent ran a sequence of tools it had not run before, one step from one it has (%s): %s", strings.Join(p, ", then "), shown)}, true
+		}
+	}
+	for _, t := range tail {
+		if reachingTools[t] {
+			return Finding{DetectorID: d.ID(), Severity: SeverityWarning, Event: e,
+				Summary: fmt.Sprintf("the AI agent ran a sequence of tools unlike any of the %d it has run: %s; %s writes files or reaches the network", d.st.GramCalls, shown, t)}, true
+		}
+	}
+	return Finding{DetectorID: d.ID(), Severity: SeverityInfo, Event: e,
+		Summary: fmt.Sprintf("the AI agent ran a sequence of tools unlike any of the %d it has run: %s", d.st.GramCalls, shown)}, true
 }
 
 func (d *AgentBaselineDetector) save() {
@@ -147,6 +213,30 @@ func (d *AgentBaselineDetector) Inspect(e Event) []Finding {
 			}
 			d.st.Tools[n]++
 			d.st.Calls++
+			// HEI-54: this session's last three calls as one sequence
+			if len(d.recent) > maxRecentSessions {
+				d.recent = map[string][]string{}
+			}
+			tail := append(append([]string{}, d.recent[e.SessionID]...), n)
+			if len(tail) > 3 {
+				tail = tail[len(tail)-3:]
+			}
+			d.recent[e.SessionID] = tail
+			if len(tail) == 3 {
+				g := strings.Join(tail, ">")
+				// a tool new to the agent has its own finding: the sequences it starts in its first uses do not add one
+				young := false
+				for _, t := range tail {
+					if d.st.Tools[t] <= youngTool {
+						young = true
+					}
+				}
+				if f, ok := d.sequence(e, g, tail); ok && !young {
+					findings = append(findings, f)
+				}
+				d.st.Grams[g]++
+				d.st.GramCalls++
+			}
 		}
 	}
 	for _, sig := range []string{"sessions", "tool_calls"} {

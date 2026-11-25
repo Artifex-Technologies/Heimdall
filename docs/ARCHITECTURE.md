@@ -434,6 +434,16 @@ tool calls made per 15-minute window while active, judged as the window fills,
 plus a tool it has never used before once it has 200 tool calls of history
 (TALON's known-vs-novel idea, applied to tool names). Info severity.
 
+**Built 2026-11-25: sequences (HEI-54, R15).** The same idea taken to three
+tool calls in a row in one session: once 300 sequences have been seen, one
+never seen is a close variant when it differs from a known one in one step
+(info), and novel otherwise: a warning when one of its tools writes files or
+reaches anything (`write_file`, `edit_file`, `vault_write`, `forge_write`,
+`stego_clean`, `bash`, `web_fetch`), info when it only reads. Each is reported
+once (the sequences seen and reported are kept in the state file, `grams`,
+`gram_calls`, `reported_sequences`). A tool still new to the agent (three uses
+or fewer) has its own finding, so its first sequences add none.
+
 **Calibration with this PC's real data (2026-11-05).** Replaying 5067 real
 Sarina sessions (2026-10-15 to 11-05) through the agent baseline: at z = 3,
 five window findings in three weeks, all during eval runs (34-75 sessions in
