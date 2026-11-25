@@ -179,6 +179,7 @@ func Detectors(cfg config.Config, d Deps) []detect.Detector {
 		detect.NewLimboNetworkDetector(),
 		detect.NewLimboExchangeDetector(),
 		detect.NewRemoteAccessDetector(isApproved),
+		detect.NewCrossViewDetector(),
 	}
 }
 

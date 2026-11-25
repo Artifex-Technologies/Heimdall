@@ -58,6 +58,7 @@ pub fn daemon_detectors(cfg: &Config, deps: Deps) -> Vec<Box<dyn Detector>> {
         Box::new(LimboNetworkDetector::default()),
         Box::new(LimboExchangeDetector),
         Box::new(RemoteAccessDetector::new(deps.approved)),
+        Box::new(CrossViewDetector),
     ]
 }
 

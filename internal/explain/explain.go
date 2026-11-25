@@ -123,6 +123,10 @@ func For(detector, kind, severity string, fields map[string]string) Text {
 	case "kernel-vulnerability":
 		t.What = "A kernel installed on this computer has known security holes that a newer kernel fixes" + runningText(fields) + "."
 		t.Do = "Update (Agora > Updates) and restart into the new kernel. A hole in a kernel you are not running matters only when you start it."
+	case "crossview":
+		t.What = "A process or a network socket is hidden: the system answers for it when asked directly, but leaves it out of the lists every program reads (/proc, /proc/net). Rootkits hide what they run this way; nothing ordinary does."
+		t.Done = "Heimdall noted it and changed nothing. A rootkit can also hide from Heimdall, so this may not be all of it."
+		t.Do = "Treat this computer as taken over: disconnect it from the network, do not type passwords on it, and check it from a system you trust (boot from a USB stick and compare the disk with known-good packages). Ask for help before you reinstall."
 	case "hardening":
 		t.What = "A security setting of the system is weaker than it should be" + orEmpty(quoted(fields, "now"), ": ") + "."
 		if cve := clean(fields["cve"], 40); cve != "" {

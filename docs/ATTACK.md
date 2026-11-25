@@ -51,6 +51,7 @@ the daemon stays as light as before on a Raspberry Pi. A sub-technique's name is
 | `remote-access` (`ra_kind=tunnel`) | T1572 Protocol Tunneling | ngrok, Cloudflare Tunnel, frp, chisel, rathole, bore, VS Code tunnel. (VS Code's is also T1219.001 IDE Tunneling; one row per kind keeps the map simple.) |
 | `remote-access` (`ra_kind=anonymizer`) | T1090.003 Proxy: Multi-hop Proxy | Tor, ATT&CK's own example for that technique. |
 | `remote-access` (`remote_access`, `signal=tunnel`) | T1572 Protocol Tunneling | A tunnel interface no catalog tool explains. |
+| `crossview` (`crossview`) | T1014 Rootkit | A process or socket the kernel answers for but `/proc` or `/proc/net` leaves out: hiding them is what a rootkit is for. |
 | `limbo-guest` (`guest.start`, `policy.remove`) | T1686 Disable or Modify System Firewall | A guest started with no firewall policy loaded first, or its policy removed while it runs. (ATT&CK 20 moved this from T1562.004 to T1686.) `image.rejected` and `gate.blocked` have no tag. |
 | `limbo-network` (`net.anomaly`, `reason=scan`) | T1046 Network Service Discovery | A guest refused many destinations in a short time. |
 | `limbo-exchange` (`exchange.held`) | T1570 Lateral Tool Transfer | A file leaving a guest for this computer matched a virus signature: a tool moving from one system to another. `exchange.fail` (the scanner failed) has no tag. |

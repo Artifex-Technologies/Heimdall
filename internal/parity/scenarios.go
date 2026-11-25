@@ -577,7 +577,13 @@ func translatorScenarios() []Scenario {
 		step(foot("service", "/etc/systemd/system/getty@.service.d/override.conf", "/usr/bin/ngrok", "tool", ngrok), want("remote-access", C).has("not approved")),
 		step(foot("autostart", "/etc/xdg/autostart/ts.desktop", "/usr/bin/tailscale", "tool", ts), want("remote-access", I)),
 	}}
-	return append(append([]Scenario{fim}, pkgs...), misc, cd, mesh, lst, ln, lx, wine, wm, kern, holds)
+	// HEI-50: what the cross-view check finds hidden (the Rust daemon's sources/crossview.rs)
+	cv := Scenario{Name: "TestTheCrossViewCheck", Steps: []Step{
+		step(ev("crossview", "crossview", "process 4242 (kworkerd) runs but /proc does not list it", map[string]string{"what": "process", "pid": "4242", "program": "kworkerd"}), want("crossview", C).has("rootkit")),
+		step(ev("crossview", "crossview", "a tcp socket listening on 0.0.0.0:31337 (inode 99) is in the kernel's socket table but not in /proc/net/tcp", map[string]string{"what": "socket", "socket": "tcp 0.0.0.0:31337", "inode": "99"}), want("crossview", C)),
+		step(ev("remote-access", "crossview_other", "x", nil)),
+	}}
+	return append(append([]Scenario{fim}, pkgs...), misc, cd, mesh, lst, ln, lx, wine, wm, kern, cv, holds)
 }
 
 func engineScenarios() []Scenario {

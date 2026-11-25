@@ -154,7 +154,7 @@ func AllFunctions() Functions {
 	ids := []string{"injection-phrase", "credential-shape", "invisible-unicode", "permission-escalation", "session-burst", "file-integrity",
 		"maintenance-window", "resource-pressure", "network-exposure", "connection-watch", "inbound", "package-vulnerability",
 		"kernel-vulnerability", "hardening", "wifi-safety", "lan-watch", "baseline-drift", "limbo-guest", "limbo-network", "limbo-exchange", "integration",
-		"remote-access", "tool-rules", "agent-baseline", "rule-draft", "incident", "grant-request", "something-new"}
+		"remote-access", "crossview", "tool-rules", "agent-baseline", "rule-draft", "incident", "grant-request", "something-new"}
 	for _, id := range ids {
 		for _, sev := range []string{"info", "warning", "critical"} {
 			f.Explain = append(f.Explain, ExplainCase{Detector: id, Severity: sev, Text: explain.For(id, "", sev, nil)})

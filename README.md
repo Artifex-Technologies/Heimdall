@@ -122,6 +122,7 @@ order. `sudo heimdalld kernel-check` lists the holes per kernel.
 | `network-exposure` | An ecosystem port (8765, 8899, 44700, 8930) bound or reached from somewhere other than loopback |
 | `connection-watch` | Each program's first connection to a new destination, and any connection to an address on a threat list (Spamhaus DROP, FireHOL Level 1, Emerging Threats): critical, with the `ufw` command to cut it off |
 | `inbound` | Failed SSH logins from one address, port scans, an address the firewall keeps blocking |
+| `crossview` | A process or socket hidden the way rootkits hide them: a PID the cgroups list and `/proc/PID` answers for but `/proc`'s listing leaves out, or a listening TCP or a UDP socket the kernel's socket table gives (netlink, what `ss` reads) but `/proc/net` leaves out; compared every five minutes, reported when it stays hidden on two looks in a row; critical |
 | `wifi-safety` | The verdict on each Wi-Fi network joined: encryption, evil twins, sign-in pages, ARP and DNS spoofing, untrusted certificates, injected pages; "protected" (info) when other devices can see the computer but verified protections cover it |
 
 - **Where an address belongs.** Every remote address is named with its country and network from an offline IP database

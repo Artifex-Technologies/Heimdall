@@ -459,6 +459,11 @@ pub fn run(cfg: Config, shadow: bool) -> i32 {
             ra.providers.len()
         ));
         srcs.push(Box::new(sources::files::RaSource::new(ra, &cfg.pacman_db, "/sys/class/net")));
+        // what /proc and /proc/net leave out but the kernel answers for (a rootkit's mark), every five minutes
+        srcs.push(Box::new(sources::crossview::CrossView::new(sources::crossview::System {
+            proc_dir: "/proc".into(),
+            cgroup_dir: "/sys/fs/cgroup".into(),
+        })));
     }
     if !tables.is_empty() {
         srcs.push(Box::new(tables));

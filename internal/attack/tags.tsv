@@ -21,6 +21,7 @@ remote-access	*	ra_kind=remote-desktop	T1219.002
 remote-access	*	ra_kind=rmm	T1219
 remote-access	*	ra_kind=tunnel	T1572
 remote-access	*	ra_kind=anonymizer	T1090.003
+crossview	crossview	*	T1014
 remote-access	remote_access	signal=tunnel	T1572
 remote-access	remote_access	signal=socket-shell	T1059.004
 remote-access	remote_access	signal=raw-listener	T1205.002

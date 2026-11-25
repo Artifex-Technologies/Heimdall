@@ -7,7 +7,7 @@ and the gap list are in [ATTACK.md](ATTACK.md).
 
 **A tag says what a Heimdall detector looks for, never that the technique is covered: it does not mean Heimdall would catch every use of it (docs/ATTACK.md).**
 
-ATT&CK Enterprise 20.1: 21 of its 511 Linux and Windows techniques and sub-techniques are named by a detector. The same map as
+ATT&CK Enterprise 20.1: 22 of its 511 Linux and Windows techniques and sub-techniques are named by a detector. The same map as
 an ATT&CK Navigator layer: `heimdalld attack-layer > heimdall-layer.json`, then Navigator's "Open Existing Layer".
 
 ## Initial Access
@@ -48,6 +48,7 @@ an ATT&CK Navigator layer: `heimdalld attack-layer > heimdall-layer.json`, then 
 
 | Technique | Watched by |
 | --- | --- |
+| T1014 Rootkit | `crossview (crossview)` |
 | T1205.002 Traffic Signaling: Socket Filters | `remote-access (remote_access, signal=raw-listener)` |
 | T1574.006 Hijack Execution Flow: Dynamic Linker Hijacking | `remote-access (remote_access, place=preload)` |
 

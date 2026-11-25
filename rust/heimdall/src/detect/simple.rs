@@ -320,6 +320,32 @@ impl Detector for HardeningDetector {
     }
 }
 
+/// Go's CrossViewDetector (HEI-50): something the system answers for when asked directly but leaves out of its own list
+/// (a process missing from /proc's listing, a socket missing from /proc/net), reported by `sources::crossview` once it stayed
+/// hidden over two looks. A rootkit's mark: always critical.
+#[derive(Default)]
+pub struct CrossViewDetector;
+
+impl Detector for CrossViewDetector {
+    fn id(&self) -> &'static str {
+        "crossview"
+    }
+    fn inspect(&mut self, e: &Event) -> Vec<Finding> {
+        if e.kind != "crossview" {
+            return Vec::new();
+        }
+        one(
+            self.id(),
+            Severity::Critical,
+            format!(
+                "{}: the system answers for it when asked directly but leaves it out of its own list, which is how a rootkit hides what it runs",
+                e.text
+            ),
+            e,
+        )
+    }
+}
+
 /// heimdall-wifi-check's verdicts.
 #[derive(Default)]
 pub struct WifiDetector;

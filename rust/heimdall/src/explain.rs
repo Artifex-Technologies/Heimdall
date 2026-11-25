@@ -240,6 +240,11 @@ pub fn for_alert(detector: &str, kind: &str, severity: &str, fields: &Fields) ->
             t.what = format!("Text contained invisible or look-alike characters, a known way to hide instructions from people while an AI still reads them. {AI_AGENT_NOTE}");
             t.r#do = "Treat the text as suspicious; do not copy it into commands.".into();
         }
+        "crossview" => {
+            t.what = "A process or a network socket is hidden: the system answers for it when asked directly, but leaves it out of the lists every program reads (/proc, /proc/net). Rootkits hide what they run this way; nothing ordinary does.".into();
+            t.done = "Heimdall noted it and changed nothing. A rootkit can also hide from Heimdall, so this may not be all of it.".into();
+            t.r#do = "Treat this computer as taken over: disconnect it from the network, do not type passwords on it, and check it from a system you trust (boot from a USB stick and compare the disk with known-good packages). Ask for help before you reinstall.".into();
+        }
         "agent-watermark" => {
             t.what = format!("An AI agent wrote a file{}, with marks a reader does not see: invisible characters, letters from another alphabet that look like ours, or spaces and tabs that spell something. They can carry instructions for another AI, mark a file so it can be traced, or make a name look like another. {AI_AGENT_NOTE}", or_empty(q("path"), ", "));
             t.done = "Heimdall noted it; the file was not changed.".into();

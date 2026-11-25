@@ -1095,6 +1095,39 @@
    }
   },
   {
+   "detector": "crossview",
+   "severity": "info",
+   "fields": null,
+   "text": {
+    "what": "A process or a network socket is hidden: the system answers for it when asked directly, but leaves it out of the lists every program reads (/proc, /proc/net). Rootkits hide what they run this way; nothing ordinary does.",
+    "serious": "For your information; nothing needs doing.",
+    "done": "Heimdall noted it and changed nothing. A rootkit can also hide from Heimdall, so this may not be all of it.",
+    "do": "Treat this computer as taken over: disconnect it from the network, do not type passwords on it, and check it from a system you trust (boot from a USB stick and compare the disk with known-good packages). Ask for help before you reinstall."
+   }
+  },
+  {
+   "detector": "crossview",
+   "severity": "warning",
+   "fields": null,
+   "text": {
+    "what": "A process or a network socket is hidden: the system answers for it when asked directly, but leaves it out of the lists every program reads (/proc, /proc/net). Rootkits hide what they run this way; nothing ordinary does.",
+    "serious": "Worth a look soon; nothing is broken yet.",
+    "done": "Heimdall noted it and changed nothing. A rootkit can also hide from Heimdall, so this may not be all of it.",
+    "do": "Treat this computer as taken over: disconnect it from the network, do not type passwords on it, and check it from a system you trust (boot from a USB stick and compare the disk with known-good packages). Ask for help before you reinstall."
+   }
+  },
+  {
+   "detector": "crossview",
+   "severity": "critical",
+   "fields": null,
+   "text": {
+    "what": "A process or a network socket is hidden: the system answers for it when asked directly, but leaves it out of the lists every program reads (/proc, /proc/net). Rootkits hide what they run this way; nothing ordinary does.",
+    "serious": "Serious: look at it now.",
+    "done": "Heimdall noted it and changed nothing. A rootkit can also hide from Heimdall, so this may not be all of it.",
+    "do": "Treat this computer as taken over: disconnect it from the network, do not type passwords on it, and check it from a system you trust (boot from a USB stick and compare the disk with known-good packages). Ask for help before you reinstall."
+   }
+  },
+  {
    "detector": "tool-rules",
    "severity": "info",
    "fields": null,
@@ -2011,7 +2044,8 @@
   "limbo-guest",
   "limbo-network",
   "limbo-exchange",
-  "remote-access"
+  "remote-access",
+  "crossview"
  ],
  "origins": [
   {
@@ -5255,6 +5289,27 @@
     "names": null
    },
    {
+    "detector": "crossview",
+    "kind": "crossview",
+    "fields": null,
+    "ids": [
+     "T1014"
+    ],
+    "names": [
+     {
+      "id": "T1014",
+      "name": "Rootkit"
+     }
+    ]
+   },
+   {
+    "detector": "crossview",
+    "kind": "crossview_not",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
     "detector": "remote-access",
     "kind": "remote_access",
     "fields": {
@@ -5842,6 +5897,13 @@
    },
    {
     "detector": "remote-access",
+    "kind": "",
+    "fields": null,
+    "ids": null,
+    "names": null
+   },
+   {
+    "detector": "crossview",
     "kind": "",
     "fields": null,
     "ids": null,
