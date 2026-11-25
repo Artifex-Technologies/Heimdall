@@ -26,6 +26,7 @@ A way in does not need a program with an open port. `rasource` also looks, every
 | A kernel module that makes the kernel itself serve the network is loaded: ksmbd (SMB), nfsd (NFS), an NVMe over Fabrics or iSCSI target, USB/IP (`usbip_host`), RDS | one read of `/proc/modules`, matched against the catalog's `modules` (kind `kernel`); one loaded before Heimdall started counts too | **critical** unless approved (`heimdalld remote approve ksmbd`), then info |
 | A program holds a raw packet socket: it sees every packet and can wait for a secret one with no open port, as BPFDoor does | `/proc/net/packet`; the owner is looked up (a walk of `/proc/*/fd`) only for a socket not seen before | **warning**, except the usual holders: DHCP clients and servers, Wi-Fi supplicants, packet captures (`tcpdump`, `dumpcap`, ...), `nmap`, `arp-scan`, `lldpd` |
 | A shell (`sh`, `bash`, `dash`, `zsh`, ...) whose input is a TCP or UDP socket: a reverse shell | each process's name, then the shell's `fd/0`, looked up in `/proc/net/{tcp,udp}{,6}` | **critical**, never approvable |
+| A shell on a terminal (`/dev/pts/N`) whose other side a program feeds from a connection to another computer: a reverse shell given a real terminal (Python's `pty.spawn`, `socat ... pty`) (HEI-79) | for a shell on a terminal not seen before: one walk of `/proc/*/fd` for the terminal's master (`/dev/ptmx`, `tty-index: N` in its `fdinfo`), then the holder's sockets in `/proc/net/{tcp,udp}{,6}`, counting only those connected to an address that is not loopback | **critical** (the same `socket-shell` alert, with `terminal`, `holder` and `holder_pid`), except remote logins (`sshd`, `sshd-session`, `dropbear`, `mosh-server`) and holders whose connections stay on this computer or only listen |
 
 Other users' processes (a root service's packet socket, a shell started by a web server) are seen only with the connection
 watcher's rights (`CAP_SYS_PTRACE` and `CAP_DAC_READ_SEARCH`, `packaging/arch/heimdall-connwatch.conf.example`); without
@@ -106,5 +107,9 @@ sudo heimdalld remote approve tailscale
 - Of the kernel's side, eBPF programs attached to an interface (XDP, tc) are not seen: listing them needs `CAP_BPF` or root,
   which Heimdall's daemon does not have. A raw packet socket with a filter (the classic BPF that BPFDoor uses) is seen.
 - A reverse shell that is not a shell (a Python or Perl one-liner reading a socket) is not recognised as one.
+- A terminal app that keeps its own connection to the internet open (an update check, a built-in SSH client, a cloud
+  feature) gives the terminal alert for a shell opened while that connection is up: Heimdall cannot tell its connection
+  from one that feeds the terminal. A shell whose terminal is reached through a tunnel to this computer's own loopback
+  address (`ssh -R`) is passed over, as an editor's local language server is.
 - Tailscale's own state (SSH, Funnel and Serve, its version against advisories, new peers) is not read.
 - Heimdall reports a remote-access tool; it does not stop its service, cut its connections or quarantine its binary.

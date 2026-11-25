@@ -103,9 +103,11 @@ func TestALimboSandboxCableIsNotATunnel(t *testing.T) {
 }
 
 // fakeProc writes a /proc for TestTheKernelsSide: two catalog modules and an ordinary one; raw packet sockets held by
-// NetworkManager (usual), by a program calling itself kworkerd (not), and by no process Heimdall can see; and three shells,
-// one reading a TCP connection, one a Unix socket (not in the TCP and UDP tables), one a terminal. The Rust port reads the
-// same tree (rust/heimdall/src/sources/files.rs, the_kernels_side).
+// NetworkManager (usual), by a program calling itself kworkerd (not), and by no process Heimdall can see; three shells,
+// one reading a TCP connection, one a Unix socket (not in the TCP and UDP tables), one a terminal no one here holds; and
+// (HEI-79) four shells on terminals whose master is held by python3 with a connection to another computer (a reverse
+// shell), by sshd-session with one (a login), by a program whose connection stays on this computer, and by one that only
+// listens. The Rust port reads the same tree (rust/heimdall/src/sources/files.rs, the_kernels_side).
 func fakeProc(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
@@ -134,7 +136,11 @@ func fakeProc(t *testing.T) string {
 		"0000000000000000 3      2    0003   3     1 0      0      300\n"+
 		"0000000000000000 3      3    0003   0     1 0      0      0\n")
 	write("net/tcp", "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n"+
-		"   0: 0A00000A:9C40 0500000A:115C 01 00000000:00000000 00:00000000 00000000  1000        0 500 1\n")
+		"   0: 0A00000A:9C40 0500000A:115C 01 00000000:00000000 00:00000000 00000000  1000        0 500 1\n"+
+		"   1: 0A00000A:9C41 0600000A:115D 01 00000000:00000000 00:00000000 00000000  1000        0 700 1\n"+
+		"   2: 0A00000A:0016 0700000A:D431 01 00000000:00000000 00:00000000 00000000     0        0 800 1\n"+
+		"   3: 0100007F:1388 0100007F:A028 01 00000000:00000000 00:00000000 00000000  1000        0 900 1\n"+
+		"   4: 00000000:22B8 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 1000 1\n")
 	write("10/comm", "NetworkManager\n")
 	link("10/fd/5", "socket:[100]")
 	write("20/comm", "kworkerd\n")
@@ -146,12 +152,25 @@ func fakeProc(t *testing.T) string {
 	link("31/fd/0", "socket:[600]")
 	write("32/comm", "bash\n")
 	link("32/fd/0", "/dev/pts/1")
+	pty := func(holder, name, n, sock, shell string) {
+		write(holder+"/comm", name+"\n")
+		link(holder+"/fd/3", "/dev/ptmx")
+		write(holder+"/fdinfo/3", "pos:\t0\nflags:\t02100002\nmnt_id:\t40\nino:\t125\ntty-index:\t"+n+"\n")
+		link(holder+"/fd/4", "socket:["+sock+"]")
+		write(shell+"/comm", "bash\n")
+		link(shell+"/fd/0", "/dev/pts/"+n)
+	}
+	pty("40", "python3", "2", "700", "41")
+	pty("50", "sshd-session", "3", "800", "51")
+	pty("60", "node", "4", "900", "61")
+	pty("70", "ttyd", "5", "1000", "71")
 	return root
 }
 
-// TestTheKernelsSide (HEI-12): the catalog's kernel modules, a raw packet listener outside the usual programs and a shell
-// reading a TCP connection are each one remote_access event, once; the usual raw listener, one whose owner cannot be seen,
-// the ordinary module and the shells on a Unix socket or a terminal are none.
+// TestTheKernelsSide (HEI-12, HEI-79): the catalog's kernel modules, a raw packet listener outside the usual programs, a
+// shell reading a TCP connection and one whose terminal python3 feeds from one are each one remote_access event, once; the
+// usual raw listener, one whose owner cannot be seen, the ordinary module, the shells on a Unix socket or an unheld
+// terminal, a login's terminal and terminals held by programs talking only to this computer or only listening are none.
 func TestTheKernelsSide(t *testing.T) {
 	w := New(remoteaccess.Builtin())
 	w.PacmanDir, w.NetDir, w.ProcDir = filepath.Join(t.TempDir(), "none"), filepath.Join(t.TempDir(), "none"), fakeProc(t)
@@ -165,6 +184,7 @@ func TestTheKernelsSide(t *testing.T) {
 		"module nvmet  nvmet_tcp | the kernel module nvmet_tcp (the kernel's NVMe over Fabrics target) was loaded",
 		"raw-listener kworkerd 20  | kworkerd (pid 20) reads raw network packets",
 		"socket-shell bash 30 tcp 10.0.0.10:40000 -> 10.0.0.5:4444 | the shell bash (pid 30) takes its input from a network connection (tcp 10.0.0.10:40000 -> 10.0.0.5:4444)",
+		"socket-shell bash 41 tcp 10.0.0.10:40001 -> 10.0.0.6:4445 | the shell bash (pid 41) takes its input from a network connection through the terminal /dev/pts/2, held by python3 (pid 40) (tcp 10.0.0.10:40001 -> 10.0.0.6:4445)",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Fatalf("got\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))

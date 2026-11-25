@@ -63,6 +63,10 @@ var shells = map[string]bool{
 	"csh": true, "busybox": true, "pwsh": true,
 }
 
+// remoteLogin are the programs that hold a terminal for someone logged in over the network by design (HEI-79): a login
+// through them is the remote-access watch's tool posture, not a reverse shell.
+var remoteLogin = map[string]bool{"sshd": true, "sshd-session": true, "dropbear": true, "mosh-server": true}
+
 // PackageName is the name in a pacman database entry ("tailscale-1.104.2-1" -> "tailscale").
 func PackageName(entry string) string {
 	parts := strings.Split(entry, "-")
@@ -277,7 +281,8 @@ func (w *Watcher) rawListeners() []detect.Event {
 }
 
 // socketShells reports a shell whose input (fd 0) is a TCP or UDP socket: a reverse shell. A Unix socket (a service's
-// journal stream, a terminal multiplexer) is not the network and is passed over.
+// journal stream, a terminal multiplexer) is not the network and is passed over. A shell on a terminal (/dev/pts/N) is
+// looked at once, by ptyShells.
 func (w *Watcher) socketShells() []detect.Event {
 	dirs, err := os.ReadDir(w.ProcDir)
 	if err != nil {
@@ -286,6 +291,7 @@ func (w *Watcher) socketShells() []detect.Event {
 	now := map[string]bool{}
 	var inet map[string]string
 	var out []detect.Event
+	var onPty [][3]string // pid, name, terminal number of shells on a terminal not seen before
 	for _, d := range dirs {
 		pid := d.Name()
 		if _, err := strconv.Atoi(pid); err != nil {
@@ -296,7 +302,20 @@ func (w *Watcher) socketShells() []detect.Event {
 			continue
 		}
 		link, err := os.Readlink(filepath.Join(w.ProcDir, pid, "fd", "0"))
-		if err != nil || !strings.HasPrefix(link, "socket:[") {
+		if err != nil {
+			continue
+		}
+		if n, ok := strings.CutPrefix(link, "/dev/pts/"); ok {
+			if _, err := strconv.Atoi(n); err == nil {
+				key := pid + "|" + link
+				now[key] = true
+				if !w.shellSeen[key] {
+					onPty = append(onPty, [3]string{pid, comm, n})
+				}
+			}
+			continue
+		}
+		if !strings.HasPrefix(link, "socket:[") {
 			continue
 		}
 		ino := strings.TrimSuffix(strings.TrimPrefix(link, "socket:["), "]")
@@ -317,11 +336,121 @@ func (w *Watcher) socketShells() []detect.Event {
 				"connection": conn}))
 	}
 	w.shellSeen = now
+	return append(out, w.ptyShells(onPty)...)
+}
+
+// ptyShells (HEI-79) reports a shell whose terminal is fed from the network: its input is /dev/pts/N, and a program
+// holding that terminal's other side (the master: /dev/ptmx with tty-index N in its fdinfo) has a TCP or UDP connection
+// to another computer. That is how Python's pty.spawn and socat's pty option give a reverse shell a real terminal, which
+// the fd 0 check above cannot see. A remote login (remoteLogin) holds its terminal the same way and is passed over, and so
+// is a holder whose connections stay on this computer or only listen (an editor's language server, a local notebook).
+func (w *Watcher) ptyShells(onPty [][3]string) []detect.Event {
+	if len(onPty) == 0 {
+		return nil
+	}
+	want := map[string]bool{}
+	for _, s := range onPty {
+		want[s[2]] = true
+	}
+	holders := w.ptyHolders(want)
+	var conns map[string]string
+	var out []detect.Event
+	for _, s := range onPty {
+		pid, comm, n := s[0], s[1], s[2]
+		for _, h := range holders[n] {
+			name := w.procName(h)
+			if name == "" || remoteLogin[name] {
+				continue
+			}
+			if conns == nil {
+				conns = w.inetConns(true)
+			}
+			conn := w.firstConn(h, conns)
+			if conn == "" {
+				continue
+			}
+			out = append(out, event(fmt.Sprintf("the shell %s (pid %s) takes its input from a network connection through the terminal /dev/pts/%s, held by %s (pid %s) (%s)",
+				comm, pid, n, name, h, conn),
+				map[string]string{"provider": comm, "ra_kind": "kernel", "signal": "socket-shell", "program": comm, "pid": pid,
+					"connection": conn, "terminal": "/dev/pts/" + n, "holder": name, "holder_pid": h}))
+			break
+		}
+	}
 	return out
+}
+
+// ptyHolders finds the processes holding the master of each wanted terminal number, in /proc's order (one walk of
+// /proc/*/fd for all the shells new at this look).
+func (w *Watcher) ptyHolders(want map[string]bool) map[string][]string {
+	out := map[string][]string{}
+	dirs, err := os.ReadDir(w.ProcDir)
+	if err != nil {
+		return out
+	}
+	for _, d := range dirs {
+		pid := d.Name()
+		if _, err := strconv.Atoi(pid); err != nil {
+			continue
+		}
+		fds, err := os.ReadDir(filepath.Join(w.ProcDir, pid, "fd"))
+		if err != nil {
+			continue
+		}
+		held := map[string]bool{}
+		for _, fd := range fds {
+			link, err := os.Readlink(filepath.Join(w.ProcDir, pid, "fd", fd.Name()))
+			if err != nil || (link != "/dev/ptmx" && link != "/dev/pts/ptmx") {
+				continue
+			}
+			n := ttyIndex(filepath.Join(w.ProcDir, pid, "fdinfo", fd.Name()))
+			if want[n] && !held[n] {
+				held[n] = true
+				out[n] = append(out[n], pid)
+			}
+		}
+	}
+	return out
+}
+
+// ttyIndex is the terminal number in a pty master's fdinfo ("tty-index:\t3"), "" when there is none.
+func ttyIndex(path string) string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		if v, ok := strings.CutPrefix(line, "tty-index:"); ok {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
+}
+
+// firstConn is the first of a process's sockets (in fd order) found in conns, "" when none is.
+func (w *Watcher) firstConn(pid string, conns map[string]string) string {
+	fds, err := os.ReadDir(filepath.Join(w.ProcDir, pid, "fd"))
+	if err != nil {
+		return ""
+	}
+	for _, fd := range fds {
+		link, err := os.Readlink(filepath.Join(w.ProcDir, pid, "fd", fd.Name()))
+		if err != nil || !strings.HasPrefix(link, "socket:[") {
+			continue
+		}
+		if c, ok := conns[strings.TrimSuffix(strings.TrimPrefix(link, "socket:["), "]")]; ok {
+			return c
+		}
+	}
+	return ""
 }
 
 // inetSockets are the TCP and UDP sockets by inode, each as "tcp LOCAL -> REMOTE".
 func (w *Watcher) inetSockets() map[string]string {
+	return w.inetConns(false)
+}
+
+// inetConns is inetSockets, with outside only those connected to another computer (not listening, not loopback).
+func (w *Watcher) inetConns(outside bool) map[string]string {
 	out := map[string]string{}
 	for _, name := range []string{"tcp", "tcp6", "udp", "udp6"} {
 		f, err := os.Open(filepath.Join(w.ProcDir, "net", name))
@@ -331,6 +460,9 @@ func (w *Watcher) inetSockets() map[string]string {
 		entries, _ := netsource.ParseProcNetTCP(f)
 		f.Close()
 		for _, e := range entries {
+			if outside && (e.RemoteIP.IsUnspecified() || e.RemoteIP.IsLoopback()) {
+				continue
+			}
 			out[strconv.FormatUint(e.Inode, 10)] = fmt.Sprintf("%s %s -> %s", strings.TrimSuffix(name, "6"),
 				net.JoinHostPort(e.LocalIP.String(), strconv.Itoa(e.LocalPort)), net.JoinHostPort(e.RemoteIP.String(), strconv.Itoa(e.RemotePort)))
 		}

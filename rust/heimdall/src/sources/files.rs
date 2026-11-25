@@ -536,6 +536,9 @@ const RAW_ALLOWED: &[&str] = &[
 /// Go's shells: the command interpreters a reverse shell runs.
 const SHELLS: &[&str] = &["sh", "bash", "dash", "zsh", "ksh", "mksh", "ash", "fish", "tcsh", "csh", "busybox", "pwsh"];
 
+/// Go's remoteLogin (HEI-79): the programs that hold a terminal for someone logged in over the network by design.
+const REMOTE_LOGIN: &[&str] = &["sshd", "sshd-session", "dropbear", "mosh-server"];
+
 fn ra_event(text: String, f: Fields) -> Event {
     Event { source: "remote-access".into(), session_id: String::new(), time: Time::now(), kind: "remote_access".into(), text, fields: f }
 }
@@ -667,6 +670,11 @@ impl RaSource {
 
     /// Go's inetSockets: the TCP and UDP sockets by inode, each as "tcp LOCAL -> REMOTE".
     fn inet_sockets(&self) -> BTreeMap<String, String> {
+        self.inet_conns(false)
+    }
+
+    /// Go's inetConns: inet_sockets, with `outside` only those connected to another computer (not listening, not loopback).
+    fn inet_conns(&self, outside: bool) -> BTreeMap<String, String> {
         let hostport = |ip: &std::net::IpAddr, port: u16| {
             let t = super::net::ip_text(ip);
             if t.contains(':') {
@@ -679,6 +687,9 @@ impl RaSource {
         for name in ["tcp", "tcp6", "udp", "udp6"] {
             let Ok(text) = std::fs::read_to_string(format!("{}/net/{name}", self.proc_dir)) else { continue };
             for s in super::net::parse_proc_net(&text) {
+                if outside && (crate::gonet::is_unspecified(&s.remote) || crate::gonet::is_loopback(&s.remote)) {
+                    continue;
+                }
                 out.insert(
                     s.inode.to_string(),
                     format!(
@@ -693,19 +704,32 @@ impl RaSource {
         out
     }
 
-    /// Go's socketShells: a shell whose input (fd 0) is a TCP or UDP socket; a Unix socket is not the network.
+    /// Go's socketShells: a shell whose input (fd 0) is a TCP or UDP socket; a Unix socket is not the network. A shell on a
+    /// terminal (/dev/pts/N) is looked at once, by pty_shells.
     fn socket_shells(&mut self) -> Vec<Event> {
         let mut now = BTreeSet::new();
         let mut inet: Option<BTreeMap<String, String>> = None;
         let mut out = Vec::new();
+        let mut on_pty: Vec<(String, String, String)> = Vec::new(); // pid, name, terminal number of new shells on a terminal
         for pid in self.pids() {
             let comm = self.proc_name(&pid);
             if !SHELLS.contains(&comm.as_str()) {
                 continue;
             }
-            let Some(ino) = std::fs::read_link(format!("{}/{pid}/fd/0", self.proc_dir)).ok().and_then(|l| Self::socket_inode(&l)) else {
+            let Ok(link) = std::fs::read_link(format!("{}/{pid}/fd/0", self.proc_dir)) else { continue };
+            if let Some(n) = link.to_str().and_then(|l| l.strip_prefix("/dev/pts/")) {
+                // Go's strconv.Atoi: an optional sign, then digits
+                let digits = n.strip_prefix(['+', '-']).unwrap_or(n);
+                if !digits.is_empty() && digits.bytes().all(|c| c.is_ascii_digit()) {
+                    let key = format!("{pid}|/dev/pts/{n}");
+                    if !self.shell_seen.contains(&key) {
+                        on_pty.push((pid.clone(), comm.clone(), n.to_string()));
+                    }
+                    now.insert(key);
+                }
                 continue;
-            };
+            }
+            let Some(ino) = Self::socket_inode(&link) else { continue };
             let key = format!("{pid}|{ino}");
             now.insert(key.clone());
             if self.shell_seen.contains(&key) {
@@ -726,7 +750,89 @@ impl RaSource {
             ));
         }
         self.shell_seen = now;
+        out.extend(self.pty_shells(&on_pty));
         out
+    }
+
+    /// Go's ptyShells (HEI-79): a shell whose terminal is fed from the network. Its input is /dev/pts/N and a program
+    /// holding the terminal's master (/dev/ptmx with tty-index N in its fdinfo) has a TCP or UDP connection to another
+    /// computer: Python's pty.spawn and socat's pty option. A remote login (REMOTE_LOGIN) and a holder whose connections stay
+    /// on this computer or only listen are passed over.
+    fn pty_shells(&self, on_pty: &[(String, String, String)]) -> Vec<Event> {
+        if on_pty.is_empty() {
+            return Vec::new();
+        }
+        let want: BTreeSet<String> = on_pty.iter().map(|s| s.2.clone()).collect();
+        let holders = self.pty_holders(&want);
+        let mut conns: Option<BTreeMap<String, String>> = None;
+        let mut out = Vec::new();
+        for (pid, comm, n) in on_pty {
+            for h in holders.get(n).map(Vec::as_slice).unwrap_or_default() {
+                let name = self.proc_name(h);
+                if name.is_empty() || REMOTE_LOGIN.contains(&name.as_str()) {
+                    continue;
+                }
+                let conns = conns.get_or_insert_with(|| self.inet_conns(true));
+                let Some(conn) = self.first_conn(h, conns) else { continue };
+                out.push(ra_event(
+                    format!("the shell {comm} (pid {pid}) takes its input from a network connection through the terminal /dev/pts/{n}, held by {name} (pid {h}) ({conn})"),
+                    Fields::from([
+                        ("provider".to_string(), comm.clone()),
+                        ("ra_kind".to_string(), "kernel".to_string()),
+                        ("signal".to_string(), "socket-shell".to_string()),
+                        ("program".to_string(), comm.clone()),
+                        ("pid".to_string(), pid.clone()),
+                        ("connection".to_string(), conn),
+                        ("terminal".to_string(), format!("/dev/pts/{n}")),
+                        ("holder".to_string(), name.clone()),
+                        ("holder_pid".to_string(), h.clone()),
+                    ]),
+                ));
+                break;
+            }
+        }
+        out
+    }
+
+    /// Go's ptyHolders: the processes holding the master of each wanted terminal number, in /proc's order.
+    fn pty_holders(&self, want: &BTreeSet<String>) -> BTreeMap<String, Vec<String>> {
+        let mut out: BTreeMap<String, Vec<String>> = BTreeMap::new();
+        for pid in self.pids() {
+            let mut held = BTreeSet::new();
+            for fd in self.fds(&pid) {
+                let Ok(link) = std::fs::read_link(format!("{}/{pid}/fd/{fd}", self.proc_dir)) else { continue };
+                if link.as_os_str() != "/dev/ptmx" && link.as_os_str() != "/dev/pts/ptmx" {
+                    continue;
+                }
+                let n = Self::tty_index(&format!("{}/{pid}/fdinfo/{fd}", self.proc_dir));
+                if want.contains(&n) && held.insert(n.clone()) {
+                    out.entry(n).or_default().push(pid.clone());
+                }
+            }
+        }
+        out
+    }
+
+    /// A process's open file numbers, in Go's os.ReadDir order (by name).
+    fn fds(&self, pid: &str) -> Vec<String> {
+        let Ok(rd) = std::fs::read_dir(format!("{}/{pid}/fd", self.proc_dir)) else { return Vec::new() };
+        let mut fds: Vec<String> = rd.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+        fds.sort();
+        fds
+    }
+
+    /// Go's ttyIndex: the terminal number in a pty master's fdinfo ("tty-index:\t3"), "" when there is none.
+    fn tty_index(path: &str) -> String {
+        let Ok(text) = std::fs::read_to_string(path) else { return String::new() };
+        text.split('\n').find_map(|l| l.strip_prefix("tty-index:")).map(|v| v.trim().to_string()).unwrap_or_default()
+    }
+
+    /// Go's firstConn: the first of a process's sockets (in fd order) found in conns.
+    fn first_conn(&self, pid: &str, conns: &BTreeMap<String, String>) -> Option<String> {
+        self.fds(pid).into_iter().find_map(|fd| {
+            let ino = std::fs::read_link(format!("{}/{pid}/fd/{fd}", self.proc_dir)).ok().and_then(|l| Self::socket_inode(&l))?;
+            conns.get(&ino).cloned()
+        })
     }
 
     fn sorted_names(dir: &str) -> Vec<String> {
@@ -895,8 +1001,10 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
-    /// HEI-12, Go's TestTheKernelsSide on the same tree (internal/sources/rasource, fakeProc): the catalog's kernel modules, a
-    /// raw packet listener outside the usual programs and a shell reading a TCP connection are each one event, once.
+    /// HEI-12 and HEI-79, Go's TestTheKernelsSide on the same tree (internal/sources/rasource, fakeProc): the catalog's kernel
+    /// modules, a raw packet listener outside the usual programs, a shell reading a TCP connection and one whose terminal
+    /// python3 feeds from one are each one event, once; a login's terminal and terminals held by programs talking only to
+    /// this computer or only listening are none.
     #[test]
     fn the_kernels_side() {
         let root = std::env::temp_dir().join(format!("heimdall-kernside-{}", std::process::id()));
@@ -922,7 +1030,12 @@ mod tests {
         );
         write(
             "net/tcp",
-            "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n   0: 0A00000A:9C40 0500000A:115C 01 00000000:00000000 00:00000000 00000000  1000        0 500 1\n",
+            "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n\
+             \x20  0: 0A00000A:9C40 0500000A:115C 01 00000000:00000000 00:00000000 00000000  1000        0 500 1\n\
+             \x20  1: 0A00000A:9C41 0600000A:115D 01 00000000:00000000 00:00000000 00000000  1000        0 700 1\n\
+             \x20  2: 0A00000A:0016 0700000A:D431 01 00000000:00000000 00:00000000 00000000     0        0 800 1\n\
+             \x20  3: 0100007F:1388 0100007F:A028 01 00000000:00000000 00:00000000 00000000  1000        0 900 1\n\
+             \x20  4: 00000000:22B8 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 1000 1\n",
         );
         write("10/comm", "NetworkManager\n");
         link("10/fd/5", "socket:[100]");
@@ -935,6 +1048,19 @@ mod tests {
         link("31/fd/0", "socket:[600]");
         write("32/comm", "bash\n");
         link("32/fd/0", "/dev/pts/1");
+        for (holder, name, n, sock, shell) in [
+            ("40", "python3", "2", "700", "41"),
+            ("50", "sshd-session", "3", "800", "51"),
+            ("60", "node", "4", "900", "61"),
+            ("70", "ttyd", "5", "1000", "71"),
+        ] {
+            write(&format!("{holder}/comm"), &format!("{name}\n"));
+            link(&format!("{holder}/fd/3"), "/dev/ptmx");
+            write(&format!("{holder}/fdinfo/3"), &format!("pos:\t0\nflags:\t02100002\nmnt_id:\t40\nino:\t125\ntty-index:\t{n}\n"));
+            link(&format!("{holder}/fd/4"), &format!("socket:[{sock}]"));
+            write(&format!("{shell}/comm"), "bash\n");
+            link(&format!("{shell}/fd/0"), &format!("/dev/pts/{n}"));
+        }
         let none = root.join("none").to_string_lossy().into_owned();
         let mut w = RaSource::new(Catalog::builtin(), &none, &none);
         w.proc_dir = root.to_string_lossy().into_owned();
@@ -951,6 +1077,7 @@ mod tests {
                 "module nvmet  nvmet_tcp | the kernel module nvmet_tcp (the kernel's NVMe over Fabrics target) was loaded",
                 "raw-listener kworkerd 20  | kworkerd (pid 20) reads raw network packets",
                 "socket-shell bash 30 tcp 10.0.0.10:40000 -> 10.0.0.5:4444 | the shell bash (pid 30) takes its input from a network connection (tcp 10.0.0.10:40000 -> 10.0.0.5:4444)",
+                "socket-shell bash 41 tcp 10.0.0.10:40001 -> 10.0.0.6:4445 | the shell bash (pid 41) takes its input from a network connection through the terminal /dev/pts/2, held by python3 (pid 40) (tcp 10.0.0.10:40001 -> 10.0.0.6:4445)",
             ]
         );
         assert!(w.poll().is_empty(), "each once");
