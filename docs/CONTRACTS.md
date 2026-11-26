@@ -223,7 +223,7 @@ Sarina's `docs/ECOSYSTEM.md` port registry.
   network counts as trusted this time and which `protections` are on (`discoverable` among them).
   [WIFI_TRUST.md](WIFI_TRUST.md).
 - **Who:** Yggdrasil Settings (`packages/settings/src/wifitrust.rs`), the device list (reads the levels).
-- **Where:** `rust/heimdall/src/cli/wifitools/guard.rs`; the Python programs in `packaging/net/` (the fallback).
+- **Where:** `rust/heimdall/src/cli/wifitools/guard.rs`; the Python programs in `packaging/net/` (the reference the port is tested against; not installed).
 
 ## Several connections at once: `heimdall-multilink`
 

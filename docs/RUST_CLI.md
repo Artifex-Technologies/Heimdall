@@ -4,8 +4,9 @@ The daemon (`heimdalld run`) is ported (`docs/RUST_PORT.md`). This is the rest o
 can go at the switch (planned in my private plans: docs/plans/PLAN_RUST_SWITCH.md): every subcommand of `cmd/heimdalld`, and the helpers the package ships that are
 Go, Python or shell today.
 
-Until a command is ported, the Rust `heimdalld` hands it to the Go one kept beside it (`/usr/lib/heimdall/heimdalld-go`) with
-the same arguments; a ported one is answered by Rust (`rust/heimdall/src/cli/`).
+Every command is answered by Rust (`rust/heimdall/src/cli/`). During the port a command not yet ported was handed to the Go
+heimdalld kept beside it (`/usr/lib/heimdall/heimdalld-go`) with the same arguments; the package installs no Go heimdalld
+since 2026-11-26, nor the Wi-Fi helpers' Python programs.
 
 ## Method
 

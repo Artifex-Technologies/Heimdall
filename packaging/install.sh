@@ -1,8 +1,8 @@
 #!/bin/sh
 # packaging/install.sh DESTDIR [private-mic|multilink|yara-check]: install into DESTDIR the files of one of Heimdall's four
 # packages.
-#   (no second argument)  heimdall-git: Heimdall (an already built rust/target/release/heimdalld-rs and ./heimdalld-go) and
-#                         everything that comes with it.
+#   (no second argument)  heimdall-git: Heimdall (an already built rust/target/release/heimdalld-rs) and everything that
+#                         comes with it.
 #   private-mic           heimdall-private-mic-git: the private microphone and heimdall-scrub (docs/LOCATION_SOUNDS.md), and
 #                         the privacy pack (docs/PRIVACY_PACK.md), built in rust/ (cargo build --release --locked
 #                         -p heimdall-scrub -p heimdall-scrub-ladspa -p heimdall-privacy).
@@ -22,10 +22,8 @@ p=packaging
 i() { install -D -m "$1" "$2" "$d/$3"; }
 l() { mkdir -p "$d/$(dirname "$2")"; ln -sfn "$1" "$d/$2"; }
 
-# The Wi-Fi helpers: links to the Rust heimdalld (it answers to their names; docs/RUST_CLI.md, "Wi-Fi helpers"); their Python
-# programs stay in /usr/lib/heimdall/python as the fallback for the first week (docs/RUST_SWITCH.md, rollback of one helper).
-helper() { # helper NAME SOURCE
-  i 755 "$2" "usr/lib/heimdall/python/$1"
+# The Wi-Fi helpers: links to the Rust heimdalld (it answers to their names; docs/RUST_CLI.md, "Wi-Fi helpers").
+helper() { # helper NAME
   l heimdalld "usr/bin/$1"
 }
 
@@ -74,10 +72,8 @@ if [ "$part" = yara-check ]; then
 fi
 [ "$part" = heimdall ] || { echo "packaging/install.sh: unknown part $part" >&2; exit 2; }
 
-# the daemon and every command: the Rust heimdalld (the switch, docs/RUST_PORT.md); the Go one only as the rollback for the
-# first week (nothing calls it; the Rust one hands it a command it does not know while the file is there)
+# the daemon and every command: the Rust heimdalld (the switch, docs/RUST_PORT.md)
 i 755 rust/target/release/heimdalld-rs           usr/bin/heimdalld
-i 755 heimdalld-go                               usr/lib/heimdall/heimdalld-go
 # The programs that were shell scripts (heimdall-intel-update, heimdall-dns-blocklist, heimdall-enable-defaults, the
 # dispatcher 91-heimdall-netid) are the Rust heimdalld under their names: links to it (docs/RUST_CLI.md, "Shell programs").
 # Only the Rust heimdalld answers to them (stage 1 of the switch, docs/RUST_SWITCH.md): started as heimdall-dns-blocklist
@@ -123,7 +119,7 @@ i 644 $p/arch/heimdall-intel-update.service      usr/lib/systemd/system/heimdall
 i 644 $p/arch/heimdall-intel-update.timer        usr/lib/systemd/system/heimdall-intel-update.timer
 
 # the Wi-Fi safety check, run by NetworkManager on every Wi-Fi connection
-helper heimdall-wifi-check $p/arch/heimdall-wifi-check
+helper heimdall-wifi-check
 i 644 $p/arch/heimdall-wifi-check@.service       usr/lib/systemd/system/heimdall-wifi-check@.service
 i 755 $p/net/dispatcher.d/90-heimdall-wifi       usr/lib/NetworkManager/dispatcher.d/90-heimdall-wifi
 # (NetworkManager follows a link to a root-owned program and starts it under the link's name)
@@ -137,7 +133,7 @@ i 644 docs/DEVICES.md                            usr/share/doc/heimdall/DEVICES.
 i 644 docs/WIFI_HEALTH.md                        usr/share/doc/heimdall/WIFI_HEALTH.md
 
 # trusted networks, the VPN with its kill switch, and a quiet computer on untrusted networks
-helper heimdall-wifi-guard $p/net/heimdall-wifi-guard
+helper heimdall-wifi-guard
 i 755 $p/net/dispatcher.d/50-heimdall-wifi-guard usr/lib/NetworkManager/dispatcher.d/50-heimdall-wifi-guard
 i 755 $p/net/dispatcher.d/pre-up.d/50-heimdall-wifi-guard usr/lib/NetworkManager/dispatcher.d/pre-up.d/50-heimdall-wifi-guard
 i 644 $p/net/heimdall-wifi-privacy.conf          usr/lib/NetworkManager/conf.d/heimdall-wifi-privacy.conf
@@ -157,7 +153,7 @@ i 644 $p/net/units/heimdall-dns-blocklist.service usr/lib/systemd/system/heimdal
 i 644 $p/net/units/heimdall-dns-blocklist.timer  usr/lib/systemd/system/heimdall-dns-blocklist.timer
 
 # the desktop notification of Wi-Fi verdicts and guard events
-helper heimdall-wifi-notify $p/net/heimdall-wifi-notify
+helper heimdall-wifi-notify
 i 644 $p/net/user-units/heimdall-wifi-notify.path    usr/lib/systemd/user/heimdall-wifi-notify.path
 i 644 $p/net/user-units/heimdall-wifi-notify.service usr/lib/systemd/user/heimdall-wifi-notify.service
 

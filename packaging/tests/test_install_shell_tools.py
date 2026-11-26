@@ -22,7 +22,7 @@ if [ "$n" = heimdall-dns-blocklist ] && [ $# -eq 0 ]; then
 fi
 echo "rust $n $*"
 """
-# the Go heimdalld: its usage on standard error whatever its name
+# a heimdalld that is not the Rust one (the Go heimdalld of before the switch): its usage on standard error whatever its name
 GO = """#!/bin/sh
 echo "heimdalld -- Heimdall agent-behavior monitor" >&2
 exit 2
@@ -35,13 +35,12 @@ def install(heimdalld):
         shutil.copytree(os.path.join(REPO, d), os.path.join(src, d), ignore=shutil.ignore_patterns("__pycache__"))
     for f in ("LICENSE", "README.md", "NOTICE-ATTACK"):
         shutil.copy(os.path.join(REPO, f), src)
-    # stage 1's layout: the Rust build becomes /usr/bin/heimdalld, the Go build /usr/lib/heimdall/heimdalld-go
+    # the Rust build becomes /usr/bin/heimdalld
     rs = os.path.join(src, "rust", "target", "release", "heimdalld-rs")
     os.makedirs(os.path.dirname(rs))
-    for path, text in ((rs, heimdalld), (os.path.join(src, "heimdalld-go"), GO)):
-        with open(path, "w") as f:
-            f.write(text)
-        os.chmod(path, 0o755)
+    with open(rs, "w") as f:
+        f.write(heimdalld)
+    os.chmod(rs, 0o755)
     dest = tempfile.mkdtemp()
     r = subprocess.run(["sh", os.path.join(src, "packaging", "install.sh"), dest], cwd=src, capture_output=True, text=True)
     return dest, r

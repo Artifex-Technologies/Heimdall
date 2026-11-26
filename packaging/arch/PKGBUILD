@@ -7,12 +7,13 @@ arch=('x86_64')
 url="https://github.com/Artifex-Technologies/Heimdall"
 license=('MPL2')
 # (no curl or gzip: the downloads are the Rust heimdalld's own, docs/RUST_CLI.md, "Shell programs")
-depends=('glibc' 'python' 'iproute2' 'iw' 'networkmanager' 'dnsmasq' 'nftables')
+depends=('glibc' 'iproute2' 'iw' 'networkmanager' 'dnsmasq' 'nftables')
 optdepends=('heimdall-yara-check-git: YARA-X'"'"'s exact compile check and slow-pattern warnings for YARA rule drafts')
-# rust: /usr/bin/heimdalld is the Rust daemon since the switch (docs/RUST_PORT.md); go: the Go one, kept for a week at
-# /usr/lib/heimdall/heimdalld-go as the rollback (stage 2 drops it); the Wi-Fi helpers and the former shell programs are links
-# to it, the Wi-Fi helpers' Python programs kept as their fallback (docs/RUST_CLI.md)
-makedepends=('go' 'git' 'rust')
+# /usr/bin/heimdalld is the Rust daemon (docs/RUST_PORT.md); the Wi-Fi helpers and the former shell programs are links to
+# it (docs/RUST_CLI.md)
+makedepends=('git' 'rust')
+# the packaging test: what install.sh puts in the package
+checkdepends=('python')
 provides=('heimdall')
 conflicts=('heimdall')
 backup=('etc/heimdall/dns-allow.txt' 'etc/NetworkManager/dnsmasq.d/heimdall-blocklist.conf')
@@ -78,15 +79,13 @@ prepare() {
 
 build() {
 	cd "$srcdir/Heimdall"
-	export CGO_ENABLED=0
-	go build -trimpath -ldflags "-s -w" -o heimdalld-go ./cmd/heimdalld
 	# offline first, so a build with the crates already fetched never reaches the network
 	(cd rust && { cargo build --release --locked --offline || cargo build --release --locked; })
 }
 
 check() {
 	cd "$srcdir/Heimdall"
-	go test ./...
+	python3 -m unittest discover -s packaging/tests -p test_install_layout.py
 }
 
 package() {
