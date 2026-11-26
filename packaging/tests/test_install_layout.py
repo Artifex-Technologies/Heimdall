@@ -1,8 +1,7 @@
-"""packaging/install.sh into a temporary folder (nothing on this computer is touched), the switched layout
-(docs/RUST_SWITCH.md, stage 1): /usr/bin/heimdalld is the Rust binary, the Go one sits at /usr/lib/heimdall/heimdalld-go as
-the rollback, and the Wi-Fi helpers are links to heimdalld, started under their own names, with their Python programs kept
-as the fallback. Without a Rust build the package is not made at all."""
-import filecmp
+"""packaging/install.sh into a temporary folder (nothing on this computer is touched), the layout after the switch
+(docs/RUST_SWITCH.md, stage 2): /usr/bin/heimdalld is the Rust binary and the only one, no Go heimdalld and no Python Wi-Fi
+helpers are installed, and the Wi-Fi helpers are links to heimdalld, started under their own names. Without a Rust build
+the package is not made at all."""
 import os
 import shutil
 import subprocess
@@ -10,7 +9,7 @@ import tempfile
 import unittest
 
 REPO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
-HELPERS = {"heimdall-wifi-check": "arch", "heimdall-wifi-guard": "net", "heimdall-wifi-notify": "net"}
+HELPERS = ("heimdall-wifi-check", "heimdall-wifi-guard", "heimdall-wifi-notify")
 # what the fake Rust binary prints for the shell programs' build check in install.sh
 USAGE = "heimdall-dns-blocklist: block known bad domains"
 
@@ -21,8 +20,6 @@ def install(with_rust):
         shutil.copytree(os.path.join(REPO, d), os.path.join(src, d), ignore=shutil.ignore_patterns("__pycache__"))
     for f in ("LICENSE", "README.md", "NOTICE-ATTACK"):
         shutil.copy(os.path.join(REPO, f), src)
-    with open(os.path.join(src, "heimdalld-go"), "w") as f:
-        f.write("#!/bin/sh\necho go\n")
     if with_rust:
         rs = os.path.join(src, "rust", "target", "release", "heimdalld-rs")
         os.makedirs(os.path.dirname(rs))
@@ -37,30 +34,32 @@ def install(with_rust):
 
 
 class Layout(unittest.TestCase):
-    def test_heimdalld_is_rust_and_go_is_the_rollback(self):
+    def test_heimdalld_is_rust_and_nothing_else_is_installed_for_it(self):
         d, r = install(True)
         self.assertEqual(r.returncode, 0, r.stderr)
         out = subprocess.run([os.path.join(d, "usr/bin/heimdalld")], capture_output=True, text=True).stdout
         self.assertEqual(out, "rust heimdalld\n")
-        go = os.path.join(d, "usr/lib/heimdall/heimdalld-go")
-        self.assertTrue(os.access(go, os.X_OK))
-        self.assertEqual(subprocess.run([go], capture_output=True, text=True).stdout, "go\n")
-        # one Rust binary, not a second copy for the helpers
-        self.assertFalse(os.path.exists(os.path.join(d, "usr/lib/heimdall/heimdalld-rs")))
+        # no Go heimdalld, no Python Wi-Fi helpers (stage 2), and one Rust binary, not a second copy for the helpers
+        for gone in ("usr/lib/heimdall/heimdalld-go", "usr/lib/heimdall/python", "usr/lib/heimdall/heimdalld-rs"):
+            self.assertFalse(os.path.lexists(os.path.join(d, gone)), gone)
+        # nothing installed is a Python program
+        for root, _, files in os.walk(d):
+            for f in files:
+                p = os.path.join(root, f)
+                if os.path.isfile(p) and not os.path.islink(p):
+                    with open(p, "rb") as fh:
+                        self.assertNotIn(b"python", fh.readline(), p)
 
-    def test_the_helpers_are_links_to_heimdalld_and_python_stays(self):
+    def test_the_helpers_are_links_to_heimdalld(self):
         d, r = install(True)
         self.assertEqual(r.returncode, 0, r.stderr)
-        for name, folder in HELPERS.items():
+        for name in HELPERS:
             link = os.path.join(d, "usr/bin", name)
             self.assertTrue(os.path.islink(link), name)
             self.assertEqual(os.readlink(link), "heimdalld")
             # started through the link, the program sees the helper's name (what picks the helper)
             out = subprocess.run([link], capture_output=True, text=True).stdout
             self.assertEqual(out, "rust %s\n" % name)
-            fallback = os.path.join(d, "usr/lib/heimdall/python", name)
-            self.assertTrue(filecmp.cmp(fallback, os.path.join(REPO, "packaging", folder, name), shallow=False))
-            self.assertTrue(os.access(fallback, os.X_OK))
 
     def test_without_the_rust_build_no_package(self):
         _, r = install(False)

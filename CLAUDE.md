@@ -114,8 +114,9 @@ packaging/net/, privacy/  NetworkManager dispatcher scripts, units, PipeWire/Wir
   `cmd/heimdalld/main.go`'s `newDetectors`), a table-driven test, the fixtures rewritten. A new source produces events and
   changes no existing detector. Every alert gets fixed `explain` text per detector and severity (`explain.rs`).
 - `internal/attack/tags.tsv` maps detectors to ATT&CK techniques; the reasons and the gap list live in docs/ATTACK.md.
-- `/usr/lib/heimdall/heimdalld-go` (the Go rollback of stage 1) is installed until the package stops building Go; the Rust
-  binary hands an unknown command to it only while it exists.
+- The package installs no Go and no Python since stage 2 of the switch (2026-11-26): the Rust `heimdalld` and links to it.
+  The Rust binary still hands a command it does not know to `/usr/lib/heimdall/heimdalld-go` when such a file exists
+  (`main.rs`); no package installs one.
 - Tests never touch this computer's real network, Wi-Fi or audio: fake roots, `unshare -rn` namespaces, synthetic audio.
 - The Wi-Fi helpers' Python programs (`packaging/net/`) are the reference `tests/cli_wifitools.rs` runs the ports against;
   the old shell programs are the reference of `tests/cli_shtools.rs`.
